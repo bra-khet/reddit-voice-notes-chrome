@@ -1,4 +1,5 @@
 import { EXTENSION_LOG_PREFIX } from '@/src/utils';
+import { deepQuerySelector } from '@/src/utils/shadow-dom';
 import { requestMicrophonePermission } from '@/src/utils/permissions';
 import { showToast } from '@/src/ui/toast';
 import {
@@ -41,7 +42,7 @@ function injectIntoTarget(target: ComposerInjectionTarget): void {
   const { composer, videoButton } = target;
   if (!videoButton) return;
 
-  if (composer.querySelector(`[${VOICE_NOTE_BUTTON_ATTR}]`)) return;
+  if (deepQuerySelector(composer, `[${VOICE_NOTE_BUTTON_ATTR}]`)) return;
 
   const button = createVoiceNoteButton({
     onClick: () => {
@@ -54,7 +55,11 @@ function injectIntoTarget(target: ComposerInjectionTarget): void {
   markComposerInjected(composer);
   injectedButtons.set(composer, { composer, button });
 
-  console.log(`${EXTENSION_LOG_PREFIX} Injected voice note button`, { composer });
+  console.log(`${EXTENSION_LOG_PREFIX} Injected voice note button`, {
+    composerTag: composer.tagName,
+    anchorTag: videoButton.tagName,
+    anchorLabel: videoButton.getAttribute('aria-label'),
+  });
 }
 
 function removeFromComposer(composer: Element): void {

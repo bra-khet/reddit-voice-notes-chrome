@@ -109,6 +109,7 @@ npm run zip
 | Permission | Purpose |
 |------------|---------|
 | `storage` | Persist minimal settings |
+| `dom` | Pierce Reddit's closed Shadow DOM to find the video toolbar |
 | `host_permissions` for `reddit.com` | Content script injection |
 | Microphone (runtime) | Requested when user starts recording (Phase 1+) |
 

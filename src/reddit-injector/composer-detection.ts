@@ -1,8 +1,13 @@
+import { EXTENSION_LOG_PREFIX } from '@/src/utils';
+import { deepQueryAll, deepQuerySelector, walkDeepElements } from '@/src/utils/shadow-dom';
 import {
   COMPOSER_ROOT_SELECTORS,
   TOOLBAR_SELECTORS,
-  VIDEO_BUTTON_ARIA_PATTERNS,
-  VIDEO_BUTTON_TEST_IDS,
+  VIDEO_BUTTON_ARIA_HINTS,
+  VIDEO_BUTTON_TEST_ID_HINTS,
+  VIDEO_BUTTON_TAG_HINTS,
+  VIDEO_ICON_NAME_HINTS,
+  MEDIA_TOOLBAR_BUTTON_SELECTORS,
   INJECTED_COMPOSER_ATTR,
   VOICE_NOTE_BUTTON_ATTR,
 } from './selectors';
@@ -13,39 +18,116 @@ export interface ComposerInjectionTarget {
   videoButton: HTMLElement | null;
 }
 
+export interface ScanDiagnostics {
+  composerCandidates: number;
+  visibleComposers: number;
+  withVideoButton: number;
+  withMediaFallback: number;
+  alreadyInjected: number;
+}
+
+const BUTTON_SELECTOR =
+  'button, [role="button"], faceplate-button, shreddit-button, rpl-button, faceplate-tracker';
+
 function isVisible(element: Element): boolean {
   if (!(element instanceof HTMLElement)) return false;
   const style = getComputedStyle(element);
-  return style.display !== 'none' && style.visibility !== 'hidden' && element.offsetParent !== null;
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
 }
 
-function matchesAriaLabel(button: Element): boolean {
-  const label = button.getAttribute('aria-label') ?? button.getAttribute('title') ?? '';
-  return VIDEO_BUTTON_ARIA_PATTERNS.some((pattern) => pattern.test(label.trim()));
+function normalize(text: string): string {
+  return text.trim().toLowerCase();
 }
 
-function matchesTestId(button: Element): boolean {
-  const testId = button.getAttribute('data-testid');
-  return testId != null && VIDEO_BUTTON_TEST_IDS.includes(testId as (typeof VIDEO_BUTTON_TEST_IDS)[number]);
+function elementTextHints(element: Element): string {
+  const parts = [
+    element.getAttribute('aria-label'),
+    element.getAttribute('title'),
+    element.getAttribute('data-testid'),
+    element.getAttribute('icon-name'),
+    element.getAttribute('name'),
+    element.tagName,
+  ];
+  return normalize(parts.filter(Boolean).join(' '));
+}
+
+function hasVideoIconDescendant(element: Element): boolean {
+  let matched = false;
+  walkDeepElements(element, (node) => {
+    if (matched) return;
+    const iconName = normalize(
+      [
+        node.getAttribute('icon-name'),
+        node.getAttribute('name'),
+        node.getAttribute('data-icon'),
+        node.getAttribute('aria-label'),
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+    if (VIDEO_ICON_NAME_HINTS.some((hint) => iconName.includes(hint))) {
+      matched = true;
+    }
+  });
+  return matched;
+}
+
+function scoreVideoButton(candidate: Element): number {
+  const hints = elementTextHints(candidate);
+  let score = 0;
+
+  if (VIDEO_BUTTON_ARIA_HINTS.some((hint) => hints.includes(hint))) score += 10;
+  if (VIDEO_BUTTON_TEST_ID_HINTS.some((hint) => hints.includes(hint))) score += 8;
+  if (VIDEO_BUTTON_TAG_HINTS.some((hint) => hints.includes(hint))) score += 6;
+  if (hasVideoIconDescendant(candidate)) score += 5;
+
+  return score;
+}
+
+function isButtonLike(element: Element): boolean {
+  return (
+    element.matches(BUTTON_SELECTOR) ||
+    element.getAttribute('role') === 'button' ||
+    element.tagName.toLowerCase().includes('button')
+  );
 }
 
 /**
  * UPDATE WHEN REDDIT UI CHANGES
- * Locate Reddit's video upload button within a composer subtree.
+ * Locate Reddit's video upload button within a composer subtree (includes Shadow DOM).
  */
 export function findVideoButton(root: Element): HTMLElement | null {
-  const candidates = root.querySelectorAll<HTMLElement>(
-    'button, [role="button"], faceplate-button, shreddit-button',
-  );
+  const candidates: Array<{ el: HTMLElement; score: number }> = [];
 
-  for (const candidate of candidates) {
-    if (!isVisible(candidate)) continue;
-    if (matchesAriaLabel(candidate) || matchesTestId(candidate)) {
-      return candidate;
+  walkDeepElements(root, (element) => {
+    if (!isButtonLike(element) || !isVisible(element)) return;
+    const score = scoreVideoButton(element);
+    if (score > 0) {
+      candidates.push({ el: element as HTMLElement, score });
+    }
+  });
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0]?.el ?? null;
+}
+
+/**
+ * Fallback when video button label differs: anchor after last image/gif/media toolbar button.
+ */
+function findMediaToolbarAnchor(root: Element): HTMLElement | null {
+  const anchors: HTMLElement[] = [];
+
+  for (const selector of MEDIA_TOOLBAR_BUTTON_SELECTORS) {
+    for (const match of deepQueryAll(root, selector)) {
+      if (isButtonLike(match) && isVisible(match)) {
+        anchors.push(match as HTMLElement);
+      }
     }
   }
 
-  return null;
+  return anchors.at(-1) ?? null;
 }
 
 function findComposerRoot(element: Element): Element | null {
@@ -58,53 +140,69 @@ function findComposerRoot(element: Element): Element | null {
 
 function findToolbar(composer: Element): Element | null {
   for (const selector of TOOLBAR_SELECTORS) {
-    const toolbar = composer.querySelector(selector);
+    const toolbar = deepQuerySelector(composer, selector);
     if (toolbar && isVisible(toolbar)) return toolbar;
   }
   return null;
 }
 
+function composerHasTextbox(composer: Element): boolean {
+  return (
+    deepQuerySelector(composer, '[role="textbox"]') != null ||
+    deepQuerySelector(composer, '[contenteditable="true"]') != null ||
+    deepQuerySelector(composer, 'textarea') != null
+  );
+}
+
+function isComposerReady(composer: Element): boolean {
+  if (!isVisible(composer) && !composerHasTextbox(composer)) return false;
+  return composerHasTextbox(composer) || findVideoButton(composer) != null || findMediaToolbarAnchor(composer) != null;
+}
+
 /**
  * UPDATE WHEN REDDIT UI CHANGES
- * Resolve a composer + anchor point for voice-note button injection.
- * Returns null when video comments appear disabled (no video button found).
  */
 export function findInjectionTarget(element: Element): ComposerInjectionTarget | null {
   const composer = findComposerRoot(element);
-  if (!composer || !isVisible(composer)) return null;
+  if (!composer || !isComposerReady(composer)) return null;
 
-  if (composer.querySelector(`[${VOICE_NOTE_BUTTON_ATTR}]`)) return null;
+  if (deepQuerySelector(composer, `[${VOICE_NOTE_BUTTON_ATTR}]`)) return null;
 
   const videoButton = findVideoButton(composer);
-  if (!videoButton) return null;
+  const mediaAnchor = findMediaToolbarAnchor(composer);
+  const anchorElement = videoButton ?? mediaAnchor;
+
+  // Spec: only inject when video comments UI is available (video or sibling media toolbar).
+  if (!anchorElement) return null;
 
   const toolbar = findToolbar(composer);
-  const anchor = videoButton.parentElement ?? (toolbar as HTMLElement | null) ?? (composer as HTMLElement);
+  const anchor = anchorElement.parentElement ?? (toolbar as HTMLElement | null) ?? (composer as HTMLElement);
 
-  return { composer, anchor, videoButton };
+  return { composer, anchor, videoButton: anchorElement };
 }
 
 export function findAllInjectionTargets(root: ParentNode = document): ComposerInjectionTarget[] {
   const targets: ComposerInjectionTarget[] = [];
   const seenComposers = new Set<Element>();
 
-  const scanRoots: Element[] = [];
+  const scanRoots = new Set<Element>();
   for (const selector of COMPOSER_ROOT_SELECTORS) {
-    root.querySelectorAll(selector).forEach((el) => scanRoots.push(el));
+    deepQueryAll(root, selector).forEach((el) => scanRoots.add(el));
   }
 
-  if (scanRoots.length === 0) {
-    document.querySelectorAll('[contenteditable="true"][role="textbox"]').forEach((el) => {
-      scanRoots.push(el);
-    });
+  if (scanRoots.size === 0) {
+    deepQueryAll(root, '[contenteditable="true"][role="textbox"]').forEach((el) => scanRoots.add(el));
+    deepQueryAll(root, 'div[role="textbox"]').forEach((el) => scanRoots.add(el));
   }
 
   for (const scanRoot of scanRoots) {
     const composer = findComposerRoot(scanRoot) ?? scanRoot;
     if (seenComposers.has(composer)) continue;
 
-    // Reddit SPA re-renders may remove our button while keeping the composer node.
-    if (composer.hasAttribute(INJECTED_COMPOSER_ATTR) && composer.querySelector(`[${VOICE_NOTE_BUTTON_ATTR}]`)) {
+    if (
+      composer.hasAttribute(INJECTED_COMPOSER_ATTR) &&
+      deepQuerySelector(composer, `[${VOICE_NOTE_BUTTON_ATTR}]`)
+    ) {
       continue;
     }
 
@@ -116,6 +214,45 @@ export function findAllInjectionTargets(root: ParentNode = document): ComposerIn
   }
 
   return targets;
+}
+
+export function collectScanDiagnostics(root: ParentNode = document): ScanDiagnostics {
+  const diagnostics: ScanDiagnostics = {
+    composerCandidates: 0,
+    visibleComposers: 0,
+    withVideoButton: 0,
+    withMediaFallback: 0,
+    alreadyInjected: 0,
+  };
+
+  const composers = new Set<Element>();
+  for (const selector of COMPOSER_ROOT_SELECTORS) {
+    deepQueryAll(root, selector).forEach((el) => composers.add(el));
+  }
+  diagnostics.composerCandidates = composers.size;
+
+  for (const composer of composers) {
+    if (!isComposerReady(composer)) continue;
+    diagnostics.visibleComposers += 1;
+
+    if (deepQuerySelector(composer, `[${VOICE_NOTE_BUTTON_ATTR}]`)) {
+      diagnostics.alreadyInjected += 1;
+      continue;
+    }
+
+    if (findVideoButton(composer)) {
+      diagnostics.withVideoButton += 1;
+    } else if (findMediaToolbarAnchor(composer)) {
+      diagnostics.withMediaFallback += 1;
+    }
+  }
+
+  return diagnostics;
+}
+
+export function logScanDiagnostics(context: string): void {
+  const d = collectScanDiagnostics();
+  console.log(`${EXTENSION_LOG_PREFIX} Scan diagnostics (${context}):`, d);
 }
 
 export function markComposerInjected(composer: Element): void {
