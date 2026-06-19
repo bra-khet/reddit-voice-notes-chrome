@@ -6,7 +6,7 @@
 |-------|-------|
 | **Tag** | `v0.1.0-phase3-stable` |
 | **Date** | 2026-06-19 |
-| **Commit** | `def5697` |
+| **Commit** | `git rev-parse v0.1.0-phase3-stable` |
 | **Milestone** | Phase 3 complete — semi-useful personal tool |
 
 **What works at this tag**
