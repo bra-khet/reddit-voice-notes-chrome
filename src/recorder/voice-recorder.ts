@@ -3,17 +3,26 @@ import {
   WAVEFORM_TARGET_FPS,
 } from '@/src/utils/constants';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
+import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { WaveformRenderer } from './waveform';
 
 const RECORDER_TIMESLICE_MS = 1000;
 
-export type RecorderPhase = 'idle' | 'ready' | 'recording' | 'stopped' | 'error';
+export type RecorderPhase =
+  | 'idle'
+  | 'ready'
+  | 'recording'
+  | 'processing'
+  | 'stopped'
+  | 'error';
 
 export interface RecorderState {
   phase: RecorderPhase;
   elapsedSeconds: number;
+  processingProgress: number;
   errorMessage?: string;
-  blob?: Blob;
+  webmBlob?: Blob;
+  mp4Blob?: Blob;
 }
 
 type StateListener = (state: RecorderState) => void;
@@ -37,9 +46,11 @@ export class VoiceRecorderSession {
   private timerId: ReturnType<typeof setInterval> | null = null;
   private startedAt = 0;
   private elapsedSeconds = 0;
+  private processingProgress = 0;
   private phase: RecorderPhase = 'idle';
   private errorMessage?: string;
-  private resultBlob?: Blob;
+  private webmBlob?: Blob;
+  private mp4Blob?: Blob;
   private readonly listeners = new Set<StateListener>();
 
   get previewCanvas(): HTMLCanvasElement | null {
@@ -56,45 +67,54 @@ export class VoiceRecorderSession {
     return {
       phase: this.phase,
       elapsedSeconds: this.elapsedSeconds,
+      processingProgress: this.processingProgress,
       errorMessage: this.errorMessage,
-      blob: this.resultBlob,
+      webmBlob: this.webmBlob,
+      mp4Blob: this.mp4Blob,
     };
   }
 
   private setPhase(phase: RecorderPhase, extra?: Partial<RecorderState>): void {
     this.phase = phase;
     if (extra?.errorMessage !== undefined) this.errorMessage = extra.errorMessage;
-    if (extra?.blob !== undefined) this.resultBlob = extra.blob;
+    if (extra?.webmBlob !== undefined) this.webmBlob = extra.webmBlob;
+    if (extra?.mp4Blob !== undefined) this.mp4Blob = extra.mp4Blob;
     if (extra?.elapsedSeconds !== undefined) this.elapsedSeconds = extra.elapsedSeconds;
+    if (extra?.processingProgress !== undefined) {
+      this.processingProgress = extra.processingProgress;
+    }
     for (const listener of this.listeners) {
       listener(this.snapshot());
     }
   }
 
   async prepare(): Promise<void> {
-    if (this.phase === 'ready' || this.phase === 'recording') return;
-    if (this.phase === 'stopped' && this.micStream && this.waveform) {
-      this.resultBlob = undefined;
-      this.errorMessage = undefined;
-      this.elapsedSeconds = 0;
-      this.setPhase('ready');
+    if (this.phase === 'ready' || this.phase === 'recording' || this.phase === 'processing') {
       return;
     }
 
     try {
-      this.setPhase('idle');
+      this.setPhase('idle', {
+        elapsedSeconds: 0,
+        processingProgress: 0,
+        errorMessage: undefined,
+        webmBlob: undefined,
+        mp4Blob: undefined,
+      });
+
       this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       this.audioContext = new AudioContext();
+      await this.audioContext.resume();
+
       const source = this.audioContext.createMediaStreamSource(this.micStream);
       const analyser = this.audioContext.createAnalyser();
-
       source.connect(analyser);
 
       this.waveform = new WaveformRenderer(analyser);
       this.waveform.start();
 
-      this.setPhase('ready', { elapsedSeconds: 0, errorMessage: undefined, blob: undefined });
+      this.setPhase('ready');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.setPhase('error', { errorMessage: message });
@@ -102,8 +122,12 @@ export class VoiceRecorderSession {
     }
   }
 
-  startRecording(): void {
-    if (this.phase !== 'ready' || !this.micStream || !this.waveform) return;
+  async startRecording(): Promise<void> {
+    if (this.phase !== 'ready' || !this.micStream || !this.waveform || !this.audioContext) return;
+
+    if (this.audioContext.state === 'suspended') {
+      await this.audioContext.resume();
+    }
 
     const mimeType = pickMimeType();
     const videoStream = this.waveform.canvas.captureStream(WAVEFORM_TARGET_FPS);
@@ -113,6 +137,9 @@ export class VoiceRecorderSession {
     ]);
 
     this.chunks = [];
+    this.webmBlob = undefined;
+    this.mp4Blob = undefined;
+
     this.mediaRecorder = mimeType
       ? new MediaRecorder(this.combinedStream, { mimeType })
       : new MediaRecorder(this.combinedStream);
@@ -121,16 +148,10 @@ export class VoiceRecorderSession {
       if (event.data.size > 0) this.chunks.push(event.data);
     };
 
-    this.mediaRecorder.onstop = () => {
-      const type = this.mediaRecorder?.mimeType || 'video/webm';
-      this.resultBlob = new Blob(this.chunks, { type });
-      this.setPhase('stopped', { blob: this.resultBlob });
-    };
-
     this.mediaRecorder.start(RECORDER_TIMESLICE_MS);
     this.startedAt = Date.now();
     this.elapsedSeconds = 0;
-    this.setPhase('recording', { elapsedSeconds: 0 });
+    this.setPhase('recording', { elapsedSeconds: 0, processingProgress: 0 });
 
     this.timerId = setInterval(() => {
       const elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
@@ -138,41 +159,111 @@ export class VoiceRecorderSession {
       this.setPhase('recording', { elapsedSeconds: elapsed });
 
       if (elapsed >= MAX_RECORDING_SECONDS) {
-        this.stopRecording();
+        void this.stopRecording();
       }
     }, 250);
   }
 
-  stopRecording(): void {
+  async stopRecording(): Promise<void> {
     if (this.phase !== 'recording' || !this.mediaRecorder) return;
+
     if (this.timerId) clearInterval(this.timerId);
     this.timerId = null;
 
-    if (this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.stop();
+    const recorder = this.mediaRecorder;
+    this.mediaRecorder = null;
+
+    await new Promise<void>((resolve) => {
+      recorder.onstop = () => resolve();
+      if (recorder.state === 'recording') {
+        recorder.requestData();
+        recorder.stop();
+        return;
+      }
+      resolve();
+    });
+
+    this.releaseCaptureTracks();
+
+    const type = recorder.mimeType || 'video/webm';
+    this.webmBlob = new Blob(this.chunks, { type });
+    this.chunks = [];
+
+    await this.transcodeToMp4();
+  }
+
+  private async transcodeToMp4(): Promise<void> {
+    if (!this.webmBlob) return;
+
+    this.setPhase('processing', { processingProgress: 0 });
+
+    try {
+      this.mp4Blob = await transcodeWebmToMp4(this.webmBlob, (ratio) => {
+        this.setPhase('processing', { processingProgress: Math.round(ratio * 100) });
+      });
+      this.setPhase('stopped', { processingProgress: 100 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.setPhase('error', { errorMessage: `MP4 conversion failed: ${message}` });
     }
   }
 
   downloadRecording(): void {
-    if (!this.resultBlob) return;
-    downloadBlob(this.resultBlob, buildVoiceNoteFilename('webm'));
+    if (this.mp4Blob) {
+      downloadBlob(this.mp4Blob, buildVoiceNoteFilename('mp4'));
+      return;
+    }
+    if (this.webmBlob) {
+      downloadBlob(this.webmBlob, buildVoiceNoteFilename('webm'));
+    }
   }
 
   async resetForNewRecording(): Promise<void> {
-    this.disposeRecorderOnly();
-    this.resultBlob = undefined;
-    this.errorMessage = undefined;
-    this.elapsedSeconds = 0;
+    this.disposeMediaPipeline();
     await this.prepare();
   }
 
   cancel(): void {
-    this.dispose();
-    this.setPhase('idle', { elapsedSeconds: 0, blob: undefined, errorMessage: undefined });
+    this.disposeMediaPipeline();
+    this.setPhase('idle', {
+      elapsedSeconds: 0,
+      processingProgress: 0,
+      webmBlob: undefined,
+      mp4Blob: undefined,
+      errorMessage: undefined,
+    });
   }
 
   dispose(): void {
-    this.disposeRecorderOnly();
+    this.disposeMediaPipeline();
+  }
+
+  // BUG FIX: Re-record corrupt WebM / silent second take
+  // Fix: Only stop canvas video tracks after each take; fully rebuild mic + AudioContext on "Record again".
+  private releaseCaptureTracks(): void {
+    for (const track of this.combinedStream?.getVideoTracks() ?? []) {
+      track.stop();
+    }
+    this.combinedStream = null;
+  }
+
+  private disposeMediaPipeline(): void {
+    if (this.timerId) clearInterval(this.timerId);
+    this.timerId = null;
+
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.mediaRecorder.onstop = null;
+      try {
+        this.mediaRecorder.stop();
+      } catch {
+        // Recorder may already be inactive after a completed take.
+      }
+    }
+    this.mediaRecorder = null;
+    this.chunks = [];
+
+    this.releaseCaptureTracks();
+
     this.waveform?.stop();
     this.waveform = null;
 
@@ -185,22 +276,5 @@ export class VoiceRecorderSession {
       void this.audioContext.close();
       this.audioContext = null;
     }
-  }
-
-  private disposeRecorderOnly(): void {
-    if (this.timerId) clearInterval(this.timerId);
-    this.timerId = null;
-
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.onstop = null;
-      this.mediaRecorder.stop();
-    }
-    this.mediaRecorder = null;
-    this.chunks = [];
-
-    for (const track of this.combinedStream?.getTracks() ?? []) {
-      track.stop();
-    }
-    this.combinedStream = null;
   }
 }

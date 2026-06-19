@@ -18,6 +18,7 @@ stats-*.json
 .wxt
 web-ext.config.ts
 _wxt-temp
+public/ffmpeg/
 
 # Editor directories and files
 .vscode/*

@@ -6,15 +6,15 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 
 ## Status
 
-**Phase 2 complete** — Floating recorder panel, live waveform, WebM recording + download.
+**Phase 3 complete** — Lazy FFmpeg.wasm offscreen transcoding, MP4 download path.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | Scaffold & project structure | Done |
 | 1 | Permissions + Reddit button injection | Done |
 | 2 | Recorder core (WebM, no FFmpeg) | Done |
-| 3 | FFmpeg.wasm WebM → MP4 | Next |
-| 4 | Polish, limits, error states | Planned |
+| 3 | FFmpeg.wasm WebM → MP4 | Done |
+| 4 | Polish, limits, error states | Next |
 | 5 | Reddit auto-attach (best-effort) | Planned |
 | 6 | Icons, shortcuts, finalization | Planned |
 
@@ -82,7 +82,7 @@ Visit [reddit.com](https://www.reddit.com), open a post with video comments enab
 [Reddit Voice Notes] Injected voice note button
 ```
 
-Click the 🎤 button to open the recorder panel. Record → Stop → Download WebM. MP4 transcoding lands in Phase 3.
+Click the 🎤 button to open the recorder panel. Record → Stop → wait for FFmpeg → Download MP4.
 
 ### Production build
 

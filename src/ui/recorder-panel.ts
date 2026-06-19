@@ -14,7 +14,7 @@ export class RecorderPanel {
   private readonly shadow: ShadowRoot;
   private session: VoiceRecorderSession | null = null;
   private unsubscribe: (() => void) | null = null;
-  private currentState: RecorderState = { phase: 'idle', elapsedSeconds: 0 };
+  private currentState: RecorderState = { phase: 'idle', elapsedSeconds: 0, processingProgress: 0 };
 
   private statusEl!: HTMLElement;
   private timerEl!: HTMLElement;
@@ -79,6 +79,19 @@ export class RecorderPanel {
           margin-bottom: 12px;
         }
         .waveform canvas { width: 100%; height: 100%; display: block; }
+        .progress {
+          height: 4px;
+          border-radius: 2px;
+          background: #343536;
+          margin-bottom: 12px;
+          overflow: hidden;
+        }
+        .progress__bar {
+          height: 100%;
+          width: 0%;
+          background: #0079d3;
+          transition: width 0.2s ease;
+        }
         .actions { display: flex; gap: 8px; }
         button.action {
           flex: 1;
@@ -102,6 +115,7 @@ export class RecorderPanel {
         </div>
         <p class="status" data-status>Initializing microphone…</p>
         <p class="timer" data-timer>0:00<span class="timer__cap">/ 3:00 max</span></p>
+        <div class="progress" data-progress hidden><div class="progress__bar" data-progress-bar></div></div>
         <div class="waveform" data-waveform></div>
         <div class="actions">
           <button class="action action--primary" type="button" data-primary disabled>Record</button>
@@ -155,10 +169,10 @@ export class RecorderPanel {
 
     switch (this.currentState.phase) {
       case 'ready':
-        this.session.startRecording();
+        void this.session.startRecording();
         break;
       case 'recording':
-        this.session.stopRecording();
+        void this.session.stopRecording();
         break;
       case 'stopped':
         this.session.downloadRecording();
@@ -186,12 +200,18 @@ export class RecorderPanel {
   private render(state: RecorderState): void {
     this.timerEl.innerHTML = `${formatTime(state.elapsedSeconds)}<span class="timer__cap">/ ${formatTime(MAX_RECORDING_SECONDS)} max</span>`;
 
+    const progressEl = this.shadow.querySelector<HTMLElement>('[data-progress]')!;
+    const progressBar = this.shadow.querySelector<HTMLElement>('[data-progress-bar]')!;
+    progressEl.hidden = state.phase !== 'processing';
+    progressBar.style.width = `${state.processingProgress}%`;
+
     const canvas = this.session?.previewCanvas;
     if (canvas && !this.waveformSlot.contains(canvas)) {
       this.waveformSlot.replaceChildren(canvas);
     }
 
-    this.secondaryBtn.hidden = state.phase !== 'recording' && state.phase !== 'stopped';
+    this.secondaryBtn.hidden =
+      state.phase !== 'recording' && state.phase !== 'stopped';
 
     switch (state.phase) {
       case 'idle':
@@ -212,14 +232,20 @@ export class RecorderPanel {
         this.primaryBtn.disabled = false;
         this.secondaryBtn.textContent = 'Cancel';
         break;
+      case 'processing':
+        this.statusEl.textContent = `Processing with FFmpeg… ${state.processingProgress}%`;
+        this.primaryBtn.textContent = 'Processing…';
+        this.primaryBtn.disabled = true;
+        this.secondaryBtn.textContent = 'Cancel';
+        break;
       case 'stopped':
-        this.statusEl.textContent = 'Recording saved locally as WebM. Download now (MP4 in Phase 3).';
-        this.primaryBtn.textContent = 'Download WebM';
-        this.primaryBtn.disabled = !state.blob;
+        this.statusEl.textContent = 'MP4 ready for Reddit video comments.';
+        this.primaryBtn.textContent = 'Download MP4';
+        this.primaryBtn.disabled = !state.mp4Blob;
         this.secondaryBtn.textContent = 'Record again';
         break;
       case 'error':
-        this.statusEl.textContent = state.errorMessage ?? 'Microphone unavailable.';
+        this.statusEl.textContent = state.errorMessage ?? 'Something went wrong.';
         this.primaryBtn.textContent = 'Retry';
         this.primaryBtn.disabled = false;
         this.secondaryBtn.textContent = 'Cancel';

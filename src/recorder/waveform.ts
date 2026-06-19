@@ -5,6 +5,9 @@ import {
   WAVEFORM_TARGET_FPS,
 } from '@/src/utils/constants';
 
+// POLISH (Phase 5+): User-selectable waveform themes — bar/line style, colors, glow,
+// background presets. Keep changes low-impact on CPU (stay near WAVEFORM_TARGET_FPS).
+
 const FRAME_INTERVAL_MS = 1000 / WAVEFORM_TARGET_FPS;
 
 export class WaveformRenderer {

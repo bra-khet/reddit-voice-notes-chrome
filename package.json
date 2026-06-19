@@ -12,9 +12,15 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare && node scripts/copy-ffmpeg-core.mjs"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2"
   },
   "devDependencies": {
+    "@ffmpeg/core": "^0.12.6",
+    "@ffmpeg/core": "^0.12.10",
     "typescript": "^5.9.3",
     "wxt": "^0.20.26"
   },
@@ -23,5 +29,9 @@
     "shell-quote": ">=1.8.4",
     "tmp": ">=0.2.6",
     "uuid": ">=11.1.1"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2"
   }
 }
