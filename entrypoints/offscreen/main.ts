@@ -1,4 +1,5 @@
 import { runWebmToMp4 } from '@/src/ffmpeg/ffmpeg-runner';
+import { toUint8Array } from '@/src/messaging/binary';
 import {
   MSG_OFFSCREEN_PING,
   MSG_OFFSCREEN_PONG,
@@ -48,17 +49,15 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   void (async () => {
     try {
+      const webmBytes = toUint8Array(request.webm, request.webmByteLength);
       console.log('[Reddit Voice Notes] Transcode job', request.jobId, {
-        webmBytes: request.webm.byteLength,
+        webmBytes: webmBytes.byteLength,
       });
-      const mp4 = await runWebmToMp4(request.webm, (ratio, stage) => {
+      const mp4 = await runWebmToMp4(webmBytes, (ratio, stage) => {
         broadcastProgress(request.jobId, ratio, stage);
       });
 
-      const mp4Buffer = mp4.buffer.slice(
-        mp4.byteOffset,
-        mp4.byteOffset + mp4.byteLength,
-      ) as ArrayBuffer;
+      const mp4Bytes = mp4.slice();
 
       broadcastProgress(request.jobId, 1, 'done');
 
@@ -66,7 +65,8 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         type: MSG_TRANSCODE_COMPLETE,
         jobId: request.jobId,
         ok: true,
-        mp4: mp4Buffer,
+        mp4: mp4Bytes,
+        mp4ByteLength: mp4Bytes.byteLength,
       };
       broadcast(completeMsg);
     } catch (error) {

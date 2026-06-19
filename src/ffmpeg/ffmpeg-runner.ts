@@ -110,10 +110,14 @@ async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> 
   return loadPromise;
 }
 
-/** Ordered fallback strategies — official default first, then explicit H.264/AAC for Reddit. */
+/** Ordered fallback strategies — official ffmpeg.wasm usage first, then explicit H.264/AAC for Reddit. */
 const TRANSCODE_STRATEGIES = [
   {
-    name: 'default-remux',
+    name: 'official-default',
+    args: ['-i', 'input.webm', 'output.mp4'],
+  },
+  {
+    name: 'faststart',
     args: ['-i', 'input.webm', '-movflags', '+faststart', 'output.mp4'],
   },
   {
@@ -231,7 +235,7 @@ function mapProgress(ratio: number, stage: string): number {
 }
 
 export async function runWebmToMp4(
-  webm: ArrayBuffer,
+  webm: Uint8Array | ArrayBuffer,
   onProgress?: FfmpegProgressCallback,
 ): Promise<Uint8Array> {
   const report = (ratio: number, stage: string) => {
@@ -240,7 +244,7 @@ export async function runWebmToMp4(
 
   report(0, 'starting');
 
-  const inputBytes = new Uint8Array(webm);
+  const inputBytes = webm instanceof Uint8Array ? webm : new Uint8Array(webm);
   if (!isValidWebm(inputBytes)) {
     throw new Error(
       `Recording is not a valid WebM file (${inputBytes.byteLength} bytes). Try recording again.`,

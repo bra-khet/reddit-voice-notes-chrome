@@ -6,9 +6,11 @@ import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { WaveformRenderer } from './waveform';
 
-/** Bitrates keep MediaRecorder WebM well-formed for ffmpeg.wasm (short clips, no timeslice). */
+/** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
+const RECORDER_TIMESLICE_MS = 1000;
 const RECORDER_VIDEO_BPS = 2_500_000;
 const RECORDER_AUDIO_BPS = 128_000;
+const MIN_RECORDING_BYTES = 256;
 
 export type RecorderPhase =
   | 'idle'
@@ -158,8 +160,7 @@ export class VoiceRecorderSession {
       if (event.data.size > 0) this.chunks.push(event.data);
     };
 
-    // No timeslice — single contiguous WebM is more reliable for ffmpeg.wasm.
-    this.mediaRecorder.start();
+    this.mediaRecorder.start(RECORDER_TIMESLICE_MS);
     this.startedAt = Date.now();
     this.elapsedSeconds = 0;
     this.setPhase('recording', { elapsedSeconds: 0, processingProgress: 0 });
@@ -184,23 +185,15 @@ export class VoiceRecorderSession {
     const recorder = this.mediaRecorder;
     this.mediaRecorder = null;
 
-    await new Promise<void>((resolve) => {
-      recorder.onstop = () => resolve();
-      if (recorder.state === 'recording') {
-        recorder.requestData();
-        recorder.stop();
-        return;
-      }
-      resolve();
-    });
+    const chunks = await this.finalizeMediaRecorder(recorder);
 
     this.releaseCaptureTracks();
 
     const type = recorder.mimeType || 'video/webm';
-    this.webmBlob = new Blob(this.chunks, { type });
+    this.webmBlob = new Blob(chunks, { type });
     this.chunks = [];
 
-    if (this.webmBlob.size < 256) {
+    if (this.webmBlob.size < MIN_RECORDING_BYTES) {
       this.setPhase('error', {
         errorMessage: 'Recording was empty or too short. Hold Record for at least one second.',
       });
@@ -254,6 +247,28 @@ export class VoiceRecorderSession {
 
   dispose(): void {
     this.disposeMediaPipeline();
+  }
+
+  /** Drain MediaRecorder chunks — handlers must be attached immediately before stop(). */
+  private async finalizeMediaRecorder(recorder: MediaRecorder): Promise<Blob[]> {
+    const chunks = [...this.chunks];
+
+    await new Promise<void>((resolve) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onstop = () => resolve();
+
+      if (recorder.state === 'recording') {
+        recorder.requestData();
+        recorder.stop();
+        return;
+      }
+
+      resolve();
+    });
+
+    return chunks;
   }
 
   // BUG FIX: Re-record corrupt WebM / silent second take

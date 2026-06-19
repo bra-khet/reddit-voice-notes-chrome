@@ -1,14 +1,15 @@
+import { toUint8Array } from '@/src/messaging/binary';
 import {
   MSG_TRANSCODE_ACK,
   MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_PROGRESS,
   MSG_TRANSCODE_START,
   type TranscodeAckResponse,
-  type TranscodeBroadcast,
   type TranscodeCompleteMessage,
   type TranscodeProgressMessage,
   type TranscodeStartRequest,
 } from '@/src/messaging/types';
+import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 const TRANSCODE_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -31,7 +32,16 @@ export async function transcodeWebmToMp4(
   }
 
   const jobId = crypto.randomUUID();
-  const webmBuffer = await webm.arrayBuffer();
+  const webmBytes = new Uint8Array(await webm.arrayBuffer());
+
+  if (webmBytes.byteLength === 0) {
+    throw new Error('Recorded WebM is empty before transcoding. Try recording again.');
+  }
+
+  console.log(`${EXTENSION_LOG_PREFIX} Sending WebM for transcode`, {
+    jobId,
+    bytes: webmBytes.byteLength,
+  });
 
   return new Promise<Blob>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
@@ -58,7 +68,8 @@ export async function transcodeWebmToMp4(
 
         if (completeMsg.ok && completeMsg.mp4) {
           onProgress?.(1);
-          resolve(new Blob([completeMsg.mp4], { type: 'video/mp4' }));
+          const mp4Bytes = toUint8Array(completeMsg.mp4, completeMsg.mp4ByteLength);
+          resolve(new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' }));
           return;
         }
 
@@ -71,7 +82,8 @@ export async function transcodeWebmToMp4(
     const request: TranscodeStartRequest = {
       type: MSG_TRANSCODE_START,
       jobId,
-      webm: webmBuffer,
+      webm: webmBytes,
+      webmByteLength: webmBytes.byteLength,
     };
 
     browser.runtime
