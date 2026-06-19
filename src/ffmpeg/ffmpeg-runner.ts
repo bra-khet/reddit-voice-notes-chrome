@@ -1,5 +1,4 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 export type FfmpegProgressCallback = (ratio: number, stage: string) => void;
@@ -49,11 +48,13 @@ async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> 
     try {
       // BUG FIX: FFmpeg worker hung at 0% / failed to load
       // Fix: Worker is an ES module importing ./const.js etc.; load from extension URL (not blob).
-      // Core JS/WASM use blob URLs — required for WASM fetch inside the worker.
+      // Sync: wxt.config.ts web_accessible_resources must include ffmpeg/* and ffmpeg/esm/*
+      // BUG FIX: dynamic import blob:chrome-extension://… failed in module worker
+      // Fix: Pass chrome-extension:// URLs for core + wasm; module workers cannot import() blob URLs.
       await ffmpeg.load({
         classWorkerURL: workerUrl,
-        coreURL: await toBlobURL(coreJsUrl, 'text/javascript'),
-        wasmURL: await toBlobURL(coreWasmUrl, 'application/wasm'),
+        coreURL: coreJsUrl,
+        wasmURL: coreWasmUrl,
       });
     } finally {
       ffmpeg.off('log', logHandler);
