@@ -1,4 +1,3 @@
-import { cloneBinaryForMessage } from '@/src/messaging/binary';
 import {
   MSG_OFFSCREEN_PING,
   MSG_TRANSCODE_ACK,
@@ -152,21 +151,24 @@ export default defineBackground(() => {
 
     (async () => {
       try {
-        // BUG FIX: WebM arrived as 0 bytes in offscreen after message relay
-        // Fix: Re-pack as Uint8Array copy before forwarding to offscreen.
-        const webmBytes = cloneBinaryForMessage(request.webm, request.webmByteLength);
+        if (!request.webmBase64 || request.webmByteLength <= 0) {
+          throw new Error(
+            `WebM payload missing at background relay (bytes=${request.webmByteLength}).`,
+          );
+        }
 
         console.log('[Reddit Voice Notes] Relaying WebM to offscreen', {
           jobId: request.jobId,
-          bytes: webmBytes.byteLength,
+          bytes: request.webmByteLength,
+          base64Chars: request.webmBase64.length,
         });
 
         const offscreenRequest: TranscodeOffscreenRequest = {
           type: MSG_TRANSCODE_OFFSCREEN,
           target: 'offscreen',
           jobId: request.jobId,
-          webm: webmBytes,
-          webmByteLength: webmBytes.byteLength,
+          webmBase64: request.webmBase64,
+          webmByteLength: request.webmByteLength,
         };
 
         await dispatchToOffscreen(offscreenRequest);

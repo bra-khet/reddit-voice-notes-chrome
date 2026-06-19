@@ -1,4 +1,4 @@
-import { toUint8Array } from '@/src/messaging/binary';
+import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import {
   MSG_TRANSCODE_ACK,
   MSG_TRANSCODE_COMPLETE,
@@ -38,9 +38,12 @@ export async function transcodeWebmToMp4(
     throw new Error('Recorded WebM is empty before transcoding. Try recording again.');
   }
 
+  const webmPacked = packBinary(webmBytes);
+
   console.log(`${EXTENSION_LOG_PREFIX} Sending WebM for transcode`, {
     jobId,
-    bytes: webmBytes.byteLength,
+    bytes: webmPacked.byteLength,
+    base64Chars: webmPacked.dataBase64.length,
   });
 
   return new Promise<Blob>((resolve, reject) => {
@@ -66,14 +69,19 @@ export async function transcodeWebmToMp4(
         window.clearTimeout(timeoutId);
         browser.runtime.onMessage.removeListener(onBroadcast);
 
-        if (completeMsg.ok && completeMsg.mp4) {
-          onProgress?.(1);
-          const mp4Bytes = toUint8Array(completeMsg.mp4, completeMsg.mp4ByteLength);
-          resolve(new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' }));
+        if (!completeMsg.ok) {
+          reject(new Error(completeMsg.error ?? 'FFmpeg transcoding failed.'));
           return;
         }
 
-        reject(new Error(completeMsg.error ?? 'FFmpeg transcoding failed.'));
+        try {
+          onProgress?.(1);
+          const mp4Bytes = unpackBinary(completeMsg.mp4Base64, completeMsg.mp4ByteLength);
+          resolve(new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' }));
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          reject(new Error(`MP4 result could not be decoded: ${detail}`));
+        }
       }
     };
 
@@ -82,8 +90,8 @@ export async function transcodeWebmToMp4(
     const request: TranscodeStartRequest = {
       type: MSG_TRANSCODE_START,
       jobId,
-      webm: webmBytes,
-      webmByteLength: webmBytes.byteLength,
+      webmBase64: webmPacked.dataBase64,
+      webmByteLength: webmPacked.byteLength,
     };
 
     browser.runtime

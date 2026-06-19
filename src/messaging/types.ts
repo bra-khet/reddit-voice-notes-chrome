@@ -12,8 +12,8 @@ export const MSG_TRANSCODE = MSG_TRANSCODE_START;
 export interface TranscodeStartRequest {
   type: typeof MSG_TRANSCODE_START;
   jobId: string;
-  /** Uint8Array survives extension message relay; ArrayBuffer may arrive empty. */
-  webm: Uint8Array;
+  /** Base64 WebM — survives extension message relay (see src/messaging/binary.ts). */
+  webmBase64: string;
   webmByteLength: number;
 }
 
@@ -28,7 +28,7 @@ export interface TranscodeOffscreenRequest {
   type: typeof MSG_TRANSCODE_OFFSCREEN;
   target: 'offscreen';
   jobId: string;
-  webm: Uint8Array;
+  webmBase64: string;
   webmByteLength: number;
 }
 
@@ -43,7 +43,7 @@ export interface TranscodeCompleteMessage {
   type: typeof MSG_TRANSCODE_COMPLETE;
   jobId: string;
   ok: boolean;
-  mp4?: Uint8Array;
+  mp4Base64?: string;
   mp4ByteLength?: number;
   error?: string;
 }

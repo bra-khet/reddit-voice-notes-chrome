@@ -22,7 +22,7 @@
 - **FFmpeg progress stuck at 0% (Phase 3)**: (1) Lone `worker.js` blob URL broke ESM sibling imports — copy full `public/ffmpeg/esm/` bundle and load worker from extension URL. (2) Offscreen `runtime.sendMessage` progress never reached content scripts — background relays via `tabs.sendMessage`. (3) `web_accessible_resources` expanded to `ffmpeg/esm/*`.
 - **FFmpeg blob import TypeError (Phase 3)**: `toBlobURL` for core/wasm produced `blob:chrome-extension://…` URLs that module workers cannot `import()`. Fixed by passing `chrome-extension://` URLs directly for `coreURL` and `wasmURL`.
 - **FFmpeg exit code 1 (Phase 3)**: Hardened pipeline — WebM EBML validation, VP8-first recording, fallback transcode strategies with captured stderr in error messages.
-- **WebM 0 bytes in offscreen (Phase 3)**: `ArrayBuffer` in `runtime.sendMessage` relay (content → background → offscreen) arrived empty. Fixed with `Uint8Array` + `webmByteLength` verification at each hop (`src/messaging/binary.ts`). Restored MediaRecorder timeslice + `finalizeMediaRecorder()` drain before blob assembly.
+- **WebM 0 bytes in offscreen (Phase 3)**: Typed arrays do not survive MV3 `runtime.sendMessage` relay. Fixed with **base64 string transport** (`webmBase64` / `mp4Base64` + byteLength) in `src/messaging/binary.ts`. Restored MediaRecorder timeslice + `finalizeMediaRecorder()` drain before blob assembly.
 
 ## Dev notes
 
