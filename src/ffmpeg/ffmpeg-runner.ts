@@ -13,7 +13,10 @@ async function getFfmpeg(): Promise<FFmpeg> {
 
     const coreJs = browser.runtime.getURL('ffmpeg/ffmpeg-core.js' as never);
     const coreWasm = browser.runtime.getURL('ffmpeg/ffmpeg-core.wasm' as never);
+    const workerJs = browser.runtime.getURL('ffmpeg/worker.js' as never);
+
     await ffmpeg.load({
+      classWorkerURL: await toBlobURL(workerJs, 'text/javascript'),
       coreURL: await toBlobURL(coreJs, 'text/javascript'),
       wasmURL: await toBlobURL(coreWasm, 'application/wasm'),
     });
@@ -31,12 +34,17 @@ export async function runWebmToMp4(
 ): Promise<Uint8Array> {
   const ffmpeg = await getFfmpeg();
 
-  if (onProgress) {
-    ffmpeg.on('progress', ({ progress }) => {
-      onProgress(Math.min(1, Math.max(0, progress)));
-    });
+  const progressHandler = onProgress
+    ? ({ progress }: { progress: number }) => {
+        onProgress(Math.min(1, Math.max(0, progress)));
+      }
+    : null;
+
+  if (progressHandler) {
+    ffmpeg.on('progress', progressHandler);
   }
 
+  try {
   await ffmpeg.writeFile('input.webm', new Uint8Array(webm));
   await ffmpeg.exec([
     '-i',
@@ -59,6 +67,11 @@ export async function runWebmToMp4(
   await ffmpeg.deleteFile('output.mp4');
 
   return output as Uint8Array;
+  } finally {
+    if (progressHandler) {
+      ffmpeg.off('progress', progressHandler);
+    }
+  }
 }
 
 export function disposeFfmpeg(): void {

@@ -7,7 +7,10 @@ const sourceDir = join(root, 'node_modules', '@ffmpeg', 'core', 'dist', 'esm');
 const targetDir = join(root, 'public', 'ffmpeg');
 
 mkdirSync(targetDir, { recursive: true });
+const workerSource = join(root, 'node_modules', '@ffmpeg', 'ffmpeg', 'dist', 'esm', 'worker.js');
+
 cpSync(join(sourceDir, 'ffmpeg-core.js'), join(targetDir, 'ffmpeg-core.js'));
 cpSync(join(sourceDir, 'ffmpeg-core.wasm'), join(targetDir, 'ffmpeg-core.wasm'));
+cpSync(workerSource, join(targetDir, 'worker.js'));
 
-console.log('Copied ffmpeg-core assets to public/ffmpeg/');
+console.log('Copied ffmpeg-core + worker assets to public/ffmpeg/');
