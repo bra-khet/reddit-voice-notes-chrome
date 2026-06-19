@@ -6,14 +6,14 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 
 ## Status
 
-**Phase 1 complete** — MutationObserver injection, voice note button, microphone permission flow.
+**Phase 2 complete** — Floating recorder panel, live waveform, WebM recording + download.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | Scaffold & project structure | Done |
 | 1 | Permissions + Reddit button injection | Done |
-| 2 | Recorder core (WebM, no FFmpeg) | Next |
-| 3 | FFmpeg.wasm WebM → MP4 | Planned |
+| 2 | Recorder core (WebM, no FFmpeg) | Done |
+| 3 | FFmpeg.wasm WebM → MP4 | Next |
 | 4 | Polish, limits, error states | Planned |
 | 5 | Reddit auto-attach (best-effort) | Planned |
 | 6 | Icons, shortcuts, finalization | Planned |
@@ -82,7 +82,7 @@ Visit [reddit.com](https://www.reddit.com), open a post with video comments enab
 [Reddit Voice Notes] Injected voice note button
 ```
 
-Click the 🎤 button to verify microphone permission (toast confirms grant/deny). Recorder UI lands in Phase 2.
+Click the 🎤 button to open the recorder panel. Record → Stop → Download WebM. MP4 transcoding lands in Phase 3.
 
 ### Production build
 
@@ -109,7 +109,6 @@ npm run zip
 | Permission | Purpose |
 |------------|---------|
 | `storage` | Persist minimal settings |
-| `dom` | Pierce Reddit's closed Shadow DOM to find the video toolbar |
 | `host_permissions` for `reddit.com` | Content script injection |
 | Microphone (runtime) | Requested when user starts recording (Phase 1+) |
 
@@ -123,6 +122,10 @@ npm run zip
 ## Updating for Reddit UI changes
 
 All Reddit-specific selectors and injection logic live in `src/reddit-injector/`. Look for `UPDATE WHEN REDDIT UI CHANGES` comments when Reddit ships UI updates.
+
+## Shadow DOM note
+
+Reddit's comment toolbar lives inside web-component shadow trees. The extension walks open shadow roots (and optionally uses `chrome.dom.openOrClosedShadowRoot` when available). Do **not** add a `dom` entry to `manifest.json` — Chromium flags it as an unknown permission; it is not required for injection to work.
 
 ## Dev dependency security notes
 

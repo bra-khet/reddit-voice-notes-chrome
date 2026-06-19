@@ -1,4 +1,6 @@
+# User specified
 .ignore/
+mcps/
 
 # Logs
 logs

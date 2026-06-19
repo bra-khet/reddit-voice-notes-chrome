@@ -1,7 +1,6 @@
 import { EXTENSION_LOG_PREFIX } from '@/src/utils';
 import { deepQuerySelector } from '@/src/utils/shadow-dom';
-import { requestMicrophonePermission } from '@/src/utils/permissions';
-import { showToast } from '@/src/ui/toast';
+import { openRecorderPanel } from '@/src/ui/recorder-panel';
 import {
   findAllInjectionTargets,
   markComposerInjected,
@@ -18,24 +17,8 @@ interface InjectedButton {
 
 const injectedButtons = new Map<Element, InjectedButton>();
 
-async function handleVoiceNoteClick(): Promise<void> {
-  const permission = await requestMicrophonePermission();
-
-  if (permission.state === 'granted') {
-    showToast('Microphone ready — recorder UI coming in Phase 2.', 'info');
-    return;
-  }
-
-  if (permission.state === 'denied') {
-    showToast(
-      'Microphone access denied. Allow microphone for reddit.com in browser settings.',
-      'error',
-      6000,
-    );
-    return;
-  }
-
-  showToast(permission.error ?? 'Could not access microphone.', 'error', 6000);
+function handleVoiceNoteClick(): void {
+  openRecorderPanel();
 }
 
 function injectIntoTarget(target: ComposerInjectionTarget): void {
