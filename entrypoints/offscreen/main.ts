@@ -13,7 +13,19 @@ import {
 } from '@/src/messaging/types';
 
 function broadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
-  void browser.runtime.sendMessage(message);
+  void browser.runtime.sendMessage(message).catch((error) => {
+    console.warn('[Reddit Voice Notes] Progress broadcast failed:', error);
+  });
+}
+
+function broadcastProgress(jobId: string, progress: number, stage?: string): void {
+  const progressMsg: TranscodeProgressMessage = {
+    type: MSG_TRANSCODE_PROGRESS,
+    jobId,
+    progress: Math.min(100, Math.max(0, Math.round(progress * 100))),
+    stage,
+  };
+  broadcast(progressMsg);
 }
 
 browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -32,22 +44,20 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   sendResponse({ ok: true, jobId: request.jobId });
+  broadcastProgress(request.jobId, 0.01, 'queued');
 
   void (async () => {
     try {
-      const mp4 = await runWebmToMp4(request.webm, (ratio) => {
-        const progressMsg: TranscodeProgressMessage = {
-          type: MSG_TRANSCODE_PROGRESS,
-          jobId: request.jobId,
-          progress: Math.round(ratio * 100),
-        };
-        broadcast(progressMsg);
+      const mp4 = await runWebmToMp4(request.webm, (ratio, stage) => {
+        broadcastProgress(request.jobId, ratio, stage);
       });
 
       const mp4Buffer = mp4.buffer.slice(
         mp4.byteOffset,
         mp4.byteOffset + mp4.byteLength,
       ) as ArrayBuffer;
+
+      broadcastProgress(request.jobId, 1, 'done');
 
       const completeMsg: TranscodeCompleteMessage = {
         type: MSG_TRANSCODE_COMPLETE,
@@ -57,6 +67,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       };
       broadcast(completeMsg);
     } catch (error) {
+      console.error('[Reddit Voice Notes] Transcode failed:', error);
       const completeMsg: TranscodeCompleteMessage = {
         type: MSG_TRANSCODE_COMPLETE,
         jobId: request.jobId,

@@ -33,6 +33,7 @@ export interface TranscodeProgressMessage {
   type: typeof MSG_TRANSCODE_PROGRESS;
   jobId: string;
   progress: number;
+  stage?: string;
 }
 
 export interface TranscodeCompleteMessage {

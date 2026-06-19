@@ -233,7 +233,10 @@ export class RecorderPanel {
         this.secondaryBtn.textContent = 'Cancel';
         break;
       case 'processing':
-        this.statusEl.textContent = `Processing with FFmpeg… ${state.processingProgress}%`;
+        this.statusEl.textContent =
+          state.processingProgress <= 5
+            ? `Loading FFmpeg WASM… ${state.processingProgress}%`
+            : `Processing with FFmpeg… ${state.processingProgress}%`;
         this.primaryBtn.textContent = 'Processing…';
         this.primaryBtn.disabled = true;
         this.secondaryBtn.textContent = 'Cancel';

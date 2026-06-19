@@ -82,7 +82,9 @@ export async function transcodeWebmToMp4(
           window.clearTimeout(timeoutId);
           browser.runtime.onMessage.removeListener(onBroadcast);
           reject(new Error(response?.error ?? 'Failed to start FFmpeg transcoding.'));
+          return;
         }
+        onProgress?.(0.01);
       })
       .catch((error) => {
         window.clearTimeout(timeoutId);

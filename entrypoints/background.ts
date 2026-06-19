@@ -1,12 +1,16 @@
 import {
   MSG_OFFSCREEN_PING,
   MSG_TRANSCODE_ACK,
+  MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_OFFSCREEN,
+  MSG_TRANSCODE_PROGRESS,
   MSG_TRANSCODE_START,
   type OffscreenPingRequest,
   type OffscreenPongResponse,
   type TranscodeAckResponse,
+  type TranscodeCompleteMessage,
   type TranscodeOffscreenRequest,
+  type TranscodeProgressMessage,
   type TranscodeStartRequest,
 } from '@/src/messaging/types';
 
@@ -30,6 +34,23 @@ function getChromeOffscreen(): ChromeOffscreenApi | undefined {
 }
 
 let creatingOffscreen: Promise<void> | null = null;
+
+// BUG FIX: Transcode progress stuck at 0%
+// Fix: Offscreen runtime.sendMessage does not reach content scripts; relay via tabs.sendMessage.
+const transcodeTabByJobId = new Map<string, number>();
+
+function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
+  const tabId = transcodeTabByJobId.get(message.jobId);
+  if (tabId === undefined) return;
+
+  void browser.tabs.sendMessage(tabId, message).catch((error) => {
+    console.warn('[Reddit Voice Notes] Tab relay failed:', error);
+  });
+
+  if (message.type === MSG_TRANSCODE_COMPLETE) {
+    transcodeTabByJobId.delete(message.jobId);
+  }
+}
 
 function isOffscreenTarget(message: unknown): boolean {
   return (
@@ -107,11 +128,26 @@ export default defineBackground(() => {
     offscreenApi: Boolean(getChromeOffscreen()?.createDocument),
   });
 
-  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (isOffscreenTarget(message)) return;
+
+    if (typeof message === 'object' && message !== null && 'type' in message) {
+      const type = (message as { type: string }).type;
+      if (type === MSG_TRANSCODE_PROGRESS || type === MSG_TRANSCODE_COMPLETE) {
+        relayTranscodeBroadcast(
+          message as TranscodeProgressMessage | TranscodeCompleteMessage,
+        );
+        return;
+      }
+    }
 
     const request = message as TranscodeStartRequest;
     if (request?.type !== MSG_TRANSCODE_START) return;
+
+    const tabId = sender.tab?.id;
+    if (tabId !== undefined) {
+      transcodeTabByJobId.set(request.jobId, tabId);
+    }
 
     (async () => {
       try {
@@ -131,6 +167,7 @@ export default defineBackground(() => {
         };
         sendResponse(ack);
       } catch (error) {
+        transcodeTabByJobId.delete(request.jobId);
         const ack: TranscodeAckResponse = {
           type: MSG_TRANSCODE_ACK,
           jobId: request.jobId,

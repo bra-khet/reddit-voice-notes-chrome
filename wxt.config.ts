@@ -16,5 +16,13 @@ export default defineConfig({
       'https://www.reddit.com/*',
       'https://reddit.com/*',
     ],
+    web_accessible_resources: [
+      {
+        // BUG FIX: FFmpeg worker ESM bundle lives under ffmpeg/esm/ — single-level glob misses it.
+        // Fix: expose both the core files and the full nested esm tree.
+        resources: ['ffmpeg/*', 'ffmpeg/esm/*'],
+        matches: ['<all_urls>'],
+      },
+    ],
   },
 });

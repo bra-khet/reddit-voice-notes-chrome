@@ -18,7 +18,8 @@
 ## Known fixes applied
 
 - **Re-record bug (Phase 2)**: `disposeRecorderOnly()` was stopping mic audio tracks shared with `micStream`, causing silent/corrupt WebM on second recording. Fixed by only stopping canvas video tracks and fully rebuilding the media pipeline on "Record again".
-- **FFmpeg messaging (Phase 3)**: Long transcode held a single `sendResponse` channel open (content → background → offscreen), causing "message channel closed". Fixed with two-phase protocol: quick ACK, then `TRANSCODE_COMPLETE` broadcast. Added offscreen ping/ready handshake + stable `public/ffmpeg/worker.js`.
+- **FFmpeg messaging (Phase 3)**: Long transcode held a single `sendResponse` channel open (content → background → offscreen), causing "message channel closed". Fixed with two-phase protocol: quick ACK, then `TRANSCODE_COMPLETE` broadcast. Added offscreen ping/ready handshake.
+- **FFmpeg progress stuck at 0% (Phase 3)**: (1) Lone `worker.js` blob URL broke ESM sibling imports — copy full `public/ffmpeg/esm/` bundle and load worker from extension URL. (2) Offscreen `runtime.sendMessage` progress never reached content scripts — background relays via `tabs.sendMessage`. (3) `web_accessible_resources` expanded to `ffmpeg/esm/*`.
 
 ## Dev notes
 
