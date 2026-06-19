@@ -6,7 +6,9 @@ import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { WaveformRenderer } from './waveform';
 
-const RECORDER_TIMESLICE_MS = 1000;
+/** Bitrates keep MediaRecorder WebM well-formed for ffmpeg.wasm (short clips, no timeslice). */
+const RECORDER_VIDEO_BPS = 2_500_000;
+const RECORDER_AUDIO_BPS = 128_000;
 
 export type RecorderPhase =
   | 'idle'
@@ -28,12 +30,22 @@ export interface RecorderState {
 type StateListener = (state: RecorderState) => void;
 
 function pickMimeType(): string | undefined {
+  // VP8 first — better ffmpeg.wasm compatibility than VP9 for short canvas captures.
   const candidates = [
-    'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9,opus',
     'video/webm',
   ];
   return candidates.find((type) => MediaRecorder.isTypeSupported(type));
+}
+
+function createMediaRecorder(stream: MediaStream, mimeType?: string): MediaRecorder {
+  const options: MediaRecorderOptions = {
+    videoBitsPerSecond: RECORDER_VIDEO_BPS,
+    audioBitsPerSecond: RECORDER_AUDIO_BPS,
+  };
+  if (mimeType) options.mimeType = mimeType;
+  return new MediaRecorder(stream, options);
 }
 
 export class VoiceRecorderSession {
@@ -140,15 +152,14 @@ export class VoiceRecorderSession {
     this.webmBlob = undefined;
     this.mp4Blob = undefined;
 
-    this.mediaRecorder = mimeType
-      ? new MediaRecorder(this.combinedStream, { mimeType })
-      : new MediaRecorder(this.combinedStream);
+    this.mediaRecorder = createMediaRecorder(this.combinedStream, mimeType);
 
     this.mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) this.chunks.push(event.data);
     };
 
-    this.mediaRecorder.start(RECORDER_TIMESLICE_MS);
+    // No timeslice — single contiguous WebM is more reliable for ffmpeg.wasm.
+    this.mediaRecorder.start();
     this.startedAt = Date.now();
     this.elapsedSeconds = 0;
     this.setPhase('recording', { elapsedSeconds: 0, processingProgress: 0 });
@@ -188,6 +199,13 @@ export class VoiceRecorderSession {
     const type = recorder.mimeType || 'video/webm';
     this.webmBlob = new Blob(this.chunks, { type });
     this.chunks = [];
+
+    if (this.webmBlob.size < 256) {
+      this.setPhase('error', {
+        errorMessage: 'Recording was empty or too short. Hold Record for at least one second.',
+      });
+      return;
+    }
 
     await this.transcodeToMp4();
   }

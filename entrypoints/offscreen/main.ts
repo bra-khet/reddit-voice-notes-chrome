@@ -48,6 +48,9 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   void (async () => {
     try {
+      console.log('[Reddit Voice Notes] Transcode job', request.jobId, {
+        webmBytes: request.webm.byteLength,
+      });
       const mp4 = await runWebmToMp4(request.webm, (ratio, stage) => {
         broadcastProgress(request.jobId, ratio, stage);
       });

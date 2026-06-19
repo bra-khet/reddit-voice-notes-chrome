@@ -21,6 +21,7 @@
 - **FFmpeg messaging (Phase 3)**: Long transcode held a single `sendResponse` channel open (content → background → offscreen), causing "message channel closed". Fixed with two-phase protocol: quick ACK, then `TRANSCODE_COMPLETE` broadcast. Added offscreen ping/ready handshake.
 - **FFmpeg progress stuck at 0% (Phase 3)**: (1) Lone `worker.js` blob URL broke ESM sibling imports — copy full `public/ffmpeg/esm/` bundle and load worker from extension URL. (2) Offscreen `runtime.sendMessage` progress never reached content scripts — background relays via `tabs.sendMessage`. (3) `web_accessible_resources` expanded to `ffmpeg/esm/*`.
 - **FFmpeg blob import TypeError (Phase 3)**: `toBlobURL` for core/wasm produced `blob:chrome-extension://…` URLs that module workers cannot `import()`. Fixed by passing `chrome-extension://` URLs directly for `coreURL` and `wasmURL`.
+- **FFmpeg exit code 1 (Phase 3)**: Hardened pipeline — WebM EBML validation, VP8-first recording, single-blob MediaRecorder (no timeslice), fallback transcode strategies with captured stderr in error messages.
 
 ## Dev notes
 
