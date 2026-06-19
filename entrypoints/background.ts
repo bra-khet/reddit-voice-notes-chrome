@@ -6,7 +6,7 @@ import {
   type TranscodeResponse,
 } from '@/src/messaging/types';
 
-const OFFSCREEN_URL = '/offscreen.html';
+const OFFSCREEN_PATH = 'offscreen.html';
 
 type ChromeOffscreenApi = {
   hasDocument?: () => Promise<boolean>;
@@ -15,11 +15,13 @@ type ChromeOffscreenApi = {
     reasons: string[];
     justification: string;
   }) => Promise<void>;
-  Reason?: { WORKERS: string };
+  Reason?: { WORKERS: string; BLOBS: string };
 };
 
 function getChromeOffscreen(): ChromeOffscreenApi | undefined {
-  return (globalThis as { chrome?: { offscreen?: ChromeOffscreenApi } }).chrome?.offscreen;
+  // chrome.offscreen is Chrome-only — not exposed on the browser polyfill.
+  const chromeApi = (globalThis as { chrome?: { offscreen?: ChromeOffscreenApi } }).chrome;
+  return chromeApi?.offscreen;
 }
 
 let creatingOffscreen: Promise<void> | null = null;
@@ -39,14 +41,16 @@ async function ensureOffscreenDocument(): Promise<void> {
 
   const offscreen = getChromeOffscreen();
   if (!offscreen?.createDocument) {
-    throw new Error('Offscreen documents are not supported in this browser.');
+    throw new Error(
+      'Offscreen documents are unavailable. Reload the extension after update — Chrome requires the "offscreen" manifest permission (Chrome 109+).',
+    );
   }
 
   const workersReason = offscreen.Reason?.WORKERS ?? 'WORKERS';
 
   creatingOffscreen = offscreen
     .createDocument({
-      url: browser.runtime.getURL(OFFSCREEN_URL as never),
+      url: browser.runtime.getURL(OFFSCREEN_PATH as never),
       reasons: [workersReason],
       justification: 'FFmpeg WASM transcoding for voice note MP4 export',
     })
@@ -60,6 +64,7 @@ async function ensureOffscreenDocument(): Promise<void> {
 export default defineBackground(() => {
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,
+    offscreenApi: Boolean(getChromeOffscreen()?.createDocument),
   });
 
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {

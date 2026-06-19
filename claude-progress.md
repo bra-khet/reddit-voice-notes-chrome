@@ -22,4 +22,5 @@
 ## Dev notes
 
 - Do **not** add `dom` to `manifest.json` — Chromium reports it as unknown; injection works without it.
+- **Do** declare `offscreen` in `manifest.json` — required for `chrome.offscreen.createDocument()` (MP4 transcoding).
 - `npm audit fix --force` downgrades WXT — use `overrides` in `package.json` instead.

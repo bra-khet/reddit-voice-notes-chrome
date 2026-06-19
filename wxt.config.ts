@@ -11,7 +11,7 @@ export default defineConfig({
     description:
       'Record short voice notes with an animated waveform and export MP4 for Reddit video comments.',
     version: '0.1.0',
-    permissions: ['storage'],
+    permissions: ['storage', 'offscreen'],
     host_permissions: [
       'https://www.reddit.com/*',
       'https://reddit.com/*',

@@ -109,6 +109,7 @@ npm run zip
 | Permission | Purpose |
 |------------|---------|
 | `storage` | Persist minimal settings |
+| `offscreen` | FFmpeg WASM transcoding in a hidden document (Chrome 109+) |
 | `host_permissions` for `reddit.com` | Content script injection |
 | Microphone (runtime) | Requested when user starts recording (Phase 1+) |
 
