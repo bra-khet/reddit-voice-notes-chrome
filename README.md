@@ -6,13 +6,13 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 
 ## Status
 
-**Phase 0 complete** — WXT scaffold, MV3 manifest, Reddit content script stub, settings popup.
+**Phase 1 complete** — MutationObserver injection, voice note button, microphone permission flow.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 0 | Scaffold & project structure | Done |
-| 1 | Permissions + Reddit button injection | Next |
-| 2 | Recorder core (WebM, no FFmpeg) | Planned |
+| 1 | Permissions + Reddit button injection | Done |
+| 2 | Recorder core (WebM, no FFmpeg) | Next |
 | 3 | FFmpeg.wasm WebM → MP4 | Planned |
 | 4 | Polish, limits, error states | Planned |
 | 5 | Reddit auto-attach (best-effort) | Planned |
@@ -73,12 +73,16 @@ WXT writes the unpacked extension to `.output/chrome-mv3-dev/`. Load that folder
 3. Click **Load unpacked**
 4. Select `.output/chrome-mv3-dev`
 
-Visit [reddit.com](https://www.reddit.com) and open DevTools → Console. You should see:
+Visit [reddit.com](https://www.reddit.com), open a post with video comments enabled, and expand the comment box. You should see a 🎤 button next to Reddit's video icon. Console output:
 
 ```
 [Reddit Voice Notes] Content script loaded on www.reddit.com
-[Reddit Voice Notes] Reddit injector initialized (Phase 0 stub)
+[Reddit Voice Notes] Reddit injector starting (Phase 1)
+[Reddit Voice Notes] Composer MutationObserver started
+[Reddit Voice Notes] Injected voice note button
 ```
+
+Click the 🎤 button to verify microphone permission (toast confirms grant/deny). Recorder UI lands in Phase 2.
 
 ### Production build
 
@@ -118,6 +122,10 @@ npm run zip
 ## Updating for Reddit UI changes
 
 All Reddit-specific selectors and injection logic live in `src/reddit-injector/`. Look for `UPDATE WHEN REDDIT UI CHANGES` comments when Reddit ships UI updates.
+
+## Dev dependency security notes
+
+`npm audit` may report vulnerabilities in WXT's **dev-only** toolchain (`web-ext-run`, `esbuild`, etc.). These packages are not shipped in the extension bundle. We pin patched versions via `overrides` in `package.json`. Do **not** run `npm audit fix --force` — it downgrades WXT to an ancient incompatible release.
 
 ## License
 
