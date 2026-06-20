@@ -110,7 +110,9 @@ export class VoiceRecorderSession {
   private mp4Blob?: Blob;
   private readonly listeners = new Set<StateListener>();
   private disposed = false;
+  private sessionEpoch = 0;
   private transcodeGeneration = 0;
+  private transcodeAbort: AbortController | null = null;
   private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stopInFlight = false;
   private prefsUnsubscribe: (() => void) | null = null;
@@ -284,9 +286,25 @@ export class VoiceRecorderSession {
     }, 250);
   }
 
+  private abortTranscode(): void {
+    this.transcodeAbort?.abort();
+    this.transcodeAbort = null;
+  }
+
+  private bumpSession(): void {
+    this.sessionEpoch += 1;
+    this.transcodeGeneration += 1;
+    this.abortTranscode();
+  }
+
+  private isSuperseded(stopEpoch: number): boolean {
+    return this.disposed || stopEpoch !== this.sessionEpoch;
+  }
+
   async stopRecording(options?: { stoppedAtCap?: boolean }): Promise<void> {
     if (this.stopInFlight || this.phase !== 'recording' || !this.mediaRecorder) return;
 
+    const stopEpoch = this.sessionEpoch;
     this.stopInFlight = true;
 
     if (options?.stoppedAtCap) {
@@ -324,10 +342,18 @@ export class VoiceRecorderSession {
         return;
       }
 
+      if (this.isSuperseded(stopEpoch)) return;
+
+      // Enter processing before preflight so UI cannot re-trigger stop / reopen races.
+      this.setPhase('processing', { processingProgress: 0 });
+
       try {
         await validateWebmRecording(this.webmBlob);
-        await this.transcodeToMp4();
+        if (this.isSuperseded(stopEpoch)) return;
+        await this.transcodeToMp4(stopEpoch);
       } catch (error) {
+        if (this.isSuperseded(stopEpoch)) return;
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         this.setError(error);
       }
     } finally {
@@ -335,27 +361,42 @@ export class VoiceRecorderSession {
     }
   }
 
-  private async transcodeToMp4(): Promise<void> {
-    if (!this.webmBlob) return;
+  private async transcodeToMp4(stopEpoch: number): Promise<void> {
+    if (!this.webmBlob || this.isSuperseded(stopEpoch)) return;
 
-    const generation = ++this.transcodeGeneration;
-    this.setPhase('processing', { processingProgress: 0 });
+    const generation = this.transcodeGeneration;
+    this.abortTranscode();
+    const controller = new AbortController();
+    this.transcodeAbort = controller;
+
+    let lastProgress = 0;
 
     try {
-      this.mp4Blob = await transcodeWebmToMp4(this.webmBlob, (ratio) => {
-        if (this.disposed || generation !== this.transcodeGeneration) return;
-        this.setPhase('processing', { processingProgress: Math.round(ratio * 100) });
-      });
+      this.mp4Blob = await transcodeWebmToMp4(
+        this.webmBlob,
+        (ratio) => {
+          if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
+          const pct = Math.max(lastProgress, Math.round(ratio * 100));
+          lastProgress = pct;
+          this.setPhase('processing', { processingProgress: pct });
+        },
+        controller.signal,
+      );
 
-      if (this.disposed || generation !== this.transcodeGeneration) return;
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
 
       this.setPhase('stopped', {
         processingProgress: 100,
         stoppedAtCap: this.stoppedAtCap,
       });
     } catch (error) {
-      if (this.disposed || generation !== this.transcodeGeneration) return;
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       this.setError(error);
+    } finally {
+      if (this.transcodeAbort === controller) {
+        this.transcodeAbort = null;
+      }
     }
   }
 
@@ -371,13 +412,13 @@ export class VoiceRecorderSession {
 
   async resetForNewRecording(): Promise<void> {
     this.disposed = false;
-    this.transcodeGeneration += 1;
+    this.bumpSession();
     this.disposeMediaPipeline();
     await this.prepare();
   }
 
   cancel(): void {
-    this.transcodeGeneration += 1;
+    this.bumpSession();
     this.disposeMediaPipeline();
     this.setPhase('idle', {
       elapsedSeconds: 0,
@@ -394,7 +435,7 @@ export class VoiceRecorderSession {
 
   dispose(): void {
     this.disposed = true;
-    this.transcodeGeneration += 1;
+    this.bumpSession();
     this.disposeMediaPipeline();
   }
 

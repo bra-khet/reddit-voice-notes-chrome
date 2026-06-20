@@ -169,3 +169,33 @@ Explicit pipeline checks at every hop (no heuristics):
 
 - `src/ffmpeg/webm-preflight.ts`
 - `src/recorder/voice-recorder.ts`
+
+---
+
+## BUG-005 — Orphan transcode jobs / double send / progress flicker (2026-06)
+
+### Symptoms
+
+- Console shows two `Sending WebM for transcode` lines with **different jobIds and byte sizes** from what felt like one recording.
+- Progress pegs at **20%** for long stretches; brief flicker to **~35%** then back to 20%.
+- Second (smaller) job sometimes succeeds while the first appears hung; long waits before completion.
+
+### Root causes (confirmed)
+
+1. **Not a duplicate relay of one blob** — byte sizes differ (e.g. 1.57 MB then 407 KB) = two separate `stopRecording` → transcode chains.
+2. **Orphaned async `stopRecording`** — `openRecorderPanel()` / `RecorderPanel.open()` calls `dispose()` on the old session but does not abort in-flight preflight/transcode. The old session object keeps running and enqueues job 1 while a new session enqueues job 2.
+3. **`transcode-lock` serializes jobs** — job 2 waits behind job 1 in the content script; UI may be bound to job 2 while job 1 blocks the lock → multi-minute waits.
+4. **20% peg is expected FFmpeg mapping** — transcoding stage reports `0.2 + ratio * 0.75`; WASM often stays at 0.2 until `progress` events fire. **35%** ≈ brief `progress` (~0.2) before strategy retry resets to 20%.
+
+### Fix (2026-06)
+
+- `sessionEpoch` + supersede checks: skip transcode if panel disposed/reopened during preflight.
+- `AbortController` on client transcode: `dispose()` / `cancel()` release lock and listeners immediately.
+- Enter `processing` phase **before** WebM preflight (UI cannot re-stop during validate).
+- Monotonic progress reporting (never regress 35% → 20% in UI).
+
+### Related files
+
+- `src/recorder/voice-recorder.ts` — session epoch, abort, early processing phase
+- `src/ffmpeg/transcoder.ts` — AbortSignal, monotonic progress
+- `src/ui/recorder-panel.ts` — dispose aborts via session.dispose()

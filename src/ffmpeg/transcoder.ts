@@ -31,13 +31,24 @@ function isExtensionContextValid(): boolean {
 export async function transcodeWebmToMp4(
   webm: Blob,
   onProgress?: (ratio: number) => void,
+  signal?: AbortSignal,
 ): Promise<Blob> {
-  return withTranscodeLock(() => transcodeWebmToMp4Inner(webm, onProgress));
+  if (signal?.aborted) {
+    throw new DOMException('Transcode cancelled.', 'AbortError');
+  }
+
+  return withTranscodeLock(async () => {
+    if (signal?.aborted) {
+      throw new DOMException('Transcode cancelled.', 'AbortError');
+    }
+    return transcodeWebmToMp4Inner(webm, onProgress, signal);
+  });
 }
 
 async function transcodeWebmToMp4Inner(
   webm: Blob,
   onProgress?: (ratio: number) => void,
+  signal?: AbortSignal,
 ): Promise<Blob> {
   if (!isExtensionContextValid()) {
     throw new Error(
@@ -67,8 +78,16 @@ async function transcodeWebmToMp4Inner(
     let ackTimer: number | null = null;
     let gotAck = false;
     let lastProgressAt = Date.now();
+    let lastReportedRatio = 0;
+
+    const reportProgress = (ratio: number) => {
+      const clamped = Math.min(1, Math.max(lastReportedRatio, ratio));
+      lastReportedRatio = clamped;
+      onProgress?.(clamped);
+    };
 
     const cleanup = () => {
+      signal?.removeEventListener('abort', onAbort);
       if (stallTimer !== null) window.clearTimeout(stallTimer);
       if (absoluteTimer !== null) window.clearTimeout(absoluteTimer);
       if (ackTimer !== null) window.clearTimeout(ackTimer);
@@ -78,10 +97,20 @@ async function transcodeWebmToMp4Inner(
       browser.runtime.onMessage.removeListener(onBroadcast);
     };
 
-    const fail = (message: string) => {
+    const fail = (message: string, asAbort = false) => {
       cleanup();
+      if (asAbort) {
+        reject(new DOMException(message, 'AbortError'));
+        return;
+      }
       reject(new Error(message));
     };
+
+    const onAbort = () => {
+      fail('Transcode cancelled.', true);
+    };
+
+    signal?.addEventListener('abort', onAbort);
 
     const resetStallTimer = () => {
       lastProgressAt = Date.now();
@@ -113,7 +142,7 @@ async function transcodeWebmToMp4Inner(
       if ((message as { type: string }).type === MSG_TRANSCODE_PROGRESS) {
         const progressMsg = message as TranscodeProgressMessage;
         resetStallTimer();
-        onProgress?.(progressMsg.progress / 100);
+        reportProgress(progressMsg.progress / 100);
         return;
       }
 
@@ -136,7 +165,7 @@ async function transcodeWebmToMp4Inner(
             dataBase64: completeMsg.mp4Base64,
             byteLength: completeMsg.mp4ByteLength,
           });
-          onProgress?.(1);
+          reportProgress(1);
           const mp4Bytes = unpackBinary(completeMsg.mp4Base64, completeMsg.mp4ByteLength);
           resolve(new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' }));
         } catch (error) {
@@ -155,9 +184,18 @@ async function transcodeWebmToMp4Inner(
       webmByteLength: webmPacked.byteLength,
     };
 
+    if (signal?.aborted) {
+      fail('Transcode cancelled.', true);
+      return;
+    }
+
     browser.runtime
       .sendMessage(request)
       .then((ack) => {
+        if (signal?.aborted) {
+          fail('Transcode cancelled.', true);
+          return;
+        }
         const response = ack as TranscodeAckResponse | undefined;
         if (!response?.ok) {
           fail(response?.error ?? 'Failed to start FFmpeg transcoding.');
@@ -171,7 +209,7 @@ async function transcodeWebmToMp4Inner(
         if (ackTimer !== null) window.clearTimeout(ackTimer);
         ackTimer = null;
         resetStallTimer();
-        onProgress?.(0.01);
+        reportProgress(0.01);
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
