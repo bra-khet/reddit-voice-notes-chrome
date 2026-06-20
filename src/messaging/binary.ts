@@ -3,7 +3,8 @@
  * Uint8Array and ArrayBuffer are NOT reliable across MV3 relay hops — use base64 strings.
  */
 
-const BASE64_CHUNK = 0x8000;
+/** Keep small — String.fromCharCode.apply args must stay under engine limits. */
+const BASE64_CHUNK = 0x2000;
 
 export function encodeBase64(bytes: Uint8Array): string {
   if (bytes.byteLength === 0) {
@@ -13,7 +14,9 @@ export function encodeBase64(bytes: Uint8Array): string {
   const parts: string[] = [];
   for (let offset = 0; offset < bytes.length; offset += BASE64_CHUNK) {
     const slice = bytes.subarray(offset, Math.min(offset + BASE64_CHUNK, bytes.length));
-    parts.push(String.fromCharCode(...slice));
+    // BUG FIX: 3-minute cap auto-stop hung FFmpeg / timed out
+    // Fix: Avoid spread on large slices (stack overflow / silent encode failure on long recordings).
+    parts.push(String.fromCharCode.apply(null, slice as unknown as number[]));
   }
   return btoa(parts.join(''));
 }

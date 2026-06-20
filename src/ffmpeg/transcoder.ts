@@ -11,7 +11,13 @@ import {
 } from '@/src/messaging/types';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
-const TRANSCODE_TIMEOUT_MS = 5 * 60 * 1000;
+const TRANSCODE_TIMEOUT_BASE_MS = 5 * 60 * 1000;
+const TRANSCODE_TIMEOUT_PER_MB_MS = 45 * 1000;
+
+function transcodeTimeoutMs(webmBytes: number): number {
+  const megabytes = webmBytes / (1024 * 1024);
+  return TRANSCODE_TIMEOUT_BASE_MS + Math.ceil(megabytes) * TRANSCODE_TIMEOUT_PER_MB_MS;
+}
 
 function isExtensionContextValid(): boolean {
   try {
@@ -46,11 +52,17 @@ export async function transcodeWebmToMp4(
     base64Chars: webmPacked.dataBase64.length,
   });
 
+  const timeoutMs = transcodeTimeoutMs(webmBytes.byteLength);
+
   return new Promise<Blob>((resolve, reject) => {
     const timeoutId = window.setTimeout(() => {
       browser.runtime.onMessage.removeListener(onBroadcast);
-      reject(new Error('FFmpeg transcoding timed out after 5 minutes.'));
-    }, TRANSCODE_TIMEOUT_MS);
+      reject(
+        new Error(
+          `FFmpeg transcoding timed out after ${Math.round(timeoutMs / 60_000)} minutes.`,
+        ),
+      );
+    }, timeoutMs);
 
     const onBroadcast = (message: unknown) => {
       if (!message || typeof message !== 'object' || !('type' in message) || !('jobId' in message)) {

@@ -181,6 +181,42 @@ export function findInjectionTarget(element: Element): ComposerInjectionTarget |
   return { composer, anchor, videoButton: anchorElement };
 }
 
+/**
+ * Resolve the comment composer associated with a focused node, if any.
+ * UPDATE WHEN REDDIT UI CHANGES
+ */
+export function findComposerFromNode(node: Node | null): Element | null {
+  if (!node) return null;
+
+  let current: Node | null = node;
+  while (current) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      const composer = findComposerRoot(current as Element);
+      if (composer) return composer;
+    }
+    if (current instanceof ShadowRoot) {
+      current = current.host;
+      continue;
+    }
+    if (current instanceof Element && current.shadowRoot) {
+      current = current.parentNode;
+      continue;
+    }
+    current = current.parentNode;
+  }
+
+  return null;
+}
+
+/** Prefer focused composer; otherwise first visible injection target. */
+export function resolveTargetComposer(): Element | null {
+  const focused = findComposerFromNode(document.activeElement);
+  if (focused && isComposerReady(focused)) return focused;
+
+  const targets = findAllInjectionTargets();
+  return targets[0]?.composer ?? null;
+}
+
 export function findAllInjectionTargets(root: ParentNode = document): ComposerInjectionTarget[] {
   const targets: ComposerInjectionTarget[] = [];
   const seenComposers = new Set<Element>();

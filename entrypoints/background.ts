@@ -1,3 +1,4 @@
+import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
 import {
   MSG_OFFSCREEN_PING,
   MSG_TRANSCODE_ACK,
@@ -122,10 +123,22 @@ async function dispatchToOffscreen(request: TranscodeOffscreenRequest): Promise<
   }
 }
 
+const COMMAND_OPEN_RECORDER = 'open-voice-recorder';
+
 export default defineBackground(() => {
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,
     offscreenApi: Boolean(getChromeOffscreen()?.createDocument),
+  });
+
+  browser.commands.onCommand.addListener((command) => {
+    if (command !== COMMAND_OPEN_RECORDER) return;
+
+    void (async () => {
+      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) return;
+      await browser.tabs.sendMessage(tab.id, { type: MSG_OPEN_RECORDER });
+    })();
   });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {

@@ -86,6 +86,8 @@ export class VoiceRecorderSession {
   private readonly listeners = new Set<StateListener>();
   private disposed = false;
   private transcodeGeneration = 0;
+  private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private stopInFlight = false;
 
   get previewCanvas(): HTMLCanvasElement | null {
     return this.waveform?.canvas ?? null;
@@ -214,47 +216,61 @@ export class VoiceRecorderSession {
       stoppedAtCap: false,
     });
 
+    this.capTimeoutId = setTimeout(() => {
+      this.stoppedAtCap = true;
+      void this.stopRecording({ stoppedAtCap: true });
+    }, MAX_RECORDING_SECONDS * 1000);
+
     this.timerId = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
+      const elapsed = Math.min(
+        MAX_RECORDING_SECONDS,
+        Math.floor((Date.now() - this.startedAt) / 1000),
+      );
       this.elapsedSeconds = elapsed;
       const limits = recordingLimitFlags(elapsed);
       this.setPhase('recording', { elapsedSeconds: elapsed, ...limits });
-
-      if (elapsed >= MAX_RECORDING_SECONDS) {
-        this.stoppedAtCap = true;
-        void this.stopRecording({ stoppedAtCap: true });
-      }
     }, 250);
   }
 
   async stopRecording(options?: { stoppedAtCap?: boolean }): Promise<void> {
-    if (this.phase !== 'recording' || !this.mediaRecorder) return;
+    if (this.stopInFlight || this.phase !== 'recording' || !this.mediaRecorder) return;
 
-    if (options?.stoppedAtCap) this.stoppedAtCap = true;
+    this.stopInFlight = true;
+
+    if (options?.stoppedAtCap) {
+      this.stoppedAtCap = true;
+      this.elapsedSeconds = MAX_RECORDING_SECONDS;
+    }
 
     if (this.timerId) clearInterval(this.timerId);
     this.timerId = null;
+    if (this.capTimeoutId) clearTimeout(this.capTimeoutId);
+    this.capTimeoutId = null;
 
     const recorder = this.mediaRecorder;
     this.mediaRecorder = null;
 
-    const chunks = await this.finalizeMediaRecorder(recorder);
+    try {
+      const chunks = await this.finalizeMediaRecorder(recorder, this.stoppedAtCap);
 
-    this.releaseCaptureTracks();
+      this.releaseCaptureTracks();
 
-    const type = recorder.mimeType || 'video/webm';
-    this.webmBlob = new Blob(chunks, { type });
-    this.chunks = [];
+      const type = recorder.mimeType || 'video/webm';
+      this.webmBlob = new Blob(chunks, { type });
+      this.chunks = [];
 
-    if (this.webmBlob.size < MIN_RECORDING_BYTES) {
-      this.setPhase('error', {
-        errorCode: 'empty-recording',
-        errorMessage: 'Recording was empty or too short. Hold Record for at least one second.',
-      });
-      return;
+      if (this.webmBlob.size < MIN_RECORDING_BYTES) {
+        this.setPhase('error', {
+          errorCode: 'empty-recording',
+          errorMessage: 'Recording was empty or too short. Hold Record for at least one second.',
+        });
+        return;
+      }
+
+      await this.transcodeToMp4();
+    } finally {
+      this.stopInFlight = false;
     }
-
-    await this.transcodeToMp4();
   }
 
   private async transcodeToMp4(): Promise<void> {
@@ -320,24 +336,42 @@ export class VoiceRecorderSession {
     this.disposeMediaPipeline();
   }
 
-  /** Drain MediaRecorder chunks — handlers must be attached immediately before stop(). */
-  private async finalizeMediaRecorder(recorder: MediaRecorder): Promise<Blob[]> {
+  /**
+   * Drain MediaRecorder chunks — handlers must be attached immediately before stop().
+   * BUG FIX: 3-minute cap auto-stop hung FFmpeg / timed out
+   * Fix: Cap uses dedicated timeout (not interval race); flush final timeslice before stop.
+   */
+  private async finalizeMediaRecorder(
+    recorder: MediaRecorder,
+    flushCapStop = false,
+  ): Promise<Blob[]> {
     const chunks = [...this.chunks];
 
-    await new Promise<void>((resolve) => {
+    if (recorder.state === 'recording') {
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunks.push(event.data);
       };
-      recorder.onstop = () => resolve();
 
-      if (recorder.state === 'recording') {
-        recorder.requestData();
-        recorder.stop();
-        return;
+      recorder.requestData();
+
+      // BUG FIX: 3-minute cap auto-stop hung FFmpeg / timed out
+      // Fix: Wait for the in-flight 1s timeslice to land before the final stop().
+      if (flushCapStop) {
+        await new Promise((resolve) => setTimeout(resolve, RECORDER_TIMESLICE_MS + 100));
+        if (recorder.state === 'recording') {
+          recorder.requestData();
+        }
       }
 
-      resolve();
-    });
+      await new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
+        if (recorder.state === 'recording') {
+          recorder.stop();
+          return;
+        }
+        resolve();
+      });
+    }
 
     return chunks;
   }
@@ -354,6 +388,9 @@ export class VoiceRecorderSession {
   private disposeMediaPipeline(): void {
     if (this.timerId) clearInterval(this.timerId);
     this.timerId = null;
+    if (this.capTimeoutId) clearTimeout(this.capTimeoutId);
+    this.capTimeoutId = null;
+    this.stopInFlight = false;
 
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       this.mediaRecorder.onstop = null;

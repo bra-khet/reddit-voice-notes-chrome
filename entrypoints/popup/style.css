@@ -6,7 +6,7 @@
 
 body {
   margin: 0;
-  min-width: 280px;
+  min-width: 300px;
   background: #1a1a1b;
   color: #d7dadc;
 }
@@ -37,6 +37,71 @@ body {
   color: #818384;
 }
 
+.popup__section {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #272729;
+  border: 1px solid #343536;
+}
+
+.popup__section-title {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.popup__shortcut {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  background: #1a1a1b;
+  color: #d7dadc;
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+}
+
+.popup__shortcut:hover {
+  border-color: #0079d3;
+}
+
+.popup__shortcut--capture {
+  border-color: #d93900;
+  box-shadow: 0 0 0 2px rgba(217, 57, 0, 0.25);
+}
+
+.popup__shortcut:focus-visible {
+  outline: 2px solid #0079d3;
+  outline-offset: 2px;
+}
+
+.popup__micro {
+  margin: 8px 0 4px;
+  font-size: 0.75rem;
+  color: #818384;
+}
+
+.popup__link {
+  border: none;
+  background: transparent;
+  color: #0079d3;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.popup__link:hover {
+  color: #4fbcff;
+}
+
 .popup__button {
   width: 100%;
   padding: 10px 14px;
@@ -65,7 +130,19 @@ body {
   }
 
   .popup__version,
-  .popup__hint {
+  .popup__hint,
+  .popup__micro {
     color: #576f76;
+  }
+
+  .popup__section {
+    background: #f6f7f8;
+    border-color: #edeff1;
+  }
+
+  .popup__shortcut {
+    background: #ffffff;
+    color: #1a1a1b;
+    border-color: #edeff1;
   }
 }

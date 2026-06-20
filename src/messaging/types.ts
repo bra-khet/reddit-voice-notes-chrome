@@ -5,6 +5,7 @@ export const MSG_TRANSCODE_PROGRESS = 'rvn/transcode-progress' as const;
 export const MSG_TRANSCODE_COMPLETE = 'rvn/transcode-complete' as const;
 export const MSG_OFFSCREEN_PING = 'rvn/offscreen-ping' as const;
 export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
+export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
 
 /** @deprecated Use MSG_TRANSCODE_START — kept for grep compatibility */
 export const MSG_TRANSCODE = MSG_TRANSCODE_START;
@@ -56,6 +57,10 @@ export interface OffscreenPingRequest {
 export interface OffscreenPongResponse {
   type: typeof MSG_OFFSCREEN_PONG;
   ready: boolean;
+}
+
+export interface OpenRecorderMessage {
+  type: typeof MSG_OPEN_RECORDER;
 }
 
 export type TranscodeBroadcast =

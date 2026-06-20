@@ -1,45 +1,37 @@
 # Reddit Voice Notes — Session Progress
 
-## Completed phases
+## MVP complete — v1.0.0
 
-| Phase | Status | Notes |
-|-------|--------|-------|
-| 0 | Done | WXT MV3 scaffold |
-| 1 | Done | Shadow DOM injection, mic button on comment composer |
-| 2 | Done | Recorder panel, live waveform, WebM capture + download |
-| 3 | Done | ffmpeg.wasm WebM → MP4 via offscreen document + background relay |
-| 4 | Done | Polish: 3-min cap UX, cancel/discard, a11y, errors, dark/light, assets |
-| 5 | Done | Best-effort Reddit auto-attach via file input / dropzone |
+| Phase | Status |
+|-------|--------|
+| 0–5 | Done |
+| 6 | Done — shortcuts, settings popup, README, v1.0.0 |
 
-## Phase 5 deliverables
+## Phase 6 deliverables
 
-- **`src/reddit-injector/video-attach.ts`**: Finds Reddit video file input (Shadow DOM), clicks video button to reveal if needed, assigns MP4 via `DataTransfer`, dispatches `change`/`input`; dropzone fallback
-- **Composer context**: Recorder panel tracks which comment box opened it
-- **Success UI**: Download MP4 (primary) + Attach to Reddit (secondary) + Record again (tertiary link)
-- **Graceful fallback**: Clear toast if attach fails; download path unchanged
-- **Selectors**: `FILE_INPUT_SELECTORS`, `DROPZONE_SELECTORS` in `selectors.ts` (UPDATE WHEN REDDIT UI CHANGES)
-- **Version**: `0.3.0`
+- **Keyboard shortcut**: Default `Ctrl+Shift+X` / `⌘+Shift+X`; configurable in popup (`src/settings/`)
+- **Manifest command**: `open-voice-recorder` (rebindable at `chrome://extensions/shortcuts`)
+- **Settings popup**: Shortcut capture, reset, reload extension
+- **README**: Finalized usage, layout, limitations
 
-## Mic icon (Phase 4 tweak)
+## Bug fix: 3-minute cap transcode hang
 
-- Toolbar mic uses muted gray (`#818384`) via CSS on `.rvn-mic-icon` — SVG `stroke="currentColor"` inherits it
+- **Cause**: Interval-based cap stop raced with MediaRecorder 1s timeslice; final chunk could be incomplete → FFmpeg hung until 5 min client timeout
+- **Fix**: Dedicated `setTimeout` cap; `stopInFlight` guard; flush wait (`timeslice + 100ms`) before `stop()` on cap; safer base64 encode (no large spread); scaled transcode timeout by WebM size
 
-## Architecture
+## Restore prior checkpoint
 
-```
-Reddit tab (content script)
-  → record WebM → base64 → offscreen FFmpeg → MP4
-  → Download MP4 (always works)
-  → optional: attachMp4ToComposer() → Reddit file input / dropzone
+```bash
+git checkout v0.1.0-phase3-stable && npm install && npm run dev
 ```
 
 ## Known limitations
 
-- Auto-attach is **best-effort** — Reddit UI changes may break it; download always works
-- Must reload extension + hard-refresh Reddit after updates
-- Very long recordings may stress base64 message size
-- Injection/attach selectors need manual updates when Reddit changes composer UI
+- Auto-attach best-effort; download always works
+- Large 3-min recordings near Chrome message size limits
+- Popup shortcut vs Chrome command page are independent config paths
 
-## Next up: Phase 6
+## Future ideas (post-MVP)
 
-Keyboard shortcut, settings popup polish, README finalization, manifest metadata.
+- Waveform themes in settings
+- Chunked binary transport for very long recordings
