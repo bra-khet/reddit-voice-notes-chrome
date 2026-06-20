@@ -37,7 +37,14 @@ git checkout v0.1.0-phase3-stable && npm install && npm run dev
 - Large 3-min recordings near Chrome message size limits
 - Popup shortcut vs Chrome command page are independent config paths
 
+## Branch split (post-MVP)
+
+| Branch | Role |
+|--------|------|
+| `main` | Frozen MVP — `v1.0.2-live` production build |
+| `pretty` | Visual polish, themes, backgrounds, personalization — see `pretty-branch.md` |
+
 ## Future ideas (post-MVP)
 
-- Waveform themes in settings
+- Waveform themes in settings → active on `pretty` branch
 - Chunked binary transport for very long recordings
