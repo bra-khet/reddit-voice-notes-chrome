@@ -41,12 +41,32 @@ git checkout v0.1.0-phase3-stable && npm install && npm run dev
 - Reddit allows ~3:00 video comments; extension intentionally stops earlier
 - Popup shortcut vs Chrome command page are independent config paths
 
+## v1.5.0 stable (2026-06) — merged `pretty` → `main`, tag `v1.5.0`
+
+- Themes, hardened FFmpeg pipeline, popup clip-appearance settings, 2:00 cap
+- **QA finding — live theme swap during recording is safe** (see below); comment-panel lockout kept as UX guard only
+
 ## Branch split (post-MVP)
 
 | Branch | Role |
 |--------|------|
-| `main` | Frozen MVP — `v1.0.2-live` production build |
-| `pretty` | Visual polish, themes, backgrounds, personalization — see `pretty-branch.md` |
+| `main` | Stable releases — `v1.5.0` (themes + pipeline hardening) |
+| `pretty` | Continued visual polish / ImageDB — see `pretty-branch.md` |
+
+## Architecture note: mid-recording theme changes (QA-verified 2026-06)
+
+**Observed:** Changing clip style in the **extension settings popup** while recording works cleanly — canvas updates live and the finished MP4 reflects theme switches mid-clip. The **comment recorder panel** hides/disables its theme picker during recording; that lockout is defensive UX, not a pipeline requirement.
+
+**Why it works (single-canvas WYSIWYG):**
+
+1. `VoiceRecorderSession` subscribes to `onUserPreferencesChanged()` for the whole session (`voice-recorder.ts`).
+2. Any `saveAppearancePreferences()` write (popup or panel) → `chrome.storage.local` → listener calls `waveform.setTheme()` / `setBarAlignment()` without restarting MediaRecorder.
+3. `WaveformRenderer` RAF loop reads `this.theme` every frame; `setTheme()` hot-swaps theme data + async background image load (`waveform.ts`).
+4. `waveform.canvas.captureStream(WAVEFORM_TARGET_FPS)` feeds MediaRecorder — **preview pixels = encoded video pixels**.
+
+**Implication for pretty-7 (IndexedDB custom backgrounds):** Same hot-swap path. Store blob id in prefs; extend `loadBackgroundIfNeeded()` to resolve IndexedDB images; prefs listener already applies mid-recording. No parallel recorder or post-composite needed.
+
+**Policy:** Keep comment-panel theme lockout (reduces accidental mid-take changes). Consider exposing intentional mid-recording style changes only via popup or a future explicit “live style” affordance.
 
 ## Future ideas (post-MVP)
 

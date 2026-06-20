@@ -489,6 +489,8 @@ export class RecorderPanel {
       this.waveformSlot.replaceChildren(canvas);
     }
 
+    // UX guard: hide in-panel theme picker while recording. Pipeline supports live swaps via
+    // extension popup + onUserPreferencesChanged → waveform.setTheme (see pretty-branch.md).
     const themeRow = this.shadow.querySelector<HTMLElement>('[data-theme-row]')!;
     const themeEditable = state.phase === 'ready' || state.phase === 'idle';
     themeRow.hidden = !themeEditable;

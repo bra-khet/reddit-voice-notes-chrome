@@ -6,7 +6,7 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 
 ## Status
 
-**MVP complete (v1.0.0)** — record, transcode, download, auto-attach, keyboard shortcut, settings popup.
+**Stable v1.5.0** — MVP recording pipeline + themed waveform canvas, popup clip-appearance settings, hardened transcode pipeline. See `pretty-branch.md` for ongoing polish work.
 
 | Phase | Scope | Status |
 |-------|-------|--------|

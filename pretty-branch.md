@@ -1,6 +1,6 @@
 # `pretty` branch — visual polish & personalization
 
-**`main`** stays frozen as the MVP (`v1.0.2-live`). All visual/customization work happens here.
+**`main`** is the stable release line (`v1.5.0` as of 2026-06). Continued experimentation happens on **`pretty`**.
 
 ## Goal
 
@@ -91,7 +91,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | Phase | Name | Scope | Status |
 |-------|------|-------|--------|
 | **pretty-0** | Theme foundation | Theme model, 5 bundled presets, canvas draw refactor, persistence normalization, `rvnUserPrefs` v1 scaffold | Done |
-| **pretty-1** | Popup — clip appearance | Theme picker, static canvas preview (same draw path as output), bar alignment; synced with recorder panel | **Current** |
+| **pretty-1** | Popup — clip appearance | Theme picker, static canvas preview (same draw path as output), bar alignment; synced with recorder panel | Done (in `v1.5.0`) |
 | **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion | Planned |
 | **pretty-3** | Audio & viz toggles | Raw mic capture toggle, full-spectrum/music viz mode, help tooltips | Planned |
 | **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Planned |
@@ -107,6 +107,22 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 - Personal backgrounds are **drawn to the canvas during capture** — preview = output, same as bundled presets today.
 - Storage lives in **IndexedDB** (not `chrome.storage.local`); prefs hold only image record ids + metadata.
 - `UserPreferencesV1` will gain `appearance.customBackgroundId` (or profile-level refs) without breaking v1 merge defaults.
+
+### QA finding: live theme swap during recording (2026-06)
+
+**Verified safe.** Changing theme via the extension settings popup mid-recording updates the canvas and bakes into the MP4. Comment-panel theme picker stays locked during recording (`recorder-panel.ts`) — UI guard only.
+
+**Mechanism (intentional architecture, not accidental):**
+
+| Piece | Role |
+|-------|------|
+| `saveAppearancePreferences()` | Writes `rvnUserPrefs` to `chrome.storage.local` |
+| `onUserPreferencesChanged()` | Cross-context listener (popup ↔ content script) |
+| `VoiceRecorderSession` prefs hook | Calls `waveform.setTheme()` / `setBarAlignment()` while recording |
+| `WaveformRenderer.drawFrame()` | Reads current theme every RAF tick |
+| `canvas.captureStream()` | MediaRecorder encodes whatever the canvas drew each frame |
+
+**Takeaway:** IndexedDB user images should plug into `loadBackgroundIfNeeded()` + the existing prefs listener — same hot-swap model as bundled SVG backgrounds. No recorder restart required.
 
 ## Legacy suggested order (superseded by phase table above)
 

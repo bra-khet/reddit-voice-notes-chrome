@@ -214,6 +214,9 @@ export class VoiceRecorderSession {
       await this.waveform.whenReady();
       this.waveform.start();
 
+      // Live theme/alignment hot-swap: safe during recording (canvas captureStream = WYSIWYG).
+      // Popup settings can change style mid-take; comment panel hides picker as UX guard only.
+      // See claude-progress.md "mid-recording theme changes" and pretty-branch.md pretty-7 notes.
       this.prefsUnsubscribe?.();
       this.prefsUnsubscribe = onUserPreferencesChanged((next) => {
         if (!this.waveform) return;
