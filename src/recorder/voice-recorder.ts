@@ -6,6 +6,7 @@ import { friendlyRecorderError, type RecorderErrorCode } from '@/src/utils/error
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
+import { getThemeById, loadActiveTheme, onActiveThemeChanged } from '@/src/theme';
 import { WaveformRenderer } from './waveform';
 
 /** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
@@ -90,6 +91,7 @@ export class VoiceRecorderSession {
   private transcodeGeneration = 0;
   private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stopInFlight = false;
+  private themeUnsubscribe: (() => void) | null = null;
 
   get previewCanvas(): HTMLCanvasElement | null {
     return this.waveform?.canvas ?? null;
@@ -172,8 +174,17 @@ export class VoiceRecorderSession {
       const analyser = this.audioContext.createAnalyser();
       source.connect(analyser);
 
-      this.waveform = new WaveformRenderer(analyser);
+      const theme = await loadActiveTheme();
+      this.waveform = new WaveformRenderer(analyser, theme);
+      await this.waveform.whenReady();
       this.waveform.start();
+
+      this.themeUnsubscribe?.();
+      this.themeUnsubscribe = onActiveThemeChanged((themeId) => {
+        if (!this.waveform) return;
+        this.waveform.setTheme(getThemeById(themeId));
+        void this.waveform.whenReady();
+      });
 
       this.setPhase('ready');
     } catch (error) {
@@ -393,6 +404,9 @@ export class VoiceRecorderSession {
     this.chunks = [];
 
     this.releaseCaptureTracks();
+
+    this.themeUnsubscribe?.();
+    this.themeUnsubscribe = null;
 
     this.waveform?.stop();
     this.waveform = null;

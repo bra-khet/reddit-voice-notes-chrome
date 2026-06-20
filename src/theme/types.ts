@@ -1,0 +1,46 @@
+/** Bar geometry for the waveform draw loop. */
+export interface ThemeBarStyle {
+  width: number;
+  spacing: number;
+  cornerRadius: number;
+  /** Max shadow blur (px) at full amplitude. */
+  glow: number;
+}
+
+export interface ThemeColors {
+  bar: string;
+  glow: string;
+  /** Letterbox / fallback fill behind image backgrounds. */
+  bg: string;
+}
+
+export type BackgroundType = 'solid' | 'gradient' | 'image';
+
+/** `fit` = contain (letterbox); `fill` = cover (crop). */
+export type BackgroundScaleMode = 'fit' | 'fill';
+
+export interface GradientStop {
+  offset: number;
+  color: string;
+}
+
+export interface ThemeBackground {
+  type: BackgroundType;
+  /**
+   * - solid: CSS color string
+   * - gradient: ordered stops (top → bottom)
+   * - image: bundled asset key (see `BACKGROUND_ASSETS`)
+   */
+  value: string | GradientStop[];
+  /** Semi-transparent dim over image backgrounds so bars stay readable (0–1). */
+  imageDimOverlay?: number;
+  scaleMode?: BackgroundScaleMode;
+}
+
+export interface WaveformTheme {
+  id: string;
+  name: string;
+  bars: ThemeBarStyle;
+  colors: ThemeColors;
+  background: ThemeBackground;
+}
