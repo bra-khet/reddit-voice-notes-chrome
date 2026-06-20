@@ -66,6 +66,48 @@ export const THEME_PRESETS: WaveformTheme[] = [
       value: '#121316',
     },
   },
+  {
+    id: 'midnight-bokeh',
+    name: 'Midnight Bokeh',
+    bars: {
+      width: 10,
+      spacing: 6,
+      cornerRadius: 8,
+      glow: 10,
+    },
+    colors: {
+      bar: '#0a0e14',
+      glow: '#58a6ff55',
+      bg: '#1f6feb',
+    },
+    background: {
+      type: 'image',
+      value: 'midnight-bokeh',
+      imageDimOverlay: 0.22,
+      scaleMode: 'fill',
+    },
+  },
+  {
+    id: 'warm-glow',
+    name: 'Warm Glow',
+    bars: {
+      width: 12,
+      spacing: 5,
+      cornerRadius: 5,
+      glow: 16,
+    },
+    colors: {
+      bar: RVN_COLORS.redditOrange,
+      glow: '#ffb00088',
+      bg: '#1a0f0a',
+    },
+    background: {
+      type: 'image',
+      value: 'warm-glow',
+      imageDimOverlay: 0.4,
+      scaleMode: 'fill',
+    },
+  },
 ];
 
 const presetById = new Map(THEME_PRESETS.map((theme) => [theme.id, theme]));
@@ -79,4 +121,14 @@ export function getThemeById(id: string | undefined): WaveformTheme {
 
 export function listThemePresets(): readonly WaveformTheme[] {
   return THEME_PRESETS;
+}
+
+export function isKnownThemeId(id: string): boolean {
+  return presetById.has(id);
+}
+
+/** Coerce stored ids to a valid preset (unknown / removed presets fall back to default). */
+export function normalizeThemeId(id: string | undefined): string {
+  if (id && presetById.has(id)) return id;
+  return DEFAULT_THEME_ID;
 }

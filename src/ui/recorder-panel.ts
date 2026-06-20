@@ -4,9 +4,12 @@ import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
 import {
   DEFAULT_THEME_ID,
   listThemePresets,
-  loadActiveTheme,
-  saveActiveThemeId,
 } from '@/src/theme';
+import {
+  loadUserPreferences,
+  onUserPreferencesChanged,
+  saveAppearancePreferences,
+} from '@/src/settings/user-preferences';
 import { RVN_COLORS } from '@/src/ui/tokens';
 import { showToast } from './toast';
 
@@ -43,6 +46,7 @@ export class RecorderPanel {
   private tertiaryBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
   private themeSelect!: HTMLSelectElement;
+  private themeUnsubscribe: (() => void) | null = null;
   private readonly composer: Element | null;
   private previouslyFocused: HTMLElement | null = null;
   private lastNotifiedPhase: RecorderState['phase'] | null = null;
@@ -280,7 +284,7 @@ export class RecorderPanel {
     }
 
     this.themeSelect.addEventListener('change', () => {
-      void saveActiveThemeId(this.themeSelect.value);
+      void saveAppearancePreferences({ activeThemeId: this.themeSelect.value });
     });
 
     this.primaryBtn.addEventListener('click', () => this.onPrimaryClick());
@@ -314,9 +318,17 @@ export class RecorderPanel {
       this.render(state);
     });
 
+    this.themeUnsubscribe?.();
+    this.themeUnsubscribe = onUserPreferencesChanged((prefs) => {
+      const themeId = prefs.appearance.activeThemeId;
+      if (this.themeSelect.value !== themeId) {
+        this.themeSelect.value = themeId;
+      }
+    });
+
     try {
-      const activeTheme = await loadActiveTheme();
-      this.themeSelect.value = activeTheme.id;
+      const prefs = await loadUserPreferences();
+      this.themeSelect.value = prefs.appearance.activeThemeId;
       await this.session.prepare();
       this.panelEl.focus();
     } catch {
@@ -326,6 +338,8 @@ export class RecorderPanel {
   }
 
   close(): void {
+    this.themeUnsubscribe?.();
+    this.themeUnsubscribe = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.session?.dispose();
