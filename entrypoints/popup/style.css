@@ -7,8 +7,8 @@
 body {
   margin: 0;
   min-width: 280px;
-  background: #0f1115;
-  color: #e8eaed;
+  background: #1a1a1b;
+  color: #d7dadc;
 }
 
 .popup {
@@ -28,26 +28,44 @@ body {
 .popup__version {
   margin: 4px 0 0;
   font-size: 0.75rem;
-  color: #9aa0a6;
+  color: #818384;
 }
 
 .popup__hint {
   margin: 0 0 16px;
   font-size: 0.8125rem;
-  color: #bdc1c6;
+  color: #818384;
 }
 
 .popup__button {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #3c4043;
-  border-radius: 8px;
-  background: #1a73e8;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #d93900;
   color: #fff;
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .popup__button:hover {
-  background: #1967d2;
+  background: #ff4500;
+}
+
+.popup__button:focus-visible {
+  outline: 2px solid #0079d3;
+  outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background: #ffffff;
+    color: #1a1a1b;
+  }
+
+  .popup__version,
+  .popup__hint {
+    color: #576f76;
+  }
 }

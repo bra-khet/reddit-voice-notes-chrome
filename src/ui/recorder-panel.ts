@@ -1,5 +1,7 @@
 import { MAX_RECORDING_SECONDS } from '@/src/utils/constants';
 import { VoiceRecorderSession, type RecorderState } from '@/src/recorder/voice-recorder';
+import { RVN_COLORS } from '@/src/ui/tokens';
+import { showToast } from './toast';
 
 const PANEL_HOST_ATTR = 'data-rvn-recorder-host';
 
@@ -14,14 +16,27 @@ export class RecorderPanel {
   private readonly shadow: ShadowRoot;
   private session: VoiceRecorderSession | null = null;
   private unsubscribe: (() => void) | null = null;
-  private currentState: RecorderState = { phase: 'idle', elapsedSeconds: 0, processingProgress: 0 };
+  private currentState: RecorderState = {
+    phase: 'idle',
+    elapsedSeconds: 0,
+    processingProgress: 0,
+    nearLimit: false,
+    criticalLimit: false,
+    stoppedAtCap: false,
+  };
 
+  private panelEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private timerEl!: HTMLElement;
+  private timeProgressEl!: HTMLElement;
+  private timeProgressBar!: HTMLElement;
   private waveformSlot!: HTMLElement;
   private primaryBtn!: HTMLButtonElement;
   private secondaryBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
+  private previouslyFocused: HTMLElement | null = null;
+  private lastNotifiedPhase: RecorderState['phase'] | null = null;
+  private lastNotifiedError = '';
 
   constructor() {
     this.host = document.createElement('div');
@@ -39,11 +54,12 @@ export class RecorderPanel {
           width: min(420px, calc(100vw - 32px));
           padding: 16px;
           border-radius: 16px;
-          background: #1a1a1b;
-          color: #d7dadc;
+          background: ${RVN_COLORS.panelBg};
+          color: ${RVN_COLORS.textPrimary};
           font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-          border: 1px solid #343536;
+          border: 1px solid ${RVN_COLORS.panelBorder};
+          color-scheme: dark;
         }
         .header {
           display: flex;
@@ -55,41 +71,68 @@ export class RecorderPanel {
         .close {
           border: none;
           background: transparent;
-          color: #818384;
+          color: ${RVN_COLORS.textMuted};
           font-size: 18px;
           cursor: pointer;
           padding: 4px 8px;
           border-radius: 8px;
         }
-        .close:hover { background: rgba(255,255,255,0.08); color: #d7dadc; }
-        .status { color: #818384; font-size: 12px; margin: 0 0 8px; }
+        .close:hover { background: rgba(255,255,255,0.08); color: ${RVN_COLORS.textPrimary}; }
+        .close:focus-visible { outline: 2px solid ${RVN_COLORS.redditBlue}; outline-offset: 2px; }
+        .status {
+          color: ${RVN_COLORS.textMuted};
+          font-size: 12px;
+          margin: 0 0 8px;
+          min-height: 1.4em;
+        }
+        .status--error { color: ${RVN_COLORS.error}; }
+        .status--success { color: ${RVN_COLORS.success}; }
+        .status--warning { color: ${RVN_COLORS.warning}; }
+        .timer-wrap { margin: 0 0 8px; }
         .timer {
           font-variant-numeric: tabular-nums;
           font-size: 24px;
           font-weight: 700;
-          margin: 0 0 12px;
+          margin: 0;
         }
-        .timer__cap { font-size: 12px; font-weight: 500; color: #818384; margin-left: 8px; }
+        .timer--warning { color: ${RVN_COLORS.warning}; }
+        .timer--critical { color: ${RVN_COLORS.error}; }
+        .timer__cap { font-size: 12px; font-weight: 500; color: ${RVN_COLORS.textMuted}; margin-left: 8px; }
+        .time-progress {
+          height: 3px;
+          border-radius: 2px;
+          background: ${RVN_COLORS.panelBorder};
+          margin-bottom: 12px;
+          overflow: hidden;
+        }
+        .time-progress__bar {
+          height: 100%;
+          width: 0%;
+          background: ${RVN_COLORS.redditBlue};
+          transition: width 0.25s linear, background 0.2s ease;
+        }
+        .time-progress__bar--warning { background: ${RVN_COLORS.warning}; }
+        .time-progress__bar--critical { background: ${RVN_COLORS.error}; }
         .waveform {
           width: 100%;
           aspect-ratio: 16 / 9;
           border-radius: 10px;
           overflow: hidden;
-          background: #0f1115;
+          background: ${RVN_COLORS.surfaceDark};
           margin-bottom: 12px;
         }
         .waveform canvas { width: 100%; height: 100%; display: block; }
         .progress {
           height: 4px;
           border-radius: 2px;
-          background: #343536;
+          background: ${RVN_COLORS.panelBorder};
           margin-bottom: 12px;
           overflow: hidden;
         }
         .progress__bar {
           height: 100%;
           width: 0%;
-          background: #0079d3;
+          background: ${RVN_COLORS.redditBlue};
           transition: width 0.2s ease;
         }
         .actions { display: flex; gap: 8px; }
@@ -102,21 +145,45 @@ export class RecorderPanel {
           font-weight: 600;
           cursor: pointer;
         }
-        .action--primary { background: #d93900; color: #fff; }
-        .action--primary:hover { background: #ff4500; }
-        .action--secondary { background: #272729; color: #d7dadc; }
-        .action--secondary:hover { background: #343536; }
+        .action--primary { background: ${RVN_COLORS.redditOrange}; color: #fff; }
+        .action--primary:hover { background: ${RVN_COLORS.redditOrangeHover}; }
+        .action--secondary { background: ${RVN_COLORS.surfaceRaised}; color: ${RVN_COLORS.textPrimary}; }
+        .action--secondary:hover { background: ${RVN_COLORS.panelBorder}; }
+        .action:focus-visible { outline: 2px solid ${RVN_COLORS.redditBlue}; outline-offset: 2px; }
         .action:disabled { opacity: 0.5; cursor: not-allowed; }
+        @media (prefers-color-scheme: light) {
+          .panel {
+            background: #ffffff;
+            color: #1a1a1b;
+            border-color: #edeff1;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+            color-scheme: light;
+          }
+          .close { color: #576f76; }
+          .close:hover { background: rgba(0,0,0,0.06); color: #1a1a1b; }
+          .status { color: #576f76; }
+          .timer__cap { color: #576f76; }
+          .time-progress { background: #edeff1; }
+          .waveform { background: #f6f7f8; }
+          .progress { background: #edeff1; }
+          .action--secondary { background: #f6f7f8; color: #1a1a1b; }
+          .action--secondary:hover { background: #edeff1; }
+        }
       </style>
-      <div class="panel" role="dialog" aria-label="Voice note recorder">
+      <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rvn-title" tabindex="-1">
         <div class="header">
-          <h2 class="title">Voice Note</h2>
+          <h2 class="title" id="rvn-title">Voice Note</h2>
           <button class="close" type="button" aria-label="Close recorder">×</button>
         </div>
-        <p class="status" data-status>Initializing microphone…</p>
-        <p class="timer" data-timer>0:00<span class="timer__cap">/ 3:00 max</span></p>
+        <p class="status" data-status role="status" aria-live="polite">Initializing microphone…</p>
+        <div class="timer-wrap" aria-live="polite" aria-atomic="true">
+          <p class="timer" data-timer>0:00<span class="timer__cap">/ 3:00 max</span></p>
+        </div>
+        <div class="time-progress" data-time-progress aria-hidden="true">
+          <div class="time-progress__bar" data-time-progress-bar></div>
+        </div>
         <div class="progress" data-progress hidden><div class="progress__bar" data-progress-bar></div></div>
-        <div class="waveform" data-waveform></div>
+        <div class="waveform" data-waveform aria-label="Live audio waveform"></div>
         <div class="actions">
           <button class="action action--primary" type="button" data-primary disabled>Record</button>
           <button class="action action--secondary" type="button" data-secondary hidden>Cancel</button>
@@ -124,8 +191,11 @@ export class RecorderPanel {
       </div>
     `;
 
+    this.panelEl = this.shadow.querySelector('.panel')!;
     this.statusEl = this.shadow.querySelector('[data-status]')!;
     this.timerEl = this.shadow.querySelector('[data-timer]')!;
+    this.timeProgressEl = this.shadow.querySelector('[data-time-progress]')!;
+    this.timeProgressBar = this.shadow.querySelector('[data-time-progress-bar]')!;
     this.waveformSlot = this.shadow.querySelector('[data-waveform]')!;
     this.primaryBtn = this.shadow.querySelector('[data-primary]')!;
     this.secondaryBtn = this.shadow.querySelector('[data-secondary]')!;
@@ -133,13 +203,25 @@ export class RecorderPanel {
 
     this.primaryBtn.addEventListener('click', () => this.onPrimaryClick());
     this.secondaryBtn.addEventListener('click', () => this.onSecondaryClick());
-    this.closeBtn.addEventListener('click', () => this.close());
+    this.closeBtn.addEventListener('click', () => this.requestClose());
+
+    this.host.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.requestClose();
+      }
+    });
   }
 
   async open(): Promise<void> {
+    this.previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
     if (!document.body.contains(this.host)) {
       document.body.appendChild(this.host);
     }
+
+    this.lastNotifiedPhase = null;
+    this.lastNotifiedError = '';
 
     this.session?.dispose();
     this.unsubscribe?.();
@@ -151,8 +233,10 @@ export class RecorderPanel {
 
     try {
       await this.session.prepare();
+      this.panelEl.focus();
     } catch {
       // Error state rendered via subscription.
+      this.panelEl.focus();
     }
   }
 
@@ -162,6 +246,32 @@ export class RecorderPanel {
     this.session?.dispose();
     this.session = null;
     this.host.remove();
+
+    if (this.previouslyFocused?.isConnected) {
+      this.previouslyFocused.focus();
+    }
+    this.previouslyFocused = null;
+  }
+
+  private requestClose(): void {
+    const { phase, elapsedSeconds } = this.currentState;
+
+    if (phase === 'recording' && elapsedSeconds > 0) {
+      const discard = window.confirm('Discard this recording?');
+      if (!discard) return;
+      this.session?.cancel();
+      this.close();
+      return;
+    }
+
+    if (phase === 'processing') {
+      this.session?.cancel();
+      showToast('Processing cancelled.', 'info');
+      this.close();
+      return;
+    }
+
+    this.close();
   }
 
   private onPrimaryClick(): void {
@@ -176,6 +286,7 @@ export class RecorderPanel {
         break;
       case 'stopped':
         this.session.downloadRecording();
+        showToast('MP4 downloaded — upload it via Reddit’s video button.', 'info', 5000);
         break;
       case 'error':
         void this.open();
@@ -187,18 +298,44 @@ export class RecorderPanel {
     if (!this.session) return;
 
     if (this.currentState.phase === 'recording') {
+      if (this.currentState.elapsedSeconds > 0) {
+        const discard = window.confirm('Discard this recording?');
+        if (!discard) return;
+      }
       this.session.cancel();
+      this.close();
+      return;
+    }
+
+    if (this.currentState.phase === 'processing') {
+      this.session.cancel();
+      showToast('Processing cancelled.', 'info');
       this.close();
       return;
     }
 
     if (this.currentState.phase === 'stopped') {
       void this.session.resetForNewRecording();
+      return;
+    }
+
+    if (this.currentState.phase === 'error') {
+      this.close();
     }
   }
 
   private render(state: RecorderState): void {
-    this.timerEl.innerHTML = `${formatTime(state.elapsedSeconds)}<span class="timer__cap">/ ${formatTime(MAX_RECORDING_SECONDS)} max</span>`;
+    const capLabel = formatTime(MAX_RECORDING_SECONDS);
+    this.timerEl.innerHTML = `${formatTime(state.elapsedSeconds)}<span class="timer__cap">/ ${capLabel} max</span>`;
+
+    this.timerEl.classList.toggle('timer--warning', state.phase === 'recording' && state.nearLimit && !state.criticalLimit);
+    this.timerEl.classList.toggle('timer--critical', state.phase === 'recording' && state.criticalLimit);
+
+    const elapsedRatio = Math.min(1, state.elapsedSeconds / MAX_RECORDING_SECONDS);
+    this.timeProgressEl.hidden = state.phase !== 'recording';
+    this.timeProgressBar.style.width = `${elapsedRatio * 100}%`;
+    this.timeProgressBar.classList.toggle('time-progress__bar--warning', state.nearLimit && !state.criticalLimit);
+    this.timeProgressBar.classList.toggle('time-progress__bar--critical', state.criticalLimit);
 
     const progressEl = this.shadow.querySelector<HTMLElement>('[data-progress]')!;
     const progressBar = this.shadow.querySelector<HTMLElement>('[data-progress-bar]')!;
@@ -210,8 +347,9 @@ export class RecorderPanel {
       this.waveformSlot.replaceChildren(canvas);
     }
 
-    this.secondaryBtn.hidden =
-      state.phase !== 'recording' && state.phase !== 'stopped';
+    this.secondaryBtn.hidden = !['recording', 'stopped', 'processing', 'error'].includes(state.phase);
+
+    this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
 
     switch (state.phase) {
       case 'idle':
@@ -225,35 +363,64 @@ export class RecorderPanel {
         this.primaryBtn.textContent = 'Record';
         this.primaryBtn.disabled = false;
         this.secondaryBtn.textContent = 'Cancel';
+        this.panelEl.focus();
         break;
       case 'recording':
-        this.statusEl.textContent = 'Recording…';
+        if (state.criticalLimit) {
+          this.statusEl.textContent = `${formatTime(MAX_RECORDING_SECONDS - state.elapsedSeconds)} left — wrapping up soon.`;
+          this.statusEl.classList.add('status--warning');
+        } else if (state.nearLimit) {
+          this.statusEl.textContent = 'Almost at the 3-minute limit.';
+          this.statusEl.classList.add('status--warning');
+        } else {
+          this.statusEl.textContent = 'Recording… speak clearly into your microphone.';
+        }
         this.primaryBtn.textContent = 'Stop';
         this.primaryBtn.disabled = false;
-        this.secondaryBtn.textContent = 'Cancel';
+        this.secondaryBtn.textContent = 'Discard';
         break;
       case 'processing':
         this.statusEl.textContent =
           state.processingProgress <= 5
             ? `Loading FFmpeg WASM… ${state.processingProgress}%`
-            : `Processing with FFmpeg… ${state.processingProgress}%`;
+            : `Converting to MP4… ${state.processingProgress}%`;
         this.primaryBtn.textContent = 'Processing…';
         this.primaryBtn.disabled = true;
         this.secondaryBtn.textContent = 'Cancel';
         break;
       case 'stopped':
-        this.statusEl.textContent = 'MP4 ready for Reddit video comments.';
+        if (state.stoppedAtCap) {
+          this.statusEl.textContent = '3-minute limit reached — your MP4 is ready.';
+        } else {
+          this.statusEl.textContent = 'MP4 ready for Reddit video comments.';
+        }
+        this.statusEl.classList.add('status--success');
         this.primaryBtn.textContent = 'Download MP4';
         this.primaryBtn.disabled = !state.mp4Blob;
         this.secondaryBtn.textContent = 'Record again';
+        if (this.lastNotifiedPhase !== 'stopped') {
+          if (state.stoppedAtCap) {
+            showToast('3-minute limit reached — processing complete.', 'info', 5000);
+          }
+        }
         break;
       case 'error':
         this.statusEl.textContent = state.errorMessage ?? 'Something went wrong.';
+        this.statusEl.classList.add('status--error');
         this.primaryBtn.textContent = 'Retry';
         this.primaryBtn.disabled = false;
-        this.secondaryBtn.textContent = 'Cancel';
+        this.secondaryBtn.textContent = 'Close';
+        if (
+          this.lastNotifiedPhase !== 'error' ||
+          this.lastNotifiedError !== (state.errorMessage ?? '')
+        ) {
+          showToast(state.errorMessage ?? 'Recording failed.', 'error', 6000);
+          this.lastNotifiedError = state.errorMessage ?? '';
+        }
         break;
     }
+
+    this.lastNotifiedPhase = state.phase;
   }
 }
 

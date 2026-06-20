@@ -1,3 +1,5 @@
+import { RVN_COLORS } from '@/src/ui/tokens';
+
 const TOAST_HOST_ATTR = 'data-rvn-toast-host';
 const TOAST_STYLE_ID = 'rvn-toast-styles';
 
@@ -15,24 +17,35 @@ function ensureToastStyles(): void {
       max-width: 320px;
       padding: 12px 16px;
       border-radius: 8px;
-      background: #1a1a1b;
-      color: #d7dadc;
+      background: ${RVN_COLORS.panelBg};
+      color: ${RVN_COLORS.textPrimary};
       font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      border: 1px solid ${RVN_COLORS.panelBorder};
       opacity: 0;
       transform: translateY(8px);
       transition: opacity 0.2s ease, transform 0.2s ease;
       pointer-events: none;
+      color-scheme: dark;
     }
     .rvn-toast--visible {
       opacity: 1;
       transform: translateY(0);
     }
     .rvn-toast--error {
-      border-left: 3px solid #ff4500;
+      border-left: 3px solid ${RVN_COLORS.error};
     }
     .rvn-toast--info {
-      border-left: 3px solid #0079d3;
+      border-left: 3px solid ${RVN_COLORS.redditBlue};
+    }
+    @media (prefers-color-scheme: light) {
+      .rvn-toast {
+        background: #ffffff;
+        color: #1a1a1b;
+        border-color: #edeff1;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        color-scheme: light;
+      }
     }
   `;
   document.head.appendChild(style);
@@ -43,14 +56,19 @@ function getToastHost(): HTMLElement {
   if (!host) {
     host = document.createElement('div');
     host.setAttribute(TOAST_HOST_ATTR, 'true');
+    host.setAttribute('aria-live', 'polite');
     document.body.appendChild(host);
   }
   return host;
 }
 
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
+let lastToastMessage = '';
 
 export function showToast(message: string, variant: 'info' | 'error' = 'info', durationMs = 4000): void {
+  if (message === lastToastMessage) return;
+  lastToastMessage = message;
+
   ensureToastStyles();
   const host = getToastHost();
 
@@ -58,6 +76,7 @@ export function showToast(message: string, variant: 'info' | 'error' = 'info', d
   if (!toast) {
     toast = document.createElement('div');
     toast.className = 'rvn-toast';
+    toast.setAttribute('role', 'status');
     host.appendChild(toast);
   }
 
@@ -71,5 +90,6 @@ export function showToast(message: string, variant: 'info' | 'error' = 'info', d
   if (hideTimer) clearTimeout(hideTimer);
   hideTimer = setTimeout(() => {
     toast?.classList.remove('rvn-toast--visible');
+    lastToastMessage = '';
   }, durationMs);
 }

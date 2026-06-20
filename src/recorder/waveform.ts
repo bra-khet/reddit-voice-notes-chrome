@@ -4,6 +4,7 @@ import {
   CANVAS_WIDTH,
   WAVEFORM_TARGET_FPS,
 } from '@/src/utils/constants';
+import { RVN_COLORS } from '@/src/ui/tokens';
 
 // POLISH (Phase 5+): User-selectable waveform themes — bar/line style, colors, glow,
 // background presets. Keep changes low-impact on CPU (stay near WAVEFORM_TARGET_FPS).
@@ -63,7 +64,7 @@ export class WaveformRenderer {
     this.analyser.getByteFrequencyData(this.frequencyData as Uint8Array<ArrayBuffer>);
 
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, '#0f1115');
+    gradient.addColorStop(0, RVN_COLORS.surfaceDark);
     gradient.addColorStop(1, '#1a1d24');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -79,8 +80,8 @@ export class WaveformRenderer {
       const barHeight = Math.max(4, normalized * (canvas.height * 0.7));
       const x = i * (barWidth + 4) + 2;
 
-      ctx.fillStyle = `rgba(0, 121, 211, ${0.35 + normalized * 0.65})`;
-      ctx.shadowColor = 'rgba(0, 121, 211, 0.8)';
+      ctx.fillStyle = `rgba(0, 121, 211, ${0.35 + normalized * 0.65})`; // redditBlue
+      ctx.shadowColor = `${RVN_COLORS.redditBlue}cc`;
       ctx.shadowBlur = normalized * 12;
       ctx.fillRect(x, centerY - barHeight / 2, barWidth, barHeight);
     }

@@ -1,3 +1,4 @@
+import { createMicIconElement } from '@/src/ui/icons/mic';
 import { VOICE_NOTE_BUTTON_ATTR } from './selectors';
 
 const STYLE_ID = 'rvn-voice-note-button-styles';
@@ -28,6 +29,7 @@ function ensureButtonStyles(): void {
   style.textContent = `
     .rvn-voice-note-btn:hover { background: rgba(255, 255, 255, 0.08); }
     .rvn-voice-note-btn:focus-visible { outline: 2px solid #0079d3; outline-offset: 2px; }
+    .rvn-voice-note-btn .rvn-mic-icon svg { display: block; }
     @media (prefers-color-scheme: light) {
       .rvn-voice-note-btn:hover { background: rgba(0, 0, 0, 0.06); }
     }
@@ -55,12 +57,7 @@ export function createVoiceNoteButton(options: VoiceNoteButtonOptions): HTMLButt
   button.title = 'Record voice note (max 3:00)';
   applyInlineStyles(button);
 
-  const icon = document.createElement('span');
-  icon.setAttribute('aria-hidden', 'true');
-  icon.textContent = '🎤';
-  icon.style.fontSize = '16px';
-  icon.style.lineHeight = '1';
-  button.appendChild(icon);
+  button.appendChild(createMicIconElement(18));
 
   if (options.showLabel !== false) {
     const label = document.createElement('span');

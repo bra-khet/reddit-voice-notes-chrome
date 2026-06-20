@@ -2,8 +2,10 @@ import {
   MAX_RECORDING_SECONDS,
   WAVEFORM_TARGET_FPS,
 } from '@/src/utils/constants';
+import { friendlyRecorderError, type RecorderErrorCode } from '@/src/utils/errors';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
+import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
 import { WaveformRenderer } from './waveform';
 
 /** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
@@ -24,6 +26,10 @@ export interface RecorderState {
   phase: RecorderPhase;
   elapsedSeconds: number;
   processingProgress: number;
+  nearLimit: boolean;
+  criticalLimit: boolean;
+  stoppedAtCap: boolean;
+  errorCode?: RecorderErrorCode;
   errorMessage?: string;
   webmBlob?: Blob;
   mp4Blob?: Blob;
@@ -50,6 +56,14 @@ function createMediaRecorder(stream: MediaStream, mimeType?: string): MediaRecor
   return new MediaRecorder(stream, options);
 }
 
+function recordingLimitFlags(elapsedSeconds: number): Pick<RecorderState, 'nearLimit' | 'criticalLimit'> {
+  const remaining = MAX_RECORDING_SECONDS - elapsedSeconds;
+  return {
+    nearLimit: remaining <= RECORDING_WARNING_SECONDS && remaining > 0,
+    criticalLimit: remaining <= RECORDING_CRITICAL_SECONDS && remaining > 0,
+  };
+}
+
 export class VoiceRecorderSession {
   private audioContext: AudioContext | null = null;
   private micStream: MediaStream | null = null;
@@ -61,11 +75,17 @@ export class VoiceRecorderSession {
   private startedAt = 0;
   private elapsedSeconds = 0;
   private processingProgress = 0;
+  private nearLimit = false;
+  private criticalLimit = false;
+  private stoppedAtCap = false;
   private phase: RecorderPhase = 'idle';
+  private errorCode?: RecorderErrorCode;
   private errorMessage?: string;
   private webmBlob?: Blob;
   private mp4Blob?: Blob;
   private readonly listeners = new Set<StateListener>();
+  private disposed = false;
+  private transcodeGeneration = 0;
 
   get previewCanvas(): HTMLCanvasElement | null {
     return this.waveform?.canvas ?? null;
@@ -82,6 +102,10 @@ export class VoiceRecorderSession {
       phase: this.phase,
       elapsedSeconds: this.elapsedSeconds,
       processingProgress: this.processingProgress,
+      nearLimit: this.nearLimit,
+      criticalLimit: this.criticalLimit,
+      stoppedAtCap: this.stoppedAtCap,
+      errorCode: this.errorCode,
       errorMessage: this.errorMessage,
       webmBlob: this.webmBlob,
       mp4Blob: this.mp4Blob,
@@ -89,17 +113,32 @@ export class VoiceRecorderSession {
   }
 
   private setPhase(phase: RecorderPhase, extra?: Partial<RecorderState>): void {
+    if (this.disposed) return;
+
     this.phase = phase;
     if (extra?.errorMessage !== undefined) this.errorMessage = extra.errorMessage;
+    if (extra?.errorCode !== undefined) this.errorCode = extra.errorCode;
     if (extra?.webmBlob !== undefined) this.webmBlob = extra.webmBlob;
     if (extra?.mp4Blob !== undefined) this.mp4Blob = extra.mp4Blob;
     if (extra?.elapsedSeconds !== undefined) this.elapsedSeconds = extra.elapsedSeconds;
     if (extra?.processingProgress !== undefined) {
       this.processingProgress = extra.processingProgress;
     }
+    if (extra?.nearLimit !== undefined) this.nearLimit = extra.nearLimit;
+    if (extra?.criticalLimit !== undefined) this.criticalLimit = extra.criticalLimit;
+    if (extra?.stoppedAtCap !== undefined) this.stoppedAtCap = extra.stoppedAtCap;
+
     for (const listener of this.listeners) {
       listener(this.snapshot());
     }
+  }
+
+  private setError(error: unknown): void {
+    const friendly = friendlyRecorderError(error);
+    this.setPhase('error', {
+      errorCode: friendly.code,
+      errorMessage: friendly.message,
+    });
   }
 
   async prepare(): Promise<void> {
@@ -111,6 +150,10 @@ export class VoiceRecorderSession {
       this.setPhase('idle', {
         elapsedSeconds: 0,
         processingProgress: 0,
+        nearLimit: false,
+        criticalLimit: false,
+        stoppedAtCap: false,
+        errorCode: undefined,
         errorMessage: undefined,
         webmBlob: undefined,
         mp4Blob: undefined,
@@ -130,8 +173,7 @@ export class VoiceRecorderSession {
 
       this.setPhase('ready');
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.setPhase('error', { errorMessage: message });
+      this.setError(error);
       throw error;
     }
   }
@@ -153,6 +195,7 @@ export class VoiceRecorderSession {
     this.chunks = [];
     this.webmBlob = undefined;
     this.mp4Blob = undefined;
+    this.stoppedAtCap = false;
 
     this.mediaRecorder = createMediaRecorder(this.combinedStream, mimeType);
 
@@ -163,21 +206,31 @@ export class VoiceRecorderSession {
     this.mediaRecorder.start(RECORDER_TIMESLICE_MS);
     this.startedAt = Date.now();
     this.elapsedSeconds = 0;
-    this.setPhase('recording', { elapsedSeconds: 0, processingProgress: 0 });
+    this.setPhase('recording', {
+      elapsedSeconds: 0,
+      processingProgress: 0,
+      nearLimit: false,
+      criticalLimit: false,
+      stoppedAtCap: false,
+    });
 
     this.timerId = setInterval(() => {
       const elapsed = Math.floor((Date.now() - this.startedAt) / 1000);
       this.elapsedSeconds = elapsed;
-      this.setPhase('recording', { elapsedSeconds: elapsed });
+      const limits = recordingLimitFlags(elapsed);
+      this.setPhase('recording', { elapsedSeconds: elapsed, ...limits });
 
       if (elapsed >= MAX_RECORDING_SECONDS) {
-        void this.stopRecording();
+        this.stoppedAtCap = true;
+        void this.stopRecording({ stoppedAtCap: true });
       }
     }, 250);
   }
 
-  async stopRecording(): Promise<void> {
+  async stopRecording(options?: { stoppedAtCap?: boolean }): Promise<void> {
     if (this.phase !== 'recording' || !this.mediaRecorder) return;
+
+    if (options?.stoppedAtCap) this.stoppedAtCap = true;
 
     if (this.timerId) clearInterval(this.timerId);
     this.timerId = null;
@@ -195,6 +248,7 @@ export class VoiceRecorderSession {
 
     if (this.webmBlob.size < MIN_RECORDING_BYTES) {
       this.setPhase('error', {
+        errorCode: 'empty-recording',
         errorMessage: 'Recording was empty or too short. Hold Record for at least one second.',
       });
       return;
@@ -206,16 +260,24 @@ export class VoiceRecorderSession {
   private async transcodeToMp4(): Promise<void> {
     if (!this.webmBlob) return;
 
+    const generation = ++this.transcodeGeneration;
     this.setPhase('processing', { processingProgress: 0 });
 
     try {
       this.mp4Blob = await transcodeWebmToMp4(this.webmBlob, (ratio) => {
+        if (this.disposed || generation !== this.transcodeGeneration) return;
         this.setPhase('processing', { processingProgress: Math.round(ratio * 100) });
       });
-      this.setPhase('stopped', { processingProgress: 100 });
+
+      if (this.disposed || generation !== this.transcodeGeneration) return;
+
+      this.setPhase('stopped', {
+        processingProgress: 100,
+        stoppedAtCap: this.stoppedAtCap,
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.setPhase('error', { errorMessage: `MP4 conversion failed: ${message}` });
+      if (this.disposed || generation !== this.transcodeGeneration) return;
+      this.setError(error);
     }
   }
 
@@ -230,22 +292,31 @@ export class VoiceRecorderSession {
   }
 
   async resetForNewRecording(): Promise<void> {
+    this.disposed = false;
+    this.transcodeGeneration += 1;
     this.disposeMediaPipeline();
     await this.prepare();
   }
 
   cancel(): void {
+    this.transcodeGeneration += 1;
     this.disposeMediaPipeline();
     this.setPhase('idle', {
       elapsedSeconds: 0,
       processingProgress: 0,
+      nearLimit: false,
+      criticalLimit: false,
+      stoppedAtCap: false,
       webmBlob: undefined,
       mp4Blob: undefined,
+      errorCode: undefined,
       errorMessage: undefined,
     });
   }
 
   dispose(): void {
+    this.disposed = true;
+    this.transcodeGeneration += 1;
     this.disposeMediaPipeline();
   }
 

@@ -4,27 +4,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Tag** | `v0.1.0-phase3-stable` |
+| **Tag** | `v0.1.0-phase3-stable` (pre–Phase 4 fallback) |
 | **Date** | 2026-06-19 |
-| **Commit** | `git rev-parse v0.1.0-phase3-stable` |
 | **Milestone** | Phase 3 complete — semi-useful personal tool |
 
-**What works at this tag**
-
-- 🎤 Button injection on Reddit comment composers (Shadow DOM–aware)
-- Floating recorder panel: live waveform, timer, record/stop/cancel
-- Client-side WebM capture (mic + canvas video track)
-- Lazy FFmpeg.wasm transcoding in offscreen document → downloadable MP4
-- Progress UI during WASM load and transcode
-- Privacy-first: all processing local; only MP4 download leaves the machine
-
-**Intentionally not done yet (later phases)**
-
-- Phase 4: polish, 3-minute cap UX, accessibility, richer error states
-- Phase 5: best-effort Reddit auto-attach to native video uploader
-- Phase 6: icons, keyboard shortcut, settings popup, README finalization
-
-**Restore this checkpoint**
+**Restore Phase 3 checkpoint**
 
 ```bash
 git fetch --tags
@@ -41,11 +25,23 @@ npm run dev
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 0 | Done | WXT MV3 scaffold |
-| 1 | Done | Shadow DOM injection, 🎤 button on `COMMENT-COMPOSER-HOST` / `RTE-TOOLBAR-BUTTON-VIDEO` |
+| 1 | Done | Shadow DOM injection, mic button on comment composer |
 | 2 | Done | Recorder panel, live waveform, WebM capture + download |
 | 3 | Done | ffmpeg.wasm WebM → MP4 via offscreen document + background relay |
+| 4 | Done | Polish: 3-min cap UX, cancel/discard, a11y, errors, dark/light, assets |
 
-## Architecture (Phase 3)
+## Phase 4 deliverables
+
+- **Assets organized**: `public/icon/{16,32,48,96,128}.png` (extension toolbar), `public/icon/mic.svg` (source), inline via `src/ui/icons/mic.ts`
+- **Mic button**: SVG icon replaces emoji in injected toolbar button
+- **3-minute cap UX**: elapsed progress bar, warning/critical timer colors (30s / 10s), auto-stop toast
+- **Cancel flow**: Discard confirm while recording; cancel during processing; Escape to close
+- **Accessibility**: `role="dialog"`, `aria-modal`, `aria-live` status/timer, focus restore, `focus-visible` rings
+- **Error states**: Friendly messages (`src/utils/errors.ts`) + error toasts for mic denied, transcode fail, etc.
+- **Theming**: Shared tokens (`src/ui/tokens.ts`), `prefers-color-scheme: light` on panel, toast, popup
+- **Version**: `0.2.0`
+
+## Architecture (unchanged core)
 
 ```
 Reddit tab (content script)
@@ -58,39 +54,29 @@ Reddit tab (content script)
 
 Key modules: `src/recorder/`, `src/reddit-injector/`, `src/ui/`, `src/ffmpeg/`, `src/messaging/binary.ts`, `entrypoints/background.ts`, `entrypoints/offscreen/`.
 
-FFmpeg assets: `public/ffmpeg/` (gitignored; copied on `npm install` via `scripts/copy-ffmpeg-core.mjs`).
+## Backlog (Phase 5+)
 
-## Backlog (Phase 5+ polish — user requested)
+- **Reddit auto-attach**: DataTransfer / file input (Phase 5)
+- **Waveform themes**: bar vs line, glow, settings presets (Phase 5+)
+- **Keyboard shortcut**: Ctrl/Cmd+Shift+V (Phase 6)
+- **Settings popup**: waveform style picker (Phase 6)
 
-- **Waveform visual polish**: themes, bar vs line, glow, settings presets
-- **Recorder panel**: optional anchor near composer vs fixed bottom-center
-- **Settings**: waveform style picker when time allows
-
-## Known fixes applied (Phase 3 debugging)
-
-- **Re-record bug (Phase 2)**: Only stop canvas video tracks after each take; rebuild mic pipeline on "Record again".
-- **FFmpeg messaging**: Two-phase protocol (ACK + broadcast) — avoids "message channel closed".
-- **FFmpeg worker load**: Full `public/ffmpeg/esm/` bundle; worker from extension URL; core/wasm from extension URLs (not blob).
-- **Progress relay**: Offscreen `runtime.sendMessage` → background `tabs.sendMessage` → content script.
-- **Binary transport**: `Uint8Array`/`ArrayBuffer` stripped across MV3 relay — use `webmBase64` / `mp4Base64` + `byteLength` (`src/messaging/binary.ts`).
-- **Recording**: VP8-first, 1s timeslice, `finalizeMediaRecorder()` chunk drain, explicit bitrates.
-
-## Known limitations at stable tag
+## Known limitations
 
 - Must reload extension + hard-refresh Reddit tab after extension updates.
 - Very long recordings (near 3 min) may stress base64 message size; chunked storage not implemented.
 - Reddit auto-attach not implemented — manual MP4 upload to video comment.
+- Processing cancel abandons UI; FFmpeg may still finish in offscreen (result discarded).
 - Injection selectors may need updates when Reddit changes composer UI.
-- Tested primarily on modern Chrome; Edge (Chromium) expected to work.
 
 ## Dev notes
 
 - Do **not** add `dom` to manifest — unknown permission; injection works without it.
-- **Do** declare `offscreen` in manifest — required for `chrome.offscreen.createDocument()`.
+- Do **declare** `offscreen` in manifest — required for `chrome.offscreen.createDocument()`.
 - `npm audit fix --force` downgrades WXT — use `overrides` in `package.json` instead.
 - CSP: `script-src 'self' 'wasm-unsafe-eval'` on extension pages.
 - `web_accessible_resources`: `ffmpeg/*`, `ffmpeg/esm/*`.
 
-## Next up: Phase 4
+## Next up: Phase 5
 
-Polish, limits UX, cancel flow, accessibility, dark-mode refinements, clearer error states. Confirm before starting.
+Best-effort Reddit auto-attach to native video uploader. Confirm before starting.
