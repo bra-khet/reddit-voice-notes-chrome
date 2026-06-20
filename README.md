@@ -25,7 +25,7 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 - Client-side WebM capture → FFmpeg.wasm MP4 (offscreen document)
 - Download MP4 (primary, always reliable)
 - Best-effort **Attach to Reddit** via native file input
-- Configurable keyboard shortcut (default **Ctrl+Shift+X** / **⌘+Shift+X** on Mac)
+- Configurable keyboard shortcut (default **Ctrl+Shift+X** / **⌘+Shift+X** on Mac) <-- ts broken sorry
 - Settings popup to change shortcut, reload extension
 
 ## Tech stack
@@ -80,7 +80,7 @@ Visit [reddit.com](https://www.reddit.com), open a post with video comments enab
 
 ### Usage
 
-1. Click the mic button **or** press **Ctrl+Shift+X** (customizable in the extension popup)
+1. Click the mic button **or** press **Ctrl+Shift+X** (customizable in the extension popup) <-- ts broken sorry
 2. Record → Stop → wait for FFmpeg → **Download MP4** or **Attach to Reddit**
 3. Post your comment
 
