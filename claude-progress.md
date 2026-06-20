@@ -25,6 +25,11 @@
 git checkout v0.1.0-phase3-stable && npm install && npm run dev
 ```
 
+## Recent tweaks (v1.0.1)
+
+- **Shortcut fix**: Default Ctrl+Shift+X routes via `chrome.commands` (page never sees that combo); custom shortcuts use content-script keydown; shadow-DOM composer resolution fixed
+- **Recording cap**: Enforced at 2:58, UI still shows 3:00 max (2s Reddit margin)
+
 ## Known limitations
 
 - Auto-attach best-effort; download always works

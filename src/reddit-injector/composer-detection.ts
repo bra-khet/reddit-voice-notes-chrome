@@ -194,15 +194,22 @@ export function findComposerFromNode(node: Node | null): Element | null {
       const composer = findComposerRoot(current as Element);
       if (composer) return composer;
     }
-    if (current instanceof ShadowRoot) {
-      current = current.host;
+
+    const parent: ParentNode | null = current.parentNode;
+    if (parent) {
+      current = parent as Node;
       continue;
     }
-    if (current instanceof Element && current.shadowRoot) {
-      current = current.parentNode;
+
+    // BUG FIX: Keyboard shortcut could not resolve Reddit comment composer
+    // Fix: parentNode is null inside shadow trees — exit via getRootNode().host.
+    const root = current.getRootNode();
+    if (root instanceof ShadowRoot) {
+      current = root.host;
       continue;
     }
-    current = current.parentNode;
+
+    break;
   }
 
   return null;

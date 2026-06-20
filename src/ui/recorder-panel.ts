@@ -1,4 +1,4 @@
-import { MAX_RECORDING_SECONDS } from '@/src/utils/constants';
+import { DISPLAY_MAX_RECORDING_SECONDS, MAX_RECORDING_SECONDS } from '@/src/utils/constants';
 import { VoiceRecorderSession, type RecorderState } from '@/src/recorder/voice-recorder';
 import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
 import { RVN_COLORS } from '@/src/ui/tokens';
@@ -391,13 +391,13 @@ export class RecorderPanel {
   }
 
   private render(state: RecorderState): void {
-    const capLabel = formatTime(MAX_RECORDING_SECONDS);
+    const capLabel = formatTime(DISPLAY_MAX_RECORDING_SECONDS);
     this.timerEl.innerHTML = `${formatTime(state.elapsedSeconds)}<span class="timer__cap">/ ${capLabel} max</span>`;
 
     this.timerEl.classList.toggle('timer--warning', state.phase === 'recording' && state.nearLimit && !state.criticalLimit);
     this.timerEl.classList.toggle('timer--critical', state.phase === 'recording' && state.criticalLimit);
 
-    const elapsedRatio = Math.min(1, state.elapsedSeconds / MAX_RECORDING_SECONDS);
+    const elapsedRatio = Math.min(1, state.elapsedSeconds / DISPLAY_MAX_RECORDING_SECONDS);
     this.timeProgressEl.hidden = state.phase !== 'recording';
     this.timeProgressBar.style.width = `${elapsedRatio * 100}%`;
     this.timeProgressBar.classList.toggle('time-progress__bar--warning', state.nearLimit && !state.criticalLimit);
@@ -434,7 +434,7 @@ export class RecorderPanel {
         break;
       case 'recording':
         if (state.criticalLimit) {
-          this.statusEl.textContent = `${formatTime(MAX_RECORDING_SECONDS - state.elapsedSeconds)} left — wrapping up soon.`;
+          this.statusEl.textContent = `${formatTime(DISPLAY_MAX_RECORDING_SECONDS - state.elapsedSeconds)} left — wrapping up soon.`;
           this.statusEl.classList.add('status--warning');
         } else if (state.nearLimit) {
           this.statusEl.textContent = 'Almost at the 3-minute limit.';

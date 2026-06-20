@@ -20,7 +20,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <button id="shortcut-capture" type="button" class="popup__shortcut" aria-label="Change keyboard shortcut">
         <span id="shortcut-label">Ctrl+Shift+X</span>
       </button>
-      <p id="shortcut-hint" class="popup__micro">Click above, then press your preferred key combo.</p>
+      <p id="shortcut-hint" class="popup__micro">Click above, then press your preferred key combo. Default Ctrl+Shift+X is managed by Chrome — also set at chrome://extensions/shortcuts.</p>
       <button id="shortcut-reset" type="button" class="popup__link">Reset to Ctrl+Shift+X</button>
     </section>
     <button id="reload-extension" type="button" class="popup__button">

@@ -10,7 +10,7 @@ export default defineConfig({
     name: 'Reddit Voice Notes',
     description:
       'Record short voice notes with an animated waveform and export MP4 for Reddit video comments.',
-    version: '1.0.0',
+    version: '1.0.1',
     permissions: ['storage', 'offscreen'],
     commands: {
       'open-voice-recorder': {

@@ -125,6 +125,29 @@ async function dispatchToOffscreen(request: TranscodeOffscreenRequest): Promise<
 
 const COMMAND_OPEN_RECORDER = 'open-voice-recorder';
 
+async function relayOpenRecorderToActiveTab(): Promise<void> {
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    console.warn('[Reddit Voice Notes] Shortcut: no active tab');
+    return;
+  }
+
+  const url = tab.url ?? '';
+  if (!url.includes('reddit.com')) {
+    console.warn('[Reddit Voice Notes] Shortcut: active tab is not Reddit', url);
+    return;
+  }
+
+  try {
+    await browser.tabs.sendMessage(tab.id, { type: MSG_OPEN_RECORDER });
+  } catch (error) {
+    console.error(
+      '[Reddit Voice Notes] Shortcut relay failed — hard-refresh the Reddit tab after loading the extension.',
+      error,
+    );
+  }
+}
+
 export default defineBackground(() => {
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,
@@ -133,12 +156,7 @@ export default defineBackground(() => {
 
   browser.commands.onCommand.addListener((command) => {
     if (command !== COMMAND_OPEN_RECORDER) return;
-
-    void (async () => {
-      const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) return;
-      await browser.tabs.sendMessage(tab.id, { type: MSG_OPEN_RECORDER });
-    })();
+    void relayOpenRecorderToActiveTab();
   });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {

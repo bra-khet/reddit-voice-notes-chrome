@@ -2,6 +2,20 @@ import type { ShortcutBinding } from './types';
 
 const MODIFIER_KEYS = new Set(['control', 'shift', 'alt', 'meta']);
 
+function eventMatchesKey(event: KeyboardEvent, binding: ShortcutBinding): boolean {
+  if (binding.code && event.code.toLowerCase() === binding.code.toLowerCase()) {
+    return true;
+  }
+
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
+  const expected = binding.key.toLowerCase();
+
+  if (key === expected) return true;
+  if (event.code.toLowerCase() === `key${expected}`) return true;
+
+  return false;
+}
+
 export function formatShortcut(binding: ShortcutBinding): string {
   const isMac = navigator.platform.toLowerCase().includes('mac');
   const parts: string[] = [];
@@ -18,9 +32,7 @@ export function formatShortcut(binding: ShortcutBinding): string {
 export function matchesShortcut(event: KeyboardEvent, binding: ShortcutBinding): boolean {
   if (event.repeat) return false;
   if (MODIFIER_KEYS.has(event.key.toLowerCase())) return false;
-
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key.toLowerCase();
-  if (key !== binding.key) return false;
+  if (!eventMatchesKey(event, binding)) return false;
   if (event.ctrlKey !== binding.ctrl) return false;
   if (event.shiftKey !== binding.shift) return false;
   if (event.altKey !== binding.alt) return false;
@@ -44,6 +56,7 @@ export function shortcutFromKeyboardEvent(event: KeyboardEvent): ShortcutBinding
     alt: event.altKey,
     meta: event.metaKey,
     key,
+    code: event.code,
   };
 }
 
@@ -53,6 +66,18 @@ export function shortcutsEqual(a: ShortcutBinding, b: ShortcutBinding): boolean 
     a.shift === b.shift &&
     a.alt === b.alt &&
     a.meta === b.meta &&
-    a.key === b.key
+    a.key === b.key &&
+    (a.code ?? '') === (b.code ?? '')
+  );
+}
+
+/** True when popup shortcut matches the manifest command default (handled by chrome.commands). */
+export function isManifestDefaultShortcut(binding: ShortcutBinding): boolean {
+  const isMac = navigator.platform.toLowerCase().includes('mac');
+  return (
+    binding.key === 'x' &&
+    binding.shift === true &&
+    binding.alt === false &&
+    (isMac ? binding.meta === true && binding.ctrl === false : binding.ctrl === true && binding.meta === false)
   );
 }

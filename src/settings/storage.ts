@@ -6,12 +6,14 @@ import {
 } from './types';
 
 function normalizeShortcut(shortcut: Partial<ShortcutBinding> | undefined): ShortcutBinding {
+  const key = (shortcut?.key ?? DEFAULT_SETTINGS.shortcut.key).toLowerCase();
   return {
     ctrl: shortcut?.ctrl ?? DEFAULT_SETTINGS.shortcut.ctrl,
     shift: shortcut?.shift ?? DEFAULT_SETTINGS.shortcut.shift,
     alt: shortcut?.alt ?? DEFAULT_SETTINGS.shortcut.alt,
     meta: shortcut?.meta ?? DEFAULT_SETTINGS.shortcut.meta,
-    key: (shortcut?.key ?? DEFAULT_SETTINGS.shortcut.key).toLowerCase(),
+    key,
+    code: shortcut?.code ?? DEFAULT_SETTINGS.shortcut.code,
   };
 }
 

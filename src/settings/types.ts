@@ -5,6 +5,8 @@ export interface ShortcutBinding {
   meta: boolean;
   /** Lowercase key id, e.g. "x" */
   key: string;
+  /** KeyboardEvent.code, e.g. "KeyX" — more reliable than key alone */
+  code?: string;
 }
 
 export interface ExtensionSettings {
@@ -19,6 +21,7 @@ export const DEFAULT_SHORTCUT: ShortcutBinding = {
   alt: false,
   meta: false,
   key: 'x',
+  code: 'KeyX',
 };
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
