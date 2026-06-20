@@ -34,8 +34,13 @@ git checkout v0.1.0-phase3-stable && npm install && npm run dev
 - **BUG-002 fix**: `writeFile` buffer transfer — slice per FFmpeg strategy; exec timeout race guard
 - **BUG-003 fix**: explicit pipeline validators (`binary-verify.ts`), stall-based timeout, heartbeats, transcode lock, 2 FFmpeg strategies + job retry
 
+## UX design note
+
+- Order select/radio options to match how users visualize the result (e.g. bar alignment: **Top → Center → Bottom**, not alphabetical or implementation order).
+
 ## Known limitations
 
+- **Background tab / minimized window:** `requestAnimationFrame` pauses when the Reddit tab is hidden; audio keeps recording but the canvas freezes on the last drawn frame until the tab is visible again. Expected browser behavior; not worth complicating the pipeline for stress-test edge cases.
 - Auto-attach best-effort; download always works
 - **2:00 cap** is a pipeline concession until chunked transport / lower video bitrate (BUG-001)
 - Reddit allows ~3:00 video comments; extension intentionally stops earlier

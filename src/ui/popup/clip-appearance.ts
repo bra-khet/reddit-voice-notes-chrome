@@ -11,10 +11,11 @@ import {
   saveAppearancePreferences,
 } from '@/src/settings/user-preferences';
 
+// UX: top → center → bottom matches vertical bar position on the canvas (intuitive order).
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
+  { value: 'top', label: 'Top' },
   { value: 'center', label: 'Center (mirrored)' },
   { value: 'bottom', label: 'Bottom' },
-  { value: 'top', label: 'Top' },
 ];
 
 export function mountClipAppearanceSection(root: HTMLElement): () => void {
