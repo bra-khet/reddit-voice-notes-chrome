@@ -48,3 +48,6 @@ git checkout v0.1.0-phase3-stable && npm install && npm run dev
 
 - Waveform themes in settings → active on `pretty` branch
 - Chunked binary transport for very long recordings
+- **Audio processing bypass toggle** (pretty branch work): Prepared disabled-by-default path for `echoCancellation/noiseSuppression/autoGainControl=false` in getUserMedia. Will become user-selectable (with help "?" tooltip explaining "poor audio quality") once tested. Users experiencing telephone/Bluetooth-like quality can opt into raw mic capture. See pretty-branch.md "Future audio pipeline & settings" and code comments with "FUTURE AUDIO TOGGLE".
+- Waveform bar alignment options (center mirrored / bottom / top) as user setting alongside themes.
+- Extensibility note: recorder pipeline kept open for future voice modulation profiles.

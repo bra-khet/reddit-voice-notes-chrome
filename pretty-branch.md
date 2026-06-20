@@ -73,6 +73,17 @@ entrypoints/popup/            # settings UI for personalization
 - Server-side rendering or external APIs
 - Keyboard shortcut reinstatement (separate concern; stays disabled on MVP `main`)
 
+## Future audio pipeline & settings (pretty branch tracking)
+
+These items are prepared or designed-for but not activated in the current sprint:
+
+- **Browser audio processing toggle** (echoCancellation / noiseSuppression / autoGainControl): Supporting code will be landed disabled by default (`getUserMedia({ audio: true })` remains active). Goal: allow users who experience muffled / Bluetooth-like / low-bandwidth artifacts to flip to raw capture. This will become a user-facing setting + small "?" help tooltip in the recorder UI in a future iteration. It is expected to be central to "2.0" voice modulation / tuning UX. Trade-offs (possible room noise/echo) will be documented at toggle time. See related constants and voice-recorder comments containing "FUTURE AUDIO TOGGLE".
+- **Waveform bar vertical alignment**: Center-mirrored (current), bottom-aligned (classic spectrum), and top-aligned will be user-selectable settings (future UI surface similar to theme picker). The draw code in waveform.ts is being structured to support switching the bar anchoring/positioning without large refactors.
+- **Voice modulation / recorder profiles**: The analysis + recording pipeline should remain extensible. Do not lock out future addition of processing graphs, profile classes, or modulation nodes if voice effects are added later.
+- **Full-spectrum / music mode**: The 32-bar viz currently focuses on 80 Hz – 16 kHz voice range (with revisit-before-merge comment required in code). A toggle for wider music representation will be considered later if users request piping music through the recorder.
+
+These notes are intentionally recorded here so decisions about defaults vs. options can be made after testing.
+
 ## Suggested implementation order
 
 1. **Theme data model** — named presets in storage; default matches current MVP look

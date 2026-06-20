@@ -1,6 +1,7 @@
 # User specified
 .ignore/
 mcps/
+terminals/
 
 # Logs
 logs

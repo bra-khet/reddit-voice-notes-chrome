@@ -2,6 +2,8 @@ import {
   ANALYSER_FFT_SIZE,
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  VOICE_FREQ_MAX_HZ,
+  VOICE_FREQ_MIN_HZ,
   WAVEFORM_TARGET_FPS,
 } from '@/src/utils/constants';
 import {
@@ -71,6 +73,88 @@ function applyBarColor(baseColor: string, normalized: number): string {
   return baseColor;
 }
 
+/**
+ * Compresses a 0-1 normalized amplitude for better visual dynamics on voice.
+ * WHY: Raw FFT values for voice have strong low-end tilt; simple /255 leaves
+ * high bars tiny. Compression lifts quieter detail without per-bar hard boosts.
+ * BUG FIX (waveform dynamics): Previously used direct linear normalize from tiny FFT.
+ * Fix: Use exponential-style compression after band aggregation so normal speech
+ * populates most of the bar height range, including upper spectrum on sibilance.
+ */
+function compressForViz(n: number): number {
+  if (n <= 0) return 0;
+  // k controls how aggressively lows are lifted. Tuned for typical mic speech.
+  const k = 4.0;
+  // Normalize the curve output to still reach ~1.0 at input=1.
+  return (1 - Math.exp(-k * n)) / (1 - Math.exp(-k));
+}
+
+/**
+ * Compute 32 band values (0-255) by aggregating FFT bins over log-spaced
+ * frequencies from VOICE_FREQ_MIN_HZ to VOICE_FREQ_MAX_HZ.
+ *
+ * VOICE FREQ RANGE: 80 Hz – 16 kHz.
+ * BUG FIX: upper spectrum bars never activated (raw low-res linear bins + spectral tilt).
+ * Fix: log-band aggregation over voice range + compression.
+ *
+ * IMPORTANT — revisit before merging the pretty branch:
+ * This is deliberately voice-focused (sibilance reaches upper bars now).
+ * User requested future UI toggle (music / full spectrum mode).
+ * See pretty-branch.md and claude-progress.md "Future audio pipeline & settings".
+ * Do not widen without the toggle or the revisit comment will be stale.
+ */
+function computeBandValues(
+  frequencyData: Uint8Array,
+  fftSize: number,
+  sampleRate: number,
+): number[] {
+  const binCount = frequencyData.length;
+  const nyquist = sampleRate / 2;
+  const binHz = nyquist / binCount;
+
+  const bands: number[] = [];
+  for (let i = 0; i < BAR_COUNT; i += 1) {
+    // Log spacing between min and max
+    const t0 = i / BAR_COUNT;
+    const t1 = (i + 1) / BAR_COUNT;
+    const f0 = VOICE_FREQ_MIN_HZ * Math.pow(VOICE_FREQ_MAX_HZ / VOICE_FREQ_MIN_HZ, t0);
+    const f1 = VOICE_FREQ_MIN_HZ * Math.pow(VOICE_FREQ_MAX_HZ / VOICE_FREQ_MIN_HZ, t1);
+
+    let b0 = Math.max(0, Math.floor(f0 / binHz));
+    let b1 = Math.min(binCount - 1, Math.floor(f1 / binHz));
+    if (b1 < b0) b1 = b0;
+
+    let sum = 0;
+    let count = 0;
+    for (let b = b0; b <= b1; b += 1) {
+      sum += frequencyData[b] ?? 0;
+      count += 1;
+    }
+    const avg = count > 0 ? sum / count : 0;
+    bands.push(avg);
+  }
+  return bands;
+}
+
+/** Future-proofing type for bar vertical alignment (user setting planned). */
+export type BarAlignment = 'center' | 'bottom' | 'top';
+
+/**
+ * Compute top Y for a bar given alignment mode.
+ * Default remains 'center' (vertically mirrored / symmetric around middle)
+ * to preserve current behavior until the setting UI is built.
+ */
+function getBarY(alignment: BarAlignment, centerY: number, barHeight: number, canvasHeight: number): number {
+  if (alignment === 'bottom') {
+    return canvasHeight - barHeight;
+  }
+  if (alignment === 'top') {
+    return 0;
+  }
+  // center (mirrored vertically)
+  return centerY - barHeight / 2;
+}
+
 export class WaveformRenderer {
   readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -83,9 +167,20 @@ export class WaveformRenderer {
   private lastFrameAt = 0;
   private running = false;
 
+  // CHANGED: analyser tuning + alignment support added for spectrum re-weighting and future settings.
+  // WHY: defaults gave poor high-frequency visibility; alignment will be user-selectable.
+  private sampleRate: number;
+  private alignment: BarAlignment = 'center'; // default preserves current centered+mirrored look
+
   constructor(analyser: AnalyserNode, theme: WaveformTheme = getThemeById(DEFAULT_THEME_ID)) {
     this.analyser = analyser;
     this.analyser.fftSize = ANALYSER_FFT_SIZE;
+
+    // Configure analyser for voice (much better range than defaults -100..-30).
+    this.analyser.minDecibels = -90;
+    this.analyser.maxDecibels = -20;
+    this.analyser.smoothingTimeConstant = 0.65;
+
     this.theme = theme;
 
     this.canvas = document.createElement('canvas');
@@ -97,6 +192,7 @@ export class WaveformRenderer {
     this.ctx = ctx;
 
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
+    this.sampleRate = this.analyser.context?.sampleRate ?? 48000;
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }
 
@@ -108,6 +204,11 @@ export class WaveformRenderer {
   setTheme(theme: WaveformTheme): void {
     this.theme = theme;
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
+  }
+
+  /** Prepared for future user setting (center | bottom | top). Default = center (current mirrored behavior). */
+  setBarAlignment(alignment: BarAlignment): void {
+    this.alignment = alignment;
   }
 
   start(): void {
@@ -150,19 +251,32 @@ export class WaveformRenderer {
 
     drawThemeBackground(ctx, canvas, theme, this.backgroundImage);
 
-    const step = Math.max(1, Math.floor(this.frequencyData.length / BAR_COUNT));
+    // CHANGED: replaced naive i*step on 32 bins from fft=64.
+    // WHY: that produced almost no energy in upper bars for any voice input.
+    // Now uses log-banded aggregation over 80 Hz-16 kHz + compression.
+    const bandValues = computeBandValues(this.frequencyData, ANALYSER_FFT_SIZE, this.sampleRate);
+
     const centerY = canvas.height / 2;
     const maxBarHeight = canvas.height * 0.7;
     const layout = computeBarLayout(canvas.width, theme);
     const { barWidth, spacing, startX } = layout;
     const { cornerRadius, glow } = theme.bars;
 
+    // Optional light per-frame peak normalization so loud speech fills range.
+    // Combined with compressForViz this makes upper spectrum visible on sibilants etc.
+    let peak = 0;
+    for (let v of bandValues) peak = Math.max(peak, v);
+    const peakScale = peak > 1 ? 255 / peak : 1;
+
     for (let i = 0; i < BAR_COUNT; i += 1) {
-      const value = this.frequencyData[i * step] ?? 0;
-      const normalized = value / 255;
+      const raw = bandValues[i] ?? 0;
+      // Peak scale first (so strongest bar can reach full), then compress.
+      const rawNorm = Math.min(1, (raw * peakScale) / 255);
+      const normalized = compressForViz(rawNorm);
+
       const barHeight = Math.max(MIN_BAR_HEIGHT, normalized * maxBarHeight);
       const x = startX + i * (barWidth + spacing);
-      const y = centerY - barHeight / 2;
+      const y = getBarY(this.alignment, centerY, barHeight, canvas.height);
 
       ctx.fillStyle = applyBarColor(theme.colors.bar, normalized);
       ctx.shadowColor = theme.colors.glow;
