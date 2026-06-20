@@ -1,5 +1,6 @@
 import { MAX_RECORDING_SECONDS } from '@/src/utils/constants';
 import { VoiceRecorderSession, type RecorderState } from '@/src/recorder/voice-recorder';
+import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
 import { RVN_COLORS } from '@/src/ui/tokens';
 import { showToast } from './toast';
 
@@ -33,12 +34,16 @@ export class RecorderPanel {
   private waveformSlot!: HTMLElement;
   private primaryBtn!: HTMLButtonElement;
   private secondaryBtn!: HTMLButtonElement;
+  private tertiaryBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
+  private readonly composer: Element | null;
   private previouslyFocused: HTMLElement | null = null;
   private lastNotifiedPhase: RecorderState['phase'] | null = null;
   private lastNotifiedError = '';
+  private attaching = false;
 
-  constructor() {
+  constructor(composer: Element | null = null) {
+    this.composer = composer;
     this.host = document.createElement('div');
     this.host.setAttribute(PANEL_HOST_ATTR, 'true');
     this.shadow = this.host.attachShadow({ mode: 'open' });
@@ -151,6 +156,23 @@ export class RecorderPanel {
         .action--secondary:hover { background: ${RVN_COLORS.panelBorder}; }
         .action:focus-visible { outline: 2px solid ${RVN_COLORS.redditBlue}; outline-offset: 2px; }
         .action:disabled { opacity: 0.5; cursor: not-allowed; }
+        .tertiary {
+          display: block;
+          width: 100%;
+          margin-top: 8px;
+          border: none;
+          background: transparent;
+          color: ${RVN_COLORS.textMuted};
+          font: inherit;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 6px 4px;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .tertiary:hover { color: ${RVN_COLORS.textPrimary}; }
+        .tertiary:focus-visible { outline: 2px solid ${RVN_COLORS.redditBlue}; outline-offset: 2px; border-radius: 4px; }
         @media (prefers-color-scheme: light) {
           .panel {
             background: #ffffff;
@@ -168,6 +190,8 @@ export class RecorderPanel {
           .progress { background: #edeff1; }
           .action--secondary { background: #f6f7f8; color: #1a1a1b; }
           .action--secondary:hover { background: #edeff1; }
+          .tertiary { color: #576f76; }
+          .tertiary:hover { color: #1a1a1b; }
         }
       </style>
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rvn-title" tabindex="-1">
@@ -188,6 +212,7 @@ export class RecorderPanel {
           <button class="action action--primary" type="button" data-primary disabled>Record</button>
           <button class="action action--secondary" type="button" data-secondary hidden>Cancel</button>
         </div>
+        <button class="tertiary" type="button" data-tertiary hidden>Record again</button>
       </div>
     `;
 
@@ -199,10 +224,12 @@ export class RecorderPanel {
     this.waveformSlot = this.shadow.querySelector('[data-waveform]')!;
     this.primaryBtn = this.shadow.querySelector('[data-primary]')!;
     this.secondaryBtn = this.shadow.querySelector('[data-secondary]')!;
+    this.tertiaryBtn = this.shadow.querySelector('[data-tertiary]')!;
     this.closeBtn = this.shadow.querySelector('.close')!;
 
     this.primaryBtn.addEventListener('click', () => this.onPrimaryClick());
     this.secondaryBtn.addEventListener('click', () => this.onSecondaryClick());
+    this.tertiaryBtn.addEventListener('click', () => this.onTertiaryClick());
     this.closeBtn.addEventListener('click', () => this.requestClose());
 
     this.host.addEventListener('keydown', (event) => {
@@ -286,7 +313,7 @@ export class RecorderPanel {
         break;
       case 'stopped':
         this.session.downloadRecording();
-        showToast('MP4 downloaded — upload it via Reddit’s video button.', 'info', 5000);
+        showToast('MP4 downloaded.', 'info', 4000);
         break;
       case 'error':
         void this.open();
@@ -315,12 +342,51 @@ export class RecorderPanel {
     }
 
     if (this.currentState.phase === 'stopped') {
-      void this.session.resetForNewRecording();
+      void this.attachToReddit();
       return;
     }
 
     if (this.currentState.phase === 'error') {
       this.close();
+    }
+  }
+
+  private onTertiaryClick(): void {
+    if (!this.session || this.currentState.phase !== 'stopped') return;
+    void this.session.resetForNewRecording();
+  }
+
+  private async attachToReddit(): Promise<void> {
+    const blob = this.currentState.mp4Blob;
+    if (!blob) {
+      showToast('MP4 is not ready yet.', 'error');
+      return;
+    }
+
+    if (!this.composer || !document.contains(this.composer)) {
+      showToast('Comment box not found — download the MP4 and upload manually.', 'error', 6000);
+      return;
+    }
+
+    if (this.attaching) return;
+    this.attaching = true;
+    this.secondaryBtn.disabled = true;
+    this.secondaryBtn.textContent = 'Attaching…';
+
+    try {
+      const result = await attachMp4ToComposer(this.composer, blob);
+      showToast(result.message, result.ok ? 'info' : 'error', 6000);
+      if (result.ok) {
+        this.statusEl.textContent = result.message;
+        this.statusEl.classList.remove('status--error');
+        this.statusEl.classList.add('status--success');
+      }
+    } finally {
+      this.attaching = false;
+      if (this.currentState.phase === 'stopped') {
+        this.secondaryBtn.disabled = !this.currentState.mp4Blob || !this.composer;
+        this.secondaryBtn.textContent = 'Attach to Reddit';
+      }
     }
   }
 
@@ -348,6 +414,7 @@ export class RecorderPanel {
     }
 
     this.secondaryBtn.hidden = !['recording', 'stopped', 'processing', 'error'].includes(state.phase);
+    this.tertiaryBtn.hidden = state.phase !== 'stopped';
 
     this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
 
@@ -397,7 +464,10 @@ export class RecorderPanel {
         this.statusEl.classList.add('status--success');
         this.primaryBtn.textContent = 'Download MP4';
         this.primaryBtn.disabled = !state.mp4Blob;
-        this.secondaryBtn.textContent = 'Record again';
+        this.secondaryBtn.textContent = this.attaching ? 'Attaching…' : 'Attach to Reddit';
+        this.secondaryBtn.disabled =
+          this.attaching || !state.mp4Blob || !this.composer || !document.contains(this.composer);
+        this.tertiaryBtn.textContent = 'Record again';
         if (this.lastNotifiedPhase !== 'stopped') {
           if (state.stoppedAtCap) {
             showToast('3-minute limit reached — processing complete.', 'info', 5000);
@@ -426,9 +496,9 @@ export class RecorderPanel {
 
 let activePanel: RecorderPanel | null = null;
 
-export function openRecorderPanel(): void {
+export function openRecorderPanel(composer?: Element): void {
   activePanel?.close();
-  activePanel = new RecorderPanel();
+  activePanel = new RecorderPanel(composer ?? null);
   void activePanel.open();
 }
 

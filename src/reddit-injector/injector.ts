@@ -17,8 +17,8 @@ interface InjectedButton {
 
 const injectedButtons = new Map<Element, InjectedButton>();
 
-function handleVoiceNoteClick(): void {
-  openRecorderPanel();
+function handleVoiceNoteClick(composer: Element): void {
+  openRecorderPanel(composer);
 }
 
 function injectIntoTarget(target: ComposerInjectionTarget): void {
@@ -29,7 +29,7 @@ function injectIntoTarget(target: ComposerInjectionTarget): void {
 
   const button = createVoiceNoteButton({
     onClick: () => {
-      void handleVoiceNoteClick();
+      handleVoiceNoteClick(composer);
     },
     showLabel: false,
   });

@@ -1,4 +1,5 @@
 import { createMicIconElement } from '@/src/ui/icons/mic';
+import { RVN_COLORS } from '@/src/ui/tokens';
 import { VOICE_NOTE_BUTTON_ATTR } from './selectors';
 
 const STYLE_ID = 'rvn-voice-note-button-styles';
@@ -29,9 +30,19 @@ function ensureButtonStyles(): void {
   style.textContent = `
     .rvn-voice-note-btn:hover { background: rgba(255, 255, 255, 0.08); }
     .rvn-voice-note-btn:focus-visible { outline: 2px solid #0079d3; outline-offset: 2px; }
+    .rvn-voice-note-btn .rvn-mic-icon {
+      color: ${RVN_COLORS.textMuted};
+      opacity: 0.9;
+    }
+    .rvn-voice-note-btn:hover .rvn-mic-icon {
+      color: #b8babb;
+      opacity: 1;
+    }
     .rvn-voice-note-btn .rvn-mic-icon svg { display: block; }
     @media (prefers-color-scheme: light) {
       .rvn-voice-note-btn:hover { background: rgba(0, 0, 0, 0.06); }
+      .rvn-voice-note-btn .rvn-mic-icon { color: #576f76; }
+      .rvn-voice-note-btn:hover .rvn-mic-icon { color: #3a3f42; }
     }
   `;
   document.head.appendChild(style);

@@ -65,5 +65,22 @@ export const MEDIA_TOOLBAR_BUTTON_SELECTORS = [
   '[data-testid*="image" i]',
 ] as const;
 
+/** File inputs Reddit may use for video comments. UPDATE WHEN REDDIT UI CHANGES */
+export const FILE_INPUT_SELECTORS = [
+  'input[type="file"][accept*="video" i]',
+  'input[type="file"][accept*="mp4" i]',
+  'input[type="file"][accept*="mov" i]',
+  'input[type="file"]',
+] as const;
+
+/** Drop targets for media uploads. UPDATE WHEN REDDIT UI CHANGES */
+export const DROPZONE_SELECTORS = [
+  '[data-testid*="drop" i]',
+  '[data-testid*="upload" i]',
+  '[class*="dropzone" i]',
+  '[class*="drop-zone" i]',
+  '[aria-label*="drop" i]',
+] as const;
+
 export const VOICE_NOTE_BUTTON_ATTR = 'data-rvn-voice-note-btn';
 export const INJECTED_COMPOSER_ATTR = 'data-rvn-composer-bound';

@@ -6,7 +6,7 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 
 ## Status
 
-**Phase 3 complete** — Lazy FFmpeg.wasm offscreen transcoding, MP4 download path.
+**Phase 5 complete** — MP4 download + best-effort Reddit auto-attach.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
@@ -14,9 +14,9 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 | 1 | Permissions + Reddit button injection | Done |
 | 2 | Recorder core (WebM, no FFmpeg) | Done |
 | 3 | FFmpeg.wasm WebM → MP4 | Done |
-| 4 | Polish, limits, error states | Next |
-| 5 | Reddit auto-attach (best-effort) | Planned |
-| 6 | Icons, shortcuts, finalization | Planned |
+| 4 | Polish, limits, error states | Done |
+| 5 | Reddit auto-attach (best-effort) | Done |
+| 6 | Icons, shortcuts, finalization | Next |
 
 ## Tech stack
 
