@@ -266,7 +266,9 @@ export class VoiceRecorderSession {
     try {
       const chunks = await this.finalizeMediaRecorder(recorder);
 
-      this.releaseCaptureTracks();
+      // BUG FIX: Transcode stalls when mic/canvas keep running after Stop
+      // Fix: Cut mic, canvas capture, and AudioContext before building the WebM blob / FFmpeg.
+      this.releaseAfterRecordingStop();
 
       const type = recorder.mimeType || 'video/webm';
       this.webmBlob = new Blob(chunks, { type });
@@ -376,13 +378,30 @@ export class VoiceRecorderSession {
     return chunks;
   }
 
-  // BUG FIX: Re-record corrupt WebM / silent second take
-  // Fix: Only stop canvas video tracks after each take; fully rebuild mic + AudioContext on "Record again".
-  private releaseCaptureTracks(): void {
+  /**
+   * Stop all live capture after MediaRecorder has flushed its final chunk.
+   * Waveform canvas is left mounted (frozen on last frame) for preview during transcode.
+   */
+  private releaseAfterRecordingStop(): void {
     for (const track of this.combinedStream?.getVideoTracks() ?? []) {
       track.stop();
     }
+    for (const track of this.combinedStream?.getAudioTracks() ?? []) {
+      track.stop();
+    }
     this.combinedStream = null;
+
+    for (const track of this.micStream?.getTracks() ?? []) {
+      track.stop();
+    }
+    this.micStream = null;
+
+    this.waveform?.stop();
+
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      void this.audioContext.close();
+    }
+    this.audioContext = null;
   }
 
   private disposeMediaPipeline(): void {
@@ -403,22 +422,11 @@ export class VoiceRecorderSession {
     this.mediaRecorder = null;
     this.chunks = [];
 
-    this.releaseCaptureTracks();
+    this.releaseAfterRecordingStop();
 
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = null;
 
-    this.waveform?.stop();
     this.waveform = null;
-
-    for (const track of this.micStream?.getTracks() ?? []) {
-      track.stop();
-    }
-    this.micStream = null;
-
-    if (this.audioContext) {
-      void this.audioContext.close();
-      this.audioContext = null;
-    }
   }
 }

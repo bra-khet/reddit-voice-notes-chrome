@@ -1,6 +1,12 @@
 import { DISPLAY_MAX_RECORDING_SECONDS, MAX_RECORDING_SECONDS } from '@/src/utils/constants';
 import { VoiceRecorderSession, type RecorderState } from '@/src/recorder/voice-recorder';
 import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
+import {
+  DEFAULT_THEME_ID,
+  listThemePresets,
+  loadActiveTheme,
+  saveActiveThemeId,
+} from '@/src/theme';
 import { RVN_COLORS } from '@/src/ui/tokens';
 import { showToast } from './toast';
 
@@ -36,6 +42,7 @@ export class RecorderPanel {
   private secondaryBtn!: HTMLButtonElement;
   private tertiaryBtn!: HTMLButtonElement;
   private closeBtn!: HTMLButtonElement;
+  private themeSelect!: HTMLSelectElement;
   private readonly composer: Element | null;
   private previouslyFocused: HTMLElement | null = null;
   private lastNotifiedPhase: RecorderState['phase'] | null = null;
@@ -127,6 +134,34 @@ export class RecorderPanel {
           margin-bottom: 12px;
         }
         .waveform canvas { width: 100%; height: 100%; display: block; }
+        .theme-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .theme-row__label {
+          font-size: 12px;
+          color: ${RVN_COLORS.textMuted};
+          white-space: nowrap;
+        }
+        .theme-row__select {
+          flex: 1;
+          border: 1px solid ${RVN_COLORS.panelBorder};
+          border-radius: 8px;
+          background: ${RVN_COLORS.surfaceRaised};
+          color: ${RVN_COLORS.textPrimary};
+          font: inherit;
+          font-size: 12px;
+          padding: 6px 8px;
+          cursor: pointer;
+        }
+        .theme-row__select:focus-visible {
+          outline: 2px solid ${RVN_COLORS.redditBlue};
+          outline-offset: 2px;
+        }
+        .theme-row__select:disabled { opacity: 0.55; cursor: not-allowed; }
         .progress {
           height: 4px;
           border-radius: 2px;
@@ -187,6 +222,11 @@ export class RecorderPanel {
           .timer__cap { color: #576f76; }
           .time-progress { background: #edeff1; }
           .waveform { background: #f6f7f8; }
+          .theme-row__select {
+            background: #f6f7f8;
+            color: #1a1a1b;
+            border-color: #edeff1;
+          }
           .progress { background: #edeff1; }
           .action--secondary { background: #f6f7f8; color: #1a1a1b; }
           .action--secondary:hover { background: #edeff1; }
@@ -208,6 +248,10 @@ export class RecorderPanel {
         </div>
         <div class="progress" data-progress hidden><div class="progress__bar" data-progress-bar></div></div>
         <div class="waveform" data-waveform aria-label="Live audio waveform"></div>
+        <div class="theme-row" data-theme-row hidden>
+          <label class="theme-row__label" for="rvn-theme">Clip style</label>
+          <select class="theme-row__select" id="rvn-theme" data-theme aria-label="Clip style"></select>
+        </div>
         <div class="actions">
           <button class="action action--primary" type="button" data-primary disabled>Record</button>
           <button class="action action--secondary" type="button" data-secondary hidden>Cancel</button>
@@ -226,6 +270,18 @@ export class RecorderPanel {
     this.secondaryBtn = this.shadow.querySelector('[data-secondary]')!;
     this.tertiaryBtn = this.shadow.querySelector('[data-tertiary]')!;
     this.closeBtn = this.shadow.querySelector('.close')!;
+    this.themeSelect = this.shadow.querySelector('[data-theme]')!;
+
+    for (const preset of listThemePresets()) {
+      const option = document.createElement('option');
+      option.value = preset.id;
+      option.textContent = preset.name;
+      this.themeSelect.append(option);
+    }
+
+    this.themeSelect.addEventListener('change', () => {
+      void saveActiveThemeId(this.themeSelect.value);
+    });
 
     this.primaryBtn.addEventListener('click', () => this.onPrimaryClick());
     this.secondaryBtn.addEventListener('click', () => this.onSecondaryClick());
@@ -259,6 +315,8 @@ export class RecorderPanel {
     });
 
     try {
+      const activeTheme = await loadActiveTheme();
+      this.themeSelect.value = activeTheme.id;
       await this.session.prepare();
       this.panelEl.focus();
     } catch {
@@ -411,6 +469,14 @@ export class RecorderPanel {
     const canvas = this.session?.previewCanvas;
     if (canvas && !this.waveformSlot.contains(canvas)) {
       this.waveformSlot.replaceChildren(canvas);
+    }
+
+    const themeRow = this.shadow.querySelector<HTMLElement>('[data-theme-row]')!;
+    const themeEditable = state.phase === 'ready' || state.phase === 'idle';
+    themeRow.hidden = !themeEditable;
+    this.themeSelect.disabled = !themeEditable || state.phase === 'idle';
+    if (themeEditable && this.themeSelect.value === '') {
+      this.themeSelect.value = DEFAULT_THEME_ID;
     }
 
     this.secondaryBtn.hidden = !['recording', 'stopped', 'processing', 'error'].includes(state.phase);
