@@ -92,7 +92,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 |-------|------|-------|--------|
 | **pretty-0** | Theme foundation | Theme model, 5 bundled presets, canvas draw refactor, persistence normalization, `rvnUserPrefs` v1 scaffold | Done |
 | **pretty-1** | Popup — clip appearance | Theme picker, static canvas preview (same draw path as output), bar alignment; synced with recorder panel | Done (in `v1.5.0`) |
-| **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion | Planned |
+| **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion | Done |
 | **pretty-3** | Audio & viz toggles | Raw mic capture toggle, full-spectrum/music viz mode, help tooltips | Planned |
 | **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Planned |
 | **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Planned |

@@ -136,6 +136,116 @@ body {
   margin-bottom: 0;
 }
 
+.popup__info-row,
+.popup__toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.popup__info-row:last-of-type,
+.popup__toggle-row:last-of-type {
+  margin-bottom: 0;
+}
+
+.popup__info-copy,
+.popup__toggle-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.popup__info-label,
+.popup__toggle-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #d7dadc;
+}
+
+.popup__info-value {
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #d7dadc;
+}
+
+.popup__toggle-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.popup__field-desc {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: #818384;
+  line-height: 1.35;
+}
+
+.popup__badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #343536;
+  color: #818384;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.popup__toggle-row--disabled .popup__toggle-label,
+.popup__toggle-row--disabled .popup__field-desc {
+  color: #6a6c6e;
+}
+
+.popup__toggle-input {
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  margin: 2px 0 0;
+  appearance: none;
+  border-radius: 999px;
+  background: #343536;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.popup__toggle-input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #d7dadc;
+  transition: transform 0.15s ease;
+}
+
+.popup__toggle-input:checked {
+  background: #0079d3;
+}
+
+.popup__toggle-input:checked::before {
+  transform: translateX(18px);
+}
+
+.popup__toggle-input:focus-visible {
+  outline: 2px solid #0079d3;
+  outline-offset: 2px;
+}
+
+.popup__toggle-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .popup__field-label {
   font-size: 0.75rem;
   color: #818384;
@@ -218,8 +328,33 @@ body {
     border-color: #edeff1;
   }
 
-  .popup__field-label {
+  .popup__field-label,
+  .popup__info-label,
+  .popup__toggle-label,
+  .popup__info-value {
+    color: #1a1a1b;
+  }
+
+  .popup__field-desc {
     color: #576f76;
+  }
+
+  .popup__badge {
+    background: #edeff1;
+    color: #576f76;
+  }
+
+  .popup__toggle-row--disabled .popup__toggle-label,
+  .popup__toggle-row--disabled .popup__field-desc {
+    color: #7c8b93;
+  }
+
+  .popup__toggle-input {
+    background: #edeff1;
+  }
+
+  .popup__toggle-input::before {
+    background: #ffffff;
   }
 
   .popup__select {

@@ -14,7 +14,7 @@ export interface AppearancePreferences {
   activeThemeId: string;
   /** Center-mirrored (default), bottom, or top bar anchoring. */
   barAlignment?: BarAlignment;
-  /** Planned (pretty-4): simplify waveform motion when OS requests reduced motion. */
+  /** When true, simplify waveform motion if the OS requests reduced motion (pretty-2 UI; pretty-4 draw). */
   respectReducedMotion?: boolean;
   /**
    * Planned (pretty-7): IndexedDB record id for a user-uploaded background image.
@@ -146,6 +146,12 @@ export async function saveAppearancePreferences(
   });
 
   return next;
+}
+
+/** True when prefs allow honoring the OS reduced-motion preference. */
+export function shouldReduceMotion(prefs: UserPreferencesV1): boolean {
+  if (prefs.appearance.respectReducedMotion === false) return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 export function onUserPreferencesChanged(

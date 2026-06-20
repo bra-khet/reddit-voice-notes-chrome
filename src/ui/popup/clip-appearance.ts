@@ -9,6 +9,8 @@ import {
   loadUserPreferences,
   onUserPreferencesChanged,
   saveAppearancePreferences,
+  shouldReduceMotion,
+  type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 
 // UX: top → center → bottom matches vertical bar position on the canvas (intuitive order).
@@ -64,6 +66,7 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
 
   let activeThemeId = '';
   let activeAlignment: BarAlignment = 'center';
+  let activePrefs: UserPreferencesV1 | null = null;
   let renderGeneration = 0;
   let previewRaf = 0;
   let lastPreviewFrame = 0;
@@ -77,7 +80,7 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
 
   function syncPreviewLoop(): void {
     const theme = getThemeById(activeThemeId);
-    if (!backgroundIsBokeh(theme.background)) {
+    if (!backgroundIsBokeh(theme.background) || (activePrefs && shouldReduceMotion(activePrefs))) {
       stopPreviewLoop();
       return;
     }
@@ -100,35 +103,28 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
     syncPreviewLoop();
   }
 
-  function applyPrefs(themeId: string, alignment: BarAlignment): void {
-    activeThemeId = themeId;
-    activeAlignment = alignment;
-    themeSelect.value = themeId;
-    alignmentSelect.value = alignment;
+  function applyPrefs(prefs: UserPreferencesV1): void {
+    activePrefs = prefs;
+    activeThemeId = prefs.appearance.activeThemeId;
+    activeAlignment = prefs.appearance.barAlignment ?? 'center';
+    themeSelect.value = activeThemeId;
+    alignmentSelect.value = activeAlignment;
     stopPreviewLoop();
     void refreshPreview();
   }
 
   themeSelect.addEventListener('change', () => {
-    void saveAppearancePreferences({ activeThemeId: themeSelect.value }).then((prefs) => {
-      applyPrefs(prefs.appearance.activeThemeId, prefs.appearance.barAlignment ?? 'center');
-    });
+    void saveAppearancePreferences({ activeThemeId: themeSelect.value }).then(applyPrefs);
   });
 
   alignmentSelect.addEventListener('change', () => {
     const alignment = alignmentSelect.value as BarAlignment;
-    void saveAppearancePreferences({ barAlignment: alignment }).then((prefs) => {
-      applyPrefs(prefs.appearance.activeThemeId, prefs.appearance.barAlignment ?? 'center');
-    });
+    void saveAppearancePreferences({ barAlignment: alignment }).then(applyPrefs);
   });
 
-  void loadUserPreferences().then((prefs) => {
-    applyPrefs(prefs.appearance.activeThemeId, prefs.appearance.barAlignment ?? 'center');
-  });
+  void loadUserPreferences().then(applyPrefs);
 
-  const unsubscribe = onUserPreferencesChanged((prefs) => {
-    applyPrefs(prefs.appearance.activeThemeId, prefs.appearance.barAlignment ?? 'center');
-  });
+  const unsubscribe = onUserPreferencesChanged(applyPrefs);
 
   return () => {
     stopPreviewLoop();
