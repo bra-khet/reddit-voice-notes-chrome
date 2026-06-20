@@ -84,14 +84,38 @@ These items are prepared or designed-for but not activated in the current sprint
 
 These notes are intentionally recorded here so decisions about defaults vs. options can be made after testing.
 
-## Suggested implementation order
+## Version 2 phase plan (`pretty` branch)
 
-1. **Theme data model** — named presets in storage; default matches current MVP look
-2. **Waveform presets** — 2–3 high-impact bar styles (classic, rounded glow, minimal line)
-3. **Background presets** — solid/gradient first, then image picker from extension assets or user upload
-4. **Settings UI** — pick theme + background; live preview in popup or on recorder open
-5. **Accessibility pass** — contrast checks + reduced-motion variant
-6. **Perf pass** — profile 3-min cap path; ensure no regression vs `main`
+`main` = v1 MVP (recording pipeline). `pretty` = v2 (beautification + settings hub). Phases are sequential; later phases assume earlier storage/UI scaffolding.
+
+| Phase | Name | Scope | Status |
+|-------|------|-------|--------|
+| **pretty-0** | Theme foundation | Theme model, 5 bundled presets, canvas draw refactor, persistence normalization, `rvnUserPrefs` v1 scaffold | Done |
+| **pretty-1** | Popup — clip appearance | Theme picker, static canvas preview (same draw path as output), bar alignment; synced with recorder panel | **Current** |
+| **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion | Planned |
+| **pretty-3** | Audio & viz toggles | Raw mic capture toggle, full-spectrum/music viz mode, help tooltips | Planned |
+| **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Planned |
+| **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Planned |
+| **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Planned |
+| **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Planned |
+| **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Planned |
+| **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Planned |
+| **pretty-8** | Perf & merge readiness | 3-min cap profiling, prod bundle verify, merge criteria vs `main` | Planned |
+
+### ImageDB notes (pretty-7)
+
+- Personal backgrounds are **drawn to the canvas during capture** — preview = output, same as bundled presets today.
+- Storage lives in **IndexedDB** (not `chrome.storage.local`); prefs hold only image record ids + metadata.
+- `UserPreferencesV1` will gain `appearance.customBackgroundId` (or profile-level refs) without breaking v1 merge defaults.
+
+## Legacy suggested order (superseded by phase table above)
+
+1. ~~Theme data model~~ → pretty-0
+2. ~~Waveform presets~~ → pretty-0
+3. ~~Background presets (bundled)~~ → pretty-0
+4. ~~Settings UI (clip appearance)~~ → pretty-1
+5. Accessibility pass → pretty-4
+6. Perf pass → pretty-8
 
 ## Branch workflow
 

@@ -6,7 +6,8 @@ import { friendlyRecorderError, type RecorderErrorCode } from '@/src/utils/error
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
-import { getThemeById, loadActiveTheme, onActiveThemeChanged } from '@/src/theme';
+import { getThemeById } from '@/src/theme';
+import { loadUserPreferences, onUserPreferencesChanged } from '@/src/settings/user-preferences';
 import { WaveformRenderer } from './waveform';
 
 /** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
@@ -108,7 +109,7 @@ export class VoiceRecorderSession {
   private transcodeGeneration = 0;
   private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stopInFlight = false;
-  private themeUnsubscribe: (() => void) | null = null;
+  private prefsUnsubscribe: (() => void) | null = null;
 
   get previewCanvas(): HTMLCanvasElement | null {
     return this.waveform?.canvas ?? null;
@@ -202,15 +203,18 @@ export class VoiceRecorderSession {
       const analyser = this.audioContext.createAnalyser();
       source.connect(analyser);
 
-      const theme = await loadActiveTheme();
+      const prefs = await loadUserPreferences();
+      const theme = getThemeById(prefs.appearance.activeThemeId);
       this.waveform = new WaveformRenderer(analyser, theme);
+      this.waveform.setBarAlignment(prefs.appearance.barAlignment ?? 'center');
       await this.waveform.whenReady();
       this.waveform.start();
 
-      this.themeUnsubscribe?.();
-      this.themeUnsubscribe = onActiveThemeChanged((themeId) => {
+      this.prefsUnsubscribe?.();
+      this.prefsUnsubscribe = onUserPreferencesChanged((next) => {
         if (!this.waveform) return;
-        this.waveform.setTheme(getThemeById(themeId));
+        this.waveform.setTheme(getThemeById(next.appearance.activeThemeId));
+        this.waveform.setBarAlignment(next.appearance.barAlignment ?? 'center');
         void this.waveform.whenReady();
       });
 
@@ -452,8 +456,8 @@ export class VoiceRecorderSession {
 
     this.releaseAfterRecordingStop();
 
-    this.themeUnsubscribe?.();
-    this.themeUnsubscribe = null;
+    this.prefsUnsubscribe?.();
+    this.prefsUnsubscribe = null;
 
     this.waveform = null;
   }

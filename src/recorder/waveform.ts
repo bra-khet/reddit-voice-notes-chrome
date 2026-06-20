@@ -288,3 +288,61 @@ export class WaveformRenderer {
     ctx.shadowColor = 'transparent';
   }
 }
+
+/** Voice-like demo amplitudes (0–1) for popup preview — no mic required. */
+const PREVIEW_BAND_LEVELS: readonly number[] = [
+  0.42, 0.58, 0.71, 0.55, 0.48, 0.62, 0.78, 0.66,
+  0.52, 0.44, 0.57, 0.69, 0.74, 0.61, 0.5, 0.46,
+  0.53, 0.67, 0.72, 0.59, 0.41, 0.38, 0.49, 0.63,
+  0.7, 0.56, 0.45, 0.4, 0.47, 0.6, 0.65, 0.51,
+];
+
+function drawBarsFromLevels(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  theme: WaveformTheme,
+  alignment: BarAlignment,
+  levels: readonly number[],
+): void {
+  const centerY = canvas.height / 2;
+  const maxBarHeight = canvas.height * 0.7;
+  const layout = computeBarLayout(canvas.width, theme);
+  const { barWidth, spacing, startX } = layout;
+  const { cornerRadius, glow } = theme.bars;
+
+  for (let i = 0; i < BAR_COUNT; i += 1) {
+    const normalized = compressForViz(Math.min(1, levels[i] ?? 0));
+    const barHeight = Math.max(MIN_BAR_HEIGHT, normalized * maxBarHeight);
+    const x = startX + i * (barWidth + spacing);
+    const y = getBarY(alignment, centerY, barHeight, canvas.height);
+
+    ctx.fillStyle = applyBarColor(theme.colors.bar, normalized);
+    ctx.shadowColor = theme.colors.glow;
+    ctx.shadowBlur = normalized * glow;
+    fillRoundedRect(ctx, x, y, barWidth, barHeight, cornerRadius);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+}
+
+/** Static clip preview for popup settings — same draw path as live waveform output. */
+export async function renderThemePreview(
+  canvas: HTMLCanvasElement,
+  theme: WaveformTheme,
+  alignment: BarAlignment = 'center',
+): Promise<void> {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+
+  let backgroundImage: HTMLImageElement | null = null;
+  if (backgroundNeedsImage(theme.background) && typeof theme.background.value === 'string') {
+    backgroundImage = await loadBackgroundImage(theme.background.value);
+  }
+
+  drawThemeBackground(ctx, canvas, theme, backgroundImage);
+  drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);
+}
