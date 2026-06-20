@@ -6,11 +6,29 @@ export type FfmpegProgressCallback = (ratio: number, stage: string) => void;
 const WEBM_EBML_MAGIC = [0x1a, 0x45, 0xdf, 0xa3] as const;
 const MIN_WEBM_BYTES = 256;
 
+/**
+ * Per-strategy ceiling — fail fast on hung exec (e.g. corrupt cap-stop WebM).
+ * BUG FIX: cap-stop transcode appeared to hang for many minutes
+ * Fix: Cap per-strategy wait at 90s; size scaling was allowing ~345s/MB on 15 MB files.
+ * Sync: docs/bug-archive.md BUG-001
+ */
+const STRATEGY_TIMEOUT_BASE_MS = 60_000;
+const STRATEGY_TIMEOUT_PER_MB_MS = 3_000;
+const STRATEGY_TIMEOUT_MAX_MS = 90_000;
+
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
 
 function extensionAsset(path: string): string {
   return browser.runtime.getURL(path as never);
+}
+
+function strategyTimeoutMs(webmBytes: number): number {
+  const megabytes = webmBytes / (1024 * 1024);
+  return Math.min(
+    STRATEGY_TIMEOUT_MAX_MS,
+    STRATEGY_TIMEOUT_BASE_MS + Math.ceil(megabytes) * STRATEGY_TIMEOUT_PER_MB_MS,
+  );
 }
 
 async function assertAssetReachable(label: string, url: string): Promise<void> {
@@ -23,6 +41,16 @@ async function assertAssetReachable(label: string, url: string): Promise<void> {
 function isValidWebm(bytes: Uint8Array): boolean {
   if (bytes.byteLength < MIN_WEBM_BYTES) return false;
   return WEBM_EBML_MAGIC.every((value, index) => bytes[index] === value);
+}
+
+function isFfmpegVersionBanner(line: string): boolean {
+  const trimmed = line.trim();
+  return (
+    /libavcodec\s+\d/.test(trimmed) ||
+    /libavformat\s+\d/.test(trimmed) ||
+    /libavutil\s+\d/.test(trimmed) ||
+    trimmed.startsWith('ffmpeg version')
+  );
 }
 
 function attachLogCollector(ffmpeg: FFmpeg): { lines: string[]; detach: () => void } {
@@ -40,17 +68,20 @@ function attachLogCollector(ffmpeg: FFmpeg): { lines: string[]; detach: () => vo
 
 function summarizeFfmpegLogs(lines: string[]): string {
   const interesting = lines.filter((line) => {
+    if (isFfmpegVersionBanner(line)) return false;
     const lower = line.toLowerCase();
     return (
       lower.includes('error') ||
       lower.includes('invalid') ||
       lower.includes('unknown encoder') ||
-      lower.includes('codec') ||
       lower.includes('failed') ||
-      lower.includes('not found')
+      lower.includes('not found') ||
+      lower.includes('cannot') ||
+      lower.includes('no such')
     );
   });
-  const tail = (interesting.length > 0 ? interesting : lines).slice(-6);
+  const fallback = lines.filter((line) => !isFfmpegVersionBanner(line));
+  const tail = (interesting.length > 0 ? interesting : fallback).slice(-6);
   return tail.join(' | ');
 }
 
@@ -194,35 +225,95 @@ async function safeDeleteFile(ffmpeg: FFmpeg, path: string): Promise<void> {
   }
 }
 
-async function transcodeWithStrategies(
+async function writeInputWebm(ffmpeg: FFmpeg, inputBytes: Uint8Array): Promise<void> {
+  await safeDeleteFile(ffmpeg, 'input.webm');
+  await ffmpeg.writeFile('input.webm', inputBytes);
+}
+
+type ExecResult = { exitCode: number; timedOut: boolean };
+
+async function execWithTimeout(
   ffmpeg: FFmpeg,
+  args: string[],
+  timeoutMs: number,
+): Promise<ExecResult> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      console.warn(
+        `${EXTENSION_LOG_PREFIX} FFmpeg strategy timed out after ${Math.round(timeoutMs / 1000)}s — terminating worker`,
+      );
+      disposeFfmpeg();
+      resolve({ exitCode: -1, timedOut: true });
+    }, timeoutMs);
+
+    void ffmpeg
+      .exec(args)
+      .then((exitCode) => {
+        window.clearTimeout(timer);
+        resolve({ exitCode, timedOut: false });
+      })
+      .catch((error: unknown) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+async function transcodeWithStrategies(
+  inputBytes: Uint8Array,
   onProgress?: FfmpegProgressCallback,
+  onFfmpegRatio?: (ratio: number) => void,
 ): Promise<Uint8Array> {
   const attempts: string[] = [];
+  const perStrategyTimeoutMs = strategyTimeoutMs(inputBytes.byteLength);
 
   for (const strategy of TRANSCODE_STRATEGIES) {
+    const ffmpeg = await loadFfmpeg(onProgress);
+    await writeInputWebm(ffmpeg, inputBytes);
     await safeDeleteFile(ffmpeg, 'output.mp4');
     onProgress?.(0.2, `transcoding-${strategy.name}`);
 
     const { lines, detach } = attachLogCollector(ffmpeg);
-    let exitCode = 1;
+    let result: ExecResult = { exitCode: 1, timedOut: false };
+
+    const progressHandler = onFfmpegRatio
+      ? ({ progress }: { progress: number }) => onFfmpegRatio(progress)
+      : null;
+    if (progressHandler) ffmpeg.on('progress', progressHandler);
 
     try {
-      exitCode = await ffmpeg.exec([...strategy.args]);
+      result = await execWithTimeout(ffmpeg, [...strategy.args], perStrategyTimeoutMs);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      attempts.push(`${strategy.name}: ${detail}`);
+      console.warn(`${EXTENSION_LOG_PREFIX} Transcode attempt threw (${strategy.name})`, detail);
+      disposeFfmpeg();
     } finally {
+      if (progressHandler) ffmpeg.off('progress', progressHandler);
       detach();
     }
 
-    if (exitCode === 0) {
+    if (result.timedOut) {
+      attempts.push(
+        `${strategy.name}: timed out after ${Math.round(perStrategyTimeoutMs / 1000)}s`,
+      );
+      continue;
+    }
+
+    if (result.exitCode === 0) {
       console.log(`${EXTENSION_LOG_PREFIX} Transcode succeeded (${strategy.name})`);
-      return (await ffmpeg.readFile('output.mp4')) as Uint8Array;
+      const output = (await ffmpeg.readFile('output.mp4')) as Uint8Array;
+      await safeDeleteFile(ffmpeg, 'input.webm');
+      await safeDeleteFile(ffmpeg, 'output.mp4');
+      return output;
     }
 
     const summary = summarizeFfmpegLogs(lines);
-    attempts.push(`${strategy.name}: exit ${exitCode}${summary ? ` — ${summary}` : ''}`);
+    attempts.push(`${strategy.name}: exit ${result.exitCode}${summary ? ` — ${summary}` : ''}`);
     console.warn(`${EXTENSION_LOG_PREFIX} Transcode attempt failed (${strategy.name})`, summary);
   }
 
+  disposeFfmpeg();
   throw new Error(
     `FFmpeg transcoding failed after ${TRANSCODE_STRATEGIES.length} attempts. ${attempts.join(' || ')}`,
   );
@@ -251,30 +342,27 @@ export async function runWebmToMp4(
     );
   }
 
-  const ffmpeg = await loadFfmpeg((ratio, stage) => {
-    report(ratio, stage === 'loaded' ? 'loading-wasm' : stage);
-  });
-
-  const progressHandler = ({ progress }: { progress: number }) => {
-    report(Math.min(1, Math.max(0, progress)), 'transcoding');
-  };
-
-  ffmpeg.on('progress', progressHandler);
-
   try {
     onProgress?.(0.18, 'writing-input');
-    await ffmpeg.writeFile('input.webm', inputBytes);
-
-    onProgress?.(0.2, 'transcoding');
-    const output = await transcodeWithStrategies(ffmpeg, onProgress);
-
-    await ffmpeg.deleteFile('input.webm');
-    await ffmpeg.deleteFile('output.mp4');
+    const output = await transcodeWithStrategies(
+      inputBytes,
+      (ratio, stage) => {
+        if (stage === 'loaded' || stage === 'loading-wasm' || stage === 'checking-assets') {
+          report(ratio, stage === 'loaded' ? 'loading-wasm' : stage);
+          return;
+        }
+        report(ratio, stage);
+      },
+      (ratio) => report(Math.min(1, Math.max(0, ratio)), 'transcoding'),
+    );
 
     onProgress?.(1, 'done');
     return output;
-  } finally {
-    ffmpeg.off('progress', progressHandler);
+  } catch (error) {
+    // BUG FIX: Poisoned FFmpeg singleton after hung/failed transcode
+    // Fix: Terminate WASM worker so the next job starts from a clean virtual FS.
+    disposeFfmpeg();
+    throw error;
   }
 }
 

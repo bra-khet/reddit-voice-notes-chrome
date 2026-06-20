@@ -21,7 +21,7 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 ## Features
 
 - Mic button injected next to Reddit's video icon (Shadow DOM–aware)
-- Floating recorder with live waveform, 3-minute cap, discard/cancel flows
+- Floating recorder with live waveform, 2-minute cap, discard/cancel flows
 - Client-side WebM capture → FFmpeg.wasm MP4 (offscreen document)
 - Download MP4 (primary, always reliable)
 - Best-effort **Attach to Reddit** via native file input
@@ -123,7 +123,7 @@ Shortcut works when a Reddit comment composer is available (focused or on page).
 
 ## MVP constraints
 
-- **3-minute hard cap** on recordings
+- **2-minute hard cap** on recordings (see `docs/bug-archive.md` for why not Reddit's 3:00)
 - **MP4 output** (H.264 + AAC) for Reddit compatibility
 - **Download path is primary** — auto-attach is best-effort
 - **Client-side only** — no external servers except Reddit upload

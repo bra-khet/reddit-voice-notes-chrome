@@ -21,7 +21,13 @@ const imageCache = new Map<string, HTMLImageElement>();
 export function resolveBackgroundAssetUrl(key: string): string | null {
   const path = BACKGROUND_ASSETS[key as BackgroundAssetKey];
   if (!path) return null;
-  return browser.runtime.getURL(path as never);
+  try {
+    if (!browser.runtime?.id) return null;
+    return browser.runtime.getURL(path as never);
+  } catch {
+    // Extension context invalidated (reload) — avoid chrome-extension://invalid/ requests.
+    return null;
+  }
 }
 
 export function isBackgroundAssetKey(value: string): value is BackgroundAssetKey {

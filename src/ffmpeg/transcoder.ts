@@ -11,12 +11,17 @@ import {
 } from '@/src/messaging/types';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
-const TRANSCODE_TIMEOUT_BASE_MS = 5 * 60 * 1000;
-const TRANSCODE_TIMEOUT_PER_MB_MS = 45 * 1000;
+/** Backstop only — per-strategy timeouts in ffmpeg-runner.ts should fire first. */
+const TRANSCODE_TIMEOUT_BASE_MS = 2 * 60 * 1000;
+const TRANSCODE_TIMEOUT_PER_MB_MS = 10_000;
+const TRANSCODE_TIMEOUT_MAX_MS = 4 * 60 * 1000;
 
 function transcodeTimeoutMs(webmBytes: number): number {
   const megabytes = webmBytes / (1024 * 1024);
-  return TRANSCODE_TIMEOUT_BASE_MS + Math.ceil(megabytes) * TRANSCODE_TIMEOUT_PER_MB_MS;
+  return Math.min(
+    TRANSCODE_TIMEOUT_MAX_MS,
+    TRANSCODE_TIMEOUT_BASE_MS + Math.ceil(megabytes) * TRANSCODE_TIMEOUT_PER_MB_MS,
+  );
 }
 
 function isExtensionContextValid(): boolean {

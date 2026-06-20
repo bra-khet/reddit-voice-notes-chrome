@@ -14,10 +14,11 @@
 - **Settings popup**: Shortcut capture, reset, reload extension
 - **README**: Finalized usage, layout, limitations
 
-## Bug fix: 3-minute cap transcode hang
+## Bug fix: cap transcode hang (see `docs/bug-archive.md` BUG-001)
 
-- **Cause**: Interval-based cap stop raced with MediaRecorder 1s timeslice; final chunk could be incomplete → FFmpeg hung until 5 min client timeout
-- **Fix**: Dedicated `setTimeout` cap; `stopInFlight` guard; flush wait (`timeslice + 100ms`) before `stop()` on cap; safer base64 encode (no large spread); scaled transcode timeout by WebM size
+- **Cause**: Cap auto-stop WebM corruption + ~15 MB base64 relay + canvas video bitrate; per-strategy FFmpeg timeouts allowed multi-minute hangs on 15 MB files
+- **Fix (2026-06)**: Recording cap **2:00** (118s enforced); FFmpeg worker dispose/queue; strategy timeout capped at 90s; theme assets in `web_accessible_resources`
+- **Earlier fixes**: Dedicated cap `setTimeout`; `stopInFlight` guard; chunked base64 encode; cap stop uses `requestData`+`stop`
 
 ## Restore prior checkpoint
 
@@ -29,12 +30,13 @@ git checkout v0.1.0-phase3-stable && npm install && npm run dev
 
 - **Keyboard shortcut**: Disabled (commented out) — Reddit contenteditable/shadow DOM conflicts; revisit later
 - **Cap transcode hang fix**: Removed cap-only 1.1s wait-while-recording flush (was corrupting WebM); cap stop now uses same `requestData`+`stop` as manual; 300ms lead before nominal cap
-- **Recording cap**: Enforced ~2:58 (178s), UI still shows 3:00 max
+- **Recording cap**: **2:00** display / **1:58** enforced (lowered from 3:00 — see `docs/bug-archive.md`)
 
 ## Known limitations
 
 - Auto-attach best-effort; download always works
-- Large 3-min recordings near Chrome message size limits
+- **2:00 cap** is a pipeline concession until chunked transport / lower video bitrate (BUG-001)
+- Reddit allows ~3:00 video comments; extension intentionally stops earlier
 - Popup shortcut vs Chrome command page are independent config paths
 
 ## Branch split (post-MVP)

@@ -1,4 +1,5 @@
-import { runWebmToMp4 } from '@/src/ffmpeg/ffmpeg-runner';
+import { disposeFfmpeg, runWebmToMp4 } from '@/src/ffmpeg/ffmpeg-runner';
+import { enqueueTranscodeJob } from '@/src/ffmpeg/transcode-queue';
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import {
   MSG_OFFSCREEN_PING,
@@ -47,10 +48,11 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   sendResponse({ ok: true, jobId: request.jobId });
   broadcastProgress(request.jobId, 0.01, 'queued');
 
-  void (async () => {
+  void enqueueTranscodeJob(async () => {
+    const startedAt = Date.now();
     try {
       const webmBytes = unpackBinary(request.webmBase64, request.webmByteLength);
-      console.log('[Reddit Voice Notes] Transcode job', request.jobId, {
+      console.log('[Reddit Voice Notes] Transcode job started', request.jobId, {
         webmBytes: webmBytes.byteLength,
         base64Chars: request.webmBase64.length,
       });
@@ -70,8 +72,13 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         mp4ByteLength: mp4Packed.byteLength,
       };
       broadcast(completeMsg);
+      console.log('[Reddit Voice Notes] Transcode job finished', request.jobId, {
+        mp4Bytes: mp4Packed.byteLength,
+        elapsedMs: Date.now() - startedAt,
+      });
     } catch (error) {
-      console.error('[Reddit Voice Notes] Transcode failed:', error);
+      disposeFfmpeg();
+      console.error('[Reddit Voice Notes] Transcode failed:', request.jobId, error);
       const completeMsg: TranscodeCompleteMessage = {
         type: MSG_TRANSCODE_COMPLETE,
         jobId: request.jobId,
@@ -80,7 +87,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       };
       broadcast(completeMsg);
     }
-  })();
+  });
 
   return;
 });

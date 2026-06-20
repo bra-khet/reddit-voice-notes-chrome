@@ -1,3 +1,4 @@
+import { formatRecordingCapClock } from '@/src/utils/constants';
 import { createMicIconElement } from '@/src/ui/icons/mic';
 import { RVN_COLORS } from '@/src/ui/tokens';
 import { VOICE_NOTE_BUTTON_ATTR } from './selectors';
@@ -65,7 +66,7 @@ export function createVoiceNoteButton(options: VoiceNoteButtonOptions): HTMLButt
   button.className = 'rvn-voice-note-btn';
   button.setAttribute(VOICE_NOTE_BUTTON_ATTR, 'true');
   button.setAttribute('aria-label', 'Record voice note');
-  button.title = 'Record voice note (max 3:00)';
+  button.title = `Record voice note (max ${formatRecordingCapClock()})`;
   applyInlineStyles(button);
 
   button.appendChild(createMicIconElement(18));

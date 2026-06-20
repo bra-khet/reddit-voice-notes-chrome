@@ -1,4 +1,8 @@
-import { DISPLAY_MAX_RECORDING_SECONDS, MAX_RECORDING_SECONDS } from '@/src/utils/constants';
+import {
+  DISPLAY_MAX_RECORDING_SECONDS,
+  formatRecordingCapProse,
+  MAX_RECORDING_SECONDS,
+} from '@/src/utils/constants';
 import { VoiceRecorderSession, type RecorderState } from '@/src/recorder/voice-recorder';
 import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
 import {
@@ -245,7 +249,7 @@ export class RecorderPanel {
         </div>
         <p class="status" data-status role="status" aria-live="polite">Initializing microphone…</p>
         <div class="timer-wrap" aria-live="polite" aria-atomic="true">
-          <p class="timer" data-timer>0:00<span class="timer__cap">/ 3:00 max</span></p>
+          <p class="timer" data-timer>0:00<span class="timer__cap">/ 2:00 max</span></p>
         </div>
         <div class="time-progress" data-time-progress aria-hidden="true">
           <div class="time-progress__bar" data-time-progress-bar></div>
@@ -517,7 +521,7 @@ export class RecorderPanel {
           this.statusEl.textContent = `${formatTime(DISPLAY_MAX_RECORDING_SECONDS - state.elapsedSeconds)} left — wrapping up soon.`;
           this.statusEl.classList.add('status--warning');
         } else if (state.nearLimit) {
-          this.statusEl.textContent = 'Almost at the 3-minute limit.';
+          this.statusEl.textContent = `Almost at the ${formatRecordingCapProse()} limit.`;
           this.statusEl.classList.add('status--warning');
         } else {
           this.statusEl.textContent = 'Recording… speak clearly into your microphone.';
@@ -537,7 +541,7 @@ export class RecorderPanel {
         break;
       case 'stopped':
         if (state.stoppedAtCap) {
-          this.statusEl.textContent = '3-minute limit reached — your MP4 is ready.';
+          this.statusEl.textContent = `${formatRecordingCapProse()} limit reached — your MP4 is ready.`;
         } else {
           this.statusEl.textContent = 'MP4 ready for Reddit video comments.';
         }
@@ -550,7 +554,7 @@ export class RecorderPanel {
         this.tertiaryBtn.textContent = 'Record again';
         if (this.lastNotifiedPhase !== 'stopped') {
           if (state.stoppedAtCap) {
-            showToast('3-minute limit reached — processing complete.', 'info', 5000);
+            showToast(`${formatRecordingCapProse()} limit reached — processing complete.`, 'info', 5000);
           }
         }
         break;

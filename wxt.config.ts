@@ -23,7 +23,9 @@ export default defineConfig({
       {
         // BUG FIX: FFmpeg worker ESM bundle lives under ffmpeg/esm/ — single-level glob misses it.
         // Fix: expose both the core files and the full nested esm tree.
-        resources: ['ffmpeg/*', 'ffmpeg/esm/*'],
+        // CHANGED: expose theme background SVGs for canvas drawImage in content scripts.
+        // WHY: loadBackgroundImage() sets img.src to chrome-extension://… from Reddit pages.
+        resources: ['ffmpeg/*', 'ffmpeg/esm/*', 'assets/backgrounds/*'],
         matches: ['<all_urls>'],
       },
     ],

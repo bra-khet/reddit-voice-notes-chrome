@@ -1,11 +1,31 @@
-/** Nominal max shown in UI (3 minutes). */
-export const DISPLAY_MAX_RECORDING_SECONDS = 180;
+/**
+ * Nominal max shown in UI (2 minutes).
+ * CHANGED: lowered from 3:00 — see docs/bug-archive.md BUG-001.
+ * WHY: ~15 MB cap WebM + base64 relay + canvas video bitrate exceeds stable pipeline limits;
+ * 2:20 manual-stop recordings (~14.7 MB) transcode reliably; ~3:00 cap-stop does not.
+ */
+export const DISPLAY_MAX_RECORDING_SECONDS = 120;
 
 /**
- * Enforced recording stop — 2s under nominal so output stays inside Reddit's limit.
- * UI continues to display "3:00 max".
+ * Enforced recording stop — 2s under nominal cap.
+ * UI displays DISPLAY_MAX_RECORDING_SECONDS as the max (e.g. "2:00 max").
  */
 export const MAX_RECORDING_SECONDS = DISPLAY_MAX_RECORDING_SECONDS - 2;
+
+/** UI timer label, e.g. "2:00". */
+export function formatRecordingCapClock(): string {
+  const mins = Math.floor(DISPLAY_MAX_RECORDING_SECONDS / 60);
+  const secs = DISPLAY_MAX_RECORDING_SECONDS % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+/** Prose label for toasts/status, e.g. "2-minute". */
+export function formatRecordingCapProse(): string {
+  const secs = DISPLAY_MAX_RECORDING_SECONDS % 60;
+  const mins = Math.floor(DISPLAY_MAX_RECORDING_SECONDS / 60);
+  if (secs === 0) return `${mins}-minute`;
+  return formatRecordingCapClock();
+}
 
 /** Target canvas dimensions for the waveform video track. */
 export const CANVAS_WIDTH = 640;
