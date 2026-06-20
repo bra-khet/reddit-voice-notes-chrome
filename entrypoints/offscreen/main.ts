@@ -51,7 +51,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   void enqueueTranscodeJob(async () => {
     const startedAt = Date.now();
     try {
-      const webmBytes = unpackBinary(request.webmBase64, request.webmByteLength);
+      const webmBytes = unpackBinary(request.webmBase64, request.webmByteLength).slice();
       console.log('[Reddit Voice Notes] Transcode job started', request.jobId, {
         webmBytes: webmBytes.byteLength,
         base64Chars: request.webmBase64.length,

@@ -7,10 +7,10 @@
 export const DISPLAY_MAX_RECORDING_SECONDS = 120;
 
 /**
- * Enforced recording stop — 2s under nominal cap.
- * UI displays DISPLAY_MAX_RECORDING_SECONDS as the max (e.g. "2:00 max").
+ * Enforced recording stop — matches display cap (true 2:00 / 2:00).
+ * CHANGED: removed 2s underflow (was for Reddit's 3:00 upload limit, not needed at 2:00).
  */
-export const MAX_RECORDING_SECONDS = DISPLAY_MAX_RECORDING_SECONDS - 2;
+export const MAX_RECORDING_SECONDS = DISPLAY_MAX_RECORDING_SECONDS;
 
 /** UI timer label, e.g. "2:00". */
 export function formatRecordingCapClock(): string {

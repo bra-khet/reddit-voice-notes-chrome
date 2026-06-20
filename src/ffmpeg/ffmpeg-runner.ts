@@ -227,7 +227,9 @@ async function safeDeleteFile(ffmpeg: FFmpeg, path: string): Promise<void> {
 
 async function writeInputWebm(ffmpeg: FFmpeg, inputBytes: Uint8Array): Promise<void> {
   await safeDeleteFile(ffmpeg, 'input.webm');
-  await ffmpeg.writeFile('input.webm', inputBytes);
+  // BUG FIX: ArrayBuffer detached on Worker postMessage
+  // Fix: ffmpeg.writeFile() transfers the backing buffer to the worker; each strategy needs a fresh copy.
+  await ffmpeg.writeFile('input.webm', inputBytes.slice());
 }
 
 type ExecResult = { exitCode: number; timedOut: boolean };
@@ -238,7 +240,11 @@ async function execWithTimeout(
   timeoutMs: number,
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+
     const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
       console.warn(
         `${EXTENSION_LOG_PREFIX} FFmpeg strategy timed out after ${Math.round(timeoutMs / 1000)}s — terminating worker`,
       );
@@ -249,10 +255,14 @@ async function execWithTimeout(
     void ffmpeg
       .exec(args)
       .then((exitCode) => {
+        if (settled) return;
+        settled = true;
         window.clearTimeout(timer);
         resolve({ exitCode, timedOut: false });
       })
       .catch((error: unknown) => {
+        if (settled) return;
+        settled = true;
         window.clearTimeout(timer);
         reject(error);
       });
@@ -335,7 +345,8 @@ export async function runWebmToMp4(
 
   report(0, 'starting');
 
-  const inputBytes = webm instanceof Uint8Array ? webm : new Uint8Array(webm);
+  const raw = webm instanceof Uint8Array ? webm : new Uint8Array(webm);
+  const inputBytes = raw.slice();
   if (!isValidWebm(inputBytes)) {
     throw new Error(
       `Recording is not a valid WebM file (${inputBytes.byteLength} bytes). Try recording again.`,

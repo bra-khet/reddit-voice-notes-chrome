@@ -37,7 +37,7 @@ Size alone does not explain the gap (similar MB). **Cap-stop corruption + long s
 
 ### Mitigation (2026-06, `pretty` branch)
 
-- **Recording cap reduced to 2:00** — `DISPLAY_MAX_RECORDING_SECONDS = 120`, enforced stop at 118s. Sacrifices Reddit's nominal 3:00 headroom for pipeline stability and room for theme/personalization features.
+- **Recording cap reduced to 2:00** — `DISPLAY_MAX_RECORDING_SECONDS = 120`, enforced at 120s (true 2:00/2:00; the old 2s underflow was for Reddit's 3:00 upload check). Sacrifices Reddit's nominal 3:00 headroom for pipeline stability.
 - **Strategy timeout capped at 90s** — `ffmpeg-runner.ts` `STRATEGY_TIMEOUT_MAX_MS`.
 - **FFmpeg worker lifecycle** — `disposeFfmpeg()` on failure/timeout; offscreen job queue; per-strategy timeouts.
 - **Theme assets** — `assets/backgrounds/*` added to `web_accessible_resources`.
@@ -60,3 +60,43 @@ To restore a 3:00 cap safely:
 - `src/ffmpeg/ffmpeg-runner.ts` — WASM transcode, timeouts
 - `entrypoints/offscreen/main.ts` — job queue
 - `entrypoints/background.ts` — message relay
+
+---
+
+## BUG-002 — Intermittent `ArrayBuffer is already detached` (2026-06)
+
+### Symptoms
+
+- Cap-stop transcode sometimes fails with: `Failed to execute 'postMessage' on 'Worker': ArrayBuffer at index 0 is already detached.`
+- Other cap runs on the same build succeed; behavior is intermittent.
+
+### Root cause (confirmed)
+
+`@ffmpeg/ffmpeg` `writeFile()` **transfers** the underlying `ArrayBuffer` to the WASM worker (zero-copy). Our fallback transcode loop reuses the same `Uint8Array` for up to five strategies — the first `writeFile` detaches the buffer; the second strategy's `writeFile` throws.
+
+Secondary race: calling `disposeFfmpeg()` / `terminate()` on strategy timeout while `ffmpeg.exec()` is still settling can surface the same error unless the exec promise is ignored after timeout.
+
+### Fix (2026-06)
+
+- `writeInputWebm()` passes `inputBytes.slice()` (fresh buffer per strategy).
+- `runWebmToMp4()` and offscreen unpack use `.slice()` so relay buffers are never aliased.
+- `execWithTimeout()` uses a `settled` guard so late exec rejections after timeout/terminate are ignored.
+
+### Why the pipeline feels fragile
+
+Several **independent sharp edges** stack non-linearly:
+
+| Layer | Fragility |
+|-------|-----------|
+| MediaRecorder cap stop | 1s timeslice race → occasional corrupt WebM |
+| FFmpeg WASM | Single worker, virtual FS, buffer transfer semantics |
+| chrome.runtime messaging | Full-file base64, size limits, no streaming |
+| MV3 service worker | Can sleep; needs keep-alive during transcode |
+| Dev HMR | Content script reinjection mid-job duplicates console noise |
+
+Failures are intermittent because **cap-stop chunk integrity and buffer lifetime are timing-dependent**, not deterministic. Reducing cap to 2:00 and fixing buffer copies removes two major edges; the rest need architectural rework (BUG-001 deferred items).
+
+### Related files
+
+- `src/ffmpeg/ffmpeg-runner.ts` — `writeInputWebm`, `execWithTimeout`
+- `entrypoints/offscreen/main.ts` — unpack `.slice()`

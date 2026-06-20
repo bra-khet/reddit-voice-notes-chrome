@@ -1,4 +1,5 @@
 import {
+  DISPLAY_MAX_RECORDING_SECONDS,
   MAX_RECORDING_SECONDS,
   WAVEFORM_TARGET_FPS,
 } from '@/src/utils/constants';
@@ -284,7 +285,7 @@ export class VoiceRecorderSession {
 
     if (options?.stoppedAtCap) {
       this.stoppedAtCap = true;
-      this.elapsedSeconds = MAX_RECORDING_SECONDS;
+      this.elapsedSeconds = DISPLAY_MAX_RECORDING_SECONDS;
     }
 
     if (this.timerId) clearInterval(this.timerId);
