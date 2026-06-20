@@ -81,10 +81,8 @@ export const THEME_PRESETS: WaveformTheme[] = [
       bg: '#1f6feb',
     },
     background: {
-      type: 'image',
-      value: 'midnight-bokeh',
-      imageDimOverlay: 0.22,
-      scaleMode: 'fill',
+      type: 'bokeh',
+      value: 'midnight',
     },
   },
   {

@@ -1,4 +1,11 @@
+import {
+  drawBokehBackground,
+  resolveBokehStyle,
+  type BokehDrawOptions,
+} from './bokeh';
 import type { BackgroundScaleMode, ThemeBackground, WaveformTheme } from './types';
+
+export type { BokehDrawOptions };
 
 /** Bundled static backgrounds under `public/assets/backgrounds/`. */
 export const BACKGROUND_ASSETS = {
@@ -76,6 +83,7 @@ export function drawThemeBackground(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
+  bokehOptions: BokehDrawOptions = {},
 ): void {
   const { background, colors } = theme;
 
@@ -121,6 +129,16 @@ export function drawThemeBackground(
       const dim = background.imageDimOverlay ?? 0;
       if (dim > 0) {
         ctx.fillStyle = `rgba(0, 0, 0, ${dim})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      break;
+    }
+    case 'bokeh': {
+      const style = resolveBokehStyle(background);
+      if (style) {
+        drawBokehBackground(ctx, canvas, style, bokehOptions);
+      } else {
+        ctx.fillStyle = colors.bg;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
       break;

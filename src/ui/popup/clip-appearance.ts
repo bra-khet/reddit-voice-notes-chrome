@@ -1,4 +1,5 @@
 import {
+  backgroundIsBokeh,
   getThemeById,
   listThemePresets,
   renderThemePreview,
@@ -63,12 +64,39 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
   let activeThemeId = '';
   let activeAlignment: BarAlignment = 'center';
   let renderGeneration = 0;
+  let previewRaf = 0;
+  let lastPreviewFrame = 0;
+  const PREVIEW_ANIM_FPS = 12;
 
-  async function refreshPreview(): Promise<void> {
+  function stopPreviewLoop(): void {
+    if (previewRaf) cancelAnimationFrame(previewRaf);
+    previewRaf = 0;
+    lastPreviewFrame = 0;
+  }
+
+  function syncPreviewLoop(): void {
+    const theme = getThemeById(activeThemeId);
+    if (!backgroundIsBokeh(theme.background)) {
+      stopPreviewLoop();
+      return;
+    }
+    if (previewRaf) return;
+
+    const tick = (now: number): void => {
+      previewRaf = requestAnimationFrame(tick);
+      if (now - lastPreviewFrame < 1000 / PREVIEW_ANIM_FPS) return;
+      lastPreviewFrame = now;
+      void renderThemePreview(previewCanvas, getThemeById(activeThemeId), activeAlignment, now);
+    };
+    previewRaf = requestAnimationFrame(tick);
+  }
+
+  async function refreshPreview(timeMs?: number): Promise<void> {
     const generation = ++renderGeneration;
     const theme = getThemeById(activeThemeId);
-    await renderThemePreview(previewCanvas, theme, activeAlignment);
+    await renderThemePreview(previewCanvas, theme, activeAlignment, timeMs);
     if (generation !== renderGeneration) return;
+    syncPreviewLoop();
   }
 
   function applyPrefs(themeId: string, alignment: BarAlignment): void {
@@ -76,6 +104,7 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
     activeAlignment = alignment;
     themeSelect.value = themeId;
     alignmentSelect.value = alignment;
+    stopPreviewLoop();
     void refreshPreview();
   }
 
@@ -100,5 +129,8 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
     applyPrefs(prefs.appearance.activeThemeId, prefs.appearance.barAlignment ?? 'center');
   });
 
-  return unsubscribe;
+  return () => {
+    stopPreviewLoop();
+    unsubscribe();
+  };
 }

@@ -171,6 +171,7 @@ export class WaveformRenderer {
   // WHY: defaults gave poor high-frequency visibility; alignment will be user-selectable.
   private sampleRate: number;
   private alignment: BarAlignment = 'center'; // default preserves current centered+mirrored look
+  private smoothedAudioEnergy = 0;
 
   constructor(analyser: AnalyserNode, theme: WaveformTheme = getThemeById(DEFAULT_THEME_ID)) {
     this.analyser = analyser;
@@ -249,12 +250,20 @@ export class WaveformRenderer {
     const { ctx, canvas, theme } = this;
     this.analyser.getByteFrequencyData(this.frequencyData as Uint8Array<ArrayBuffer>);
 
-    drawThemeBackground(ctx, canvas, theme, this.backgroundImage);
-
     // CHANGED: replaced naive i*step on 32 bins from fft=64.
     // WHY: that produced almost no energy in upper bars for any voice input.
     // Now uses log-banded aggregation over 80 Hz-16 kHz + compression.
     const bandValues = computeBandValues(this.frequencyData, ANALYSER_FFT_SIZE, this.sampleRate);
+
+    let bandSum = 0;
+    for (const value of bandValues) bandSum += value;
+    const instantEnergy = bandValues.length > 0 ? bandSum / bandValues.length / 255 : 0;
+    this.smoothedAudioEnergy = this.smoothedAudioEnergy * 0.82 + instantEnergy * 0.18;
+
+    drawThemeBackground(ctx, canvas, theme, this.backgroundImage, {
+      timeMs: performance.now(),
+      audioEnergy: this.smoothedAudioEnergy,
+    });
 
     const centerY = canvas.height / 2;
     const maxBarHeight = canvas.height * 0.7;
@@ -326,11 +335,12 @@ function drawBarsFromLevels(
   ctx.shadowColor = 'transparent';
 }
 
-/** Static clip preview for popup settings — same draw path as live waveform output. */
+/** Clip preview for popup settings — same draw path as live waveform output. */
 export async function renderThemePreview(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   alignment: BarAlignment = 'center',
+  timeMs: number = performance.now(),
 ): Promise<void> {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -343,6 +353,9 @@ export async function renderThemePreview(
     backgroundImage = await loadBackgroundImage(theme.background.value);
   }
 
-  drawThemeBackground(ctx, canvas, theme, backgroundImage);
+  drawThemeBackground(ctx, canvas, theme, backgroundImage, {
+    timeMs,
+    audioEnergy: 0.32,
+  });
   drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);
 }

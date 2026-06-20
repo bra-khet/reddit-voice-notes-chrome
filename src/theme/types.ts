@@ -14,7 +14,7 @@ export interface ThemeColors {
   bg: string;
 }
 
-export type BackgroundType = 'solid' | 'gradient' | 'image';
+export type BackgroundType = 'solid' | 'gradient' | 'image' | 'bokeh';
 
 /** `fit` = contain (letterbox); `fill` = cover (crop). */
 export type BackgroundScaleMode = 'fit' | 'fill';
@@ -30,6 +30,7 @@ export interface ThemeBackground {
    * - solid: CSS color string
    * - gradient: ordered stops (top → bottom)
    * - image: bundled asset key (see `BACKGROUND_ASSETS`)
+   * - bokeh: programmatic style key (see `BOKEH_STYLES` in bokeh.ts)
    */
   value: string | GradientStop[];
   /** Semi-transparent dim over image backgrounds so bars stay readable (0–1). */
