@@ -2,10 +2,18 @@
  * Serializes offscreen FFmpeg jobs — the WASM worker shares one virtual FS and must not run concurrently.
  */
 
+const JOB_SETTLE_MS = 350;
+
 let chain: Promise<void> = Promise.resolve();
 
+function settleGap(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, JOB_SETTLE_MS);
+  });
+}
+
 export function enqueueTranscodeJob<T>(job: () => Promise<T>): Promise<T> {
-  const run = chain.then(() => job());
+  const run = chain.then(() => job()).finally(() => settleGap());
   chain = run.then(
     () => undefined,
     () => undefined,

@@ -6,6 +6,7 @@ import {
 import { friendlyRecorderError, type RecorderErrorCode } from '@/src/utils/errors';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
+import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
 import { getThemeById } from '@/src/theme';
 import { loadUserPreferences, onUserPreferencesChanged } from '@/src/settings/user-preferences';
@@ -13,6 +14,8 @@ import { WaveformRenderer } from './waveform';
 
 /** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
 const RECORDER_TIMESLICE_MS = 1000;
+/** Brief settle after MediaRecorder stop before building the WebM blob. */
+const POST_STOP_SETTLE_MS = 80;
 /** Stop slightly before nominal cap so MediaRecorder isn't mid-timeslice (same as manual pre-cap stop). */
 const CAP_STOP_LEAD_MS = 300;
 const RECORDER_VIDEO_BPS = 2_500_000;
@@ -298,6 +301,9 @@ export class VoiceRecorderSession {
 
     try {
       const chunks = await this.finalizeMediaRecorder(recorder);
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, POST_STOP_SETTLE_MS);
+      });
 
       // BUG FIX: Transcode stalls when mic/canvas keep running after Stop
       // Fix: Cut mic, canvas capture, and AudioContext before building the WebM blob / FFmpeg.
@@ -315,6 +321,7 @@ export class VoiceRecorderSession {
         return;
       }
 
+      await validateWebmRecording(this.webmBlob);
       await this.transcodeToMp4();
     } finally {
       this.stopInFlight = false;

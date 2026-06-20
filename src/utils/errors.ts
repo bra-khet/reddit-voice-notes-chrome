@@ -44,6 +44,14 @@ export function friendlyRecorderError(error: unknown): FriendlyError {
       message: 'Extension was reloaded. Refresh this Reddit tab, then try again.',
     };
   }
+  if (
+    lower.includes('stalled') ||
+    lower.includes('preflight') ||
+    lower.includes('could not be verified') ||
+    lower.includes('relay timeout')
+  ) {
+    return { code: 'transcode-failed', message };
+  }
   if (lower.includes('mp4 conversion failed') || lower.includes('ffmpeg') || lower.includes('transcod')) {
     return {
       code: 'transcode-failed',

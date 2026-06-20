@@ -6,15 +6,9 @@ export type FfmpegProgressCallback = (ratio: number, stage: string) => void;
 const WEBM_EBML_MAGIC = [0x1a, 0x45, 0xdf, 0xa3] as const;
 const MIN_WEBM_BYTES = 256;
 
-/**
- * Per-strategy ceiling — fail fast on hung exec (e.g. corrupt cap-stop WebM).
- * BUG FIX: cap-stop transcode appeared to hang for many minutes
- * Fix: Cap per-strategy wait at 90s; size scaling was allowing ~345s/MB on 15 MB files.
- * Sync: docs/bug-archive.md BUG-001
- */
-const STRATEGY_TIMEOUT_BASE_MS = 60_000;
-const STRATEGY_TIMEOUT_PER_MB_MS = 3_000;
-const STRATEGY_TIMEOUT_MAX_MS = 90_000;
+/** Flat per-strategy exec ceiling — size scaling caused false stalls on healthy jobs. */
+const STRATEGY_EXEC_TIMEOUT_MS = 75_000;
+const WASM_SETTLE_MS = 200;
 
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
@@ -23,12 +17,10 @@ function extensionAsset(path: string): string {
   return browser.runtime.getURL(path as never);
 }
 
-function strategyTimeoutMs(webmBytes: number): number {
-  const megabytes = webmBytes / (1024 * 1024);
-  return Math.min(
-    STRATEGY_TIMEOUT_MAX_MS,
-    STRATEGY_TIMEOUT_BASE_MS + Math.ceil(megabytes) * STRATEGY_TIMEOUT_PER_MB_MS,
-  );
+function wasmSettle(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, WASM_SETTLE_MS);
+  });
 }
 
 async function assertAssetReachable(label: string, url: string): Promise<void> {
@@ -141,16 +133,8 @@ async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> 
   return loadPromise;
 }
 
-/** Ordered fallback strategies — official ffmpeg.wasm usage first, then explicit H.264/AAC for Reddit. */
+/** Reddit-ready encode first; remux-only fallback second. Fewer strategies = fewer stall windows. */
 const TRANSCODE_STRATEGIES = [
-  {
-    name: 'official-default',
-    args: ['-i', 'input.webm', 'output.mp4'],
-  },
-  {
-    name: 'faststart',
-    args: ['-i', 'input.webm', '-movflags', '+faststart', 'output.mp4'],
-  },
   {
     name: 'h264-aac',
     args: [
@@ -172,48 +156,8 @@ const TRANSCODE_STRATEGIES = [
     ],
   },
   {
-    name: 'h264-aac-experimental',
-    args: [
-      '-i',
-      'input.webm',
-      '-c:v',
-      'libx264',
-      '-preset',
-      'ultrafast',
-      '-pix_fmt',
-      'yuv420p',
-      '-c:a',
-      'aac',
-      '-strict',
-      '-2',
-      '-b:a',
-      '128k',
-      '-movflags',
-      '+faststart',
-      'output.mp4',
-    ],
-  },
-  {
-    name: 'h264-aac-scaled',
-    args: [
-      '-i',
-      'input.webm',
-      '-vf',
-      'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p',
-      '-c:v',
-      'libx264',
-      '-preset',
-      'ultrafast',
-      '-c:a',
-      'aac',
-      '-strict',
-      '-2',
-      '-b:a',
-      '128k',
-      '-movflags',
-      '+faststart',
-      'output.mp4',
-    ],
+    name: 'faststart',
+    args: ['-i', 'input.webm', '-movflags', '+faststart', 'output.mp4'],
   },
 ] as const;
 
@@ -275,7 +219,6 @@ async function transcodeWithStrategies(
   onFfmpegRatio?: (ratio: number) => void,
 ): Promise<Uint8Array> {
   const attempts: string[] = [];
-  const perStrategyTimeoutMs = strategyTimeoutMs(inputBytes.byteLength);
 
   for (const strategy of TRANSCODE_STRATEGIES) {
     const ffmpeg = await loadFfmpeg(onProgress);
@@ -292,12 +235,13 @@ async function transcodeWithStrategies(
     if (progressHandler) ffmpeg.on('progress', progressHandler);
 
     try {
-      result = await execWithTimeout(ffmpeg, [...strategy.args], perStrategyTimeoutMs);
+      result = await execWithTimeout(ffmpeg, [...strategy.args], STRATEGY_EXEC_TIMEOUT_MS);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       attempts.push(`${strategy.name}: ${detail}`);
       console.warn(`${EXTENSION_LOG_PREFIX} Transcode attempt threw (${strategy.name})`, detail);
       disposeFfmpeg();
+      await wasmSettle();
     } finally {
       if (progressHandler) ffmpeg.off('progress', progressHandler);
       detach();
@@ -305,8 +249,9 @@ async function transcodeWithStrategies(
 
     if (result.timedOut) {
       attempts.push(
-        `${strategy.name}: timed out after ${Math.round(perStrategyTimeoutMs / 1000)}s`,
+        `${strategy.name}: timed out after ${Math.round(STRATEGY_EXEC_TIMEOUT_MS / 1000)}s`,
       );
+      await wasmSettle();
       continue;
     }
 

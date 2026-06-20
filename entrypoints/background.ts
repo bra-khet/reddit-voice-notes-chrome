@@ -1,5 +1,6 @@
 // DISABLED: Keyboard shortcut — see src/reddit-injector/shortcut-handler.ts
 // import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
+import { expectedBase64CharLength } from '@/src/messaging/binary-verify';
 import {
   MSG_OFFSCREEN_PING,
   MSG_TRANSCODE_ACK,
@@ -19,7 +20,7 @@ import {
 const OFFSCREEN_PATH = 'offscreen.html';
 const OFFSCREEN_READY_RETRIES = 30;
 const OFFSCREEN_READY_DELAY_MS = 100;
-const KEEP_ALIVE_INTERVAL_MS = 20_000;
+const KEEP_ALIVE_INTERVAL_MS = 5_000;
 
 const REDDIT_TAB_URLS = ['https://www.reddit.com/*', 'https://reddit.com/*'] as const;
 
@@ -108,6 +109,22 @@ function isOffscreenTarget(message: unknown): boolean {
     'target' in message &&
     (message as { target: string }).target === 'offscreen'
   );
+}
+
+function validateTranscodeStartRequest(request: TranscodeStartRequest): void {
+  if (!request.jobId) {
+    throw new Error('Transcode request missing jobId.');
+  }
+  if (!request.webmBase64 || request.webmByteLength <= 0) {
+    throw new Error(`WebM payload missing at background relay (bytes=${request.webmByteLength}).`);
+  }
+
+  const expectedChars = expectedBase64CharLength(request.webmByteLength);
+  if (Math.abs(request.webmBase64.length - expectedChars) > 4) {
+    throw new Error(
+      `WebM base64 length mismatch at relay (bytes=${request.webmByteLength}, chars=${request.webmBase64.length}, expected≈${expectedChars}).`,
+    );
+  }
 }
 
 async function hasOffscreenDocument(): Promise<boolean> {
@@ -207,15 +224,20 @@ export default defineBackground(() => {
     if (request?.type !== MSG_TRANSCODE_START) return;
 
     void (async () => {
-      try {
-        if (!request.webmBase64 || request.webmByteLength <= 0) {
-          throw new Error(
-            `WebM payload missing at background relay (bytes=${request.webmByteLength}).`,
-          );
-        }
+      let ackSent = false;
 
+      try {
+        validateTranscodeStartRequest(request);
         await registerTranscodeTab(request.jobId, sender.tab?.id);
         startTranscodeKeepAlive();
+
+        const ack: TranscodeAckResponse = {
+          type: MSG_TRANSCODE_ACK,
+          jobId: request.jobId,
+          ok: true,
+        };
+        sendResponse(ack);
+        ackSent = true;
 
         console.log('[Reddit Voice Notes] Relaying WebM to offscreen', {
           jobId: request.jobId,
@@ -223,14 +245,6 @@ export default defineBackground(() => {
           base64Chars: request.webmBase64.length,
           tabId: transcodeTabByJobId.get(request.jobId),
         });
-
-        // Ack immediately so the recorder UI leaves 0% while offscreen boots FFmpeg.
-        const ack: TranscodeAckResponse = {
-          type: MSG_TRANSCODE_ACK,
-          jobId: request.jobId,
-          ok: true,
-        };
-        sendResponse(ack);
 
         const offscreenRequest: TranscodeOffscreenRequest = {
           type: MSG_TRANSCODE_OFFSCREEN,
@@ -242,9 +256,21 @@ export default defineBackground(() => {
 
         await dispatchToOffscreen(offscreenRequest);
       } catch (error) {
-        transcodeTabByJobId.delete(request.jobId);
-        stopTranscodeKeepAlive();
-        relayTranscodeFailure(request.jobId, error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+
+        if (!ackSent) {
+          const failAck: TranscodeAckResponse = {
+            type: MSG_TRANSCODE_ACK,
+            jobId: request.jobId,
+            ok: false,
+            error: errMsg,
+          };
+          sendResponse(failAck);
+        } else {
+          transcodeTabByJobId.delete(request.jobId);
+          stopTranscodeKeepAlive();
+          relayTranscodeFailure(request.jobId, error);
+        }
       }
     })();
 

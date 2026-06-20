@@ -100,3 +100,46 @@ Failures are intermittent because **cap-stop chunk integrity and buffer lifetime
 
 - `src/ffmpeg/ffmpeg-runner.ts` — `writeInputWebm`, `execWithTimeout`
 - `entrypoints/offscreen/main.ts` — unpack `.slice()`
+
+---
+
+## BUG-003 — Client timeout on healthy jobs / stall false positives (2026-06)
+
+### Symptoms
+
+- ~1 minute (~2.3 MB) recordings sometimes hit client timeout while cap-stop and short clips work.
+- Console shows multiple `Sending WebM for transcode` lines with **different jobIds** (sequential recordings, not one job duplicated).
+- UI sits on "Converting…" until stall/timeout despite FFmpeg eventually succeeding on retry.
+
+### Root causes (confirmed)
+
+1. **Fixed wall-clock client timeout** started at `sendMessage`, not when progress moved — slow WASM cold start or offscreen queue wait consumed the budget before transcode began.
+2. **Five sequential FFmpeg strategies** — each failure/timeout opened another stall window (up to 75–90s each).
+3. **No progress heartbeat** — offscreen sent nothing while FFmpeg loaded WASM, so the content script assumed a stall.
+4. **Overlapping transcode timers** — back-to-back recordings could overlap client timers before offscreen queue drained (mitigated with `transcode-lock.ts`).
+
+### Fix (2026-06)
+
+Explicit pipeline checks at every hop (no heuristics):
+
+| Stage | Explicit check |
+|-------|----------------|
+| Content script | `validateWebmRecording()` (browser video metadata) |
+| Content pack | `verifyWebmPackedBinary()` (base64 shape + EBML magic) |
+| Background relay | `validateTranscodeStartRequest()` + immediate ACK |
+| Offscreen unpack | `assertWebmBytes()` |
+| FFmpeg output | `assertMp4Bytes()` (ftyp box) + `verifyMp4PackedBinary()` |
+| Content receive | `verifyMp4PackedBinary()` before Blob |
+
+**Stall detection:** content script fails only after **45s without any progress message** (including offscreen heartbeats every 8s). Absolute ceiling 6 minutes.
+
+**Fewer strategies:** `h264-aac` then `faststart` only; one offscreen job retry with worker dispose + 400ms settle.
+
+### Related files
+
+- `src/messaging/binary-verify.ts` — explicit payload validators
+- `src/ffmpeg/transcoder.ts` — stall-based timeout
+- `src/ffmpeg/transcode-lock.ts` — one transcode per tab
+- `src/ffmpeg/webm-preflight.ts` — browser-side WebM check
+- `entrypoints/background.ts` — validate + ack before async dispatch
+- `entrypoints/offscreen/main.ts` — heartbeat + job retry
