@@ -321,8 +321,12 @@ export class VoiceRecorderSession {
         return;
       }
 
-      await validateWebmRecording(this.webmBlob);
-      await this.transcodeToMp4();
+      try {
+        await validateWebmRecording(this.webmBlob);
+        await this.transcodeToMp4();
+      } catch (error) {
+        this.setError(error);
+      }
     } finally {
       this.stopInFlight = false;
     }

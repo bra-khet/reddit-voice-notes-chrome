@@ -143,3 +143,29 @@ Explicit pipeline checks at every hop (no heuristics):
 - `src/ffmpeg/webm-preflight.ts` — browser-side WebM check
 - `entrypoints/background.ts` — validate + ack before async dispatch
 - `entrypoints/offscreen/main.ts` — heartbeat + job retry
+
+---
+
+## BUG-004 — WebM preflight rejects valid MediaRecorder blobs (2026-06)
+
+### Symptoms
+
+- Clicking Stop crashes the recorder popup with `Uncaught (in promise) Error: Recording has no playable duration`.
+- Happens immediately after stop, before transcode begins.
+
+### Root cause (confirmed)
+
+1. **Chrome reports `video.duration === Infinity`** for MediaRecorder WebM blobs that lack a Duration EBML element — this is normal, not corruption; FFmpeg transcodes them fine.
+2. `validateWebmRecording()` used `!Number.isFinite(video.duration)` which rejects `Infinity`.
+3. **`stopRecording()` did not catch** preflight errors — only `transcodeToMp4()` had `setError` handling.
+
+### Fix (2026-06)
+
+- Accept `Infinity` duration when metadata loads without `onerror`.
+- Brief `durationchange` wait for transient `NaN` right after stop.
+- Wrap preflight + transcode in `stopRecording` try/catch → `setError`.
+
+### Related files
+
+- `src/ffmpeg/webm-preflight.ts`
+- `src/recorder/voice-recorder.ts`
