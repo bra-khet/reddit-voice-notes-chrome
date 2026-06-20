@@ -10,17 +10,9 @@ export default defineConfig({
     name: 'Reddit Voice Notes',
     description:
       'Record short voice notes with an animated waveform and export MP4 for Reddit video comments.',
-    version: '1.0.1',
+    version: '1.0.2',
     permissions: ['storage', 'offscreen'],
-    commands: {
-      'open-voice-recorder': {
-        suggested_key: {
-          default: 'Ctrl+Shift+X',
-          mac: 'Command+Shift+X',
-        },
-        description: 'Open voice note recorder on Reddit',
-      },
-    },
+    // DISABLED: Keyboard shortcut — see src/reddit-injector/shortcut-handler.ts
     host_permissions: [
       'https://www.reddit.com/*',
       'https://reddit.com/*',

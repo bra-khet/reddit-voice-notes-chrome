@@ -1,7 +1,8 @@
 import { EXTENSION_LOG_PREFIX } from '@/src/utils';
 import { startComposerObserver, stopComposerObserver } from './observer';
 import { removeAllInjectedButtons } from './injector';
-import { initVoiceNoteShortcut, teardownVoiceNoteShortcut } from './shortcut-handler';
+// DISABLED: Keyboard shortcut — see src/reddit-injector/shortcut-handler.ts
+// import { initVoiceNoteShortcut, teardownVoiceNoteShortcut } from './shortcut-handler';
 
 let initialized = false;
 
@@ -15,7 +16,7 @@ export function initRedditVoiceNotes(): void {
 
   console.log(`${EXTENSION_LOG_PREFIX} Reddit injector starting`);
   startComposerObserver();
-  initVoiceNoteShortcut();
+  // initVoiceNoteShortcut();
 }
 
 /**
@@ -24,7 +25,7 @@ export function initRedditVoiceNotes(): void {
  */
 export function teardownRedditVoiceNotes(): void {
   stopComposerObserver();
-  teardownVoiceNoteShortcut();
+  // teardownVoiceNoteShortcut();
   removeAllInjectedButtons();
   initialized = false;
   console.log(`${EXTENSION_LOG_PREFIX} Reddit injector torn down`);

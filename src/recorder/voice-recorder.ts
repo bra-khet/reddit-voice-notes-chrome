@@ -10,6 +10,8 @@ import { WaveformRenderer } from './waveform';
 
 /** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
 const RECORDER_TIMESLICE_MS = 1000;
+/** Stop slightly before nominal cap so MediaRecorder isn't mid-timeslice (same as manual pre-cap stop). */
+const CAP_STOP_LEAD_MS = 300;
 const RECORDER_VIDEO_BPS = 2_500_000;
 const RECORDER_AUDIO_BPS = 128_000;
 const MIN_RECORDING_BYTES = 256;
@@ -219,7 +221,7 @@ export class VoiceRecorderSession {
     this.capTimeoutId = setTimeout(() => {
       this.stoppedAtCap = true;
       void this.stopRecording({ stoppedAtCap: true });
-    }, MAX_RECORDING_SECONDS * 1000);
+    }, Math.max(RECORDER_TIMESLICE_MS, MAX_RECORDING_SECONDS * 1000 - CAP_STOP_LEAD_MS));
 
     this.timerId = setInterval(() => {
       const elapsed = Math.min(
@@ -251,7 +253,7 @@ export class VoiceRecorderSession {
     this.mediaRecorder = null;
 
     try {
-      const chunks = await this.finalizeMediaRecorder(recorder, this.stoppedAtCap);
+      const chunks = await this.finalizeMediaRecorder(recorder);
 
       this.releaseCaptureTracks();
 
@@ -338,40 +340,27 @@ export class VoiceRecorderSession {
 
   /**
    * Drain MediaRecorder chunks — handlers must be attached immediately before stop().
-   * BUG FIX: 3-minute cap auto-stop hung FFmpeg / timed out
-   * Fix: Cap uses dedicated timeout (not interval race); flush final timeslice before stop.
+   * BUG FIX: Cap auto-stop hung FFmpeg at ~20% transcoding
+   * Fix: Cap stop uses the same immediate requestData+stop path as manual stop (no wait-while-recording flush).
+   * Sync: cap timeout uses CAP_STOP_LEAD_MS; do not re-add async flush only for cap stops.
    */
-  private async finalizeMediaRecorder(
-    recorder: MediaRecorder,
-    flushCapStop = false,
-  ): Promise<Blob[]> {
+  private async finalizeMediaRecorder(recorder: MediaRecorder): Promise<Blob[]> {
     const chunks = [...this.chunks];
 
-    if (recorder.state === 'recording') {
+    await new Promise<void>((resolve) => {
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunks.push(event.data);
       };
+      recorder.onstop = () => resolve();
 
-      recorder.requestData();
-
-      // BUG FIX: 3-minute cap auto-stop hung FFmpeg / timed out
-      // Fix: Wait for the in-flight 1s timeslice to land before the final stop().
-      if (flushCapStop) {
-        await new Promise((resolve) => setTimeout(resolve, RECORDER_TIMESLICE_MS + 100));
-        if (recorder.state === 'recording') {
-          recorder.requestData();
-        }
+      if (recorder.state === 'recording') {
+        recorder.requestData();
+        recorder.stop();
+        return;
       }
 
-      await new Promise<void>((resolve) => {
-        recorder.onstop = () => resolve();
-        if (recorder.state === 'recording') {
-          recorder.stop();
-          return;
-        }
-        resolve();
-      });
-    }
+      resolve();
+    });
 
     return chunks;
   }

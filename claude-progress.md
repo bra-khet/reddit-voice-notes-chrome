@@ -25,10 +25,11 @@
 git checkout v0.1.0-phase3-stable && npm install && npm run dev
 ```
 
-## Recent tweaks (v1.0.1)
+## Recent tweaks (v1.0.2)
 
-- **Shortcut fix**: Default Ctrl+Shift+X routes via `chrome.commands` (page never sees that combo); custom shortcuts use content-script keydown; shadow-DOM composer resolution fixed
-- **Recording cap**: Enforced at 2:58, UI still shows 3:00 max (2s Reddit margin)
+- **Keyboard shortcut**: Disabled (commented out) — Reddit contenteditable/shadow DOM conflicts; revisit later
+- **Cap transcode hang fix**: Removed cap-only 1.1s wait-while-recording flush (was corrupting WebM); cap stop now uses same `requestData`+`stop` as manual; 300ms lead before nominal cap
+- **Recording cap**: Enforced ~2:58 (178s), UI still shows 3:00 max
 
 ## Known limitations
 

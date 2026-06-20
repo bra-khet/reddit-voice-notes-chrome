@@ -1,4 +1,5 @@
-import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
+// DISABLED: Keyboard shortcut — see src/reddit-injector/shortcut-handler.ts
+// import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
 import {
   MSG_OFFSCREEN_PING,
   MSG_TRANSCODE_ACK,
@@ -123,41 +124,14 @@ async function dispatchToOffscreen(request: TranscodeOffscreenRequest): Promise<
   }
 }
 
-const COMMAND_OPEN_RECORDER = 'open-voice-recorder';
-
-async function relayOpenRecorderToActiveTab(): Promise<void> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) {
-    console.warn('[Reddit Voice Notes] Shortcut: no active tab');
-    return;
-  }
-
-  const url = tab.url ?? '';
-  if (!url.includes('reddit.com')) {
-    console.warn('[Reddit Voice Notes] Shortcut: active tab is not Reddit', url);
-    return;
-  }
-
-  try {
-    await browser.tabs.sendMessage(tab.id, { type: MSG_OPEN_RECORDER });
-  } catch (error) {
-    console.error(
-      '[Reddit Voice Notes] Shortcut relay failed — hard-refresh the Reddit tab after loading the extension.',
-      error,
-    );
-  }
-}
-
 export default defineBackground(() => {
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,
     offscreenApi: Boolean(getChromeOffscreen()?.createDocument),
   });
 
-  browser.commands.onCommand.addListener((command) => {
-    if (command !== COMMAND_OPEN_RECORDER) return;
-    void relayOpenRecorderToActiveTab();
-  });
+  // DISABLED: chrome.commands shortcut relay — see shortcut-handler.ts
+  // browser.commands.onCommand.addListener((command) => { ... });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (isOffscreenTarget(message)) return;
