@@ -30,6 +30,11 @@ import {
 } from '@/src/theme/design-overrides';
 import { THEME_STORAGE_KEY } from '@/src/theme/storage';
 import { DEFAULT_THEME_ID, normalizeThemeId } from '@/src/theme/presets';
+import {
+  DEFAULT_VOICE_EFFECT_CONFIG,
+  normalizeVoiceEffectConfig,
+  type VoiceEffectConfig,
+} from '@/src/voice/types';
 
 export type { ClipProfile } from '@/src/settings/clip-profiles';
 export { MAX_CLIP_PROFILES } from '@/src/settings/clip-profiles';
@@ -98,6 +103,8 @@ export interface UserPreferencesV1 {
   appearance: AppearancePreferences;
   audio: AudioPreferences;
   notifications: NotificationPreferences;
+  /** Active voice effect config for export (dulcet-3); profile snapshot in dulcet-4. */
+  voiceEffect?: VoiceEffectConfig;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
@@ -115,6 +122,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   notifications: {
     showResultToasts: true,
   },
+  voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
 };
 
 const VALID_BAR_ALIGNMENTS: readonly BarAlignment[] = ['center', 'bottom', 'top'];
@@ -177,6 +185,7 @@ function mergePreferences(raw: Partial<UserPreferencesV1> | undefined): UserPref
       ...DEFAULT_USER_PREFERENCES.notifications,
       ...raw?.notifications,
     },
+    voiceEffect: normalizeVoiceEffectConfig(raw?.voiceEffect),
   };
 }
 
@@ -219,6 +228,19 @@ export async function loadUserPreferences(): Promise<UserPreferencesV1> {
   }
 
   return merged;
+}
+
+export async function saveVoiceEffectPreferences(
+  config: VoiceEffectConfig,
+): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const next: UserPreferencesV1 = {
+    ...current,
+    voiceEffect: normalizeVoiceEffectConfig(config),
+  };
+
+  await browser.storage.local.set({ [USER_PREFS_STORAGE_KEY]: next });
+  return next;
 }
 
 export async function saveAudioPreferences(

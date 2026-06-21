@@ -1,4 +1,5 @@
-import { disposeFfmpeg, runWebmToMp4 } from '@/src/ffmpeg/ffmpeg-runner';
+import { disposeFfmpeg, runWebmToMp4, type RunWebmToMp4Result } from '@/src/ffmpeg/ffmpeg-runner';
+import { normalizeVoiceEffectConfig, type VoiceEffectConfig } from '@/src/voice/types';
 import { enqueueProcessAudio } from '@/src/voice/offscreen-queue';
 import { VOICE_EFFECT_PRESETS, voiceConfigFromPreset } from '@/src/voice/presets';
 import {
@@ -91,7 +92,8 @@ async function runTranscodeAttempt(
   jobId: string,
   webmBytes: Uint8Array,
   attempt: number,
-): Promise<Uint8Array> {
+  voiceEffect?: VoiceEffectConfig,
+): Promise<RunWebmToMp4Result> {
   let lastRatio = 0.01;
   let lastStage = attempt === 1 ? 'queued' : 'retry';
 
@@ -102,12 +104,16 @@ async function runTranscodeAttempt(
   }, HEARTBEAT_INTERVAL_MS);
 
   try {
-    return await runWebmToMp4(webmBytes, (ratio, stage) => {
-      assertTranscodeNotCancelled(jobId);
-      lastRatio = Math.max(lastRatio, ratio);
-      lastStage = stage;
-      broadcastProgress(jobId, ratio, stage);
-    });
+    return await runWebmToMp4(
+      webmBytes,
+      (ratio, stage) => {
+        assertTranscodeNotCancelled(jobId);
+        lastRatio = Math.max(lastRatio, ratio);
+        lastStage = stage;
+        broadcastProgress(jobId, ratio, stage);
+      },
+      voiceEffect ? normalizeVoiceEffectConfig(voiceEffect) : undefined,
+    );
   } finally {
     window.clearInterval(heartbeat);
   }
@@ -161,10 +167,10 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         base64Chars: request.webmBase64.length,
       });
 
-      let mp4: Uint8Array;
+      let encodeResult: RunWebmToMp4Result;
       try {
-        mp4 = await withJobWallClock(request.jobId, () =>
-          runTranscodeAttempt(request.jobId, webmBytes, 1),
+        encodeResult = await withJobWallClock(request.jobId, () =>
+          runTranscodeAttempt(request.jobId, webmBytes, 1, request.voiceEffect),
         );
       } catch (firstError) {
         if (isTranscodeCancelled(request.jobId)) {
@@ -175,14 +181,14 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         disposeFfmpeg();
         await delay(JOB_RETRY_DELAY_MS);
         broadcastProgress(request.jobId, 0.05, 'retry');
-        mp4 = await withJobWallClock(request.jobId, () =>
-          runTranscodeAttempt(request.jobId, webmBytes, 2),
+        encodeResult = await withJobWallClock(request.jobId, () =>
+          runTranscodeAttempt(request.jobId, webmBytes, 2, request.voiceEffect),
         );
       }
 
       assertTranscodeNotCancelled(request.jobId);
-      assertMp4Bytes(mp4, 'FFmpeg output');
-      const mp4Packed = packBinary(mp4.slice());
+      assertMp4Bytes(encodeResult.bytes, 'FFmpeg output');
+      const mp4Packed = packBinary(encodeResult.bytes.slice());
       verifyMp4PackedBinary(mp4Packed);
 
       broadcastProgress(request.jobId, 1, 'done');
@@ -193,6 +199,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         ok: true,
         mp4Base64: mp4Packed.dataBase64,
         mp4ByteLength: mp4Packed.byteLength,
+        voiceEffectFallback: encodeResult.voiceEffectFallback,
       };
       broadcast(completeMsg);
       console.log('[Reddit Voice Notes] Transcode job finished', request.jobId, {

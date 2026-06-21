@@ -1,5 +1,12 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
+import { buildFfmpegAudioFilter } from '@/src/voice/filter-graphs';
+import {
+  DEFAULT_VOICE_EFFECT_CONFIG,
+  normalizeVoiceEffectConfig,
+  voiceEffectIsActive,
+  type VoiceEffectConfig,
+} from '@/src/voice/types';
 
 export type FfmpegProgressCallback = (ratio: number, stage: string) => void;
 
@@ -243,6 +250,29 @@ const TRANSCODE_STRATEGIES = [
   },
 ] as const;
 
+export interface RunWebmToMp4Result {
+  bytes: Uint8Array;
+  /** True when voice -af failed and export used raw audio (dulcet-3). */
+  voiceEffectFallback?: boolean;
+}
+
+function injectAudioFilter(args: readonly string[], audioFilter: string | null): string[] {
+  if (!audioFilter) return [...args];
+  const result = [...args];
+  const audioCodecIndex = result.indexOf('-c:a');
+  if (audioCodecIndex === -1) return result;
+  result.splice(audioCodecIndex, 0, '-af', audioFilter);
+  return result;
+}
+
+function strategyArgs(
+  strategy: (typeof TRANSCODE_STRATEGIES)[number],
+  audioFilter: string | null,
+): string[] {
+  if (strategy.name === 'faststart') return [...strategy.args];
+  return injectAudioFilter(strategy.args, audioFilter);
+}
+
 async function safeDeleteFile(ffmpeg: FFmpeg, path: string): Promise<void> {
   try {
     await ffmpeg.deleteFile(path);
@@ -316,6 +346,7 @@ async function transcodeWithStrategies(
   inputBytes: Uint8Array,
   onProgress?: FfmpegProgressCallback,
   onFfmpegRatio?: (ratio: number) => void,
+  audioFilter: string | null = null,
 ): Promise<Uint8Array> {
   const attempts: string[] = [];
 
@@ -323,7 +354,10 @@ async function transcodeWithStrategies(
     const ffmpeg = await loadFfmpeg(onProgress);
     await writeInputWebm(ffmpeg, inputBytes);
     await safeDeleteFile(ffmpeg, 'output.mp4');
-    onProgress?.(0.2, `transcoding-${strategy.name}`);
+    const stageName = audioFilter
+      ? `transcoding-${strategy.name}-voice-af`
+      : `transcoding-${strategy.name}`;
+    onProgress?.(0.2, stageName);
 
     const abortRef = { dupStorm: false };
     const { lines, detach } = attachLogCollector(ffmpeg, (line) => {
@@ -341,7 +375,7 @@ async function transcodeWithStrategies(
     try {
       result = await execWithTimeout(
         ffmpeg,
-        [...strategy.args],
+        strategyArgs(strategy, audioFilter),
         STRATEGY_EXEC_TIMEOUT_MS,
         abortRef,
       );
@@ -398,7 +432,8 @@ function mapProgress(ratio: number, stage: string): number {
 export async function runWebmToMp4(
   webm: Uint8Array | ArrayBuffer,
   onProgress?: FfmpegProgressCallback,
-): Promise<Uint8Array> {
+  voiceEffect?: VoiceEffectConfig,
+): Promise<RunWebmToMp4Result> {
   const report = (ratio: number, stage: string) => {
     onProgress?.(mapProgress(ratio, stage), stage);
   };
@@ -413,9 +448,13 @@ export async function runWebmToMp4(
     );
   }
 
-  try {
-    onProgress?.(0.18, 'writing-input');
-    const output = await transcodeWithStrategies(
+  const normalizedVoice = normalizeVoiceEffectConfig(voiceEffect ?? DEFAULT_VOICE_EFFECT_CONFIG);
+  const { filter: voiceFilter } = buildFfmpegAudioFilter(normalizedVoice);
+  const audioFilter =
+    voiceFilter && voiceEffectIsActive(normalizedVoice) ? voiceFilter : null;
+
+  const runEncode = async (filter: string | null): Promise<Uint8Array> =>
+    transcodeWithStrategies(
       inputBytes,
       (ratio, stage) => {
         if (stage === 'loaded' || stage === 'loading-wasm' || stage === 'checking-assets') {
@@ -425,10 +464,34 @@ export async function runWebmToMp4(
         report(ratio, stage);
       },
       (ratio) => report(Math.min(1, Math.max(0, ratio)), 'transcoding'),
+      filter,
     );
 
+  try {
+    onProgress?.(0.18, 'writing-input');
+
+    if (audioFilter) {
+      try {
+        const output = await runEncode(audioFilter);
+        onProgress?.(1, 'done');
+        return { bytes: output };
+      } catch (voiceError) {
+        const detail = voiceError instanceof Error ? voiceError.message : String(voiceError);
+        console.warn(
+          `${EXTENSION_LOG_PREFIX} Voice -af transcode failed — falling back to raw audio`,
+          detail,
+        );
+        disposeFfmpeg();
+        onProgress?.(0.2, 'voice-fallback');
+        const output = await runEncode(null);
+        onProgress?.(1, 'done');
+        return { bytes: output, voiceEffectFallback: true };
+      }
+    }
+
+    const output = await runEncode(null);
     onProgress?.(1, 'done');
-    return output;
+    return { bytes: output };
   } catch (error) {
     // BUG FIX: Poisoned FFmpeg singleton after hung/failed transcode
     // Fix: Terminate WASM worker so the next job starts from a clean virtual FS.

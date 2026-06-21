@@ -1,3 +1,5 @@
+import type { VoiceEffectConfig } from '@/src/voice/types';
+
 export const MSG_TRANSCODE_START = 'rvn/transcode-start' as const;
 export const MSG_TRANSCODE_ACK = 'rvn/transcode-ack' as const;
 export const MSG_TRANSCODE_OFFSCREEN = 'rvn/transcode-offscreen' as const;
@@ -7,6 +9,7 @@ export const MSG_TRANSCODE_CANCEL = 'rvn/transcode-cancel' as const;
 export const MSG_OFFSCREEN_PING = 'rvn/offscreen-ping' as const;
 export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
+export const MSG_SAVE_LAST_RECORDING = 'rvn/save-last-recording' as const;
 
 /** @deprecated Use MSG_TRANSCODE_START — kept for grep compatibility */
 export const MSG_TRANSCODE = MSG_TRANSCODE_START;
@@ -17,6 +20,8 @@ export interface TranscodeStartRequest {
   /** Base64 WebM — survives extension message relay (see src/messaging/binary.ts). */
   webmBase64: string;
   webmByteLength: number;
+  /** dulcet-3: optional voice filter graph applied during AAC encode. */
+  voiceEffect?: VoiceEffectConfig;
 }
 
 export interface TranscodeAckResponse {
@@ -32,6 +37,7 @@ export interface TranscodeOffscreenRequest {
   jobId: string;
   webmBase64: string;
   webmByteLength: number;
+  voiceEffect?: VoiceEffectConfig;
 }
 
 export interface TranscodeCancelRequest {
@@ -55,6 +61,8 @@ export interface TranscodeCompleteMessage {
   mp4Base64?: string;
   mp4ByteLength?: number;
   error?: string;
+  /** dulcet-3: voice -af failed; MP4 uses raw captured audio. */
+  voiceEffectFallback?: boolean;
 }
 
 export interface OffscreenPingRequest {
@@ -69,6 +77,18 @@ export interface OffscreenPongResponse {
 
 export interface OpenRecorderMessage {
   type: typeof MSG_OPEN_RECORDER;
+}
+
+export interface SaveLastRecordingRequest {
+  type: typeof MSG_SAVE_LAST_RECORDING;
+  webmBase64: string;
+  webmByteLength: number;
+  durationSeconds: number;
+}
+
+export interface SaveLastRecordingResponse {
+  ok: boolean;
+  error?: string;
 }
 
 export type TranscodeBroadcast =

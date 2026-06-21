@@ -14,7 +14,7 @@ import {
   onUserPreferencesChanged,
   shouldReduceMotion,
 } from '@/src/settings/user-preferences';
-import { saveLastRecording } from '@/src/storage/last-recording-db';
+import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -43,6 +43,8 @@ export interface RecorderState {
   nearLimit: boolean;
   criticalLimit: boolean;
   stoppedAtCap: boolean;
+  /** dulcet-3: voice -af failed; MP4 exported with raw audio. */
+  voiceEffectFallback?: boolean;
   errorCode?: RecorderErrorCode;
   errorMessage?: string;
   webmBlob?: Blob;
@@ -93,6 +95,7 @@ export class VoiceRecorderSession {
   private nearLimit = false;
   private criticalLimit = false;
   private stoppedAtCap = false;
+  private voiceEffectFallback = false;
   private phase: RecorderPhase = 'idle';
   private errorCode?: RecorderErrorCode;
   private errorMessage?: string;
@@ -125,6 +128,7 @@ export class VoiceRecorderSession {
       nearLimit: this.nearLimit,
       criticalLimit: this.criticalLimit,
       stoppedAtCap: this.stoppedAtCap,
+      voiceEffectFallback: this.voiceEffectFallback,
       errorCode: this.errorCode,
       errorMessage: this.errorMessage,
       webmBlob: this.webmBlob,
@@ -147,6 +151,9 @@ export class VoiceRecorderSession {
     if (extra?.nearLimit !== undefined) this.nearLimit = extra.nearLimit;
     if (extra?.criticalLimit !== undefined) this.criticalLimit = extra.criticalLimit;
     if (extra?.stoppedAtCap !== undefined) this.stoppedAtCap = extra.stoppedAtCap;
+    if (extra?.voiceEffectFallback !== undefined) {
+      this.voiceEffectFallback = extra.voiceEffectFallback;
+    }
 
     for (const listener of this.listeners) {
       listener(this.snapshot());
@@ -173,6 +180,7 @@ export class VoiceRecorderSession {
         nearLimit: false,
         criticalLimit: false,
         stoppedAtCap: false,
+        voiceEffectFallback: false,
         errorCode: undefined,
         errorMessage: undefined,
         webmBlob: undefined,
@@ -332,7 +340,7 @@ export class VoiceRecorderSession {
 
       // CHANGED: persist last take for Design Studio voice preview (dulcet-2).
       // WHY: Studio runs on extension origin; IDB write is async and must not block transcode.
-      void saveLastRecording(this.webmBlob, this.elapsedSeconds);
+      void relaySaveLastRecording(this.webmBlob, this.elapsedSeconds);
 
       if (this.isSuperseded(stopEpoch)) return;
 
@@ -364,7 +372,8 @@ export class VoiceRecorderSession {
     let lastProgress = 0;
 
     try {
-      this.mp4Blob = await transcodeWebmToMp4(
+      const prefs = await loadUserPreferences();
+      const transcodeResult = await transcodeWebmToMp4(
         this.webmBlob,
         (ratio) => {
           if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
@@ -373,13 +382,16 @@ export class VoiceRecorderSession {
           this.setPhase('processing', { processingProgress: pct });
         },
         controller.signal,
+        prefs.voiceEffect,
       );
 
       if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
 
+      this.mp4Blob = transcodeResult.mp4;
       this.setPhase('stopped', {
         processingProgress: 100,
         stoppedAtCap: this.stoppedAtCap,
+        voiceEffectFallback: transcodeResult.voiceEffectFallback === true,
       });
     } catch (error) {
       if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
@@ -418,6 +430,7 @@ export class VoiceRecorderSession {
       nearLimit: false,
       criticalLimit: false,
       stoppedAtCap: false,
+      voiceEffectFallback: false,
       webmBlob: undefined,
       mp4Blob: undefined,
       errorCode: undefined,

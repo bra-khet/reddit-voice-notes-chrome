@@ -15,10 +15,12 @@ import {
   type GetBackgroundBlobMetaRequest,
   type GetBackgroundBlobRequest,
 } from '@/src/messaging/background-blob';
-import { packBinary } from '@/src/messaging/binary';
+import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import { getBackgroundAsset } from '@/src/storage/image-db';
+import { saveLastRecording } from '@/src/storage/last-recording-db';
 import {
   MSG_OFFSCREEN_PING,
+  MSG_SAVE_LAST_RECORDING,
   MSG_TRANSCODE_ACK,
   MSG_TRANSCODE_CANCEL,
   MSG_TRANSCODE_COMPLETE,
@@ -27,6 +29,8 @@ import {
   MSG_TRANSCODE_START,
   type OffscreenPingRequest,
   type OffscreenPongResponse,
+  type SaveLastRecordingRequest,
+  type SaveLastRecordingResponse,
   type TranscodeAckResponse,
   type TranscodeCancelRequest,
   type TranscodeCompleteMessage,
@@ -401,6 +405,29 @@ export default defineBackground(() => {
         return true;
       }
 
+      if (type === MSG_SAVE_LAST_RECORDING) {
+        void (async () => {
+          const response: SaveLastRecordingResponse = { ok: false };
+          try {
+            const request = message as SaveLastRecordingRequest;
+            if (!request.webmBase64 || request.webmByteLength <= 0) {
+              response.error = 'WebM payload missing for last recording save.';
+              sendResponse(response);
+              return;
+            }
+            const bytes = unpackBinary(request.webmBase64, request.webmByteLength);
+            const blob = new Blob([Uint8Array.from(bytes)], { type: 'video/webm' });
+            await saveLastRecording(blob, request.durationSeconds);
+            response.ok = true;
+            sendResponse(response);
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+            sendResponse(response);
+          }
+        })();
+        return true;
+      }
+
       if (type === MSG_GET_BACKGROUND_BLOB) {
         void (async () => {
           sendResponse({
@@ -458,6 +485,7 @@ export default defineBackground(() => {
           jobId: request.jobId,
           webmBase64: request.webmBase64,
           webmByteLength: request.webmByteLength,
+          voiceEffect: request.voiceEffect,
         };
 
         await dispatchToOffscreen(offscreenRequest);

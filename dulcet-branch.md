@@ -149,7 +149,7 @@ Bundled **voice presets** are hardcoded defaults (like theme presets), not store
 | **dulcet-0** | Audit & types | Map audio→FFmpeg handoff; recorder stop flow; messaging/offscreen contracts; freeze `VoiceEffectConfig`, preset table, filter-string notes | **Done** |
 | **dulcet-1** | Isolated processor | `src/voice/` + `processAudio(blob, config)` in offscreen; no-op + duration-preserving pitch; one supporting effect (gain/EQ); fallback to input blob on error; manual harness | **Done** |
 | **dulcet-2** | Studio preview UI | Voice section in Design Studio; Web Audio preview (demo buffer or last recording); pitch slider, presets, debounced playback; **no export wire yet** | **Done** |
-| **dulcet-3** | Pipeline wire | Hook recorder stop → voice process (if enabled) → existing transcode; semantic progress stage; cancel + stall; verify viz/audio sync at 2:00 cap | Planned |
+| **dulcet-3** | Pipeline wire | Hook recorder stop → voice process (if enabled) → existing transcode; semantic progress stage; cancel + stall; verify viz/audio sync at 2:00 cap | **Done** |
 | **dulcet-4** | Profile persistence | `voiceEffectConfig` on `ClipProfile`; Update/Clone/Save to new + exit guard; optional main-popup summary; intensity 0–10 + Turbo boost toggle (maps to 12); 1–2 extra effects if budget allows | Planned |
 | **dulcet-5** | Harden & release | Edge cases, perf budget (<5–10s added on mid-range HW for 2:00), docs, prod zip, merge `dulcet` → `main`, tag **v3.0.0** | Planned |
 
@@ -318,6 +318,15 @@ Studio voice edits are **draft-only** until dulcet-4 (export path unchanged). Fu
 - **dulcet-4**: Effect intensity dial 0–10; **Turbo** toggle forces magic intensity `12` (slider grayed while active).
 - **v4 transcription**: Raw-audio Vosk STT on cloned WebM; opt-in/recommended UX; see `.ignore/transcript-design-notes.txt`.
 
+### dulcet-3 — implementation notes
+
+| Artifact | Role |
+|----------|------|
+| `src/ffmpeg/ffmpeg-runner.ts` | Single-pass `-af` before `-c:a aac`; auto fallback to raw audio on filter failure |
+| `src/ffmpeg/transcoder.ts` | `voiceEffect` on `MSG_TRANSCODE_START`; `TranscodeResult.voiceEffectFallback` |
+| `src/settings/user-preferences.ts` | `voiceEffect` on `UserPreferencesV1`; Studio saves via `saveVoiceEffectPreferences()` |
+| `src/storage/last-recording-relay.ts` | Content script → background IDB fix for voice preview |
+
 ## Immediate next step
 
-**dulcet-3 pipeline wire** — Hook recorder stop → single-pass FFmpeg `-af` when voice enabled; semantic progress; cancel + stall; verify A/V sync at 2:00 cap.
+**dulcet-4 profile persistence** — embed `voiceEffectConfig` on `ClipProfile`; Update/Clone/Save pathways; intensity 0–10 + Turbo toggle.

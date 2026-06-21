@@ -580,6 +580,13 @@ export class RecorderPanel {
           if (state.stoppedAtCap) {
             showToast(`${formatRecordingCapProse()} limit reached — processing complete.`, 'info', 5000);
           }
+          if (state.voiceEffectFallback) {
+            showToast(
+              'Voice effect could not be applied — your clip used the original audio.',
+              'info',
+              6000,
+            );
+          }
         }
         break;
       case 'error':

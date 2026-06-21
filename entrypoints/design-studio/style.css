@@ -396,6 +396,10 @@ body {
   line-height: 1.45;
 }
 
+.studio__voice-preset-hint {
+  margin: -2px 0 8px;
+}
+
 .studio__voice-toggle {
   margin-bottom: 10px;
 }

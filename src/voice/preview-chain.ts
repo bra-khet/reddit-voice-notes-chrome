@@ -17,6 +17,8 @@ export interface VoicePreviewHandle {
   hasSource(): boolean;
 }
 
+type SourceMode = 'buffer' | 'element' | null;
+
 interface BiquadOptions {
   type: BiquadFilterType;
   frequency: number;
@@ -34,7 +36,7 @@ function appendBiquad(ctx: AudioContext, input: AudioNode, options: BiquadOption
   return filter;
 }
 
-function buildEffectChain(ctx: AudioContext, source: AudioBufferSourceNode, config: VoiceEffectConfig): void {
+function connectEffectChain(ctx: AudioContext, source: AudioNode, config: VoiceEffectConfig): void {
   let node: AudioNode = source;
 
   const eq = config.eq;
@@ -68,26 +70,54 @@ function buildEffectChain(ctx: AudioContext, source: AudioBufferSourceNode, conf
   node.connect(ctx.destination);
 }
 
+function applyPitchPlaybackRate(
+  target: { playbackRate: number },
+  config: VoiceEffectConfig,
+): void {
+  target.playbackRate = 1;
+  if (!voiceEffectIsActive(config)) return;
+  const semitones = config.pitchShift?.semitones ?? 0;
+  if (semitones !== 0) {
+    target.playbackRate = semitonesToPitchRatio(semitones);
+  }
+}
+
 /**
- * Web Audio preview for Design Studio (dulcet-2). Coarse match to FFmpeg export —
- * pitch uses playbackRate; duration may differ slightly from duration-preserving export.
+ * Web Audio preview for Design Studio (dulcet-2).
+ * Tries AudioBuffer decode first; falls back to HTMLMediaElement for muxed WebM.
  */
 export function createVoicePreviewPlayer(): VoicePreviewHandle {
   let audioBuffer: AudioBuffer | null = null;
+  let sourceMode: SourceMode = null;
+  let objectUrl: string | null = null;
   let audioContext: AudioContext | null = null;
   let activeSource: AudioBufferSourceNode | null = null;
+  let mediaElement: HTMLAudioElement | null = null;
   let playing = false;
+
+  const revokeUrl = (): void => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = null;
+  };
 
   const teardownGraph = (): void => {
     playing = false;
+
     if (activeSource) {
       try {
         activeSource.stop();
         activeSource.disconnect();
       } catch {
-        // ignore — may already be stopped
+        // ignore
       }
       activeSource = null;
+    }
+
+    if (mediaElement) {
+      mediaElement.pause();
+      mediaElement.removeAttribute('src');
+      mediaElement.load();
+      mediaElement = null;
     }
 
     if (audioContext && audioContext.state !== 'closed') {
@@ -96,54 +126,97 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
     audioContext = null;
   };
 
+  const playViaBuffer = async (config: VoiceEffectConfig): Promise<void> => {
+    if (!audioBuffer) throw new Error('No decoded audio buffer.');
+
+    audioContext = new AudioContext();
+    await audioContext.resume();
+
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    applyPitchPlaybackRate(source, config);
+
+    if (voiceEffectIsActive(config)) {
+      connectEffectChain(audioContext, source, config);
+    } else {
+      source.connect(audioContext.destination);
+    }
+
+    source.onended = () => {
+      playing = false;
+      teardownGraph();
+    };
+
+    activeSource = source;
+    playing = true;
+    source.start(0);
+  };
+
+  const playViaMediaElement = async (config: VoiceEffectConfig): Promise<void> => {
+    if (!objectUrl) throw new Error('No media URL for preview.');
+
+    const audio = new Audio(objectUrl);
+    mediaElement = audio;
+    applyPitchPlaybackRate(audio, config);
+
+    audioContext = new AudioContext();
+    await audioContext.resume();
+
+    const source = audioContext.createMediaElementSource(audio);
+
+    if (voiceEffectIsActive(config)) {
+      connectEffectChain(audioContext, source, config);
+    } else {
+      source.connect(audioContext.destination);
+    }
+
+    audio.onended = () => {
+      playing = false;
+      teardownGraph();
+    };
+
+    playing = true;
+    await audio.play();
+  };
+
   return {
     async setSource(blob) {
       this.stop();
       audioBuffer = null;
+      sourceMode = null;
+      revokeUrl();
+
       if (!blob) return;
 
-      const decodeContext = new AudioContext();
       try {
-        const bytes = await blob.arrayBuffer();
-        audioBuffer = await decodeContext.decodeAudioData(bytes.slice(0));
-      } finally {
-        await decodeContext.close();
+        const decodeContext = new AudioContext();
+        try {
+          const bytes = await blob.arrayBuffer();
+          audioBuffer = await decodeContext.decodeAudioData(bytes.slice(0));
+          sourceMode = 'buffer';
+        } finally {
+          await decodeContext.close();
+        }
+      } catch {
+        objectUrl = URL.createObjectURL(blob);
+        sourceMode = 'element';
       }
     },
 
     async play(config) {
       this.stop();
-      if (!audioBuffer) {
+      if (!sourceMode) {
         throw new Error('No recording loaded for voice preview.');
       }
 
       const normalized = normalizeVoiceEffectConfig(config);
-      const active = voiceEffectIsActive(normalized);
 
-      audioContext = new AudioContext();
-      await audioContext.resume();
-
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-
-      if (active) {
-        const semitones = normalized.pitchShift?.semitones ?? 0;
-        if (semitones !== 0) {
-          source.playbackRate.value = semitonesToPitchRatio(semitones);
-        }
-        buildEffectChain(audioContext, source, normalized);
-      } else {
-        source.connect(audioContext.destination);
+      if (sourceMode === 'buffer') {
+        await playViaBuffer(normalized);
+        return;
       }
 
-      source.onended = () => {
-        playing = false;
-        teardownGraph();
-      };
-
-      activeSource = source;
-      playing = true;
-      source.start(0);
+      await playViaMediaElement(normalized);
     },
 
     stop() {
@@ -153,6 +226,8 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
     dispose() {
       this.stop();
       audioBuffer = null;
+      sourceMode = null;
+      revokeUrl();
     },
 
     isPlaying() {
@@ -160,7 +235,7 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
     },
 
     hasSource() {
-      return audioBuffer !== null;
+      return sourceMode !== null;
     },
   };
 }

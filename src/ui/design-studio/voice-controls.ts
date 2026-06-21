@@ -1,5 +1,6 @@
 import { formatRecordingCapClock } from '@/src/utils/constants';
 import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
+import { loadUserPreferences, saveVoiceEffectPreferences } from '@/src/settings/user-preferences';
 import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
 import { VOICE_EFFECT_PRESETS, voiceConfigFromPreset } from '@/src/voice/presets';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
@@ -17,6 +18,8 @@ export interface VoiceControlsHandle {
   getDraftConfig(): VoiceEffectConfig;
 }
 
+const VOICE_SAVE_DEBOUNCE_MS = 250;
+
 export function renderVoiceControlFields(): string {
   return `
     <div class="studio__voice" data-voice-controls>
@@ -26,7 +29,7 @@ export function renderVoiceControlFields(): string {
       <label class="popup__toggle-row studio__voice-toggle">
         <span class="popup__toggle-copy">
           <span class="popup__toggle-label">Voice effects</span>
-          <p class="popup__field-desc">Preview only in this phase — export unchanged.</p>
+          <p class="popup__field-desc">Applies on your next recording when enabled.</p>
         </span>
         <input
           class="popup__toggle-input"
@@ -39,11 +42,14 @@ export function renderVoiceControlFields(): string {
         <span class="popup__field-label">Voice preset</span>
         <select class="popup__select" data-voice-preset aria-label="Voice preset"></select>
       </label>
+      <p class="studio__voice-preset-hint popup__field-desc">
+        Presets include special SFX — not just pitch. The knob is for custom pitch only.
+      </p>
       <div class="studio__voice-pitch">
         <div class="studio__knob-host" data-voice-pitch-mount></div>
       </div>
       <div class="studio__voice-actions">
-        <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-play disabled>
+        <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-play>
           Play preview
         </button>
         <button type="button" class="popup__button popup__button--secondary" data-voice-stop hidden>
@@ -87,6 +93,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
   let draftConfig: VoiceEffectConfig = normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
   let lastRecording: LastRecordingSnapshot | null = null;
   let syncing = false;
+  let saveTimer = 0;
 
   const preview = createVoicePreviewPlayer();
 
@@ -116,12 +123,34 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
         },
       });
       presetSelect.value = 'custom';
+      schedulePersist();
       setStatus('');
     },
   });
 
   function setStatus(message: string): void {
     statusEl.textContent = message;
+  }
+
+  function schedulePersist(): void {
+    if (saveTimer) window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => {
+      saveTimer = 0;
+      void saveVoiceEffectPreferences(draftConfig).catch((error: unknown) => {
+        console.warn('[Reddit Voice Notes] Voice prefs save failed', error);
+      });
+    }, VOICE_SAVE_DEBOUNCE_MS);
+  }
+
+  function persistNow(): void {
+    if (saveTimer) {
+      window.clearTimeout(saveTimer);
+      saveTimer = 0;
+    }
+    draftConfig.enabled = enabledInput.checked;
+    void saveVoiceEffectPreferences(draftConfig).catch((error: unknown) => {
+      console.warn('[Reddit Voice Notes] Voice prefs save failed', error);
+    });
   }
 
   function syncControlsFromDraft(): void {
@@ -134,15 +163,13 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
 
   function updateSourceCopy(): void {
     if (!lastRecording) {
-      sourceEl.textContent = `No recording yet — record a voice note (up to ${formatRecordingCapClock()}) then return here.`;
-      playBtn.disabled = true;
+      sourceEl.textContent = `No recording yet — record a voice note (up to ${formatRecordingCapClock()}), then reopen Design Studio.`;
       return;
     }
 
     const { meta } = lastRecording;
     const kb = Math.round(meta.byteLength / 1024);
     sourceEl.textContent = `Last recording: ${formatDuration(meta.durationSeconds)} · ${kb} KB · ${formatSavedAt(meta.savedAt)}`;
-    playBtn.disabled = false;
   }
 
   function refreshPlayStopUi(): void {
@@ -159,9 +186,10 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
         setStatus('Recording loaded — choose a preset and play preview.');
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        setStatus(`Could not decode last recording: ${detail}`);
-        playBtn.disabled = true;
+        setStatus(`Could not load last recording: ${detail}`);
       }
+    } else {
+      setStatus('');
     }
     updateSourceCopy();
   }
@@ -172,6 +200,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
       ...draftConfig,
       enabled: enabledInput.checked,
     });
+    schedulePersist();
   });
 
   presetSelect.addEventListener('change', () => {
@@ -180,12 +209,17 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     draftConfig = voiceConfigFromPreset(presetId);
     draftConfig.enabled = enabledInput.checked;
     syncControlsFromDraft();
+    schedulePersist();
     setStatus('');
   });
 
   playBtn.addEventListener('click', () => {
     void (async () => {
-      if (!preview.hasSource()) return;
+      if (!preview.hasSource()) {
+        setStatus('Record a voice note first, then reopen Design Studio to preview.');
+        return;
+      }
+
       draftConfig.enabled = enabledInput.checked;
       const config = normalizeVoiceEffectConfig(draftConfig);
       try {
@@ -206,6 +240,19 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     setStatus('Preview stopped.');
   });
 
+  const onVisibility = (): void => {
+    if (document.visibilityState === 'visible') {
+      void loadRecordingSource();
+    }
+  };
+
+  document.addEventListener('visibilitychange', onVisibility);
+
+  void loadUserPreferences().then((prefs) => {
+    draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+    syncControlsFromDraft();
+  });
+
   void loadRecordingSource();
 
   const playPoll = window.setInterval(() => {
@@ -221,6 +268,9 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     },
     dispose() {
       window.clearInterval(playPoll);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (saveTimer) window.clearTimeout(saveTimer);
+      persistNow();
       preview.dispose();
     },
   };

@@ -1,1 +1,1 @@
-export { transcodeWebmToMp4 } from './transcoder';
+export { transcodeWebmToMp4, type TranscodeResult } from './transcoder';

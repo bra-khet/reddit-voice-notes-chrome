@@ -14,6 +14,7 @@ import {
   type TranscodeStartRequest,
 } from '@/src/messaging/types';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
+import { normalizeVoiceEffectConfig, type VoiceEffectConfig } from '@/src/voice/types';
 
 /** Fail when meaningful FFmpeg progress stalls — heartbeats do not count. */
 // CHANGED: 45s → 60s after BUG-007 dup-storm fix — larger WebM clips can transcode reliably (~45s observed).
@@ -58,11 +59,17 @@ function isExtensionContextValid(): boolean {
   }
 }
 
+export interface TranscodeResult {
+  mp4: Blob;
+  voiceEffectFallback?: boolean;
+}
+
 export async function transcodeWebmToMp4(
   webm: Blob,
   onProgress?: (ratio: number) => void,
   signal?: AbortSignal,
-): Promise<Blob> {
+  voiceEffect?: VoiceEffectConfig,
+): Promise<TranscodeResult> {
   if (signal?.aborted) {
     throw new DOMException('Transcode cancelled.', 'AbortError');
   }
@@ -71,7 +78,7 @@ export async function transcodeWebmToMp4(
     if (signal?.aborted) {
       throw new DOMException('Transcode cancelled.', 'AbortError');
     }
-    return transcodeWebmToMp4Inner(webm, onProgress, signal);
+    return transcodeWebmToMp4Inner(webm, onProgress, signal, voiceEffect);
   });
 }
 
@@ -79,7 +86,8 @@ async function transcodeWebmToMp4Inner(
   webm: Blob,
   onProgress?: (ratio: number) => void,
   signal?: AbortSignal,
-): Promise<Blob> {
+  voiceEffect?: VoiceEffectConfig,
+): Promise<TranscodeResult> {
   if (!isExtensionContextValid()) {
     throw new Error(
       'Extension context invalidated. Reload the extension, then refresh this Reddit tab.',
@@ -102,7 +110,7 @@ async function transcodeWebmToMp4Inner(
     base64Chars: webmPacked.dataBase64.length,
   });
 
-  return new Promise<Blob>((resolve, reject) => {
+  return new Promise<TranscodeResult>((resolve, reject) => {
     let stallTimer: number | null = null;
     let absoluteTimer: number | null = null;
     let ackTimer: number | null = null;
@@ -208,7 +216,10 @@ async function transcodeWebmToMp4Inner(
           });
           reportProgress(1);
           const mp4Bytes = unpackBinary(completeMsg.mp4Base64, completeMsg.mp4ByteLength);
-          resolve(new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' }));
+          resolve({
+            mp4: new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' }),
+            voiceEffectFallback: completeMsg.voiceEffectFallback,
+          });
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
           reject(new Error(`MP4 result could not be decoded: ${detail}`));
@@ -223,6 +234,7 @@ async function transcodeWebmToMp4Inner(
       jobId,
       webmBase64: webmPacked.dataBase64,
       webmByteLength: webmPacked.byteLength,
+      voiceEffect: voiceEffect ? normalizeVoiceEffectConfig(voiceEffect) : undefined,
     };
 
     if (signal?.aborted) {
