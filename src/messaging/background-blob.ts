@@ -6,10 +6,12 @@ export interface GetBackgroundBlobRequest {
   id: string;
 }
 
+/** Base64 transport — ArrayBuffer is unreliable across MV3 relay hops (see messaging/binary.ts). */
 export interface GetBackgroundBlobResponse {
   ok: boolean;
   mimeType?: string;
-  buffer?: ArrayBuffer;
+  dataBase64?: string;
+  byteLength?: number;
   error?: string;
 }
 
@@ -20,6 +22,7 @@ export interface BackgroundBlobPortRequest {
 export interface BackgroundBlobPortResponse {
   ok: boolean;
   mimeType?: string;
-  buffer?: ArrayBuffer;
+  dataBase64?: string;
+  byteLength?: number;
   error?: string;
 }

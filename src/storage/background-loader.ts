@@ -1,3 +1,4 @@
+import { unpackBinary } from '@/src/messaging/binary';
 import {
   BACKGROUND_BLOB_PORT,
   MSG_GET_BACKGROUND_BLOB,
@@ -107,12 +108,27 @@ async function loadBackgroundImageElementLocal(id: string): Promise<DrawableBack
   return loadImageFromUrl(url, id);
 }
 
+function unpackRelayedBackgroundBlob(
+  response: BackgroundBlobPortResponse | GetBackgroundBlobResponse,
+): { bytes: Uint8Array; mimeType: string } | null {
+  if (!response.ok || !response.dataBase64 || !response.byteLength) return null;
+  try {
+    return {
+      bytes: unpackBinary(response.dataBase64, response.byteLength),
+      mimeType: response.mimeType ?? 'image/jpeg',
+    };
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Personal background base64 unpack failed:', error);
+    return null;
+  }
+}
+
 async function requestBackgroundBlobViaPort(
   id: string,
-): Promise<{ buffer: ArrayBuffer; mimeType: string } | null> {
+): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
   return new Promise((resolve) => {
     let settled = false;
-    const finish = (value: { buffer: ArrayBuffer; mimeType: string } | null) => {
+    const finish = (value: { bytes: Uint8Array; mimeType: string } | null) => {
       if (settled) return;
       settled = true;
       resolve(value);
@@ -128,8 +144,9 @@ async function requestBackgroundBlobViaPort(
       port.onMessage.addListener((message: BackgroundBlobPortResponse) => {
         clearTimeout(timeout);
         port.disconnect();
-        if (message.ok && message.buffer) {
-          finish({ buffer: message.buffer, mimeType: message.mimeType ?? 'image/jpeg' });
+        const payload = unpackRelayedBackgroundBlob(message);
+        if (payload) {
+          finish(payload);
           return;
         }
         console.warn(
@@ -155,7 +172,7 @@ async function requestBackgroundBlobViaPort(
 
 async function requestBackgroundBlobViaMessage(
   id: string,
-): Promise<{ buffer: ArrayBuffer; mimeType: string } | null> {
+): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
   const request: GetBackgroundBlobRequest = {
     type: MSG_GET_BACKGROUND_BLOB,
     id,
@@ -163,9 +180,8 @@ async function requestBackgroundBlobViaMessage(
 
   try {
     const response = (await browser.runtime.sendMessage(request)) as GetBackgroundBlobResponse | undefined;
-    if (response?.ok && response.buffer) {
-      return { buffer: response.buffer, mimeType: response.mimeType ?? 'image/jpeg' };
-    }
+    const payload = response ? unpackRelayedBackgroundBlob(response) : null;
+    if (payload) return payload;
     console.warn(
       '[Reddit Voice Notes] Personal background message relay failed:',
       response?.error ?? 'no response',
@@ -176,7 +192,9 @@ async function requestBackgroundBlobViaMessage(
   return null;
 }
 
-// Sync: entrypoints/background.ts BACKGROUND_BLOB_PORT handler
+// BUG FIX: Personal background missing on Reddit recorder canvas
+// Fix: Relay ImageDB bytes as base64 — ArrayBuffer corrupts across MV3 port/message hops.
+// Sync: entrypoints/background.ts readBackgroundBlobForRelay
 async function loadBackgroundImageElementViaRelay(id: string): Promise<DrawableBackgroundImage | null> {
   const cached = decodedImageCache.get(id);
   if (cached && isDrawableBackgroundReady(cached)) return cached;
@@ -185,7 +203,7 @@ async function loadBackgroundImageElementViaRelay(id: string): Promise<DrawableB
     (await requestBackgroundBlobViaPort(id)) ?? (await requestBackgroundBlobViaMessage(id));
   if (!payload) return null;
 
-  const blob = new Blob([payload.buffer], { type: payload.mimeType });
+  const blob = new Blob([payload.bytes], { type: payload.mimeType });
   const image = await decodeBlobToDrawable(blob, id);
   if (!image) {
     console.warn('[Reddit Voice Notes] Personal background image decode returned null for', id);

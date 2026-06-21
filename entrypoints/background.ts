@@ -9,6 +9,7 @@ import {
   type GetBackgroundBlobRequest,
   type GetBackgroundBlobResponse,
 } from '@/src/messaging/background-blob';
+import { packBinary } from '@/src/messaging/binary';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import {
   MSG_OFFSCREEN_PING,
@@ -244,8 +245,14 @@ async function readBackgroundBlobForRelay(id: string): Promise<BackgroundBlobPor
   if (!record) {
     return { ok: false, error: 'Background not found.' };
   }
-  const buffer = await record.blob.arrayBuffer();
-  return { ok: true, mimeType: record.mimeType, buffer };
+  const bytes = new Uint8Array(await record.blob.arrayBuffer());
+  const packed = packBinary(bytes);
+  return {
+    ok: true,
+    mimeType: record.mimeType,
+    dataBase64: packed.dataBase64,
+    byteLength: packed.byteLength,
+  };
 }
 
 export default defineBackground(() => {
@@ -269,15 +276,6 @@ export default defineBackground(() => {
             return;
           }
           const payload = await readBackgroundBlobForRelay(id);
-          if (payload.ok && payload.buffer) {
-            // Structured-clone a copy — avoids transfer typing gaps across WebExtension typings.
-            port.postMessage({
-              ok: true,
-              mimeType: payload.mimeType,
-              buffer: payload.buffer.slice(0),
-            });
-            return;
-          }
           port.postMessage(payload);
         } catch (error) {
           const response: BackgroundBlobPortResponse = {

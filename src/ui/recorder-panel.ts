@@ -301,8 +301,11 @@ export class RecorderPanel {
       }
 
       this.applyThemeChrome(parsed.themeId);
+      // CHANGED: preset clip style clears active profile — Design Studio keeps profile selected.
+      // WHY: recorder popup should detach from saved profiles when picking a built-in style.
       void saveAppearancePreferences({
         activeThemeId: parsed.themeId,
+        activeProfileId: null,
       }).then((prefs) => this.syncClipStyleSelect(prefs));
     });
 
