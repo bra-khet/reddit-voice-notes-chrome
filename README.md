@@ -8,7 +8,7 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 
 **Stable `main` v1.5.0** — MVP recording pipeline + themed waveform canvas, hardened transcode pipeline.
 
-**`pretty` branch v1.6.0** — Full settings hub (audio, recording, accessibility themes), restart caution, recorder panel + toast accents synced to clip style. See `pretty-branch.md`.
+**`pretty` branch v1.6.0** — Settings hub, named profiles, accessibility themes, themed UI chrome. Roadmap: personal backgrounds (pretty-7), then a **light design studio** for colors and simple effects (pretty-8), then **v2.0** merge (pretty-9). See `pretty-branch.md`.
 
 | Phase | Scope | Status |
 |-------|-------|--------|

@@ -12,11 +12,13 @@ Give yourself and friends a **quick, easy, visually appealing** way to leave per
 
 Prioritize features with **mass appeal and high impact**. Skip niche effects that cost CPU or add fragility.
 
+**v2.0 gate (on `pretty`):** Ship **pretty-7** (personal image backgrounds) and **pretty-8** (light design studio) before tagging **v2.0** and merging to `main`. **pretty-9** is perf validation and merge readiness only.
+
 ## Focus areas
 
 ### Waveform (live preview + baked into output video)
 
-- Bar styling: width, spacing, corner radius, glow, symmetry, idle vs active motion
+- Bar styling: width, spacing, corner radius, glow, symmetry, idle vs active motion — **layout fields (count, spacing, width) deferred**; see pretty-8 for color + light effects only
 - Color palettes and user-selectable themes (including high-contrast / colorblind-safe options)
 - Canvas-only tricks: gradients, layered fills, simple particle/sparkle accents, eased bar heights — no heavy shaders
 
@@ -68,7 +70,9 @@ src/recorder/voice-recorder.ts # canvas stream → MediaRecorder (preview = outp
 src/ui/tokens.ts              # shared colors / spacing
 src/ui/recorder-panel.ts      # live UI theming
 src/settings/                 # persist user theme/background choices
-entrypoints/popup/            # settings UI for personalization
+entrypoints/popup/            # quick settings (presets, profiles, image pick)
+entrypoints/design-studio/    # light design studio popup (pretty-8) — planned
+src/theme/                    # presets + future override merge for studio output
 ```
 
 ## Out of scope (for now)
@@ -105,7 +109,8 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Planned |
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Planned |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Planned |
-| **pretty-8** | Perf & merge readiness | 3-min cap profiling, prod bundle verify, merge criteria vs `main` | Planned |
+| **pretty-8** | Light design studio | Color pickers + simple background/bar flairs (bokeh, sparkle/twinkle); separate studio popup; no bar-count/spacing logic | Planned |
+| **pretty-9** | Perf & merge readiness | 2:00 cap profiling, prod bundle verify, merge criteria vs `main`, tag **v2.0** | Planned |
 
 ### ImageDB notes (pretty-7)
 
@@ -129,6 +134,48 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 
 **Takeaway:** IndexedDB user images should plug into `loadBackgroundIfNeeded()` + the existing prefs listener — same hot-swap model as bundled SVG backgrounds. No recorder restart required.
 
+### Light design studio (pretty-8) — scope & UX
+
+A **very light** design suite ships **before v2.0**. It extends named profiles and bundled presets with user-chosen **colors** and a small set of **canvas flairs**, without reopening waveform layout or analysis logic.
+
+#### In scope (pretty-8)
+
+| Area | Examples |
+|------|----------|
+| **Colors** | Bar fill, glow, optional background tint — via simple **HEX** fields and/or compact **HSV** sliders |
+| **Background flairs** | Toggle bundled **bokeh**; optional preset accents (e.g. **star twinkle**, soft sparkle) using existing canvas draw paths — no new shaders |
+| **Persistence** | Overrides stored on **saved profiles** (and/or a `designOverrides` blob merged atop a base preset); hot-swap safe mid-recording like themes |
+| **Preview** | Same canvas draw path as output (`renderThemePreview` / `WaveformRenderer`) |
+
+#### Explicitly out of scope (pretty-8 and until revisited)
+
+- **Bar count**, **bar spacing**, **bar width**, corner-radius sliders — these touch layout math and bar aggregation; defer to avoid pipeline churn
+- Full-spectrum / FFT / viz band logic changes
+- GIF/video loop backgrounds, heavy particles, or per-frame `getImageData`
+- A full theme-authoring IDE (every `WaveformTheme` field editable)
+
+#### UI decision: **separate popup** (recommended)
+
+The main settings popup (~300px) should stay a **quick hub**: preset pick, profile save/load, image attach (pretty-7), alignment.
+
+**pretty-8 adds a dedicated design-studio surface** (second extension popup page, e.g. `design-studio.html`):
+
+- Opened via **“Customize colors & effects…”** from Clip appearance (especially when editing a saved profile)
+- Room for HSV/HEX controls, effect toggles, and a larger live preview without crowding Audio / Recording sections
+- **Save** writes overrides back to the active profile (or prompts to save as new profile)
+- **Cancel / back** returns without touching the lean main popup
+
+Rationale: color pickers and effect toggles need horizontal space and focused layout; stuffing them into the main popup would fight the “quick, easy” north star.
+
+#### Likely implementation sketch
+
+1. `DesignOverrides` type — `{ barColor?, glowColor?, backgroundEffect?: 'none' | 'bokeh' | 'sparkle' | … }` merged over `getThemeById(baseThemeId)`
+2. `ClipProfile` gains optional `designOverrides` (pretty-6 ids unchanged; additive field)
+3. `entrypoints/design-studio/` — studio shell + preview canvas
+4. `waveform.ts` / `backgrounds.ts` — read merged theme; sparkle = cheap layered draws like existing bokeh
+
+Profile before merge: measure canvas cost of any new flair at 24 fps on a 2:00 clip.
+
 ## Legacy suggested order (superseded by phase table above)
 
 1. ~~Theme data model~~ → pretty-0
@@ -136,7 +183,9 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 3. ~~Background presets (bundled)~~ → pretty-0
 4. ~~Settings UI (clip appearance)~~ → pretty-1
 5. Accessibility pass → pretty-4
-6. Perf pass → pretty-8
+6. ImageDB + personal backgrounds → pretty-7
+7. Light design studio → pretty-8
+8. Perf pass + v2.0 merge → pretty-9
 
 ## Branch workflow
 

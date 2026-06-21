@@ -59,3 +59,10 @@ When exposing quality toggles, prefer **`ideal` MediaTrackConstraints** (and sim
 
 - `src/recorder/mic-constraints.ts` — constraint builders + `acquireMicStream()` fallback ladder.
 - `src/settings/user-preferences.ts` — `AudioPreferences` schema + normalization.
+
+### Canvas personalization (pretty-8 design studio)
+
+- **Theme = data driving draw calls** — user overrides merge onto a base preset; do not fork parallel recorders.
+- **Layout constants stay fixed** in the studio v1 scope (no bar count/spacing/width sliders) — reduces risk to `waveform.ts` aggregation and preview=WYSIWYG guarantees.
+- **Cheap per-frame flairs only** — bokeh, sparkle/twinkle presets reuse existing background draw patterns; profile at 24 fps before merge.
+- **Separate studio popup** for HSV/HEX and effect toggles; main popup remains the quick settings hub. See `pretty-branch.md` § Light design studio.
