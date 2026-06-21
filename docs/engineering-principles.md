@@ -91,15 +91,18 @@ Named user entities (profiles, custom styles, and future ImageDB-backed assets) 
 | Path | When | Example |
 |------|------|---------|
 | **Update in place** | A saved entity is selected and dirty | Design Studio **Update profile** / **Update style** (two-step **Sure?** confirm) |
-| **Save as new** | User wants a fork without overwriting the original | **Save to new** (distinct green button) → new id + prompt for name |
+| **Clone** | A saved entity is selected and clean | Green **Clone** button (always visible) → copy, then edit → **Update** |
+| **Save as new** | A saved entity is selected and dirty | Same green button, label **Save to new** → fork with edits (equivalent to edit-then-clone) |
 | **First save** | No saved entity selected yet | **Save as profile** / **Save as style** |
+
+**Path equivalence:** Clone → edit → Update and edit → Save to new must both reach the same forked entity without dead ends.
 
 **Nested dirty state (roll-up):** When a profile references a custom style and **both** are dirty, never silently “update profile” and leave colors inconsistent. Prompt whether to bundle style changes (update existing style, save style as new, or embed overrides on the profile). Same pattern applies when adding new customization layers (e.g. background libraries, effect packs).
 
 **Rules:**
 
 1. **No false-success** — if storage would still disagree with the canvas after an action, keep the entity dirty or block with a clear prompt.
-2. **Offer forks** — whenever **Update** is available for a dirty saved entity, also offer **Save to new** (unless quota-full).
+2. **Offer forks** — green **Clone** / **Save to new** stays visible for every saved entity; label reflects clean vs dirty (unless quota-full).
 3. **Dependency order** — persist depended-on entities first (style → profile) when the user opts in to roll-up.
 4. **Reuse helpers** — new studio surfaces should call `studio-save-pathways.ts` / `studio-exit.ts`, not one-off confirm logic.
 

@@ -69,11 +69,12 @@ import {
   updateActiveClipProfileWithStyleOption,
 } from '@/src/ui/design-studio/studio-exit';
 import {
-  isStyleSaveToNewAvailable,
-  promptNameForSaveAsNew,
-  promptStyleRollupForSaveNewProfile,
-  SAVE_TO_NEW_LABEL,
-  saveNewClipProfileFromStudio,
+  canForkActiveProfile,
+  canForkActiveStyle,
+  CLONE_LABEL,
+  forkActiveClipProfileFromStudio,
+  forkButtonLabel,
+  promptNameForFork,
 } from '@/src/ui/design-studio/studio-save-pathways';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
@@ -133,7 +134,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
             data-save-profile-new
             hidden
           >
-            ${SAVE_TO_NEW_LABEL}
+            ${CLONE_LABEL}
           </button>
           <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
             Delete
@@ -160,7 +161,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
               data-save-style-new
               hidden
             >
-              ${SAVE_TO_NEW_LABEL}
+              ${CLONE_LABEL}
             </button>
             <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-style hidden>
               Delete style
@@ -179,8 +180,9 @@ export function mountClipStudio(root: HTMLElement): () => void {
         ${renderBackgroundLayoutFields()}
       </section>
       <p class="studio__footer-note">
-        Changes apply live to the recorder. Use <strong>Update</strong> to overwrite a saved
-        profile or style, or <strong>Save to new</strong> to keep the original and fork your edits.
+        Changes apply live to the recorder. <strong>Clone</strong> then edit, or edit then
+        <strong>Save to new</strong> — both reach the same fork. <strong>Update</strong> overwrites
+        the selected saved profile or style.
       </p>
     </main>
   `;
@@ -314,8 +316,9 @@ export function mountClipStudio(root: HTMLElement): () => void {
     saveProfileBtn.disabled = !dirty && !profileUpdateConfirmPending;
     saveProfileBtn.classList.toggle('popup__profile-btn--muted', !dirty && !profileUpdateConfirmPending);
     saveProfileBtn.classList.toggle('popup__profile-btn--confirm', profileUpdateConfirmPending);
-    saveProfileNewBtn.hidden = !dirty;
-    saveProfileNewBtn.disabled = !dirty;
+    saveProfileNewBtn.hidden = false;
+    saveProfileNewBtn.disabled = false;
+    saveProfileNewBtn.textContent = forkButtonLabel(dirty);
   }
 
   function syncStyleButton(prefs: UserPreferencesV1): void {
@@ -344,8 +347,9 @@ export function mountClipStudio(root: HTMLElement): () => void {
     saveStyleBtn.disabled = !dirty && !styleUpdateConfirmPending;
     saveStyleBtn.classList.toggle('popup__profile-btn--muted', !dirty && !styleUpdateConfirmPending);
     saveStyleBtn.classList.toggle('popup__profile-btn--confirm', styleUpdateConfirmPending);
-    saveStyleNewBtn.hidden = !dirty;
-    saveStyleNewBtn.disabled = !dirty;
+    saveStyleNewBtn.hidden = false;
+    saveStyleNewBtn.disabled = false;
+    saveStyleNewBtn.textContent = forkButtonLabel(dirty);
     deleteStyleBtn.hidden = false;
     deleteStyleBtn.disabled = false;
   }
@@ -630,27 +634,19 @@ export function mountClipStudio(root: HTMLElement): () => void {
   });
 
   saveProfileNewBtn.addEventListener('click', () => {
-    if (!activePrefs || !isProfileDirty()) return;
+    if (!activePrefs || !canForkActiveProfile(activePrefs)) return;
+    const dirty = isProfileDirty();
     void flushPendingDesignPersist().then(async () => {
       resetProfileUpdateConfirm();
       resetStyleUpdateConfirm();
       invalidateInFlightSaves();
 
-      const rollup = promptStyleRollupForSaveNewProfile(activePrefs!);
-      if (rollup === null) return;
-
-      let styleName: string | undefined;
-      if (rollup === 'new-style') {
-        const prompted = promptNameForSaveAsNew('style');
-        if (prompted === null) return;
-        styleName = prompted;
-      }
-
-      const profileName = promptNameForSaveAsNew('profile');
+      const profileName = promptNameForFork('profile', !dirty);
       if (profileName === null) return;
 
-      await studioPersist(() => saveNewClipProfileFromStudio(profileName, rollup, styleName));
+      await studioPersist(() => forkActiveClipProfileFromStudio(activePrefs!, profileName, dirty));
     }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       const message = error instanceof Error ? error.message : 'Could not save profile.';
       window.alert(message);
     });
@@ -694,13 +690,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
   });
 
   saveStyleNewBtn.addEventListener('click', () => {
-    if (!activePrefs || !isStyleSaveToNewAvailable(activePrefs)) return;
+    if (!activePrefs || !canForkActiveStyle(activePrefs)) return;
+    const dirty = isCustomStyleDirty(activePrefs.appearance);
     void flushPendingDesignPersist().then(async () => {
       resetStyleUpdateConfirm();
       resetProfileUpdateConfirm();
       invalidateInFlightSaves();
 
-      const name = promptNameForSaveAsNew('style');
+      const name = promptNameForFork('style', !dirty);
       if (name === null) return;
 
       await studioPersist(() => saveCurrentAsCustomStyle(name));
