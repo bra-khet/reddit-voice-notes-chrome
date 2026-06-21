@@ -68,6 +68,13 @@ import {
   shouldPromptStyleSaveWithProfileUpdate,
   updateActiveClipProfileWithStyleOption,
 } from '@/src/ui/design-studio/studio-exit';
+import {
+  isStyleSaveToNewAvailable,
+  promptNameForSaveAsNew,
+  promptStyleRollupForSaveNewProfile,
+  SAVE_TO_NEW_LABEL,
+  saveNewClipProfileFromStudio,
+} from '@/src/ui/design-studio/studio-save-pathways';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -120,6 +127,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
           <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>
             Save as profile
           </button>
+          <button
+            type="button"
+            class="popup__profile-btn popup__profile-btn--save-new"
+            data-save-profile-new
+            hidden
+          >
+            ${SAVE_TO_NEW_LABEL}
+          </button>
           <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
             Delete
           </button>
@@ -139,6 +154,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-style>
               Save as style
             </button>
+            <button
+              type="button"
+              class="popup__profile-btn popup__profile-btn--save-new"
+              data-save-style-new
+              hidden
+            >
+              ${SAVE_TO_NEW_LABEL}
+            </button>
             <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-style hidden>
               Delete style
             </button>
@@ -156,8 +179,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
         ${renderBackgroundLayoutFields()}
       </section>
       <p class="studio__footer-note">
-        Changes apply live to the recorder. With a profile or custom style selected, use
-        <strong>Update profile</strong> or <strong>Update style</strong> to save edits.
+        Changes apply live to the recorder. Use <strong>Update</strong> to overwrite a saved
+        profile or style, or <strong>Save to new</strong> to keep the original and fork your edits.
       </p>
     </main>
   `;
@@ -169,8 +192,10 @@ export function mountClipStudio(root: HTMLElement): () => void {
   const alignmentSelect = root.querySelector<HTMLSelectElement>('[data-alignment-select]')!;
   const customStylePanel = root.querySelector<HTMLElement>('[data-custom-style-panel]')!;
   const saveProfileBtn = root.querySelector<HTMLButtonElement>('[data-save-profile]')!;
+  const saveProfileNewBtn = root.querySelector<HTMLButtonElement>('[data-save-profile-new]')!;
   const deleteProfileBtn = root.querySelector<HTMLButtonElement>('[data-delete-profile]')!;
   const saveStyleBtn = root.querySelector<HTMLButtonElement>('[data-save-style]')!;
+  const saveStyleNewBtn = root.querySelector<HTMLButtonElement>('[data-save-style-new]')!;
   const deleteStyleBtn = root.querySelector<HTMLButtonElement>('[data-delete-style]')!;
   const doneBtn = root.querySelector<HTMLButtonElement>('[data-studio-done]')!;
   const exitModal = root.querySelector<HTMLElement>('[data-exit-modal]')!;
@@ -280,6 +305,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
       saveProfileBtn.textContent = 'Save as profile';
       saveProfileBtn.disabled = false;
       saveProfileBtn.classList.remove('popup__profile-btn--muted', 'popup__profile-btn--confirm');
+      saveProfileNewBtn.hidden = true;
       resetProfileUpdateConfirm();
       return;
     }
@@ -288,6 +314,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
     saveProfileBtn.disabled = !dirty && !profileUpdateConfirmPending;
     saveProfileBtn.classList.toggle('popup__profile-btn--muted', !dirty && !profileUpdateConfirmPending);
     saveProfileBtn.classList.toggle('popup__profile-btn--confirm', profileUpdateConfirmPending);
+    saveProfileNewBtn.hidden = !dirty;
+    saveProfileNewBtn.disabled = !dirty;
   }
 
   function syncStyleButton(prefs: UserPreferencesV1): void {
@@ -297,6 +325,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
     customStylePanel.hidden = !showPanel;
     if (!showPanel) {
+      saveStyleNewBtn.hidden = true;
       resetStyleUpdateConfirm();
       return;
     }
@@ -305,6 +334,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
       saveStyleBtn.textContent = 'Save as style';
       saveStyleBtn.disabled = false;
       saveStyleBtn.classList.remove('popup__profile-btn--muted', 'popup__profile-btn--confirm');
+      saveStyleNewBtn.hidden = true;
       deleteStyleBtn.hidden = true;
       resetStyleUpdateConfirm();
       return;
@@ -314,6 +344,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
     saveStyleBtn.disabled = !dirty && !styleUpdateConfirmPending;
     saveStyleBtn.classList.toggle('popup__profile-btn--muted', !dirty && !styleUpdateConfirmPending);
     saveStyleBtn.classList.toggle('popup__profile-btn--confirm', styleUpdateConfirmPending);
+    saveStyleNewBtn.hidden = !dirty;
+    saveStyleNewBtn.disabled = !dirty;
     deleteStyleBtn.hidden = false;
     deleteStyleBtn.disabled = false;
   }
@@ -597,6 +629,33 @@ export function mountClipStudio(root: HTMLElement): () => void {
     });
   });
 
+  saveProfileNewBtn.addEventListener('click', () => {
+    if (!activePrefs || !isProfileDirty()) return;
+    void flushPendingDesignPersist().then(async () => {
+      resetProfileUpdateConfirm();
+      resetStyleUpdateConfirm();
+      invalidateInFlightSaves();
+
+      const rollup = promptStyleRollupForSaveNewProfile(activePrefs!);
+      if (rollup === null) return;
+
+      let styleName: string | undefined;
+      if (rollup === 'new-style') {
+        const prompted = promptNameForSaveAsNew('style');
+        if (prompted === null) return;
+        styleName = prompted;
+      }
+
+      const profileName = promptNameForSaveAsNew('profile');
+      if (profileName === null) return;
+
+      await studioPersist(() => saveNewClipProfileFromStudio(profileName, rollup, styleName));
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Could not save profile.';
+      window.alert(message);
+    });
+  });
+
   deleteProfileBtn.addEventListener('click', () => {
     resetProfileUpdateConfirm();
     invalidateInFlightSaves();
@@ -629,6 +688,23 @@ export function mountClipStudio(root: HTMLElement): () => void {
     if (name === null) return;
     invalidateInFlightSaves();
     void studioPersist(() => saveCurrentAsCustomStyle(name)).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Could not save style.';
+      window.alert(message);
+    });
+  });
+
+  saveStyleNewBtn.addEventListener('click', () => {
+    if (!activePrefs || !isStyleSaveToNewAvailable(activePrefs)) return;
+    void flushPendingDesignPersist().then(async () => {
+      resetStyleUpdateConfirm();
+      resetProfileUpdateConfirm();
+      invalidateInFlightSaves();
+
+      const name = promptNameForSaveAsNew('style');
+      if (name === null) return;
+
+      await studioPersist(() => saveCurrentAsCustomStyle(name));
+    }).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Could not save style.';
       window.alert(message);
     });

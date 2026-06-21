@@ -17,6 +17,7 @@ import {
   createCustomStyleId,
   customStyleBaseThemeId,
   defaultCustomStyleOverrides,
+  isCustomStyleDirty,
   MAX_CUSTOM_STYLES,
   normalizeActiveCustomStyleId,
   normalizeCustomClipStyles,
@@ -281,7 +282,15 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
   });
 }
 
-export async function saveCurrentAsClipProfile(name: string): Promise<UserPreferencesV1> {
+export type SaveClipProfileOptions = {
+  /** Snapshot live color edits on the profile instead of linking a dirty saved style. */
+  embedDirtyStyleOverrides?: boolean;
+};
+
+export async function saveCurrentAsClipProfile(
+  name: string,
+  options?: SaveClipProfileOptions,
+): Promise<UserPreferencesV1> {
   const trimmed = name.trim();
   if (!trimmed) {
     throw new Error('Enter a profile name.');
@@ -301,6 +310,15 @@ export async function saveCurrentAsClipProfile(name: string): Promise<UserPrefer
     throw new Error('A profile with that name already exists.');
   }
 
+  const linkedStyleId = current.appearance.activeCustomStyleId ?? null;
+  const linkedStyleDirty =
+    Boolean(linkedStyleId) && isCustomStyleDirty(current.appearance);
+  const embedOverrides = Boolean(options?.embedDirtyStyleOverrides && linkedStyleDirty);
+  const customStyleId = embedOverrides ? null : linkedStyleId;
+  const designOverrides = customStyleId
+    ? null
+    : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null);
+
   const profile: ClipProfile = {
     id: createClipProfileId(),
     name: trimmed.slice(0, 40),
@@ -309,10 +327,8 @@ export async function saveCurrentAsClipProfile(name: string): Promise<UserPrefer
     customBackgroundId: current.appearance.customBackgroundId ?? null,
     backgroundScaleMode: current.appearance.backgroundScaleMode,
     backgroundPosition: current.appearance.backgroundPosition,
-    customStyleId: current.appearance.activeCustomStyleId ?? null,
-    designOverrides: current.appearance.activeCustomStyleId
-      ? null
-      : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null),
+    customStyleId,
+    designOverrides,
   };
 
   return saveAppearancePreferences({

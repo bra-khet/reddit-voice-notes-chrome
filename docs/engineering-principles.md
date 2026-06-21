@@ -84,6 +84,31 @@ User background blobs are **too large for `chrome.storage.local`** (multi‑MB i
 - `src/storage/background-refs.ts` — ref collection, reconcile, prune.
 - `src/settings/user-preferences.ts` — `customBackgroundId` normalization on merge.
 
+### Branching save pathways (required for user customization)
+
+Named user entities (profiles, custom styles, and future ImageDB-backed assets) must expose **multiple persistence paths** so edits never dead-end.
+
+| Path | When | Example |
+|------|------|---------|
+| **Update in place** | A saved entity is selected and dirty | Design Studio **Update profile** / **Update style** (two-step **Sure?** confirm) |
+| **Save as new** | User wants a fork without overwriting the original | **Save to new** (distinct green button) → new id + prompt for name |
+| **First save** | No saved entity selected yet | **Save as profile** / **Save as style** |
+
+**Nested dirty state (roll-up):** When a profile references a custom style and **both** are dirty, never silently “update profile” and leave colors inconsistent. Prompt whether to bundle style changes (update existing style, save style as new, or embed overrides on the profile). Same pattern applies when adding new customization layers (e.g. background libraries, effect packs).
+
+**Rules:**
+
+1. **No false-success** — if storage would still disagree with the canvas after an action, keep the entity dirty or block with a clear prompt.
+2. **Offer forks** — whenever **Update** is available for a dirty saved entity, also offer **Save to new** (unless quota-full).
+3. **Dependency order** — persist depended-on entities first (style → profile) when the user opts in to roll-up.
+4. **Reuse helpers** — new studio surfaces should call `studio-save-pathways.ts` / `studio-exit.ts`, not one-off confirm logic.
+
+### Reference implementation
+
+- `src/ui/design-studio/studio-save-pathways.ts` — save-as-new + style roll-up prompts
+- `src/ui/design-studio/studio-exit.ts` — exit guard, update-with-style option
+- `src/ui/design-studio/mount-clip-studio.ts` — Update vs Save to new buttons
+
 ### Canvas personalization (pretty-8 design studio)
 
 - **Theme = data driving draw calls** — user overrides merge onto a base preset; do not fork parallel recorders.

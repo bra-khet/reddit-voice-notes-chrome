@@ -222,6 +222,10 @@ body {
   filter: brightness(1.06);
 }
 
+.popup__profile-btn--save-new[hidden] {
+  display: none;
+}
+
 /* HSV wheels */
 .studio__color-panel {
   margin: 8px 0 10px;

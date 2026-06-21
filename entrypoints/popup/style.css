@@ -192,6 +192,19 @@ body {
   filter: brightness(1.08);
 }
 
+.popup__profile-btn--save-new {
+  background: #1a7f5c;
+  color: #ffffff;
+}
+
+.popup__profile-btn--save-new:hover {
+  filter: brightness(1.08);
+}
+
+.popup__profile-btn--save-new:focus-visible {
+  outline-color: #1a7f5c;
+}
+
 .popup__profile-btn--confirm {
   background: #1a9fff;
   box-shadow: 0 0 0 2px rgba(26, 159, 255, 0.35);
@@ -473,6 +486,11 @@ body {
 
   .popup__profile-btn--save {
     background: #0079d3;
+    color: #ffffff;
+  }
+
+  .popup__profile-btn--save-new {
+    background: #1a7f5c;
     color: #ffffff;
   }
 
