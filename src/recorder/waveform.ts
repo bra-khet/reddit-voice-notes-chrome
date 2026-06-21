@@ -173,6 +173,8 @@ export class WaveformRenderer {
   private bundledBackgroundImage: HTMLImageElement | null = null;
   private userBackgroundImage: HTMLImageElement | null = null;
   private backgroundLoadPromise: Promise<void> = Promise.resolve();
+  /** Monotonic token — stale async loads must not overwrite newer background state. */
+  private backgroundLoadGeneration = 0;
   private rafId = 0;
   private lastFrameAt = 0;
   private running = false;
@@ -206,7 +208,8 @@ export class WaveformRenderer {
 
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
     this.sampleRate = this.analyser.context?.sampleRate ?? 48000;
-    this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
+    // CHANGED: defer first background load until setCustomBackgroundId / setTheme.
+    // WHY: constructor used to race an id=null load against the prefs-driven personal bg load.
   }
 
   /** Wait for background assets (bundled or ImageDB) before recording — preview uses the same canvas. */
@@ -254,14 +257,23 @@ export class WaveformRenderer {
   }
 
   private async loadBackgroundIfNeeded(): Promise<void> {
-    let resolved = await resolveClipBackgrounds(this.theme, this.customBackgroundId);
+    const generation = ++this.backgroundLoadGeneration;
+    const theme = this.theme;
+    const customBackgroundId = this.customBackgroundId;
+
+    let resolved = await resolveClipBackgrounds(theme, customBackgroundId);
 
     // CHANGED: retry once when personal bg id is set but relay/decode failed (MV3 SW cold start).
     // WHY: first content-script request can race service worker IndexedDB wake-up.
-    if (this.customBackgroundId && !resolved.userBackgroundImage) {
+    if (customBackgroundId && !resolved.userBackgroundImage) {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      resolved = await resolveClipBackgrounds(this.theme, this.customBackgroundId);
+      if (generation !== this.backgroundLoadGeneration) return;
+      resolved = await resolveClipBackgrounds(theme, customBackgroundId);
     }
+
+    // BUG FIX: Personal background missing on live recorder canvas
+    // Fix: Ignore stale loads — constructor/prefs could finish a bundled-only load after personal bg resolved.
+    if (generation !== this.backgroundLoadGeneration) return;
 
     this.userBackgroundImage = resolved.userBackgroundImage;
     this.bundledBackgroundImage = resolved.bundledBackgroundImage;
