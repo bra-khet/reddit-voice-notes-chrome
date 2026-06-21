@@ -67,6 +67,7 @@ import {
   populateDesignStudioStyleSelect,
 } from '@/src/ui/style-select';
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
+import { syncStudioSectionSummaries } from '@/src/ui/design-studio/studio-section-summaries';
 import {
   discardStudioUnsavedChanges,
   hasStudioUnsavedChanges,
@@ -148,56 +149,69 @@ export function mountClipStudio(root: HTMLElement): () => void {
         </div>
       </section>
       ${renderPreviewBlock('primary')}
-      <!-- V4 NOTE: Style (and other Studio sections below) may be reworked into segmented panels/tabs — keep section boundaries loose. -->
-      <section class="studio__section">
-        <h2 class="studio__section-title">Style</h2>
-        <label class="popup__field studio__field--compact">
-          <span class="popup__field-label">Clip style</span>
-          <select class="popup__select" data-theme-select aria-label="Clip style"></select>
-        </label>
-        <div data-custom-style-panel hidden>
-          ${renderColorPickerFields()}
-          ${renderBarGlowField()}
-          <div class="popup__profile-actions studio__inline-actions">
-            <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-style>
-              Save as style
-            </button>
-            <button
-              type="button"
-              class="popup__profile-btn popup__profile-btn--save-new"
-              data-save-style-new
-              hidden
-            >
-              ${CLONE_LABEL}
-            </button>
-            <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-style hidden>
-              Delete style
-            </button>
+      <!-- V4 NOTE: Collapsible panels below — Subtitles/Captions panel will sit in this stack as topmost foreground layer. -->
+      <details class="studio__panel" data-studio-panel="bar-style">
+        <summary class="studio__panel-summary">
+          <span class="studio__panel-title">Bar style</span>
+          <span class="studio__panel-meta" data-summary-bar-style></span>
+          <span class="studio__panel-chevron" aria-hidden="true"></span>
+        </summary>
+        <div class="studio__panel-body">
+          <label class="popup__field studio__field--compact">
+            <span class="popup__field-label">Clip style</span>
+            <select class="popup__select" data-theme-select aria-label="Clip style"></select>
+          </label>
+          <div data-custom-style-panel hidden>
+            ${renderColorPickerFields()}
+            <div class="popup__profile-actions studio__inline-actions">
+              <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-style>
+                Save as style
+              </button>
+              <button
+                type="button"
+                class="popup__profile-btn popup__profile-btn--save-new"
+                data-save-style-new
+                hidden
+              >
+                ${CLONE_LABEL}
+              </button>
+              <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-style hidden>
+                Delete style
+              </button>
+            </div>
+          </div>
+          <label class="popup__field studio__field--compact">
+            <span class="popup__field-label">Bar alignment</span>
+            <select class="popup__select" data-alignment-select aria-label="Bar alignment"></select>
+          </label>
+          <div class="studio__subsection studio__subsection--effects">
+            <h3 class="studio__subsection-title">Effects</h3>
+            ${renderBarGlowField()}
+            ${renderBackgroundFlairFields()}
           </div>
         </div>
-        <label class="popup__field studio__field--compact">
-          <span class="popup__field-label">Bar alignment</span>
-          <select class="popup__select" data-alignment-select aria-label="Bar alignment"></select>
-        </label>
-      </section>
-      ${renderPreviewBlock('secondary')}
-      <!-- V4 NOTE: Background section — layout/sizing controls may move when Studio UI is segmented. -->
-      <section class="studio__section studio__section--background">
-        <h2 class="studio__section-title">Background</h2>
-        ${renderPersonalBackgroundFields()}
-        ${renderBackgroundLayoutFields()}
-      </section>
-      <!-- V4 NOTE: Effects section — flair/glow may merge with Style or Background in a future segmented layout. -->
-      <section class="studio__section studio__section--effects">
-        <h2 class="studio__section-title">Effects</h2>
-        ${renderBackgroundFlairFields()}
-      </section>
-      <!-- V4 NOTE: Voice section — preview/last-recording UX may get its own panel; Subtitles/Captions planned nearby. -->
-      <section class="studio__section studio__section--voice">
-        <h2 class="studio__section-title">Voice</h2>
-        ${renderVoiceControlFields()}
-      </section>
-      ${renderPreviewBlock('tertiary')}
+      </details>
+      <details class="studio__panel" data-studio-panel="background">
+        <summary class="studio__panel-summary">
+          <span class="studio__panel-title">Background</span>
+          <span class="studio__panel-meta" data-summary-background></span>
+          <span class="studio__panel-chevron" aria-hidden="true"></span>
+        </summary>
+        <div class="studio__panel-body">
+          ${renderPersonalBackgroundFields()}
+          ${renderBackgroundLayoutFields()}
+        </div>
+      </details>
+      <details class="studio__panel" data-studio-panel="voice">
+        <summary class="studio__panel-summary">
+          <span class="studio__panel-title">Voice</span>
+          <span class="studio__panel-meta" data-summary-voice></span>
+          <span class="studio__panel-chevron" aria-hidden="true"></span>
+        </summary>
+        <div class="studio__panel-body">
+          ${renderVoiceControlFields()}
+        </div>
+      </details>
       <p class="studio__footer-note">
         Changes apply live to the recorder. <strong>Clone</strong> then edit, or edit then
         <strong>Save to new</strong> — both reach the same fork. <strong>Update</strong> overwrites
@@ -243,6 +257,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
   let colorSaveTimer = 0;
   let entryAppearance: AppearancePreferences | null = null;
   let allowStudioExit = false;
+  let voiceControls!: ReturnType<typeof mountVoiceControls>;
   const PREVIEW_ANIM_FPS = 12;
 
   function cancelPendingColorSave(): void {
@@ -529,6 +544,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
     showExitModal();
   }
 
+  function syncSectionSummaries(): void {
+    if (!activePrefs) return;
+    syncStudioSectionSummaries(root, {
+      prefs: activePrefs,
+      voiceDraft: voiceControls.getDraftConfig(),
+    });
+  }
+
   function applyPrefs(prefs: UserPreferencesV1): void {
     activePrefs = prefs;
     if (!entryAppearance) {
@@ -548,6 +571,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     void personalBackground.sync(prefs);
     backgroundLayout.sync(prefs);
     voiceControls.syncFromPreferences(prefs);
+    syncSectionSummaries();
     stopPreviewLoop();
     void refreshPreview();
   }
@@ -556,6 +580,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     const merged = mergeDesignOverrides(overrides);
     if (!merged) return;
     applyLocalDesignOverrides(merged);
+    syncSectionSummaries();
     scheduleDesignPersist(merged);
   });
 
@@ -563,6 +588,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     const merged = mergeDesignOverrides({ backgroundEffect });
     if (!merged) return;
     applyLocalDesignOverrides(merged);
+    syncSectionSummaries();
     scheduleDesignPersist(merged);
   });
 
@@ -570,6 +596,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     const merged = mergeDesignOverrides({ barGlow });
     if (!merged) return;
     applyLocalDesignOverrides(merged);
+    syncSectionSummaries();
     scheduleDesignPersist(merged);
   });
 
@@ -588,7 +615,9 @@ export function mountClipStudio(root: HTMLElement): () => void {
     void studioPersist(() => saveAppearancePreferences(patch));
   });
 
-  const voiceControls = mountVoiceControls(root);
+  voiceControls = mountVoiceControls(root, () => {
+    syncSectionSummaries();
+  });
 
   profileSelect.addEventListener('change', () => {
     invalidateInFlightSaves();

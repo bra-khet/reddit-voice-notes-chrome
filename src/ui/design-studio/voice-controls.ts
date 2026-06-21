@@ -120,7 +120,10 @@ function formatSavedAt(ms: number): string {
   }
 }
 
-export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
+export function mountVoiceControls(
+  root: HTMLElement,
+  onDraftChange?: () => void,
+): VoiceControlsHandle {
   const panel = root.querySelector<HTMLElement>('[data-voice-controls]')!;
   const sourceEl = panel.querySelector<HTMLElement>('[data-voice-source]')!;
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-voice-enabled]')!;
@@ -174,6 +177,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
       });
       presetSelect.value = 'custom';
       schedulePersist();
+      notifyDraftChange();
       setStatus('');
     },
   });
@@ -192,6 +196,10 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     }
     presetTipEl.textContent = '';
     presetTipEl.hidden = true;
+  }
+
+  function notifyDraftChange(): void {
+    onDraftChange?.();
   }
 
   function schedulePersist(): void {
@@ -256,6 +264,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     pitchKnob.setValue(resolvedDraft().pitchShift?.semitones ?? 0, true);
     updateIntensityUi();
     updatePresetTip();
+    notifyDraftChange();
     syncing = false;
   }
 
@@ -299,6 +308,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
       enabled: enabledInput.checked,
     });
     schedulePersist();
+    notifyDraftChange();
   });
 
   intensityInput.addEventListener('input', () => {
@@ -313,6 +323,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     });
     intensityValueEl.textContent = `${draftConfig.intensity ?? VOICE_INTENSITY_MAX}/${VOICE_INTENSITY_MAX}`;
     schedulePersist();
+    notifyDraftChange();
     setStatus('');
   });
 
@@ -327,6 +338,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     });
     updateIntensityUi();
     schedulePersist();
+    notifyDraftChange();
     setStatus('');
   });
 
