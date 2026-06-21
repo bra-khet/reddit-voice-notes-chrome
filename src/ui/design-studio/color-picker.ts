@@ -15,6 +15,7 @@ export interface ColorPickerControls {
 const HUE_WHEEL_SIZE = 132;
 const HUE_RING_INNER = 42;
 const HUE_RING_OUTER = 58;
+const HUE_CORE_RADIUS = HUE_RING_INNER - 2;
 
 export function renderColorPickerFields(): string {
   return `
@@ -28,7 +29,6 @@ export function renderColorPickerFields(): string {
             height="${HUE_WHEEL_SIZE}"
             aria-label="Hue wheel"
           ></canvas>
-          <span class="studio__hue-wheel-core" data-hue-core aria-hidden="true"></span>
           <span class="studio__hue-wheel-marker" data-hue-marker aria-hidden="true"></span>
         </div>
         <div class="studio__sv-knobs">
@@ -52,7 +52,7 @@ export function renderColorPickerFields(): string {
         </label>
       </div>
       <p class="popup__micro studio__color-note">
-        Turn the hue ring and saturation / brightness knobs — glow follows your bar color.
+        Drag around each ring — pointer can leave the control while you spin (like the hue wheel).
       </p>
     </div>
   `;
@@ -77,7 +77,7 @@ function hueToMarkerPosition(hue: number): { x: number; y: number } {
   };
 }
 
-function drawHueWheel(canvas: HTMLCanvasElement): void {
+function drawHueWheel(canvas: HTMLCanvasElement, coreColor: string): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const center = HUE_WHEEL_SIZE / 2;
@@ -95,9 +95,12 @@ function drawHueWheel(canvas: HTMLCanvasElement): void {
   }
 
   ctx.beginPath();
-  ctx.arc(center, center, HUE_RING_INNER - 2, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a1a1b';
+  ctx.arc(center, center, HUE_CORE_RADIUS, 0, Math.PI * 2);
+  ctx.fillStyle = coreColor;
   ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
 }
 
 export function mountColorPickerControls(
@@ -108,7 +111,6 @@ export function mountColorPickerControls(
   const swatch = panel.querySelector<HTMLElement>('[data-color-swatch]')!;
   const hexInput = panel.querySelector<HTMLInputElement>('[data-color-hex]')!;
   const hueWheel = panel.querySelector<HTMLCanvasElement>('[data-hue-wheel]')!;
-  const hueCore = panel.querySelector<HTMLElement>('[data-hue-core]')!;
   const hueMarker = panel.querySelector<HTMLElement>('[data-hue-marker]')!;
   const satKnobHost = panel.querySelector<HTMLElement>('[data-sat-knob-host]')!;
   const valKnobHost = panel.querySelector<HTMLElement>('[data-val-knob-host]')!;
@@ -118,8 +120,6 @@ export function mountColorPickerControls(
   let hue = 180;
   let sat = 100;
   let val = 100;
-
-  drawHueWheel(hueWheel);
 
   function setUserAdjusting(next: boolean): void {
     userAdjusting = next;
@@ -133,18 +133,20 @@ export function mountColorPickerControls(
     };
   }
 
-  function paintHueMarker(): void {
+  function paintHueWheel(): void {
+    const coreColor = hsvToHex(hue, sat, val);
+    drawHueWheel(hueWheel, coreColor);
+
     const pos = hueToMarkerPosition(hue);
     hueMarker.style.left = `${pos.x}px`;
     hueMarker.style.top = `${pos.y}px`;
-    hueCore.style.background = hsvToHex(hue, sat, val);
   }
 
   function emitFromHsv(emit: boolean): void {
     const overrides = overridesFromHsv(hue, sat, val);
     swatch.style.background = overrides.barColor;
     hexInput.value = overrides.barColor;
-    paintHueMarker();
+    paintHueWheel();
     if (emit) onColorChange(overrides);
   }
 
@@ -162,7 +164,7 @@ export function mountColorPickerControls(
     valKnob.setValue(val, true);
     swatch.style.background = normalized;
     hexInput.value = normalized;
-    paintHueMarker();
+    paintHueWheel();
     syncing = false;
 
     if (emit) onColorChange(overridesFromHsv(hue, sat, val));
@@ -229,7 +231,11 @@ export function mountColorPickerControls(
   });
 
   satKnobHost.addEventListener('pointerdown', () => setUserAdjusting(true));
+  satKnobHost.addEventListener('pointerup', () => setUserAdjusting(false));
+  satKnobHost.addEventListener('pointercancel', () => setUserAdjusting(false));
   valKnobHost.addEventListener('pointerdown', () => setUserAdjusting(true));
+  valKnobHost.addEventListener('pointerup', () => setUserAdjusting(false));
+  valKnobHost.addEventListener('pointercancel', () => setUserAdjusting(false));
 
   hexInput.addEventListener('change', () => {
     if (syncing) return;
@@ -245,7 +251,7 @@ export function mountColorPickerControls(
     }
   });
 
-  paintHueMarker();
+  paintHueWheel();
 
   return {
     sync(overrides) {

@@ -1,9 +1,14 @@
-/** Audio-style radial knob — minimum at bottom, maximum at top (12 o'clock). */
+/**
+ * 360° radial value dial — hue-wheel-style drag (pointer capture, spin around center).
+ * Graphics: triangle slope wrapped around the ring; 0% at 3 o'clock, peak at full turn;
+ * tick marks every 10% with rising inner depth.
+ */
 
-/** Bottom (6 o'clock) = minimum; top (12 o'clock) = maximum. */
-const KNOB_MIN_DEG = 90;
-const KNOB_MAX_DEG = -90;
-const KNOB_SVG_NS = 'http://www.w3.org/2000/svg';
+const KNOB_CANVAS_SIZE = 96;
+const KNOB_CENTER = KNOB_CANVAS_SIZE / 2;
+const KNOB_R_OUTER = 38;
+const KNOB_R_INNER_BASE = 32;
+const KNOB_TRIANGLE_DEPTH = 16;
 
 export interface RadialKnobHandle {
   setValue(value: number, silent?: boolean): void;
@@ -19,30 +24,115 @@ export interface RadialKnobOptions {
   onChange: (value: number) => void;
 }
 
-function valueToAngle(value: number, min: number, max: number): number {
+/** 0 = 3 o'clock; increases clockwise (full 360° = min → max). */
+function valueToAngleDeg(value: number, min: number, max: number): number {
   const t = max === min ? 0 : (value - min) / (max - min);
-  return KNOB_MIN_DEG + t * (KNOB_MAX_DEG - KNOB_MIN_DEG);
+  return t * 360;
 }
 
-function angleToValue(angleDeg: number, min: number, max: number): number {
-  let angle = angleDeg;
-  while (angle > 180) angle -= 360;
-  while (angle < -180) angle += 360;
-
-  // Valid travel is the right-side arc: bottom (90°) → top (-90°).
-  if (angle > 90 || angle < -90) {
-    angle = angle > 0 ? KNOB_MAX_DEG : KNOB_MIN_DEG;
-  }
-
-  const t = (KNOB_MIN_DEG - angle) / (KNOB_MIN_DEG - KNOB_MAX_DEG);
+function angleDegToValue(angleDeg: number, min: number, max: number): number {
+  const normalized = ((angleDeg % 360) + 360) % 360;
+  const t = normalized / 360;
   return Math.round(min + t * (max - min));
 }
 
-function clientToAngle(clientX: number, clientY: number, rect: DOMRect): number {
+function clientToAngleDeg(clientX: number, clientY: number, rect: DOMRect): number {
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
   const radians = Math.atan2(clientY - cy, clientX - cx);
   return (radians * 180) / Math.PI;
+}
+
+function polar(cx: number, cy: number, radius: number, angleDeg: number): { x: number; y: number } {
+  const rad = (angleDeg * Math.PI) / 180;
+  return {
+    x: cx + radius * Math.cos(rad),
+    y: cy + radius * Math.sin(rad),
+  };
+}
+
+function innerRadiusForValue(fraction: number): number {
+  return KNOB_R_OUTER - fraction * KNOB_TRIANGLE_DEPTH;
+}
+
+function drawKnobFace(canvas: HTMLCanvasElement, value: number, min: number, max: number): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const cx = KNOB_CENTER;
+  const cy = KNOB_CENTER;
+  ctx.clearRect(0, 0, KNOB_CANVAS_SIZE, KNOB_CANVAS_SIZE);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, KNOB_R_OUTER, 0, Math.PI * 2);
+  ctx.arc(cx, cy, KNOB_R_INNER_BASE - 2, 0, Math.PI * 2, true);
+  ctx.fillStyle = '#1a1a1b';
+  ctx.fill();
+  ctx.strokeStyle = '#343536';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  const valueAngle = valueToAngleDeg(value, min, max);
+  const steps = 10;
+
+  for (let i = 0; i <= steps; i += 1) {
+    const fraction = i / steps;
+    const angle = fraction * 360;
+    const innerR = innerRadiusForValue(fraction);
+    const outer = polar(cx, cy, KNOB_R_OUTER - 1, angle);
+    const inner = polar(cx, cy, innerR, angle);
+
+    ctx.beginPath();
+    ctx.moveTo(outer.x, outer.y);
+    ctx.lineTo(inner.x, inner.y);
+    ctx.strokeStyle = i % 5 === 0 ? '#6a6d70' : '#4a4c4e';
+    ctx.lineWidth = i % 5 === 0 ? 2 : 1.25;
+    ctx.stroke();
+  }
+
+  if (valueAngle > 0.5) {
+    const wedgeSteps = Math.max(2, Math.ceil(valueAngle / 4));
+    ctx.beginPath();
+    const startInner = polar(cx, cy, innerRadiusForValue(0), 0);
+    ctx.moveTo(startInner.x, startInner.y);
+
+    for (let i = 0; i <= wedgeSteps; i += 1) {
+      const angle = (i / wedgeSteps) * valueAngle;
+      const fraction = angle / 360;
+      const point = polar(cx, cy, innerRadiusForValue(fraction), angle);
+      ctx.lineTo(point.x, point.y);
+    }
+
+    const endOuter = polar(cx, cy, KNOB_R_OUTER - 1, valueAngle);
+    ctx.lineTo(endOuter.x, endOuter.y);
+
+    for (let i = wedgeSteps; i >= 0; i -= 1) {
+      const angle = (i / wedgeSteps) * valueAngle;
+      const point = polar(cx, cy, KNOB_R_OUTER - 1, angle);
+      ctx.lineTo(point.x, point.y);
+    }
+
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0, 121, 211, 0.28)';
+    ctx.fill();
+  }
+
+  const pointer = polar(cx, cy, KNOB_R_OUTER - 3, valueAngle);
+  ctx.beginPath();
+  ctx.arc(pointer.x, pointer.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#d7dadc';
+  ctx.fill();
+  ctx.strokeStyle = '#0079d3';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#272729';
+  ctx.fill();
+  ctx.strokeStyle = '#4a4c4e';
+  ctx.lineWidth = 1;
+  ctx.stroke();
 }
 
 export function mountRadialKnob(root: HTMLElement, options: RadialKnobOptions): RadialKnobHandle {
@@ -52,13 +142,13 @@ export function mountRadialKnob(root: HTMLElement, options: RadialKnobOptions): 
   let dragging = false;
 
   root.innerHTML = `
-    <svg class="studio__knob-svg" viewBox="0 0 80 80" aria-hidden="true">
-      <circle class="studio__knob-ring" cx="40" cy="40" r="34" />
-      <path class="studio__knob-arc" data-knob-arc />
-      <g data-knob-ticks></g>
-      <line class="studio__knob-needle" x1="40" y1="40" x2="40" y2="14" data-knob-needle />
-      <circle class="studio__knob-cap" cx="40" cy="40" r="6" />
-    </svg>
+    <canvas
+      class="studio__knob-canvas"
+      width="${KNOB_CANVAS_SIZE}"
+      height="${KNOB_CANVAS_SIZE}"
+      data-knob-canvas
+      aria-hidden="true"
+    ></canvas>
     <span class="studio__knob-label">${options.label}</span>
     <span class="studio__knob-value" data-knob-value></span>
   `;
@@ -68,46 +158,11 @@ export function mountRadialKnob(root: HTMLElement, options: RadialKnobOptions): 
   root.setAttribute('aria-valuemax', String(max));
   root.tabIndex = 0;
 
-  const arcPath = root.querySelector<SVGPathElement>('[data-knob-arc]')!;
-  const needle = root.querySelector<SVGLineElement>('[data-knob-needle]')!;
-  const ticksGroup = root.querySelector<SVGGElement>('[data-knob-ticks]')!;
+  const canvas = root.querySelector<HTMLCanvasElement>('[data-knob-canvas]')!;
   const valueEl = root.querySelector<HTMLElement>('[data-knob-value]')!;
 
-  const tickCount = 11;
-  for (let i = 0; i < tickCount; i += 1) {
-    const t = i / (tickCount - 1);
-    const angle = (valueToAngle(min + t * (max - min), min, max) * Math.PI) / 180;
-    const inner = 30;
-    const outer = i % 5 === 0 ? 36 : 33;
-    const x1 = 40 + inner * Math.cos(angle);
-    const y1 = 40 + inner * Math.sin(angle);
-    const x2 = 40 + outer * Math.cos(angle);
-    const y2 = 40 + outer * Math.sin(angle);
-    const tick = document.createElementNS(KNOB_SVG_NS, 'line');
-    tick.setAttribute('class', 'studio__knob-tick');
-    tick.setAttribute('x1', String(x1));
-    tick.setAttribute('y1', String(y1));
-    tick.setAttribute('x2', String(x2));
-    tick.setAttribute('y2', String(y2));
-    ticksGroup.append(tick);
-  }
-
-  function describeArc(startDeg: number, endDeg: number): string {
-    const start = (startDeg * Math.PI) / 180;
-    const end = (endDeg * Math.PI) / 180;
-    const r = 34;
-    const x1 = 40 + r * Math.cos(start);
-    const y1 = 40 + r * Math.sin(start);
-    const x2 = 40 + r * Math.cos(end);
-    const y2 = 40 + r * Math.sin(end);
-    const sweep = endDeg < startDeg ? 1 : 0;
-    return `M ${x1} ${y1} A ${r} ${r} 0 0 ${sweep} ${x2} ${y2}`;
-  }
-
   function paint(silent = false): void {
-    const angle = valueToAngle(value, min, max);
-    needle.setAttribute('transform', `rotate(${angle} 40 40)`);
-    arcPath.setAttribute('d', describeArc(KNOB_MIN_DEG, angle));
+    drawKnobFace(canvas, value, min, max);
     valueEl.textContent = String(value);
     root.setAttribute('aria-valuenow', String(value));
     if (!silent) options.onChange(value);
@@ -115,7 +170,7 @@ export function mountRadialKnob(root: HTMLElement, options: RadialKnobOptions): 
 
   function setFromPointer(clientX: number, clientY: number): void {
     const rect = root.getBoundingClientRect();
-    value = angleToValue(clientToAngle(clientX, clientY, rect), min, max);
+    value = angleDegToValue(clientToAngleDeg(clientX, clientY, rect), min, max);
     paint();
   }
 
