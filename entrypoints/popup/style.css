@@ -153,11 +153,16 @@ body {
   color: #4fbcff;
 }
 
-.popup__profile-actions {
+.popup__profile-actions,
+.popup__background-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 10px;
+}
+
+.popup__background-actions {
+  margin-top: 0;
 }
 
 .popup__profile-btn {

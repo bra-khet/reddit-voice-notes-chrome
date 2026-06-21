@@ -17,6 +17,10 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { populateProfileSelect } from '@/src/ui/clip-style-select';
+import {
+  mountPersonalBackgroundControls,
+  renderPersonalBackgroundFields,
+} from '@/src/ui/popup/personal-background';
 
 // UX: top → center → bottom matches vertical bar position on the canvas (intuitive order).
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -55,7 +59,8 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
         <span class="popup__field-label">Bar alignment</span>
         <select class="popup__select" data-alignment-select aria-label="Bar alignment"></select>
       </label>
-      <p class="popup__micro">Save a profile to recall a theme + alignment combo. Preview matches your recorded clip.</p>
+      ${renderPersonalBackgroundFields()}
+      <p class="popup__micro">Save a profile to recall theme, alignment, and background. Preview matches your recorded clip.</p>
     </section>
   `;
 
@@ -153,9 +158,12 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
     themeSelect.value = activeThemeId;
     alignmentSelect.value = activeAlignment;
     syncProfileActions(prefs);
+    void personalBackground.sync(prefs);
     stopPreviewLoop();
     void refreshPreview();
   }
+
+  const personalBackground = mountPersonalBackgroundControls(root, applyPrefs);
 
   profileSelect.addEventListener('change', () => {
     const value = profileSelect.value;
@@ -182,7 +190,7 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
   });
 
   saveProfileBtn.addEventListener('click', () => {
-    const name = window.prompt('Name this profile (theme + alignment):');
+    const name = window.prompt('Name this profile (theme, alignment, and background):');
     if (name === null) return;
     void saveCurrentAsClipProfile(name)
       .then(applyPrefs)
