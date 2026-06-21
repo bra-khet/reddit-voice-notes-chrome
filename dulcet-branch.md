@@ -1,6 +1,6 @@
 # `dulcet` branch — voice profiles & audio stream modification
 
-**Status:** Planning — branch not yet opened for implementation.  
+**Status:** dulcet-0 complete — audit + frozen types in `src/voice/`.
 **Target release:** v3.0.0 on `main` after merge from `dulcet`.  
 **Baseline:** `main` v2.0.1 (Design Studio + hardened transcode pipeline).
 
@@ -146,7 +146,7 @@ Bundled **voice presets** are hardcoded defaults (like theme presets), not store
 
 | Phase | Name | Scope | Status |
 |-------|------|-------|--------|
-| **dulcet-0** | Audit & types | Map audio→FFmpeg handoff; recorder stop flow; messaging/offscreen contracts; freeze `VoiceEffectConfig`, preset table, filter-string notes | Planned |
+| **dulcet-0** | Audit & types | Map audio→FFmpeg handoff; recorder stop flow; messaging/offscreen contracts; freeze `VoiceEffectConfig`, preset table, filter-string notes | **Done** |
 | **dulcet-1** | Isolated processor | `src/voice/` + `processAudio(blob, config)` in offscreen; no-op + duration-preserving pitch; one supporting effect (gain/EQ); fallback to input blob on error; manual harness | Planned |
 | **dulcet-2** | Studio preview UI | Voice section in Design Studio; Web Audio preview (demo buffer or last recording); pitch slider, presets, debounced playback; **no export wire yet** | Planned |
 | **dulcet-3** | Pipeline wire | Hook recorder stop → voice process (if enabled) → existing transcode; semantic progress stage; cancel + stall; verify viz/audio sync at 2:00 cap | Planned |
@@ -155,12 +155,81 @@ Bundled **voice presets** are hardcoded defaults (like theme presets), not store
 
 ### dulcet-0 — audit checklist
 
-- [ ] Trace WebM blob from `voice-recorder.ts` stop through messaging to offscreen FFmpeg argv
-- [ ] Document where audio and video streams merge today (single WebM vs separate paths)
-- [ ] Confirm waveform animation timing source (duration, sample count, wall clock)
-- [ ] List semantic progress injection points for a `voice-process` phase
-- [ ] Decide: single-pass FFmpeg `-af` vs pre-process audio blob then mux (prefer fewer passes)
-- [ ] Commit frozen types + example filter graphs (no processing code required)
+- [x] Trace WebM blob from `voice-recorder.ts` stop through messaging to offscreen FFmpeg argv
+- [x] Document where audio and video streams merge today (single WebM vs separate paths)
+- [x] Confirm waveform animation timing source (duration, sample count, wall clock)
+- [x] List semantic progress injection points for a `voice-process` phase
+- [x] Decide: single-pass FFmpeg `-af` vs pre-process audio blob then mux (prefer fewer passes)
+- [x] Commit frozen types + example filter graphs (no processing code required)
+
+#### dulcet-0 audit — WebM → FFmpeg handoff
+
+```
+voice-recorder.ts  stopRecording()
+  → finalizeMediaRecorder() (requestData + stop, timeslice chunks)
+  → releaseAfterRecordingStop() (cut mic/canvas tracks + AudioContext)
+  → Blob(chunks) retained as webmBlob
+  → validateWebmRecording() (webm-preflight.ts)
+  → transcodeToMp4() → transcodeWebmToMp4() (transcoder.ts)
+       packBinary(webm) → MSG_TRANSCODE_START { jobId, webmBase64, webmByteLength }
+  → background.ts: ACK → MSG_TRANSCODE_OFFSCREEN relay
+  → offscreen/main.ts: unpackBinary → enqueueTranscodeJob → runWebmToMp4()
+  → ffmpeg-runner.ts: writeFile input.webm → TRANSCODE_STRATEGIES exec
+       primary argv: -fflags +genpts+igndts -i input.webm -fps_mode passthrough -r 24
+                     -c:v libx264 … -c:a aac -b:a 128k -movflags +faststart output.mp4
+  → packBinary(mp4) → MSG_TRANSCODE_COMPLETE → content script Blob
+```
+
+Cancel path: `AbortController` in `voice-recorder.ts` → `MSG_TRANSCODE_CANCEL` → `transcode-cancel.ts` + `disposeFfmpeg()`.
+
+#### Audio / video merge today
+
+**Single muxed WebM — no separate audio path.**
+
+At `startRecording()`, `combinedStream` = `waveform.canvas.captureStream(24)` video track(s) + `micStream` audio track(s). `MediaRecorder` muxes VP8/VP9 + Opus into one blob. FFmpeg transcode reads that single file; video re-encoded to H.264, audio re-encoded to AAC with **no `-af` today**.
+
+Implication for Dulcet: voice effects belong on the **audio filter graph inside this same transcode exec** (or a pre-transcode audio-only pass only for dulcet-1 harness — not production).
+
+#### Waveform animation timing
+
+| Source | Role |
+|--------|------|
+| **Wall clock (RAF)** | `WaveformRenderer.tick()` throttles draws to `WAVEFORM_TARGET_FPS` (24) via `FRAME_INTERVAL_MS` |
+| **Live analyser** | Bar heights from `getByteFrequencyData()` on mic — real-time spectral energy, not sample-indexed |
+| **captureStream(24)** | Canvas sampled at ~24 fps for MediaRecorder video track |
+| **Recording timer** | `elapsedSeconds` from `Date.now() - startedAt` — UI cap only, not wired to viz frames |
+
+Viz is **not** driven by audio sample count or post-hoc duration. Duration-preserving pitch (`preserveDuration: true` default) keeps processed AAC length ≈ raw Opus length so waveform video stays aligned without re-timing.
+
+Known edge case (unchanged): background tab pauses RAF → frozen canvas frames while audio continues recording.
+
+#### Semantic progress — voice integration points
+
+**Chosen path (single-pass `-af`):** No separate client `voice-process` phase. FFmpeg `progress` ratio + stage strings remain semantic:
+
+| Layer | Injection |
+|-------|-----------|
+| `ffmpeg-runner.ts` | Insert `-af` from `buildFfmpegAudioFilter()` before `-c:a aac`; stage `transcoding-voice-af` when filters active |
+| `mapProgress()` | Optionally map voice-af strategies within existing 20–95% transcode band |
+| `transcoder.ts` | `isMeaningfulProgress()` unchanged — FFmpeg ratio/stage advances stall clock |
+| `offscreen/main.ts` | Heartbeats stay syntactic; wall-clock `JOB_WALL_CLOCK_MS` unchanged |
+
+**Fallback (not planned for v3.0):** Separate pre-transcode audio job would need new progress band (e.g. 5–18% in `voice-recorder.ts`), new offscreen message type, and `transcode-cancel.ts` job drain — only if `-af` on full mux proves insufficient.
+
+#### Integration decision
+
+**Single-pass FFmpeg `-af` on existing WebM→MP4 transcode** (see `src/voice/filter-graphs.ts`).
+
+Rationale: fewest WASM passes; `webmBlob` stays non-destructive in memory; video track untouched; matches engineering constraint “minimize pass count.” dulcet-1 `processAudio()` may still prove filters on audio-only FFmpeg graphs before dulcet-3 wires `-af` into `TRANSCODE_STRATEGIES`.
+
+#### Frozen artifacts (dulcet-0)
+
+| File | Contents |
+|------|----------|
+| `src/voice/types.ts` | `VoiceEffectConfig`, normalization, `voiceEffectIsActive()` |
+| `src/voice/presets.ts` | Bundled preset table (Deeper, Higher, Slight mask, Robot, Whisper, Custom) |
+| `src/voice/filter-graphs.ts` | `buildFfmpegAudioFilter()` + Web Audio preview notes |
+| `src/voice/index.ts` | Barrel export |
 
 ### dulcet-1 — definition of done
 
@@ -220,4 +289,4 @@ git checkout main && npm install && npm run dev
 
 ## Immediate next step
 
-**dulcet-0 audit** — read `src/recorder/voice-recorder.ts` and `src/ffmpeg/ffmpeg-runner.ts`, document the audio handoff, then commit frozen types under `src/voice/types.ts` (or equivalent) before any UI or pipeline edits.
+**dulcet-1 isolated processor** — implement `processAudio(blob, config)` in offscreen using `buildFfmpegAudioFilter()`; no-op + duration-preserving pitch; fallback to input on error; manual harness.
