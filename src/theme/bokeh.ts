@@ -88,9 +88,9 @@ function drawOrb(
     // BUG FIX: Custom bokeh overlay color inversion on photos
     // Fix: Single tint — ramp alpha/brightness only; no complementary hue in gradient stops
     const tint = style.coreColor;
-    gradient.addColorStop(0, rgba(tint, alpha * 0.75));
-    gradient.addColorStop(0.35, rgba(tint, alpha * 0.38));
-    gradient.addColorStop(0.68, rgba(tint, alpha * 0.12));
+    gradient.addColorStop(0, rgba(tint, alpha * 0.9));
+    gradient.addColorStop(0.35, rgba(tint, alpha * 0.5));
+    gradient.addColorStop(0.68, rgba(tint, alpha * 0.18));
     gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
   } else {
     gradient.addColorStop(0, rgba(style.coreColor, alpha));
@@ -157,7 +157,7 @@ export function buildTintedBokehOverlayStyle(barColor: string): BokehBackgroundS
     audioReactivity: midnight.audioReactivity * 0.85,
     orbs: midnight.orbs.map((orb) => ({
       ...orb,
-      opacity: orb.opacity * 0.5,
+      opacity: orb.opacity * 0.68,
     })),
   };
 }

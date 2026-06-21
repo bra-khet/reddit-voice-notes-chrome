@@ -277,7 +277,7 @@ function drawDesignEffectOverlays(
 
   if (overlay === 'bokeh') {
     const style = buildTintedBokehOverlayStyle(theme.colors.bar);
-    drawBokehOverlay(ctx, canvas, style, bokehOptions, 'source-over', true);
+    drawBokehOverlay(ctx, canvas, style, bokehOptions, 'screen', true);
     return;
   }
 

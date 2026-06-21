@@ -78,11 +78,23 @@ export function hsvToHex(h: number, s: number, v: number): string {
   return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
 }
 
-/** Complementary glow accent — mirrors Neon Glow cyan ↔ magenta pairing. */
+/**
+ * Bar halo color — same hue family, softer saturation (not complementary / negative).
+ * CHANGED: removed +180° hue flip that made blue bars glow yellow, etc.
+ */
 export function deriveGlowColor(barColor: string, alphaHex = 'aa'): string {
   const hsv = hexToHsv(barColor);
   if (!hsv) return `${barColor}${alphaHex}`;
-  return `${hsvToHex((hsv.h + 180) % 360, Math.min(100, hsv.s * 1.05), Math.min(100, hsv.v * 1.02))}${alphaHex}`;
+  const glowS = Math.max(18, Math.min(100, hsv.s * 0.72));
+  const glowV = Math.min(100, hsv.v * 1.06);
+  return `${hsvToHex(hsv.h, glowS, glowV)}${alphaHex}`;
+}
+
+/** Sparkle accent — slight analogous hue shift, not complementary. */
+export function deriveSparkleAccentColor(barColor: string): string {
+  const hsv = hexToHsv(barColor);
+  if (!hsv) return barColor;
+  return hsvToHex((hsv.h + 24) % 360, Math.min(100, hsv.s * 0.88), Math.min(100, hsv.v * 1.04));
 }
 
 /** Dark backdrop tint derived from the bar hue. */

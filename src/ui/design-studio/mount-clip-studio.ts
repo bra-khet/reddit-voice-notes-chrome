@@ -54,6 +54,12 @@ import {
   isStylePanelVisible,
   populateDesignStudioStyleSelect,
 } from '@/src/ui/style-select';
+import {
+  discardStudioUnsavedChanges,
+  hasStudioUnsavedChanges,
+  saveStudioUnsavedChanges,
+} from '@/src/ui/design-studio/studio-exit';
+import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
   { value: 'top', label: 'Top' },
@@ -67,9 +73,35 @@ export function mountClipStudio(root: HTMLElement): () => void {
   root.innerHTML = `
     <main class="studio">
       <header class="studio__header">
-        <h1 class="studio__title">Design Studio</h1>
-        <p class="studio__subtitle">Clip appearance — preview matches your recorded video.</p>
+        <div class="studio__header-row">
+          <div>
+            <h1 class="studio__title">Design Studio</h1>
+            <p class="studio__subtitle">Clip appearance — preview matches your recorded video.</p>
+          </div>
+          <button type="button" class="popup__profile-btn popup__profile-btn--save studio__done-btn" data-studio-done>
+            Done
+          </button>
+        </div>
       </header>
+      <div class="studio__exit-modal" data-exit-modal hidden>
+        <div class="studio__exit-dialog" role="dialog" aria-labelledby="studio-exit-title">
+          <h2 class="studio__exit-title" id="studio-exit-title">Unsaved changes</h2>
+          <p class="studio__exit-copy">
+            Your profile or custom style has edits that are not saved. Save them before leaving?
+          </p>
+          <div class="studio__exit-actions">
+            <button type="button" class="popup__profile-btn popup__profile-btn--save" data-exit-save>
+              Save changes
+            </button>
+            <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-exit-discard>
+              Discard
+            </button>
+            <button type="button" class="popup__button popup__button--secondary studio__exit-cancel" data-exit-cancel>
+              Keep editing
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="studio__preview-wrap">
         <canvas
           class="studio__preview-canvas"
@@ -138,6 +170,11 @@ export function mountClipStudio(root: HTMLElement): () => void {
   const deleteProfileBtn = root.querySelector<HTMLButtonElement>('[data-delete-profile]')!;
   const saveStyleBtn = root.querySelector<HTMLButtonElement>('[data-save-style]')!;
   const deleteStyleBtn = root.querySelector<HTMLButtonElement>('[data-delete-style]')!;
+  const doneBtn = root.querySelector<HTMLButtonElement>('[data-studio-done]')!;
+  const exitModal = root.querySelector<HTMLElement>('[data-exit-modal]')!;
+  const exitSaveBtn = root.querySelector<HTMLButtonElement>('[data-exit-save]')!;
+  const exitDiscardBtn = root.querySelector<HTMLButtonElement>('[data-exit-discard]')!;
+  const exitCancelBtn = root.querySelector<HTMLButtonElement>('[data-exit-cancel]')!;
 
   for (const option of ALIGNMENT_OPTIONS) {
     const el = document.createElement('option');
@@ -156,6 +193,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
   let studioSaveGeneration = 0;
   let ignoreStoragePrefs = false;
   let colorSaveTimer = 0;
+  let entryAppearance: AppearancePreferences | null = null;
+  let allowStudioExit = false;
   const PREVIEW_ANIM_FPS = 12;
 
   function cancelPendingColorSave(): void {
@@ -386,8 +425,42 @@ export function mountClipStudio(root: HTMLElement): () => void {
     };
   }
 
+  async function flushPendingDesignPersist(): Promise<void> {
+    if (!colorSaveTimer || !activePrefs?.appearance.designOverrides) return;
+    cancelPendingColorSave();
+    const overrides = activePrefs.appearance.designOverrides;
+    await studioPersist(() => saveCustomStyleColors(overrides));
+  }
+
+  function showExitModal(): void {
+    exitModal.hidden = false;
+  }
+
+  function hideExitModal(): void {
+    exitModal.hidden = true;
+  }
+
+  async function closeStudioAfterSave(): Promise<void> {
+    allowStudioExit = true;
+    hideExitModal();
+    window.close();
+  }
+
+  async function attemptStudioExit(): Promise<void> {
+    await flushPendingDesignPersist();
+    if (!activePrefs || !hasStudioUnsavedChanges(activePrefs)) {
+      allowStudioExit = true;
+      window.close();
+      return;
+    }
+    showExitModal();
+  }
+
   function applyPrefs(prefs: UserPreferencesV1): void {
     activePrefs = prefs;
+    if (!entryAppearance) {
+      entryAppearance = structuredClone(prefs.appearance);
+    }
     syncSelectControls(prefs);
     syncProfileActions(prefs);
     syncStyleButton(prefs);
@@ -546,6 +619,48 @@ export function mountClipStudio(root: HTMLElement): () => void {
     void studioPersist(() => deleteCustomClipStyle(styleId));
   });
 
+  doneBtn.addEventListener('click', () => {
+    void attemptStudioExit();
+  });
+
+  exitCancelBtn.addEventListener('click', () => {
+    hideExitModal();
+  });
+
+  exitDiscardBtn.addEventListener('click', () => {
+    if (!entryAppearance) return;
+    allowStudioExit = true;
+    hideExitModal();
+    void discardStudioUnsavedChanges(entryAppearance).finally(() => {
+      window.close();
+    });
+  });
+
+  exitSaveBtn.addEventListener('click', () => {
+    void flushPendingDesignPersist()
+      .then(() => saveStudioUnsavedChanges())
+      .then(() => closeStudioAfterSave())
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Could not save changes.';
+        window.alert(message);
+      });
+  });
+
+  const beforeUnloadHandler = (event: BeforeUnloadEvent): void => {
+    if (allowStudioExit || !activePrefs || !hasStudioUnsavedChanges(activePrefs)) return;
+    event.preventDefault();
+    event.returnValue = '';
+  };
+
+  const pageHideHandler = (): void => {
+    if (allowStudioExit || !entryAppearance || !activePrefs) return;
+    if (!hasStudioUnsavedChanges(activePrefs)) return;
+    void discardStudioUnsavedChanges(entryAppearance);
+  };
+
+  window.addEventListener('beforeunload', beforeUnloadHandler);
+  window.addEventListener('pagehide', pageHideHandler);
+
   void loadUserPreferences().then(applyPrefs);
 
   const unsubscribe = onUserPreferencesChanged((prefs) => {
@@ -558,6 +673,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
   return () => {
     cancelPendingColorSave();
     stopPreviewLoop();
+    window.removeEventListener('beforeunload', beforeUnloadHandler);
+    window.removeEventListener('pagehide', pageHideHandler);
     unsubscribe();
   };
 }

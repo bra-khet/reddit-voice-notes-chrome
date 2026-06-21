@@ -1,0 +1,71 @@
+import { appearanceMatchesProfile, getClipProfileById } from '@/src/settings/clip-profiles';
+import { isCustomStyleDirty } from '@/src/settings/custom-styles';
+import {
+  applyClipProfile,
+  applyCustomClipStyle,
+  loadUserPreferences,
+  saveAppearancePreferences,
+  updateActiveClipProfile,
+  updateActiveCustomStyle,
+  type AppearancePreferences,
+  type UserPreferencesV1,
+} from '@/src/settings/user-preferences';
+
+export function hasStudioUnsavedChanges(prefs: UserPreferencesV1): boolean {
+  if (prefs.appearance.activeProfileId) {
+    const profile = getClipProfileById(prefs, prefs.appearance.activeProfileId);
+    if (profile && !appearanceMatchesProfile(prefs.appearance, profile)) {
+      return true;
+    }
+  }
+  if (
+    prefs.appearance.activeCustomStyleId &&
+    isCustomStyleDirty(prefs.appearance)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Restore saved profile/style snapshot — discards live studio edits in storage. */
+export async function discardStudioUnsavedChanges(
+  entryAppearance: AppearancePreferences,
+): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const profileId = current.appearance.activeProfileId;
+
+  if (profileId) {
+    const profile = getClipProfileById(current, profileId);
+    if (profile && !appearanceMatchesProfile(current.appearance, profile)) {
+      return applyClipProfile(profileId);
+    }
+  }
+
+  const styleId = current.appearance.activeCustomStyleId;
+  if (styleId && isCustomStyleDirty(current.appearance)) {
+    return applyCustomClipStyle(styleId);
+  }
+
+  return saveAppearancePreferences(entryAppearance);
+}
+
+/** Persist dirty profile and/or custom style before closing studio. */
+export async function saveStudioUnsavedChanges(): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+
+  if (current.appearance.activeProfileId) {
+    const profile = getClipProfileById(current, current.appearance.activeProfileId);
+    if (profile && !appearanceMatchesProfile(current.appearance, profile)) {
+      return updateActiveClipProfile();
+    }
+  }
+
+  if (
+    current.appearance.activeCustomStyleId &&
+    isCustomStyleDirty(current.appearance)
+  ) {
+    return updateActiveCustomStyle();
+  }
+
+  return current;
+}

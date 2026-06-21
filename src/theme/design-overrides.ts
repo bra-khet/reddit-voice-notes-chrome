@@ -27,7 +27,7 @@ export const CUSTOM_STYLE_BASE_THEME_ID = 'neon-glow' as const;
 
 export const DEFAULT_CUSTOM_STYLE_OVERRIDES: DesignOverrides = {
   barColor: '#00e5ff',
-  glowColor: '#ff00e5aa',
+  glowColor: deriveGlowColor('#00e5ff'),
   backgroundEffect: 'none',
   barGlow: 'default',
 };
@@ -49,20 +49,9 @@ export function normalizeDesignOverrides(
   const barColor = normalizeHexColor(raw.barColor);
   if (!barColor) return null;
 
-  const glowRaw = raw.glowColor?.trim();
-  let glowColor: string | undefined;
-  if (glowRaw) {
-    if (glowRaw.length === 9 && glowRaw.startsWith('#')) {
-      glowColor = glowRaw.toLowerCase();
-    } else {
-      const glowHex = normalizeHexColor(glowRaw);
-      glowColor = glowHex ? `${glowHex}aa` : undefined;
-    }
-  }
-
   return {
     barColor,
-    glowColor: glowColor ?? deriveGlowColor(barColor),
+    glowColor: deriveGlowColor(barColor),
     backgroundEffect: normalizeBackgroundEffect(raw.backgroundEffect),
     barGlow: normalizeBarGlow(raw.barGlow),
   };

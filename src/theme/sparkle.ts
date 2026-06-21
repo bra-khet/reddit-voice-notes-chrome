@@ -1,4 +1,4 @@
-import { hexToRgb } from '@/src/theme/color-utils';
+import { deriveSparkleAccentColor, hexToRgb } from '@/src/theme/color-utils';
 
 export interface SparkleDrawOptions {
   timeMs?: number;
@@ -55,13 +55,13 @@ export function drawSparkleOverlay(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   barColor: string,
-  glowColor: string,
+  _glowColor: string,
   options: SparkleDrawOptions = {},
 ): void {
   const timeMs = options.timeMs ?? 0;
   const audioEnergy = Math.min(1, Math.max(0, options.audioEnergy ?? 0));
   const primary = stripAlphaHex(barColor);
-  const accent = stripAlphaHex(glowColor);
+  const accent = deriveSparkleAccentColor(primary);
   const scale = Math.min(canvas.width, canvas.height);
 
   ctx.save();
@@ -70,15 +70,15 @@ export function drawSparkleOverlay(
   for (const point of SPARKLE_POINTS) {
     const twinkle = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(timeMs * 0.0032 + point.phase));
     const audioBoost = 0.85 + 0.15 * audioEnergy;
-    const alpha = twinkle * audioBoost * 0.55;
-    const radius = point.size * scale * 0.0075 * (0.85 + twinkle * 0.35);
+    const alpha = twinkle * audioBoost * 0.72;
+    const radius = point.size * scale * 0.0085 * (0.85 + twinkle * 0.35);
     const cx = point.x * canvas.width;
     const cy = point.y * canvas.height;
     const tint = point.phase % 2 < 1 ? primary : accent;
 
     const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
     gradient.addColorStop(0, rgba('#ffffff', alpha));
-    gradient.addColorStop(0.35, rgba(tint, alpha * 0.75));
+    gradient.addColorStop(0.35, rgba(tint, alpha * 0.8));
     gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
     ctx.fillStyle = gradient;
