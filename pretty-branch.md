@@ -47,8 +47,12 @@ Prioritize features with **mass appeal and high impact**. Skip niche effects tha
 
 ## Engineering constraints
 
+Read **`docs/engineering-principles.md`** before pipeline or settings work.
+
 | Rule | Rationale |
 |------|-----------|
+| **Semantic health checking** | Progress/stall/timeouts must track real work-state, not syntactic pings (see BUG-006) |
+| **Ideally constrained settings** | Quality toggles use `ideal` constraints + graceful fallback ladders |
 | **HTML Canvas first** | Waveform + background already live here (`src/recorder/waveform.ts`) |
 | **Stay near 24 fps** | `WAVEFORM_TARGET_FPS` — don't raise without measuring transcode impact |
 | **Cheap per frame** | Reuse gradients/paths; avoid full-canvas `getImageData` every frame |
@@ -77,7 +81,8 @@ entrypoints/popup/            # settings UI for personalization
 
 These items are prepared or designed-for but not activated in the current sprint:
 
-- **Browser audio processing toggle** (echoCancellation / noiseSuppression / autoGainControl): Supporting code will be landed disabled by default (`getUserMedia({ audio: true })` remains active). Goal: allow users who experience muffled / Bluetooth-like / low-bandwidth artifacts to flip to raw capture. This will become a user-facing setting + small "?" help tooltip in the recorder UI in a future iteration. It is expected to be central to "2.0" voice modulation / tuning UX. Trade-offs (possible room noise/echo) will be documented at toggle time. See related constants and voice-recorder comments containing "FUTURE AUDIO TOGGLE".
+- **Browser audio processing toggle** (`rawMicCapture` in `rvnUserPrefs`): Default **on** (economy). Popup placeholder in Audio settings shell. Implementation in `src/recorder/mic-constraints.ts` via `acquireMicStream()` with `OverconstrainedError` fallback ladder.
+- **Enhanced capture toggle** (`preferHighQualityCapture`): Default **off** (browser sample rate/channels). When on, requests **ideal** 48 kHz + ideal stereo, degrading to mono / browser defaults. Popup placeholder shipped in pretty-2 shell; wired in pretty-3.
 - **Waveform bar vertical alignment**: Center-mirrored (current), bottom-aligned (classic spectrum), and top-aligned will be user-selectable settings (future UI surface similar to theme picker). The draw code in waveform.ts is being structured to support switching the bar anchoring/positioning without large refactors.
 - **Voice modulation / recorder profiles**: The analysis + recording pipeline should remain extensible. Do not lock out future addition of processing graphs, profile classes, or modulation nodes if voice effects are added later.
 - **Full-spectrum / music mode**: The 32-bar viz currently focuses on 80 Hz – 16 kHz voice range (with revisit-before-merge comment required in code). A toggle for wider music representation will be considered later if users request piping music through the recorder.
@@ -92,8 +97,8 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 |-------|------|-------|--------|
 | **pretty-0** | Theme foundation | Theme model, 5 bundled presets, canvas draw refactor, persistence normalization, `rvnUserPrefs` v1 scaffold | Done |
 | **pretty-1** | Popup — clip appearance | Theme picker, static canvas preview (same draw path as output), bar alignment; synced with recorder panel | Done (in `v1.5.0`) |
-| **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion | Done |
-| **pretty-3** | Audio & viz toggles | Raw mic capture toggle, full-spectrum/music viz mode, help tooltips | Planned |
+| **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion; audio capture profile + constraint scaffold | Done |
+| **pretty-3** | Audio & viz toggles | Enable raw mic + enhanced capture toggles, full-spectrum/music viz mode, help tooltips | Planned |
 | **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Planned |
 | **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Planned |
 | **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Planned |

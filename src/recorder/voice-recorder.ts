@@ -10,6 +10,7 @@ import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
 import { getThemeById } from '@/src/theme';
 import { loadUserPreferences, onUserPreferencesChanged } from '@/src/settings/user-preferences';
+import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
 /** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
@@ -21,19 +22,6 @@ const CAP_STOP_LEAD_MS = 300;
 const RECORDER_VIDEO_BPS = 2_500_000;
 const RECORDER_AUDIO_BPS = 128_000;
 const MIN_RECORDING_BYTES = 256;
-
-/**
- * FUTURE AUDIO TOGGLE (prepared, disabled).
- * When true, we will request raw mic input (no browser echo/noise/agc).
- * Currently forced OFF so default processed behavior is unchanged while we test.
- * See:
- *   - pretty-branch.md "Future audio pipeline & settings"
- *   - claude-progress.md
- *   - Long-term: user setting + "?" help tooltip in recorder UI.
- *   - Only flip after validation; will become toggleable for users who dislike
- *     the default processing (muffled / low-bandwidth / Bluetooth-like sound).
- */
-const DISABLE_BROWSER_AUDIO_PROCESSING = false;
 
 export type RecorderPhase =
   | 'idle'
@@ -89,9 +77,6 @@ export class VoiceRecorderSession {
   private audioContext: AudioContext | null = null;
   private micStream: MediaStream | null = null;
 
-  // CHANGED (prep only): audio constraints object introduced behind disabled flag.
-  // WHY: default gUM processing is the suspected cause of stepped-down / low-bandwidth
-  // audio feel. Code ready for future user toggle per review notes. Not activated.
   private combinedStream: MediaStream | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private waveform: WaveformRenderer | null = null;
@@ -189,18 +174,9 @@ export class VoiceRecorderSession {
         mp4Blob: undefined,
       });
 
-      // NOTE: audio constraints path is prepared for the future toggle but left inactive.
-      // When DISABLE_BROWSER_AUDIO_PROCESSING becomes a user choice we can pass the object.
-      // Keeping the exact original call when the flag is false preserves current behavior.
-      const audioConstraints = DISABLE_BROWSER_AUDIO_PROCESSING
-        ? {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
-        : true;
-
-      this.micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+      const prefs = await loadUserPreferences();
+      // Default prefs → economy path (`{ audio: true }`). See mic-constraints.ts + pretty-3 toggles.
+      this.micStream = await acquireMicStream(prefs.audio);
 
       this.audioContext = new AudioContext();
       await this.audioContext.resume();
@@ -209,7 +185,6 @@ export class VoiceRecorderSession {
       const analyser = this.audioContext.createAnalyser();
       source.connect(analyser);
 
-      const prefs = await loadUserPreferences();
       const theme = getThemeById(prefs.appearance.activeThemeId);
       this.waveform = new WaveformRenderer(analyser, theme);
       this.waveform.setBarAlignment(prefs.appearance.barAlignment ?? 'center');

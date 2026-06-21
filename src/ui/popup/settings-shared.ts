@@ -13,6 +13,7 @@ export interface SettingsInfoOptions {
   label: string;
   value: string;
   description?: string;
+  valueId?: string;
 }
 
 function escapeHtml(text: string): string {
@@ -32,17 +33,18 @@ export function renderSettingsSection(title: string, titleId: string, bodyHtml: 
   `;
 }
 
-export function renderInfoRow({ label, value, description }: SettingsInfoOptions): string {
+export function renderInfoRow({ label, value, description, valueId }: SettingsInfoOptions): string {
   const desc = description
     ? `<p class="popup__field-desc">${escapeHtml(description)}</p>`
     : '';
+  const idAttr = valueId ? ` id="${escapeHtml(valueId)}"` : '';
   return `
     <div class="popup__info-row">
       <div class="popup__info-copy">
         <span class="popup__info-label">${escapeHtml(label)}</span>
         ${desc}
       </div>
-      <span class="popup__info-value" aria-label="${escapeHtml(label)}">${escapeHtml(value)}</span>
+      <span class="popup__info-value"${idAttr} aria-label="${escapeHtml(label)}">${escapeHtml(value)}</span>
     </div>
   `;
 }

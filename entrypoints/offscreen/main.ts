@@ -93,6 +93,7 @@ async function runTranscodeAttempt(
   let lastRatio = 0.01;
   let lastStage = attempt === 1 ? 'queued' : 'retry';
 
+  // Syntactic liveness only — must not reset client stall timers (see docs/engineering-principles.md).
   const heartbeat = window.setInterval(() => {
     if (isTranscodeCancelled(jobId)) return;
     broadcastProgress(jobId, lastRatio, `${lastStage}-heartbeat`);

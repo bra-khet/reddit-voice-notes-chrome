@@ -225,6 +225,10 @@ Explicit pipeline checks at every hop (no heuristics):
 - Offscreen **90s wall-clock** per attempt; `loadFfmpeg` **30s** timeout.
 - Client absolute max reduced to **90s**.
 
+### Design lesson
+
+Heartbeats were **syntactic** health checks. Project rule going forward: **semantic health checking** — see `docs/engineering-principles.md`.
+
 ### Related files
 
 - `src/ffmpeg/transcoder.ts` — meaningful stall detection, cancel on fail/abort
