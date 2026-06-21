@@ -1,11 +1,14 @@
 import { unpackBinary } from '@/src/messaging/binary';
 import {
   BACKGROUND_BLOB_PORT,
-  MSG_GET_BACKGROUND_BLOB,
+  MSG_GET_BACKGROUND_BLOB_CHUNK,
+  MSG_GET_BACKGROUND_BLOB_META,
+  type BackgroundBlobChunkPayload,
+  type BackgroundBlobMetaPayload,
+  type BackgroundBlobPortMessage,
   type BackgroundBlobPortRequest,
-  type BackgroundBlobPortResponse,
-  type GetBackgroundBlobRequest,
-  type GetBackgroundBlobResponse,
+  type GetBackgroundBlobChunkRequest,
+  type GetBackgroundBlobMetaRequest,
 } from '@/src/messaging/background-blob';
 import {
   createBackgroundObjectUrl,
@@ -92,8 +95,6 @@ async function decodeBlobViaImageBitmap(blob: Blob, cacheKey: string): Promise<I
 }
 
 async function decodeBlobToDrawable(blob: Blob, cacheKey: string): Promise<DrawableBackgroundImage | null> {
-  // BUG FIX: Personal background missing on Reddit recorder canvas
-  // Fix: data: URLs are blocked by Reddit img-src CSP; use blob: URL then createImageBitmap fallback.
   const fromObjectUrl = await decodeBlobViaObjectUrl(blob, cacheKey);
   if (fromObjectUrl) return fromObjectUrl;
   return decodeBlobViaImageBitmap(blob, cacheKey);
@@ -108,19 +109,96 @@ async function loadBackgroundImageElementLocal(id: string): Promise<DrawableBack
   return loadImageFromUrl(url, id);
 }
 
-function unpackRelayedBackgroundBlob(
-  response: BackgroundBlobPortResponse | GetBackgroundBlobResponse,
-): { bytes: Uint8Array; mimeType: string } | null {
-  if (!response.ok || !response.dataBase64 || !response.byteLength) return null;
-  try {
-    return {
-      bytes: unpackBinary(response.dataBase64, response.byteLength),
-      mimeType: response.mimeType ?? 'image/jpeg',
-    };
-  } catch (error) {
-    console.warn('[Reddit Voice Notes] Personal background base64 unpack failed:', error);
+function assembleBackgroundBytes(
+  meta: BackgroundBlobMetaPayload,
+  chunks: Array<Uint8Array | undefined>,
+): Uint8Array | null {
+  if (
+    !meta.ok ||
+    !meta.totalByteLength ||
+    !meta.chunkCount ||
+    chunks.length !== meta.chunkCount ||
+    chunks.some((chunk) => !chunk)
+  ) {
     return null;
   }
+
+  const total = new Uint8Array(meta.totalByteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    total.set(chunk!, offset);
+    offset += chunk!.length;
+  }
+  if (offset !== meta.totalByteLength) {
+    console.warn('[Reddit Voice Notes] Personal background chunk assembly size mismatch:', {
+      expected: meta.totalByteLength,
+      assembled: offset,
+    });
+    return null;
+  }
+  return total;
+}
+
+async function requestBackgroundBlobMeta(id: string): Promise<BackgroundBlobMetaPayload | null> {
+  const request: GetBackgroundBlobMetaRequest = {
+    type: MSG_GET_BACKGROUND_BLOB_META,
+    id,
+  };
+
+  try {
+    const response = (await browser.runtime.sendMessage(request)) as BackgroundBlobMetaPayload | undefined;
+    if (response?.ok && response.totalByteLength && response.chunkCount) return response;
+    console.warn(
+      '[Reddit Voice Notes] Personal background meta relay failed:',
+      response?.error ?? 'no response',
+    );
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Personal background meta relay error:', error);
+  }
+  return null;
+}
+
+async function requestBackgroundBlobChunk(
+  id: string,
+  chunkIndex: number,
+): Promise<Uint8Array | null> {
+  const request: GetBackgroundBlobChunkRequest = {
+    type: MSG_GET_BACKGROUND_BLOB_CHUNK,
+    id,
+    chunkIndex,
+  };
+
+  try {
+    const response = (await browser.runtime.sendMessage(request)) as BackgroundBlobChunkPayload | undefined;
+    if (response?.ok && response.dataBase64 && response.byteLength !== undefined) {
+      return unpackBinary(response.dataBase64, response.byteLength);
+    }
+    console.warn(
+      '[Reddit Voice Notes] Personal background chunk relay failed:',
+      chunkIndex,
+      response?.error ?? 'no response',
+    );
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Personal background chunk relay error:', chunkIndex, error);
+  }
+  return null;
+}
+
+async function requestBackgroundBlobViaMessage(
+  id: string,
+): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+  const meta = await requestBackgroundBlobMeta(id);
+  if (!meta?.mimeType) return null;
+
+  const chunks: Array<Uint8Array | undefined> = new Array(meta.chunkCount);
+  for (let chunkIndex = 0; chunkIndex < meta.chunkCount!; chunkIndex += 1) {
+    chunks[chunkIndex] = await requestBackgroundBlobChunk(id, chunkIndex);
+    if (!chunks[chunkIndex]) return null;
+  }
+
+  const bytes = assembleBackgroundBytes(meta, chunks);
+  if (!bytes) return null;
+  return { bytes, mimeType: meta.mimeType };
 }
 
 async function requestBackgroundBlobViaPort(
@@ -128,73 +206,101 @@ async function requestBackgroundBlobViaPort(
 ): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
   return new Promise((resolve) => {
     let settled = false;
+    let meta: BackgroundBlobMetaPayload | null = null;
+    const chunks: Array<Uint8Array | undefined> = [];
+
     const finish = (value: { bytes: Uint8Array; mimeType: string } | null) => {
       if (settled) return;
       settled = true;
       resolve(value);
     };
 
+    const fail = (error: string, detail?: unknown) => {
+      console.warn('[Reddit Voice Notes] Personal background port relay failed:', error, detail);
+      finish(null);
+    };
+
     try {
       const port = browser.runtime.connect({ name: BACKGROUND_BLOB_PORT });
       const timeout = setTimeout(() => {
         port.disconnect();
-        finish(null);
+        fail('timed out');
       }, RELAY_TIMEOUT_MS);
 
-      port.onMessage.addListener((message: BackgroundBlobPortResponse) => {
-        clearTimeout(timeout);
-        port.disconnect();
-        const payload = unpackRelayedBackgroundBlob(message);
-        if (payload) {
-          finish(payload);
+      port.onMessage.addListener((message: BackgroundBlobPortMessage) => {
+        if (message.phase === 'meta') {
+          if (!message.ok) {
+            clearTimeout(timeout);
+            port.disconnect();
+            fail(message.error ?? 'meta failed');
+            return;
+          }
+          meta = {
+            ok: true,
+            mimeType: message.mimeType,
+            totalByteLength: message.totalByteLength,
+            chunkCount: message.chunkCount,
+          };
+          chunks.length = message.chunkCount;
           return;
         }
-        console.warn(
-          '[Reddit Voice Notes] Personal background port relay failed:',
-          message.error ?? 'unknown error',
-        );
-        finish(null);
+
+        if (message.phase === 'chunk') {
+          if (!message.ok || !message.dataBase64 || message.byteLength === undefined) {
+            clearTimeout(timeout);
+            port.disconnect();
+            fail(message.error ?? 'chunk failed', { chunkIndex: message.chunkIndex });
+            return;
+          }
+          try {
+            chunks[message.chunkIndex] = unpackBinary(message.dataBase64, message.byteLength);
+          } catch (error) {
+            clearTimeout(timeout);
+            port.disconnect();
+            fail('chunk unpack failed', error);
+          }
+          return;
+        }
+
+        if (message.phase === 'done') {
+          clearTimeout(timeout);
+          port.disconnect();
+          if (!meta?.mimeType) {
+            fail('missing meta before done');
+            return;
+          }
+          const bytes = assembleBackgroundBytes(meta, chunks);
+          if (!bytes) {
+            fail('chunk assembly failed');
+            return;
+          }
+          finish({ bytes, mimeType: meta.mimeType });
+          return;
+        }
+
+        if (message.phase === 'error') {
+          clearTimeout(timeout);
+          port.disconnect();
+          fail(message.error ?? 'unknown error');
+        }
       });
 
       port.onDisconnect.addListener(() => {
         clearTimeout(timeout);
-        if (!settled) finish(null);
+        if (!settled) fail('port disconnected early');
       });
 
       const request: BackgroundBlobPortRequest = { id };
       port.postMessage(request);
     } catch (error) {
-      console.warn('[Reddit Voice Notes] Personal background port connect failed:', error);
-      finish(null);
+      fail('port connect failed', error);
     }
   });
 }
 
-async function requestBackgroundBlobViaMessage(
-  id: string,
-): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
-  const request: GetBackgroundBlobRequest = {
-    type: MSG_GET_BACKGROUND_BLOB,
-    id,
-  };
-
-  try {
-    const response = (await browser.runtime.sendMessage(request)) as GetBackgroundBlobResponse | undefined;
-    const payload = response ? unpackRelayedBackgroundBlob(response) : null;
-    if (payload) return payload;
-    console.warn(
-      '[Reddit Voice Notes] Personal background message relay failed:',
-      response?.error ?? 'no response',
-    );
-  } catch (error) {
-    console.warn('[Reddit Voice Notes] Personal background message relay error:', error);
-  }
-  return null;
-}
-
 // BUG FIX: Personal background missing on Reddit recorder canvas
-// Fix: Relay ImageDB bytes as base64 — ArrayBuffer corrupts across MV3 port/message hops.
-// Sync: entrypoints/background.ts readBackgroundBlobForRelay
+// Fix: Chunked base64 relay — single MV3 port/message payloads exceed practical limits for multi-MB images.
+// Sync: entrypoints/background.ts relayBackgroundBlobViaPort
 async function loadBackgroundImageElementViaRelay(id: string): Promise<DrawableBackgroundImage | null> {
   const cached = decodedImageCache.get(id);
   if (cached && isDrawableBackgroundReady(cached)) return cached;

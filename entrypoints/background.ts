@@ -2,12 +2,18 @@
 // import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
 import { expectedBase64CharLength } from '@/src/messaging/binary-verify';
 import {
+  BACKGROUND_BLOB_CHUNK_BYTES,
   BACKGROUND_BLOB_PORT,
   MSG_GET_BACKGROUND_BLOB,
+  MSG_GET_BACKGROUND_BLOB_CHUNK,
+  MSG_GET_BACKGROUND_BLOB_META,
+  type BackgroundBlobChunkPayload,
+  type BackgroundBlobMetaPayload,
+  type BackgroundBlobPortMessage,
   type BackgroundBlobPortRequest,
-  type BackgroundBlobPortResponse,
+  type GetBackgroundBlobChunkRequest,
+  type GetBackgroundBlobMetaRequest,
   type GetBackgroundBlobRequest,
-  type GetBackgroundBlobResponse,
 } from '@/src/messaging/background-blob';
 import { packBinary } from '@/src/messaging/binary';
 import { getBackgroundAsset } from '@/src/storage/image-db';
@@ -240,19 +246,79 @@ function relayTranscodeFailure(jobId: string, error: unknown): void {
   relayTranscodeBroadcast(completeMsg);
 }
 
-async function readBackgroundBlobForRelay(id: string): Promise<BackgroundBlobPortResponse> {
+async function loadBackgroundBytes(
+  id: string,
+): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
   const record = await getBackgroundAsset(id);
-  if (!record) {
-    return { ok: false, error: 'Background not found.' };
-  }
-  const bytes = new Uint8Array(await record.blob.arrayBuffer());
-  const packed = packBinary(bytes);
+  if (!record) return null;
+  return {
+    bytes: new Uint8Array(await record.blob.arrayBuffer()),
+    mimeType: record.mimeType,
+  };
+}
+
+function backgroundBlobMeta(bytes: Uint8Array, mimeType: string): BackgroundBlobMetaPayload {
+  const chunkCount = Math.max(1, Math.ceil(bytes.length / BACKGROUND_BLOB_CHUNK_BYTES));
   return {
     ok: true,
-    mimeType: record.mimeType,
+    mimeType,
+    totalByteLength: bytes.length,
+    chunkCount,
+  };
+}
+
+function backgroundBlobChunk(bytes: Uint8Array, chunkIndex: number): BackgroundBlobChunkPayload {
+  const start = chunkIndex * BACKGROUND_BLOB_CHUNK_BYTES;
+  if (start >= bytes.length) {
+    return { ok: false, chunkIndex, error: 'Chunk index out of range.' };
+  }
+  const slice = bytes.subarray(start, Math.min(start + BACKGROUND_BLOB_CHUNK_BYTES, bytes.length));
+  const packed = packBinary(slice);
+  return {
+    ok: true,
+    chunkIndex,
     dataBase64: packed.dataBase64,
     byteLength: packed.byteLength,
   };
+}
+
+async function relayBackgroundBlobViaPort(port: browser.runtime.Port, id: string): Promise<void> {
+  const loaded = await loadBackgroundBytes(id);
+  if (!loaded) {
+    port.postMessage({ phase: 'error', ok: false, error: 'Background not found.' } satisfies BackgroundBlobPortMessage);
+    return;
+  }
+
+  const { bytes, mimeType } = loaded;
+  const meta = backgroundBlobMeta(bytes, mimeType);
+  port.postMessage({
+    phase: 'meta',
+    ok: true,
+    mimeType: meta.mimeType!,
+    totalByteLength: meta.totalByteLength!,
+    chunkCount: meta.chunkCount!,
+  } satisfies BackgroundBlobPortMessage);
+
+  for (let chunkIndex = 0; chunkIndex < meta.chunkCount!; chunkIndex += 1) {
+    const chunk = backgroundBlobChunk(bytes, chunkIndex);
+    if (!chunk.ok || !chunk.dataBase64 || chunk.byteLength === undefined) {
+      port.postMessage({
+        phase: 'error',
+        ok: false,
+        error: chunk.error ?? 'Failed to pack background chunk.',
+      } satisfies BackgroundBlobPortMessage);
+      return;
+    }
+    port.postMessage({
+      phase: 'chunk',
+      ok: true,
+      chunkIndex,
+      dataBase64: chunk.dataBase64,
+      byteLength: chunk.byteLength,
+    } satisfies BackgroundBlobPortMessage);
+  }
+
+  port.postMessage({ phase: 'done', ok: true } satisfies BackgroundBlobPortMessage);
 }
 
 export default defineBackground(() => {
@@ -272,17 +338,20 @@ export default defineBackground(() => {
         try {
           const { id } = message as BackgroundBlobPortRequest;
           if (!id) {
-            port.postMessage({ ok: false, error: 'Missing background id.' } satisfies BackgroundBlobPortResponse);
+            port.postMessage({
+              phase: 'error',
+              ok: false,
+              error: 'Missing background id.',
+            } satisfies BackgroundBlobPortMessage);
             return;
           }
-          const payload = await readBackgroundBlobForRelay(id);
-          port.postMessage(payload);
+          await relayBackgroundBlobViaPort(port, id);
         } catch (error) {
-          const response: BackgroundBlobPortResponse = {
+          port.postMessage({
+            phase: 'error',
             ok: false,
             error: error instanceof Error ? error.message : String(error),
-          };
-          port.postMessage(response);
+          } satisfies BackgroundBlobPortMessage);
         }
       })();
     });
@@ -292,17 +361,52 @@ export default defineBackground(() => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
 
-      if (type === MSG_GET_BACKGROUND_BLOB) {
+      if (type === MSG_GET_BACKGROUND_BLOB_META) {
         void (async () => {
-          const response: GetBackgroundBlobResponse = { ok: false };
+          const response: BackgroundBlobMetaPayload = { ok: false };
           try {
-            const { id } = message as GetBackgroundBlobRequest;
-            const payload = await readBackgroundBlobForRelay(id);
-            sendResponse(payload);
+            const { id } = message as GetBackgroundBlobMetaRequest;
+            const loaded = await loadBackgroundBytes(id);
+            if (!loaded) {
+              response.error = 'Background not found.';
+              sendResponse(response);
+              return;
+            }
+            sendResponse(backgroundBlobMeta(loaded.bytes, loaded.mimeType));
           } catch (error) {
             response.error = error instanceof Error ? error.message : String(error);
             sendResponse(response);
           }
+        })();
+        return true;
+      }
+
+      if (type === MSG_GET_BACKGROUND_BLOB_CHUNK) {
+        void (async () => {
+          const response: BackgroundBlobChunkPayload = { ok: false };
+          try {
+            const { id, chunkIndex } = message as GetBackgroundBlobChunkRequest;
+            const loaded = await loadBackgroundBytes(id);
+            if (!loaded) {
+              response.error = 'Background not found.';
+              sendResponse(response);
+              return;
+            }
+            sendResponse(backgroundBlobChunk(loaded.bytes, chunkIndex));
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+            sendResponse(response);
+          }
+        })();
+        return true;
+      }
+
+      if (type === MSG_GET_BACKGROUND_BLOB) {
+        void (async () => {
+          sendResponse({
+            ok: false,
+            error: 'Use chunked background blob relay (meta + chunk messages).',
+          } satisfies BackgroundBlobMetaPayload);
         })();
         return true;
       }
