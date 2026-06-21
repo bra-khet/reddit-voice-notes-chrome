@@ -191,6 +191,7 @@ export class VoiceRecorderSession {
 
       const theme = getThemeById(prefs.appearance.activeThemeId);
       this.waveform = new WaveformRenderer(analyser, theme);
+      this.waveform.setCustomBackgroundId(prefs.appearance.customBackgroundId ?? null);
       this.waveform.setBarAlignment(prefs.appearance.barAlignment ?? 'center');
       this.waveform.setFullSpectrumViz(prefs.audio.fullSpectrumViz ?? false);
       this.waveform.setReduceMotion(shouldReduceMotion(prefs));
@@ -204,6 +205,7 @@ export class VoiceRecorderSession {
       this.prefsUnsubscribe = onUserPreferencesChanged((next) => {
         if (!this.waveform) return;
         this.waveform.setTheme(getThemeById(next.appearance.activeThemeId));
+        this.waveform.setCustomBackgroundId(next.appearance.customBackgroundId ?? null);
         this.waveform.setBarAlignment(next.appearance.barAlignment ?? 'center');
         this.waveform.setFullSpectrumViz(next.audio.fullSpectrumViz ?? false);
         this.waveform.setReduceMotion(shouldReduceMotion(next));

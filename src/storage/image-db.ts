@@ -42,6 +42,7 @@ export class BackgroundImportError extends Error {
 }
 
 const objectUrlCache = new Map<string, string>();
+const decodedImageCache = new Map<string, HTMLImageElement>();
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -369,6 +370,12 @@ export async function createBackgroundObjectUrl(id: string): Promise<string | nu
   return url;
 }
 
+function evictDecodedBackgroundImage(id: string): void {
+  const normalized = normalizeBackgroundAssetId(id);
+  if (!normalized) return;
+  decodedImageCache.delete(normalized);
+}
+
 export function revokeBackgroundObjectUrl(id: string): void {
   const normalized = normalizeBackgroundAssetId(id);
   if (!normalized) return;
@@ -378,6 +385,32 @@ export function revokeBackgroundObjectUrl(id: string): void {
 
   URL.revokeObjectURL(cached);
   objectUrlCache.delete(normalized);
+  evictDecodedBackgroundImage(normalized);
+}
+
+/** Decode ImageDB blob to `HTMLImageElement` for canvas draw (pretty-7b). */
+export async function loadBackgroundImageElement(id: string): Promise<HTMLImageElement | null> {
+  const normalized = normalizeBackgroundAssetId(id);
+  if (!normalized) return null;
+
+  const cached = decodedImageCache.get(normalized);
+  if (cached?.complete && cached.naturalWidth > 0) return cached;
+
+  const url = await createBackgroundObjectUrl(normalized);
+  if (!url) return null;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      decodedImageCache.set(normalized, img);
+      resolve(img);
+    };
+    img.onerror = () => {
+      evictDecodedBackgroundImage(normalized);
+      resolve(null);
+    };
+    img.src = url;
+  });
 }
 
 export function revokeAllBackgroundObjectUrls(): void {
@@ -385,6 +418,7 @@ export function revokeAllBackgroundObjectUrls(): void {
     URL.revokeObjectURL(url);
     objectUrlCache.delete(id);
   }
+  decodedImageCache.clear();
 }
 
 export async function getBackgroundStorageSummary(): Promise<{

@@ -54,3 +54,6 @@ export const MAX_BACKGROUND_ASSET_COUNT = 24;
 export const MAX_TOTAL_BACKGROUND_BYTES = 64 * 1024 * 1024;
 
 export const DISPLAY_NAME_MAX_LENGTH = 48;
+
+/** Default dim over personal photo backgrounds so bars stay readable (pretty-7b). */
+export const USER_BACKGROUND_DIM_OVERLAY = 0.35;

@@ -94,9 +94,17 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
     lastPreviewFrame = 0;
   }
 
+  function activeCustomBackgroundId(): string | null {
+    return activePrefs?.appearance.customBackgroundId ?? null;
+  }
+
   function syncPreviewLoop(): void {
     const theme = getThemeById(activeThemeId);
-    if (!backgroundIsBokeh(theme.background) || (activePrefs && shouldReduceMotion(activePrefs))) {
+    if (
+      activeCustomBackgroundId() ||
+      !backgroundIsBokeh(theme.background) ||
+      (activePrefs && shouldReduceMotion(activePrefs))
+    ) {
       stopPreviewLoop();
       return;
     }
@@ -106,7 +114,13 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
       previewRaf = requestAnimationFrame(tick);
       if (now - lastPreviewFrame < 1000 / PREVIEW_ANIM_FPS) return;
       lastPreviewFrame = now;
-      void renderThemePreview(previewCanvas, getThemeById(activeThemeId), activeAlignment, now);
+      void renderThemePreview(
+        previewCanvas,
+        getThemeById(activeThemeId),
+        activeAlignment,
+        now,
+        activeCustomBackgroundId(),
+      );
     };
     previewRaf = requestAnimationFrame(tick);
   }
@@ -114,7 +128,13 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
   async function refreshPreview(timeMs?: number): Promise<void> {
     const generation = ++renderGeneration;
     const theme = getThemeById(activeThemeId);
-    await renderThemePreview(previewCanvas, theme, activeAlignment, timeMs);
+    await renderThemePreview(
+      previewCanvas,
+      theme,
+      activeAlignment,
+      timeMs,
+      activeCustomBackgroundId(),
+    );
     if (generation !== renderGeneration) return;
     syncPreviewLoop();
   }

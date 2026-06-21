@@ -108,7 +108,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Done |
 | **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Done |
 | **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Done |
-| **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Planned |
+| **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Done |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Planned |
 | **pretty-8** | Light design studio | Color pickers + simple background/bar flairs (bokeh, sparkle/twinkle); separate studio popup; no bar-count/spacing logic | Planned |
 | **pretty-9** | Perf & merge readiness | 2:00 cap profiling, prod bundle verify, merge criteria vs `main`, tag **v2.0** | Planned |
@@ -119,7 +119,8 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 - **Two-layer storage:** blobs in **IndexedDB** (`rvnImageDb` / `backgrounds` store); prefs hold only `bg-…` ids + profile refs (`appearance.customBackgroundId`, `ClipProfile.customBackgroundId`).
 - **pretty-7a (done):** `src/storage/image-db.ts` — import, quotas, list/get/delete, object-URL cache; `background-refs.ts` — reconcile stale prefs refs, prune orphans. Image import only; video MIME reserved behind `import_disabled` until loop canvas support.
 - **Limits (7a):** 8 MB/image, 24 assets, 64 MB total; 15 MB reserved cap for future video/loops.
-- **7b** wires `createBackgroundObjectUrl()` into `loadBackgroundIfNeeded()`; **7c** adds popup upload/pick/remove UI.
+- **7b (done):** `resolveClipBackgrounds()` + `setCustomBackgroundId()` hot-swap personal images on live canvas and popup preview; fill + 35% dim; missing blob falls back to theme background.
+- **7c** adds popup upload/pick/remove UI.
 
 ### QA finding: live theme swap during recording (2026-06)
 

@@ -3,7 +3,15 @@ import {
   resolveBokehStyle,
   type BokehDrawOptions,
 } from './bokeh';
+import {
+  loadBackgroundImageElement,
+  normalizeBackgroundAssetId,
+} from '@/src/storage/image-db';
+import { USER_BACKGROUND_DIM_OVERLAY } from '@/src/storage/image-db-types';
 import type { BackgroundScaleMode, ThemeBackground, WaveformTheme } from './types';
+
+/** Personal backgrounds cover the frame; bundled theme images default to contain. */
+export const USER_BACKGROUND_SCALE_MODE: BackgroundScaleMode = 'fill';
 
 export type { BokehDrawOptions };
 
@@ -32,6 +40,36 @@ export function resolveBackgroundAssetUrl(key: string): string | null {
 
 export function isBackgroundAssetKey(value: string): value is BackgroundAssetKey {
   return value in BACKGROUND_ASSETS;
+}
+
+export async function loadUserBackgroundImage(id: string): Promise<HTMLImageElement | null> {
+  return loadBackgroundImageElement(id);
+}
+
+export interface ResolvedClipBackgrounds {
+  userBackgroundImage: HTMLImageElement | null;
+  bundledBackgroundImage: HTMLImageElement | null;
+}
+
+/** Resolve personal ImageDB background first; fall back to bundled theme image (pretty-7b). */
+export async function resolveClipBackgrounds(
+  theme: WaveformTheme,
+  customBackgroundId: string | null | undefined,
+): Promise<ResolvedClipBackgrounds> {
+  const normalizedId = normalizeBackgroundAssetId(customBackgroundId);
+  if (normalizedId) {
+    const userBackgroundImage = await loadUserBackgroundImage(normalizedId);
+    if (userBackgroundImage) {
+      return { userBackgroundImage, bundledBackgroundImage: null };
+    }
+  }
+
+  let bundledBackgroundImage: HTMLImageElement | null = null;
+  if (backgroundNeedsImage(theme.background) && typeof theme.background.value === 'string') {
+    bundledBackgroundImage = await loadBackgroundImage(theme.background.value);
+  }
+
+  return { userBackgroundImage: null, bundledBackgroundImage };
 }
 
 export async function loadBackgroundImage(key: string): Promise<HTMLImageElement | null> {
@@ -84,14 +122,58 @@ function drawImageBackground({
   ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
 }
 
+function drawThemeFallbackBackground(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  colors: WaveformTheme['colors'],
+): void {
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, colors.bg);
+  gradient.addColorStop(1, '#1a1d24');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawUserBackgroundLayer(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  theme: WaveformTheme,
+  image: HTMLImageElement,
+): void {
+  if (!image.complete || image.naturalWidth <= 0) {
+    drawThemeFallbackBackground(ctx, canvas, theme.colors);
+    return;
+  }
+
+  drawImageBackground({
+    ctx,
+    canvas,
+    image,
+    letterboxColor: theme.colors.bg,
+    scaleMode: USER_BACKGROUND_SCALE_MODE,
+  });
+
+  const dim = USER_BACKGROUND_DIM_OVERLAY;
+  if (dim > 0) {
+    ctx.fillStyle = `rgba(0, 0, 0, ${dim})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
 export function drawThemeBackground(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
   bokehOptions: BokehDrawOptions = {},
+  userBackgroundImage: HTMLImageElement | null = null,
 ): void {
   const { background, colors } = theme;
+
+  if (userBackgroundImage) {
+    drawUserBackgroundLayer(ctx, canvas, theme, userBackgroundImage);
+    return;
+  }
 
   switch (background.type) {
     case 'solid': {
@@ -125,11 +207,7 @@ export function drawThemeBackground(
         });
       } else {
         // Fallback while image loads or on failure — matches MVP gradient.
-        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, colors.bg);
-        gradient.addColorStop(1, '#1a1d24');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawThemeFallbackBackground(ctx, canvas, colors);
       }
 
       const dim = background.imageDimOverlay ?? 0;

@@ -8,11 +8,11 @@ import {
   WAVEFORM_TARGET_FPS,
 } from '@/src/utils/constants';
 import {
-  backgroundNeedsImage,
   drawThemeBackground,
-  loadBackgroundImage,
+  resolveClipBackgrounds,
   type WaveformTheme,
 } from '@/src/theme';
+import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { DEFAULT_THEME_ID, getThemeById } from '@/src/theme/presets';
 
 const FRAME_INTERVAL_MS = 1000 / WAVEFORM_TARGET_FPS;
@@ -169,7 +169,9 @@ export class WaveformRenderer {
   private readonly analyser: AnalyserNode;
   private readonly frequencyData: Uint8Array;
   private theme: WaveformTheme;
-  private backgroundImage: HTMLImageElement | null = null;
+  private customBackgroundId: string | null = null;
+  private bundledBackgroundImage: HTMLImageElement | null = null;
+  private userBackgroundImage: HTMLImageElement | null = null;
   private backgroundLoadPromise: Promise<void> = Promise.resolve();
   private rafId = 0;
   private lastFrameAt = 0;
@@ -207,13 +209,19 @@ export class WaveformRenderer {
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }
 
-  /** Wait for bundled background assets before recording — preview uses the same canvas. */
+  /** Wait for background assets (bundled or ImageDB) before recording — preview uses the same canvas. */
   async whenReady(): Promise<void> {
     await this.backgroundLoadPromise;
   }
 
   setTheme(theme: WaveformTheme): void {
     this.theme = theme;
+    this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
+  }
+
+  /** ImageDB personal background id — hot-swaps during recording like theme (pretty-7b). */
+  setCustomBackgroundId(id: string | null | undefined): void {
+    this.customBackgroundId = normalizeBackgroundAssetId(id);
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }
 
@@ -246,13 +254,9 @@ export class WaveformRenderer {
   }
 
   private async loadBackgroundIfNeeded(): Promise<void> {
-    const { background } = this.theme;
-    if (!backgroundNeedsImage(background) || typeof background.value !== 'string') {
-      this.backgroundImage = null;
-      return;
-    }
-
-    this.backgroundImage = await loadBackgroundImage(background.value);
+    const resolved = await resolveClipBackgrounds(this.theme, this.customBackgroundId);
+    this.userBackgroundImage = resolved.userBackgroundImage;
+    this.bundledBackgroundImage = resolved.bundledBackgroundImage;
   }
 
   private tick = (timestamp: number): void => {
@@ -285,10 +289,17 @@ export class WaveformRenderer {
     this.smoothedAudioEnergy =
       this.smoothedAudioEnergy * energySmoothing + instantEnergy * energyBlend;
 
-    drawThemeBackground(ctx, canvas, theme, this.backgroundImage, {
-      timeMs: this.reduceMotion ? 0 : performance.now(),
-      audioEnergy: this.smoothedAudioEnergy,
-    });
+    drawThemeBackground(
+      ctx,
+      canvas,
+      theme,
+      this.bundledBackgroundImage,
+      {
+        timeMs: this.reduceMotion ? 0 : performance.now(),
+        audioEnergy: this.smoothedAudioEnergy,
+      },
+      this.userBackgroundImage,
+    );
 
     const centerY = canvas.height / 2;
     const maxBarHeight = canvas.height * 0.7;
@@ -373,6 +384,7 @@ export async function renderThemePreview(
   theme: WaveformTheme,
   alignment: BarAlignment = 'center',
   timeMs: number = performance.now(),
+  customBackgroundId: string | null = null,
 ): Promise<void> {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -380,14 +392,14 @@ export async function renderThemePreview(
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
 
-  let backgroundImage: HTMLImageElement | null = null;
-  if (backgroundNeedsImage(theme.background) && typeof theme.background.value === 'string') {
-    backgroundImage = await loadBackgroundImage(theme.background.value);
-  }
+  const { userBackgroundImage, bundledBackgroundImage } = await resolveClipBackgrounds(
+    theme,
+    customBackgroundId,
+  );
 
-  drawThemeBackground(ctx, canvas, theme, backgroundImage, {
+  drawThemeBackground(ctx, canvas, theme, bundledBackgroundImage, {
     timeMs,
     audioEnergy: 0.32,
-  });
+  }, userBackgroundImage);
   drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);
 }
