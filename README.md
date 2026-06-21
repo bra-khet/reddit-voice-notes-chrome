@@ -2,69 +2,91 @@
 
 A privacy-first Chrome Manifest V3 extension that records short voice notes directly in Reddit comment boxes and exports them as MP4 videos with an animated waveform — ready for Reddit's video-in-comments feature.
 
-All recording, visualization, and transcoding happens **client-side** in the browser. The only data that leaves your machine is the final MP4 you choose to upload to Reddit.
+All recording, visualization, transcoding, and voice effects happen **client-side** in the browser. The only data that leaves your machine is the final MP4 you choose to upload to Reddit.
 
 ## Status
 
-**Stable `main` v2.0.0** (2026-06) — The full personalization release: themed waveform canvas, named clip profiles, custom color styles, personal image backgrounds, Design Studio, and a hardened FFmpeg pipeline.
+**Stable `main` v3.0.0** (2026-06) — Voice effects release on top of v2 personalization: pitch shift, EQ, light stylization presets, intensity/Turbo modulation, profile persistence, Design Studio preview, and FFmpeg `-af` export with graceful fallback.
 
-Previous stable: **v1.5.0** (MVP themes + pipeline hardening). Development history on the merged `pretty` branch is documented in `pretty-branch.md`.
+Previous stable: **v2.0.0** (Design Studio, profiles, personal backgrounds, hardened transcode). Development history: `pretty-branch.md` (v2), `dulcet-branch.md` (v3).
 
-### What's new in v2.0
+### What's new in v3.0
 
 | Area | Highlights |
 |------|------------|
-| **Design Studio** | Dedicated popup for clip appearance — HSV/HEX color pickers, radial dials, triple live previews, background fit/fill/position |
-| **Profiles & styles** | Up to 12 saved clip profiles and 12 custom color styles; **Update**, **Clone**, and **Save to new** fork paths |
-| **Personal backgrounds** | IndexedDB image library, chunked relay to Reddit canvas, WYSIWYG preview = recorded MP4 |
-| **Effects** | Background flair (bokeh/sparkle), boosted bar glow; Effects section scaffold for future layers |
-| **Pipeline** | BUG-007 dup-storm fix (`-fps_mode passthrough`), stall detection, cancel propagation, 60s client stall ceiling |
-| **Settings hub** | Audio/viz toggles, accessibility presets, reduced-motion waveform, themed recorder chrome |
+| **Voice effects** | Bundled presets (Deeper, Higher, Slight mask, Robot, Whisper, Custom); duration-preserving pitch; optional EQ/dynamics/reverb via FFmpeg |
+| **Intensity + Turbo** | Slider 0–10 modulates active preset strength; Turbo maps to magic 12; bundled preset stays selected while adjusting intensity |
+| **Design Studio Voice** | Preview last recording via Web Audio; no transcode needed to audition |
+| **Profile persistence** | `voiceEffectConfig` embedded on clip profiles; same Update / Clone / Save to new / exit guard as visual fields |
+| **Export** | Single-pass `-af` on WebM→MP4 transcode; silent fallback to raw audio + toast on filter failure |
+| **Popup summary** | One-line voice status (e.g. `Voice: Robot · 7/10`) |
+
+### v2.0 recap
+
+| Area | Highlights |
+|------|------------|
+| **Design Studio** | Clip appearance — colors, backgrounds, effects, triple live previews |
+| **Profiles & styles** | Up to 12 saved clip profiles and 12 custom color styles |
+| **Personal backgrounds** | IndexedDB + chunked relay to Reddit canvas (WYSIWYG) |
+| **Pipeline** | BUG-007 dup-storm fix, stall detection, 60s client ceiling, 2:00 cap |
 
 ## Features
 
 - Mic button injected next to Reddit's video icon (Shadow DOM–aware)
 - Floating recorder with live waveform, **2-minute cap**, discard/cancel flows
 - Client-side WebM capture → FFmpeg.wasm MP4 (offscreen document)
-- Bundled + custom clip themes; hot-swap safe mid-recording (popup / Design Studio)
+- Optional **voice effects** on export (off by default; per-profile)
+- Bundled + custom clip themes; hot-swap safe mid-recording
 - Download MP4 (primary, always reliable)
 - Best-effort **Attach to Reddit** via native file input
-- Settings popup + **Design Studio** for clip personalization
+- Settings popup + **Design Studio** for visual and voice personalization
 - Reload extension from popup after updates
+
+## Voice effects (v3)
+
+1. Open **Design Studio** from the extension popup
+2. **Voice** section — enable effects, pick a preset, adjust intensity (or Turbo)
+3. **Play preview** uses your last Reddit recording (record first, then reopen Studio)
+4. Voice settings save on clip profiles via **Update profile** / **Save to new**
+5. Next recording applies active voice config during transcode
+
+**Disabled path:** identical to v2 — no `-af`, no extra WASM work.
+
+**Manual QA harness:** `chrome-extension://<id>/voice-harness.html` (dev build)
 
 ## Tech stack
 
 - **[WXT](https://wxt.dev)** — Manifest V3 extension framework with Vite, TypeScript, and hot reload
 - **Vanilla TypeScript** — no framework in content scripts; Shadow DOM for UI
 - **ffmpeg.wasm** — lazy-loaded client-side transcoding in an offscreen document
-- **IndexedDB** — personal background blobs (`rvnImageDb`)
+- **Web Audio API** — Design Studio voice preview only (export uses FFmpeg filters)
+- **IndexedDB** — personal background blobs + last recording snapshot for preview
 
 ## Project layout
 
 ```
 entrypoints/
-  background.ts          # Service worker, transcode relay, background blob relay
+  background.ts          # Service worker, transcode relay, last-recording IDB
   content.ts             # Runs on reddit.com only
-  design-studio/         # Clip personalization popup (v2)
+  design-studio/         # Clip + voice personalization (v2/v3)
   offscreen/             # FFmpeg WASM worker
   popup/                 # Settings hub
+  voice-harness/         # Manual voice effect QA (v3)
 public/
   icon/                  # Extension icons
   ffmpeg/                # WASM core (copied on postinstall)
 src/
   recorder/              # getUserMedia + canvas + MediaRecorder
-  reddit-injector/       # DOM detection, injection, auto-attach
+  voice/                 # Effect types, presets, resolve-config, preview, -af graphs
   settings/              # Profiles, custom styles, user prefs
-  storage/               # ImageDB + background relay
-  theme/                 # Presets, overrides, backgrounds
-  ui/design-studio/      # Studio controls + save pathways
+  storage/               # ImageDB, last-recording relay
+  ui/design-studio/      # Studio controls + voice-controls.ts
   ffmpeg/                # Transcode messaging + ffmpeg-runner
-  messaging/             # MV3 message types + base64 binary transport
-wxt.config.ts
 docs/
   engineering-principles.md
-  bug-archive.md
-pretty-branch.md         # v2 phase plan + merge history
+  bug-archive.md         # BUG-001 … BUG-009
+dulcet-branch.md         # v3 phase plan
+pretty-branch.md         # v2 phase plan
 ```
 
 ## Development
@@ -89,13 +111,11 @@ npm run dev
 
 Load `.output/chrome-mv3-dev/` in `chrome://extensions` (Developer mode → Load unpacked).
 
-Visit [reddit.com](https://www.reddit.com), open a post with video comments enabled, and expand the comment box. You should see a microphone button next to Reddit's video icon.
-
 ### Usage
 
 1. Click the mic button in a Reddit comment composer
 2. Record → Stop → wait for FFmpeg → **Download MP4** or **Attach to Reddit**
-3. Optional: open the extension popup or **Design Studio** to personalize clip appearance before recording
+3. Optional: **Design Studio** for clip appearance and voice effects
 4. Post your comment
 
 ### Production build
@@ -112,7 +132,7 @@ Output: `.output/chrome-mv3/`
 npm run zip
 ```
 
-Output: `.output/reddit-voice-notes-2.0.0-chrome.zip` (~10 MB)
+Output: `.output/reddit-voice-notes-3.0.0-chrome.zip` (~10 MB)
 
 ### Type check
 
@@ -126,7 +146,7 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 
 | Permission | Purpose |
 |------------|---------|
-| `storage` | User preferences, profiles, shortcut settings |
+| `storage` | User preferences, profiles, voice config |
 | `offscreen` | FFmpeg WASM transcoding (Chrome 109+) |
 | `tabs` | Transcode progress relay to Reddit content script |
 | `host_permissions` for `reddit.com` | Content script injection |
@@ -134,32 +154,27 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 
 ## MVP constraints
 
-- **2-minute hard cap** on recordings (see `docs/bug-archive.md` BUG-001; longer caps tentatively possible post-BUG-007)
+- **2-minute hard cap** on recordings (see `docs/bug-archive.md` BUG-001)
 - **MP4 output** (H.264 + AAC) for Reddit compatibility
 - **Download path is primary** — auto-attach is best-effort
 - **Client-side only** — no external servers except Reddit upload
-
-## Updating for Reddit UI changes
-
-Reddit-specific selectors and attach logic live in `src/reddit-injector/`. Search for `UPDATE WHEN REDDIT UI CHANGES`.
-
-## Shadow DOM note
-
-Reddit's comment toolbar lives inside web-component shadow trees. The extension walks open shadow roots (and optionally uses `chrome.dom.openOrClosedShadowRoot` when available). Do **not** add a `dom` permission to `manifest.json` — injection works without it.
+- **Voice effects:** single FFmpeg pass; `loudnorm` presets may add several seconds on long clips
 
 ## Known limitations
 
 - Reload extension + hard-refresh Reddit after updates
-- Keyboard shortcut reinstatement deferred (Reddit contenteditable conflicts) — use mic button
+- Keyboard shortcut reinstatement deferred — use mic button
 - Background tab pauses canvas `requestAnimationFrame` (audio still records)
+- Voice preview requires a prior recording in the same browser session
 - Auto-attach may break when Reddit changes uploader UI — download always works
+- WASM memory is tight (~32 MB FFmpeg core); no parallel transcode jobs
 
 ## Release tags
 
 | Tag | Meaning |
 |-----|---------|
-| `v2.0.0` | Stable release on `main` — merge of `pretty` (2026-06) |
-| `pretty-profile-style-premerge` | Pre-merge checkpoint on `pretty` |
+| `v3.0.0` | Stable release on `main` — voice effects (`dulcet` merge, 2026-06) |
+| `v2.0.0` | Design Studio + personalization (`pretty` merge) |
 | `v1.5.0` | Prior stable MVP + themes |
 
 ## Dev dependency security notes
@@ -168,4 +183,4 @@ Reddit's comment toolbar lives inside web-component shadow trees. The extension 
 
 ## License
 
-Private — v2.0 stable.
+Private — v3.0 stable.

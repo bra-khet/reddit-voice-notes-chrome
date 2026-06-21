@@ -1,6 +1,6 @@
 # `dulcet` branch — voice profiles & audio stream modification
 
-**Status:** dulcet-4 complete — voice settings persist on clip profiles; intensity + Turbo UI live.
+**Status:** dulcet-5 complete — v3.0.0 release on `main` (2026-06).
 **Target release:** v3.0.0 on `main` after merge from `dulcet`.  
 **Baseline:** `main` v2.0.1 (Design Studio + hardened transcode pipeline).
 
@@ -151,7 +151,7 @@ Bundled **voice presets** are hardcoded defaults (like theme presets), not store
 | **dulcet-2** | Studio preview UI | Voice section in Design Studio; Web Audio preview (demo buffer or last recording); pitch slider, presets, debounced playback; **no export wire yet** | **Done** |
 | **dulcet-3** | Pipeline wire | Hook recorder stop → voice process (if enabled) → existing transcode; semantic progress stage; cancel + stall; verify viz/audio sync at 2:00 cap | **Done** |
 | **dulcet-4** | Profile persistence | `voiceEffectConfig` on `ClipProfile`; Update/Clone/Save to new + exit guard; optional main-popup summary; intensity 0–10 + Turbo boost toggle (maps to 12); 1–2 extra effects if budget allows | **Done** |
-| **dulcet-5** | Harden & release | Edge cases, perf budget (<5–10s added on mid-range HW for 2:00), docs, prod zip, merge `dulcet` → `main`, tag **v3.0.0** | Planned |
+| **dulcet-5** | Harden & release | Edge cases, perf budget (<5–10s added on mid-range HW for 2:00), docs, prod zip, merge `dulcet` → `main`, tag **v3.0.0** | **Done** |
 
 ### dulcet-0 — audit checklist
 
@@ -226,7 +226,8 @@ Rationale: fewest WASM passes; `webmBlob` stays non-destructive in memory; video
 
 | File | Contents |
 |------|----------|
-| `src/voice/types.ts` | `VoiceEffectConfig`, normalization, `voiceEffectIsActive()` |
+| `src/voice/types.ts` | `VoiceEffectConfig`, normalization (no re-export of resolve-config) |
+| `src/voice/resolve-config.ts` | `resolveVoiceEffectConfig()`, `scaleVoiceEffectByIntensity()`, `voiceEffectIsActive()` |
 | `src/voice/presets.ts` | Bundled preset table (Deeper, Higher, Slight mask, Robot, Whisper, Custom) |
 | `src/voice/filter-graphs.ts` | `buildFfmpegAudioFilter()` + Web Audio preview notes |
 | `src/voice/index.ts` | Barrel export |
@@ -338,6 +339,21 @@ Studio voice edits are **draft-only** until dulcet-4 (export path unchanged). Fu
 | `src/settings/user-preferences.ts` | `voiceEffect` on `UserPreferencesV1`; Studio saves via `saveVoiceEffectPreferences()` |
 | `src/storage/last-recording-relay.ts` | Content script → background IDB fix for voice preview |
 
-## Immediate next step
+### dulcet-5 — implementation notes
 
-**dulcet-5 harden & release** — perf QA at 2:00 cap, docs, prod zip, merge `dulcet` → `main`, tag **v3.0.0**.
+| Artifact | Role |
+|----------|------|
+| `package.json` / `src/utils/version.ts` | **v3.0.0** |
+| `README.md` | v3 voice effects user + dev docs |
+| `docs/bug-archive.md` | BUG-008 (popup circular import), BUG-009 (intensity preset latch) |
+| `src/voice/types.ts` | Guard comment — never re-export resolve-config |
+| `src/voice/index.ts` | Barrel marked offscreen-only; exports voice-summary |
+
+**Perf note:** Voice `-af` is single-pass inside existing transcode — expect modest added time vs v2 (filter complexity; `loudnorm` presets slowest). No separate WASM job.
+
+**Release:** `npm run zip` → `.output/reddit-voice-notes-3.0.0-chrome.zip` · tag `v3.0.0` on `main`.
+
+## Post-v3 ideas
+
+- Ephemeral ~30s ad-hoc mic test in Design Studio
+- v4 transcription (Vosk STT) — see `.ignore/transcript-design-notes.txt`

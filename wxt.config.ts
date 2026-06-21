@@ -16,7 +16,7 @@ export default defineConfig({
     },
     name: 'Reddit Voice Notes',
     description:
-      'Record short voice notes with an animated waveform and export MP4 for Reddit video comments.',
+      'Record short voice notes with animated waveform, optional voice effects, and MP4 export for Reddit video comments.',
     version: packageJson.version,
     // CHANGED: add tabs — required for background → content-script transcode progress relay in prod builds.
     // WHY: WXT dev injects tabs automatically; without it, tabs.sendMessage relay silently fails → FFmpeg stuck at 0%.

@@ -278,3 +278,57 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - `src/ffmpeg/webm-preflight.ts` — duration/size checks only today
 - `src/recorder/voice-recorder.ts` — `captureStream(WAVEFORM_TARGET_FPS)`, MediaRecorder stop
 - `pretty-branch.md` — pretty-9 diagnosis section
+
+---
+
+## BUG-008 — Settings popup blank after dulcet-4 (2026-06)
+
+### Symptoms
+
+- Extension settings popup opens as an empty ~10px-tall box (correct width, no content).
+- Brief hang before render; no UI from `entrypoints/popup/main.ts`.
+
+### Root cause (confirmed)
+
+**Circular ESM import:** `src/voice/types.ts` re-exported `resolve-config.ts`, which imports `types.ts` and `presets.ts` (which imports `types.ts`). Popup loads `clip-appearance-summary` → `voice-summary` / `clip-profiles` → `voice/types` → cycle → module init failure before `innerHTML` is set.
+
+### Fix (2026-06, `dulcet`)
+
+- Removed re-exports from `types.ts`.
+- Consumers import `voiceEffectIsActive`, `voiceEffectConfigsEqual`, `scaleVoiceEffectByIntensity`, `resolveVoiceEffectConfig` from `resolve-config.ts` directly.
+- Guard comment on `types.ts`; barrel `index.ts` documented as offscreen-only.
+
+### Prevention
+
+- Never re-export `resolve-config` from `types.ts`.
+- Popup/settings UI: use direct paths (`voice-summary`, `resolve-config`, `types`) — not `@/src/voice` barrel (pulls `process-audio` → ffmpeg-runner).
+
+### Related files
+
+- `src/voice/types.ts`, `src/voice/resolve-config.ts`, `src/voice/index.ts`
+- `src/ui/popup/clip-appearance-summary.ts`
+
+---
+
+## BUG-009 — Intensity slider dropped bundled voice preset (2026-06)
+
+### Symptoms
+
+- Moving intensity 1–10 switched voice preset dropdown to **Custom**.
+- Preview/export sounded like pitch-only custom, not the selected preset (Robot, Deeper, etc.) at reduced strength.
+
+### Root cause (confirmed)
+
+`voice-controls.ts` intensity handler set `presetId: 'custom'` on every slider move (copied from pitch-knob behavior). Intensity is a modulation layer on the active preset, not a fork to Custom.
+
+### Fix (2026-06, `dulcet`)
+
+- Intensity handler keeps `presetId`; only updates `intensity` / `turbo`.
+- Added `resolveVoiceEffectConfig()` — rebuilds bundled preset SFX from `presets.ts` + applies user `intensity`/`turbo`/`enabled` (mirrors visual preset + `designOverrides`).
+- Export/preview: `resolveVoiceEffectConfig()` → `scaleVoiceEffectByIntensity()`.
+
+### Related files
+
+- `src/voice/resolve-config.ts`
+- `src/ui/design-studio/voice-controls.ts`
+- `src/voice/filter-graphs.ts`, `src/voice/preview-chain.ts`

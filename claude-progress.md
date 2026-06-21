@@ -132,9 +132,9 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 
 | Branch | Role |
 |--------|------|
-| `main` | Stable releases — **v2.0.1** (Design Studio + hardened transcode) |
+| `main` | **v3.0.0** stable — voice effects + v2 personalization (2026-06) |
 | `pretty` | **Merged** into `main` as **v2.0.0** (2026-06-21); branch retained for history |
-| `dulcet` | **Active** — v3 voice effects (pitch, EQ, light stylization); target **v3.0.0** merge to `main` |
+| `dulcet` | **Merged** into `main` as **v3.0.0** (2026-06); branch retained for history |
 
 ## Architecture note: mid-recording theme changes (QA-verified 2026-06)
 
@@ -161,12 +161,14 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 
 ---
 
-## v3 Dulcet — voice effects (`dulcet` branch, 2026-06-21)
+## v3.0.0 stable — `dulcet` merged to `main` (2026-06)
 
-**Baseline:** `main` v2.0.1 · **Target:** v3.0.0 after dulcet-4 + dulcet-5  
-**Plan:** `dulcet-branch.md` · **QA status:** Design Studio preview + export pipeline verified working
+**Tag:** `v3.0.0` · **Release zip:** `.output/reddit-voice-notes-3.0.0-chrome.zip` (~10 MB)  
+**Plan:** `dulcet-branch.md` · **Baseline merged from:** v2.0.1 on `main`
 
-### Phase status
+Largest v3 milestone: client-side voice effects (pitch, EQ, light stylization) with Design Studio preview, profile persistence, intensity/Turbo modulation, and single-pass FFmpeg `-af` export with graceful fallback — without breaking v2 record → transcode → attach.
+
+### Phase status (all complete)
 
 | Phase | Name | Status |
 |-------|------|--------|
@@ -174,8 +176,8 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 | **dulcet-1** | Isolated `processAudio()` + offscreen harness | **Done** (`916c21d`) |
 | **dulcet-2** | Design Studio voice preview UI | **Done** (`04fc6d1`) |
 | **dulcet-3** | Export pipeline wire (FFmpeg `-af` on transcode) | **Done** (`33154b3`) |
-| **dulcet-4** | Profile persistence + intensity 0–10 / Turbo (→12) | **Done** |
-| **dulcet-5** | Harden, perf QA at 2:00 cap, docs, zip, merge, tag v3.0.0 | Planned |
+| **dulcet-4** | Profile persistence + intensity 0–10 / Turbo (→12) | **Done** (`55fde8a`) |
+| **dulcet-5** | Harden, docs, zip, merge `main`, tag v3.0.0 | **Done** |
 
 ### What shipped (dulcet-0 → dulcet-3)
 
@@ -213,40 +215,61 @@ Voice effects are **post-capture, in-transcode** — no parallel MediaRecorder g
 
 **WASM / FFmpeg memory:** FFmpeg.wasm runs in a **single offscreen worker** with shared virtual FS and tight heap (~32 MB core + per-job buffers). Existing rules: serialized `enqueueTranscodeJob` queue (no parallel FFmpeg jobs); `writeFile` needs fresh buffer slices (ArrayBuffer detach); `disposeFfmpeg()` on failure/timeout. Future add-ons (e.g. Vosk ~50 MB) need a **separate queue/worker** — do not stack on the transcode queue without profiling.
 
-### Bugs fixed this sprint
+### Bugs fixed (dulcet sprint)
 
-| Symptom | Cause | Fix | Commit |
-|---------|-------|-----|--------|
+| Symptom | Cause | Fix | ID |
+|---------|-------|-----|-----|
 | Play preview does nothing | IDB origin mismatch | Background relay for last recording | `33154b3` |
-| `Cannot set property playbackRate… only a getter` | Assigned to AudioParam property | `playbackRate.value` on `AudioBufferSourceNode` | `49e293f` |
+| `Cannot set property playbackRate… only a getter` | Assigned to AudioParam property | `playbackRate.value` on `AudioBufferSourceNode` | `49e293f` / BUG-008-adjacent |
+| Settings popup blank (~10px box) | `types.ts` ↔ `resolve-config.ts` circular import | Direct imports; no re-export from types | `e42bed3` / **BUG-008** |
+| Intensity slider → Custom; preset SFX lost | Slider forced `presetId: 'custom'` | `resolveVoiceEffectConfig()` + keep presetId | `b185ca6` / **BUG-009** |
 
-### dulcet-4 — profile persistence (done)
+### dulcet-4 — profile persistence
 
 - `voiceEffectConfig` embedded on `ClipProfile`; legacy profiles without it load as voice-off
 - `applyClipProfile` / `saveCurrentAsClipProfile` / `updateActiveClipProfile` snapshot live `voiceEffect`
 - Dirty + exit guard via `clipProfileMatchesLiveState()` (appearance + voice)
-- Intensity slider 0–10 + Turbo toggle (magic 12, slider disabled); scales export + preview via `scaleVoiceEffectByIntensity()`
+- Intensity slider 0–10 + Turbo toggle (magic 12); `resolveVoiceEffectConfig()` + `scaleVoiceEffectByIntensity()`
 - Popup summary: `Voice: Deeper · 7/10` or `Voice: Off` (`formatVoiceEffectSummary`)
-- Bundled preset profiles keep live voice prefs (visual-only virtual profiles)
+- Bundled clip-style presets keep live voice prefs (visual-only virtual profiles)
 
-**Deferred (post-v3 polish):** ephemeral ~30s ad-hoc mic test in Studio
+### dulcet-5 — release hardening
+
+- **v3.0.0** version bump (`package.json`, `version.ts`, manifest via wxt)
+- `README.md` rewritten for v3; `docs/bug-archive.md` BUG-008 + BUG-009
+- Import-graph audit: no voice cycles; `types.ts` guard comment; `index.ts` barrel marked offscreen-only
+- `npm run build` + `npm run zip` pass; `tsc --noEmit` pre-existing warnings only (background-loader, background.ts)
+
+### Module layout (voice — do not regress)
+
+```
+types.ts          — leaf types + normalize only (NEVER re-export resolve-config)
+resolve-config.ts — resolveVoiceEffectConfig, scale, voiceEffectIsActive, equality
+presets.ts        — bundled preset table
+filter-graphs.ts  — FFmpeg -af (resolve → scale → build)
+preview-chain.ts  — Web Audio preview (resolve → scale)
+voice-summary.ts  — popup one-liner (popup imports this, not barrel)
+```
+
+**Popup/settings rule:** direct file imports only — not `@/src/voice` barrel (pulls ffmpeg via process-audio).
+
+**Deferred (post-v3):** ephemeral ~30s ad-hoc mic test in Studio
 
 ### Transcription (v4 — design only, not started)
 
 Raw-audio STT on cloned WebM; opt-in Vosk UX — see `.ignore/transcript-design-notes.txt`. No Dulcet code changes required yet.
 
-### Restore / test Dulcet
+### Restore / test v3
 
 ```bash
-git checkout dulcet && npm install && npm run dev
+git checkout main && npm install && npm run dev
 ```
 
 - Harness: `chrome-extension://<id>/voice-harness.html`
-- Studio: record on Reddit → open Design Studio → Voice → Play preview
-- Export: enable voice effects → record → MP4 should reflect preset (toast if fallback)
+- Studio: record on Reddit → Design Studio → Voice → Play preview
+- Export: enable voice effects → record → MP4 reflects preset (toast if fallback)
+- Profiles: save voice on profile → switch profiles → voice restores
 
-### Recent commits on `dulcet`
+### Dulcet commit chain
 
-`7ee7bcc` dulcet-0 · `916c21d` dulcet-1 · `79adb2b` Robot revert · `04fc6d1` dulcet-2 · `33154b3` preview relay + dulcet-3 · `49e293f` AudioParam playbackRate fix
-
-**Branch:** `dulcet` ahead of `origin/dulcet` (push when ready).
+`7ee7bcc` dulcet-0 · `916c21d` dulcet-1 · `04fc6d1` dulcet-2 · `33154b3` dulcet-3 · `55fde8a` dulcet-4 · `b185ca6` intensity fix · `e42bed3` popup fix · dulcet-5 release docs

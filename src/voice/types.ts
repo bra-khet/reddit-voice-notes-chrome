@@ -1,6 +1,10 @@
 /**
  * Dulcet v3 — frozen voice-effect types (dulcet-0).
  * No processing or pipeline wiring here; see filter-graphs.ts for FFmpeg/Web Audio sketches.
+ *
+ * IMPORTANT: Do not re-export resolve-config.ts from this file — creates a circular import
+ * (types → resolve-config → presets → types) that breaks the settings popup at load time.
+ * Import resolveVoiceEffectConfig / voiceEffectIsActive from resolve-config.ts directly.
  */
 
 /** Bundled voice preset ids — hardcoded like theme presets, not stored in savedProfiles. */

@@ -17,7 +17,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="popup__header-row">
         <div class="popup__header-copy">
           <h1 class="popup__title">Reddit Voice Notes</h1>
-          <p class="popup__version">v${APP_VERSION} · Pretty</p>
+          <p class="popup__version">v${APP_VERSION}</p>
         </div>
         <a
           class="popup__readme-link"
