@@ -8,11 +8,11 @@ import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
 import { resolveAppearanceTheme } from '@/src/theme';
 import { DEFAULT_THEME_ID } from '@/src/theme/presets';
 import { parseClipStyleSelectValue } from '@/src/settings/clip-profiles';
+import { presetProfileId } from '@/src/settings/preset-profiles';
 import {
   applyClipProfile,
   loadUserPreferences,
   onUserPreferencesChanged,
-  saveAppearancePreferences,
   type AppearancePreferences,
 } from '@/src/settings/user-preferences';
 import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
@@ -291,28 +291,14 @@ export class RecorderPanel {
 
     this.themeSelect.addEventListener('change', () => {
       const parsed = parseClipStyleSelectValue(this.themeSelect.value);
-      if (parsed.kind === 'profile') {
-        void applyClipProfile(parsed.profileId).then((prefs) => {
-          this.syncClipStyleSelect(prefs);
-          this.applyThemeChrome(prefs.appearance);
-        });
-        return;
-      }
-
-      void loadUserPreferences().then((prefs) => {
-        this.applyThemeChrome({
-          ...prefs.appearance,
-          activeThemeId: parsed.themeId,
-          activeCustomStyleId: null,
-          designOverrides: null,
-        });
+      const profileId =
+        parsed.kind === 'profile' ? parsed.profileId : presetProfileId(parsed.themeId);
+      // CHANGED: bundled presets use virtual dummy profiles (`preset-{themeId}`).
+      // WHY: same applyClipProfile path as saved profiles — fully resets style, bg, and overrides.
+      void applyClipProfile(profileId).then((prefs) => {
+        this.syncClipStyleSelect(prefs);
+        this.applyThemeChrome(prefs.appearance);
       });
-      // CHANGED: preset clip style clears active profile — Design Studio keeps profile selected.
-      // WHY: recorder popup should detach from saved profiles when picking a built-in style.
-      void saveAppearancePreferences({
-        activeThemeId: parsed.themeId,
-        activeProfileId: null,
-      }).then((prefs) => this.syncClipStyleSelect(prefs));
     });
 
     this.primaryBtn.addEventListener('click', () => this.onPrimaryClick());

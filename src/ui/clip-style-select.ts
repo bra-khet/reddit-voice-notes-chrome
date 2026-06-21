@@ -6,6 +6,7 @@ import {
   PROFILE_SELECT_CUSTOM,
   resolveClipStyleSelectValue,
 } from '@/src/settings/clip-profiles';
+import { presetProfileId } from '@/src/settings/preset-profiles';
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 
 export function populateProfileSelect(select: HTMLSelectElement, prefs: UserPreferencesV1): void {
@@ -54,7 +55,7 @@ export function populateRecorderClipStyleSelect(
   themeGroup.label = 'Clip styles';
   for (const preset of listThemePresets()) {
     const option = document.createElement('option');
-    option.value = preset.id;
+    option.value = profileSelectValue(presetProfileId(preset.id));
     option.textContent = preset.name;
     themeGroup.append(option);
   }

@@ -1,4 +1,5 @@
 import { appearanceMatchesProfile, getClipProfileById } from '@/src/settings/clip-profiles';
+import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import { isCustomStyleDirty } from '@/src/settings/custom-styles';
 import {
   applyClipProfile,
@@ -54,8 +55,12 @@ export async function saveStudioUnsavedChanges(): Promise<UserPreferencesV1> {
   const current = await loadUserPreferences();
 
   if (current.appearance.activeProfileId) {
-    const profile = getClipProfileById(current, current.appearance.activeProfileId);
+    const profileId = current.appearance.activeProfileId;
+    const profile = getClipProfileById(current, profileId);
     if (profile && !appearanceMatchesProfile(current.appearance, profile)) {
+      if (isPresetProfileId(profileId)) {
+        return current;
+      }
       return updateActiveClipProfile();
     }
   }

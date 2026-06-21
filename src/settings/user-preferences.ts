@@ -6,11 +6,13 @@ import {
 import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
 import {
   createClipProfileId,
+  getClipProfileById,
   MAX_CLIP_PROFILES,
   normalizeActiveProfileId,
   normalizeClipProfiles,
   type ClipProfile,
 } from '@/src/settings/clip-profiles';
+import { getPresetClipProfile, isPresetProfileId } from '@/src/settings/preset-profiles';
 import {
   createCustomStyleId,
   customStyleBaseThemeId,
@@ -258,7 +260,7 @@ export async function saveAppearancePreferences(
 
 export async function applyClipProfile(profileId: string): Promise<UserPreferencesV1> {
   const current = await loadUserPreferences();
-  const profile = current.appearance.savedProfiles?.find((entry) => entry.id === profileId);
+  const profile = getClipProfileById(current, profileId);
   if (!profile) return current;
 
   const linkedStyle = profile.customStyleId
@@ -325,6 +327,9 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
   if (!profileId) {
     throw new Error('Select a saved profile to update.');
   }
+  if (isPresetProfileId(profileId)) {
+    throw new Error('Built-in clip styles cannot be updated. Save as a new profile instead.');
+  }
 
   const profiles = (current.appearance.savedProfiles ?? []).map((profile) => {
     if (profile.id !== profileId) return profile;
@@ -374,7 +379,15 @@ export async function applyPresetClipStyle(themeId: string): Promise<UserPrefere
     activeThemeId: themeId,
     activeCustomStyleId: null,
     designOverrides: null,
+    activeProfileId: null,
   });
+}
+
+/** Recorder popup: apply a bundled preset via its virtual dummy profile (pretty-8). */
+export async function applyPresetClipProfile(themeId: string): Promise<UserPreferencesV1> {
+  const profile = getPresetClipProfile(themeId);
+  if (!profile) return loadUserPreferences();
+  return applyClipProfile(profile.id);
 }
 
 export async function saveCustomStyleColors(

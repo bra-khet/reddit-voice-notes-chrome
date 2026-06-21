@@ -1,5 +1,10 @@
 import type { BarAlignment } from '@/src/recorder/waveform';
 import {
+  getPresetClipProfile,
+  isPresetProfileId,
+  presetThemeIdFromProfileId,
+} from '@/src/settings/preset-profiles';
+import {
   normalizeBackgroundPosition,
   normalizeBackgroundScaleMode,
 } from '@/src/theme/background-layout';
@@ -87,6 +92,10 @@ export function normalizeActiveProfileId(
   profiles: ClipProfile[],
 ): string | null {
   if (!activeId) return null;
+  if (isPresetProfileId(activeId)) {
+    const themeId = presetThemeIdFromProfileId(activeId);
+    return isKnownThemeId(themeId) ? activeId : null;
+  }
   return profiles.some((profile) => profile.id === activeId) ? activeId : null;
 }
 
@@ -94,6 +103,9 @@ export function getClipProfileById(
   prefs: UserPreferencesV1,
   profileId: string,
 ): ClipProfile | undefined {
+  if (isPresetProfileId(profileId)) {
+    return getPresetClipProfile(presetThemeIdFromProfileId(profileId));
+  }
   return prefs.appearance.savedProfiles?.find((profile) => profile.id === profileId);
 }
 
@@ -149,5 +161,7 @@ export function resolveClipStyleSelectValue(prefs: UserPreferencesV1): string {
   if (activeId && getClipProfileById(prefs, activeId)) {
     return profileSelectValue(activeId);
   }
+  const preset = getPresetClipProfile(prefs.appearance.activeThemeId);
+  if (preset) return profileSelectValue(preset.id);
   return prefs.appearance.activeThemeId;
 }

@@ -12,6 +12,7 @@ import {
   getClipProfileById,
   PROFILE_SELECT_CUSTOM,
 } from '@/src/settings/clip-profiles';
+import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import {
   getCustomStyleById,
   isCustomStyleDirty,
@@ -280,7 +281,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     const profileId = prefs.appearance.activeProfileId;
     const dirty = isProfileDirty();
 
-    if (!profileId) {
+    if (!profileId || isPresetProfileId(profileId)) {
       saveProfileBtn.textContent = 'Save as profile';
       saveProfileBtn.disabled = false;
       saveProfileBtn.classList.remove('popup__profile-btn--muted', 'popup__profile-btn--confirm');
@@ -368,9 +369,10 @@ export function mountClipStudio(root: HTMLElement): () => void {
   }
 
   function syncProfileActions(prefs: UserPreferencesV1): void {
-    const hasActiveProfile = Boolean(prefs.appearance.activeProfileId);
-    deleteProfileBtn.hidden = !hasActiveProfile;
-    deleteProfileBtn.disabled = !hasActiveProfile;
+    const profileId = prefs.appearance.activeProfileId;
+    const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
+    deleteProfileBtn.hidden = !hasSavedProfile;
+    deleteProfileBtn.disabled = !hasSavedProfile;
     syncProfileButton(prefs);
   }
 

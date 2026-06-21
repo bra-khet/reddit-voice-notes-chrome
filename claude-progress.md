@@ -89,7 +89,7 @@ Two different `Sending WebM` byte sizes = two sessions, not one duplicate send. 
 3. Content script assembles bytes → `Blob` → decode (blob URL / `ImageBitmap`) → `drawThemeBackground()` user layer.
 4. Same draw path as `renderThemePreview()` — preview = recorder canvas = MP4.
 
-**UX split (pretty-8):** Design Studio keeps **active profile** when editing theme/alignment/background (**Update profile**). Recorder popup **clears `activeProfileId`** when picking a built-in clip style preset.
+**UX split (pretty-8):** Design Studio keeps **active profile** when editing theme/alignment/background (**Update profile**); picking a bundled preset there still clears `activeProfileId` (manual/custom mode). **Recorder popup (2026-06-21):** bundled clip styles are **virtual dummy profiles** (`preset-{themeId}` in `src/settings/preset-profiles.ts`) — not stored in `savedProfiles`, but selected via the same `applyClipProfile()` path as user profiles so preset picks fully reset theme, personal background, custom style, and overrides (fixes dropdown label changing without canvas update).
 
 **Remaining before v2.0 merge:** pretty-8 color/effect pickers; pretty-9 perf pass; not merge-ready yet — prototype milestone only.
 
