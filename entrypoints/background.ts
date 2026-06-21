@@ -2,7 +2,10 @@
 // import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
 import { expectedBase64CharLength } from '@/src/messaging/binary-verify';
 import {
+  BACKGROUND_BLOB_PORT,
   MSG_GET_BACKGROUND_BLOB,
+  type BackgroundBlobPortRequest,
+  type BackgroundBlobPortResponse,
   type GetBackgroundBlobRequest,
   type GetBackgroundBlobResponse,
 } from '@/src/messaging/background-blob';
@@ -236,6 +239,15 @@ function relayTranscodeFailure(jobId: string, error: unknown): void {
   relayTranscodeBroadcast(completeMsg);
 }
 
+async function readBackgroundBlobForRelay(id: string): Promise<BackgroundBlobPortResponse> {
+  const record = await getBackgroundAsset(id);
+  if (!record) {
+    return { ok: false, error: 'Background not found.' };
+  }
+  const buffer = await record.blob.arrayBuffer();
+  return { ok: true, mimeType: record.mimeType, buffer };
+}
+
 export default defineBackground(() => {
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,
@@ -244,6 +256,39 @@ export default defineBackground(() => {
 
   // DISABLED: chrome.commands shortcut relay — see shortcut-handler.ts
   // browser.commands.onCommand.addListener((command) => { ... });
+
+  browser.runtime.onConnect.addListener((port) => {
+    if (port.name !== BACKGROUND_BLOB_PORT) return;
+
+    port.onMessage.addListener((message) => {
+      void (async () => {
+        try {
+          const { id } = message as BackgroundBlobPortRequest;
+          if (!id) {
+            port.postMessage({ ok: false, error: 'Missing background id.' } satisfies BackgroundBlobPortResponse);
+            return;
+          }
+          const payload = await readBackgroundBlobForRelay(id);
+          if (payload.ok && payload.buffer) {
+            // Structured-clone a copy — avoids transfer typing gaps across WebExtension typings.
+            port.postMessage({
+              ok: true,
+              mimeType: payload.mimeType,
+              buffer: payload.buffer.slice(0),
+            });
+            return;
+          }
+          port.postMessage(payload);
+        } catch (error) {
+          const response: BackgroundBlobPortResponse = {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          };
+          port.postMessage(response);
+        }
+      })();
+    });
+  });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
@@ -254,16 +299,8 @@ export default defineBackground(() => {
           const response: GetBackgroundBlobResponse = { ok: false };
           try {
             const { id } = message as GetBackgroundBlobRequest;
-            const record = await getBackgroundAsset(id);
-            if (!record) {
-              response.error = 'Background not found.';
-              sendResponse(response);
-              return;
-            }
-            response.ok = true;
-            response.mimeType = record.mimeType;
-            response.buffer = await record.blob.arrayBuffer();
-            sendResponse(response);
+            const payload = await readBackgroundBlobForRelay(id);
+            sendResponse(payload);
           } catch (error) {
             response.error = error instanceof Error ? error.message : String(error);
             sendResponse(response);

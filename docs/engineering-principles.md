@@ -75,7 +75,7 @@ User background blobs are **too large for `chrome.storage.local`** (multi‑MB i
 2. **Import gates** — pretty-7a allows **images only** (JPEG/PNG/WebP/GIF); video MIME types are schema-ready but rejected until canvas loop support ships.
 3. **Quota ladder** — per-file cap (8 MB images / 15 MB reserved video), max asset count, max total bytes; fail with typed `BackgroundImportError` before write.
 4. **Orphan hygiene** — `pruneUnreferencedBackgrounds()` after deletes; prefs refs are the source of truth for retention.
-5. **Canvas path (7b)** — `resolveClipBackgrounds()` resolves id → decoded `HTMLImageElement`; personal image overrides theme background (fill + dim); same hot-swap as bundled assets; preview = output.
+5. **Canvas path (7b)** — Design Studio (extension page) reads ImageDB directly; **recorder content script** relays blob bytes via `BACKGROUND_BLOB_PORT` → `FileReader` data-URL decode → canvas draw. Personal image overrides theme background (fill + dim).
 6. **Fallback** — missing/decode failure → theme gradient letterbox; never block recording.
 
 ### Reference implementation

@@ -1,5 +1,8 @@
 import {
+  BACKGROUND_BLOB_PORT,
   MSG_GET_BACKGROUND_BLOB,
+  type BackgroundBlobPortRequest,
+  type BackgroundBlobPortResponse,
   type GetBackgroundBlobRequest,
   type GetBackgroundBlobResponse,
 } from '@/src/messaging/background-blob';
@@ -9,6 +12,7 @@ import {
 } from './image-db';
 
 const decodedImageCache = new Map<string, HTMLImageElement>();
+const RELAY_TIMEOUT_MS = 45_000;
 
 function evictDecodedBackgroundImage(id: string): void {
   decodedImageCache.delete(id);
@@ -38,6 +42,21 @@ function loadImageFromUrl(url: string, cacheKey: string): Promise<HTMLImageEleme
   });
 }
 
+async function decodeBlobToImage(blob: Blob, cacheKey: string): Promise<HTMLImageElement | null> {
+  try {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error ?? new Error('FileReader failed.'));
+      reader.readAsDataURL(blob);
+    });
+    return loadImageFromUrl(dataUrl, cacheKey);
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Could not decode personal background blob:', error);
+    return null;
+  }
+}
+
 async function loadBackgroundImageElementLocal(id: string): Promise<HTMLImageElement | null> {
   const cached = decodedImageCache.get(id);
   if (cached?.complete && cached.naturalWidth > 0) return cached;
@@ -47,30 +66,92 @@ async function loadBackgroundImageElementLocal(id: string): Promise<HTMLImageEle
   return loadImageFromUrl(url, id);
 }
 
-// BUG FIX: Personal background missing on recorded video
-// Fix: Content scripts use the page origin IndexedDB, not extension ImageDB; relay blob via background worker.
-// Sync: entrypoints/background.ts MSG_GET_BACKGROUND_BLOB handler
-/**
- * Content scripts run on reddit.com — IndexedDB there is not the extension ImageDB.
- * Relay blob bytes through the background service worker (pretty-7b fix).
- */
-async function loadBackgroundImageElementViaRelay(id: string): Promise<HTMLImageElement | null> {
-  const cached = decodedImageCache.get(id);
-  if (cached?.complete && cached.naturalWidth > 0) return cached;
+async function requestBackgroundBlobViaPort(
+  id: string,
+): Promise<{ buffer: ArrayBuffer; mimeType: string } | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: { buffer: ArrayBuffer; mimeType: string } | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
 
+    try {
+      const port = browser.runtime.connect({ name: BACKGROUND_BLOB_PORT });
+      const timeout = setTimeout(() => {
+        port.disconnect();
+        finish(null);
+      }, RELAY_TIMEOUT_MS);
+
+      port.onMessage.addListener((message: BackgroundBlobPortResponse) => {
+        clearTimeout(timeout);
+        port.disconnect();
+        if (message.ok && message.buffer) {
+          finish({ buffer: message.buffer, mimeType: message.mimeType ?? 'image/jpeg' });
+          return;
+        }
+        console.warn(
+          '[Reddit Voice Notes] Personal background port relay failed:',
+          message.error ?? 'unknown error',
+        );
+        finish(null);
+      });
+
+      port.onDisconnect.addListener(() => {
+        clearTimeout(timeout);
+        if (!settled) finish(null);
+      });
+
+      const request: BackgroundBlobPortRequest = { id };
+      port.postMessage(request);
+    } catch (error) {
+      console.warn('[Reddit Voice Notes] Personal background port connect failed:', error);
+      finish(null);
+    }
+  });
+}
+
+async function requestBackgroundBlobViaMessage(
+  id: string,
+): Promise<{ buffer: ArrayBuffer; mimeType: string } | null> {
   const request: GetBackgroundBlobRequest = {
     type: MSG_GET_BACKGROUND_BLOB,
     id,
   };
 
-  const response = (await browser.runtime.sendMessage(request)) as GetBackgroundBlobResponse | undefined;
-  if (!response?.ok || !response.buffer) return null;
+  try {
+    const response = (await browser.runtime.sendMessage(request)) as GetBackgroundBlobResponse | undefined;
+    if (response?.ok && response.buffer) {
+      return { buffer: response.buffer, mimeType: response.mimeType ?? 'image/jpeg' };
+    }
+    console.warn(
+      '[Reddit Voice Notes] Personal background message relay failed:',
+      response?.error ?? 'no response',
+    );
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Personal background message relay error:', error);
+  }
+  return null;
+}
 
-  const blob = new Blob([response.buffer], { type: response.mimeType ?? 'image/jpeg' });
-  const objectUrl = URL.createObjectURL(blob);
-  const img = await loadImageFromUrl(objectUrl, id);
-  URL.revokeObjectURL(objectUrl);
-  return img;
+// BUG FIX: Personal background missing on recorded video
+// Fix: Content scripts cannot read extension ImageDB; relay bytes via background port + data-URL decode.
+// Sync: entrypoints/background.ts BACKGROUND_BLOB_PORT handler
+async function loadBackgroundImageElementViaRelay(id: string): Promise<HTMLImageElement | null> {
+  const cached = decodedImageCache.get(id);
+  if (cached?.complete && cached.naturalWidth > 0) return cached;
+
+  const payload =
+    (await requestBackgroundBlobViaPort(id)) ?? (await requestBackgroundBlobViaMessage(id));
+  if (!payload) return null;
+
+  const blob = new Blob([payload.buffer], { type: payload.mimeType });
+  const image = await decodeBlobToImage(blob, id);
+  if (!image) {
+    console.warn('[Reddit Voice Notes] Personal background image decode returned null for', id);
+  }
+  return image;
 }
 
 /** Decode ImageDB record to `HTMLImageElement` for canvas draw — works in popup and content script. */

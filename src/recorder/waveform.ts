@@ -254,7 +254,15 @@ export class WaveformRenderer {
   }
 
   private async loadBackgroundIfNeeded(): Promise<void> {
-    const resolved = await resolveClipBackgrounds(this.theme, this.customBackgroundId);
+    let resolved = await resolveClipBackgrounds(this.theme, this.customBackgroundId);
+
+    // CHANGED: retry once when personal bg id is set but relay/decode failed (MV3 SW cold start).
+    // WHY: first content-script request can race service worker IndexedDB wake-up.
+    if (this.customBackgroundId && !resolved.userBackgroundImage) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      resolved = await resolveClipBackgrounds(this.theme, this.customBackgroundId);
+    }
+
     this.userBackgroundImage = resolved.userBackgroundImage;
     this.bundledBackgroundImage = resolved.bundledBackgroundImage;
   }
