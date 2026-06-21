@@ -26,6 +26,13 @@ interface BiquadOptions {
   Q?: number;
 }
 
+function pitchRatioForConfig(config: VoiceEffectConfig): number {
+  if (!voiceEffectIsActive(config)) return 1;
+  const semitones = config.pitchShift?.semitones ?? 0;
+  if (semitones === 0) return 1;
+  return semitonesToPitchRatio(semitones);
+}
+
 function appendBiquad(ctx: AudioContext, input: AudioNode, options: BiquadOptions): AudioNode {
   const filter = ctx.createBiquadFilter();
   filter.type = options.type;
@@ -36,8 +43,15 @@ function appendBiquad(ctx: AudioContext, input: AudioNode, options: BiquadOption
   return filter;
 }
 
-function connectEffectChain(ctx: AudioContext, source: AudioNode, config: VoiceEffectConfig): void {
-  let node: AudioNode = source;
+/**
+ * Preview effect chain — order mirrors FFmpeg export: pitch (on source) → EQ → dynamics → out.
+ */
+function wireEffectChain(
+  ctx: AudioContext,
+  head: AudioNode,
+  config: VoiceEffectConfig,
+): AudioNode {
+  let node: AudioNode = head;
 
   const eq = config.eq;
   if (eq?.lowGain) {
@@ -68,18 +82,29 @@ function connectEffectChain(ctx: AudioContext, source: AudioNode, config: VoiceE
   }
 
   node.connect(ctx.destination);
+  return node;
 }
 
-function applyPitchPlaybackRate(
-  target: { playbackRate: number },
+function wirePreviewOutput(
+  ctx: AudioContext,
+  head: AudioNode,
   config: VoiceEffectConfig,
 ): void {
-  target.playbackRate = 1;
-  if (!voiceEffectIsActive(config)) return;
-  const semitones = config.pitchShift?.semitones ?? 0;
-  if (semitones !== 0) {
-    target.playbackRate = semitonesToPitchRatio(semitones);
+  if (voiceEffectIsActive(config)) {
+    wireEffectChain(ctx, head, config);
+    return;
   }
+  head.connect(ctx.destination);
+}
+
+// BUG FIX: Design Studio voice preview pitch on decoded buffer
+// Fix: AudioBufferSourceNode.playbackRate is an AudioParam — assign .value, not the property itself.
+function setBufferSourcePitch(source: AudioBufferSourceNode, ratio: number): void {
+  source.playbackRate.value = ratio;
+}
+
+function setMediaElementPitch(audio: HTMLAudioElement, ratio: number): void {
+  audio.playbackRate = ratio;
 }
 
 /**
@@ -134,13 +159,8 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
 
     const source = audioContext.createBufferSource();
     source.buffer = audioBuffer;
-    applyPitchPlaybackRate(source, config);
-
-    if (voiceEffectIsActive(config)) {
-      connectEffectChain(audioContext, source, config);
-    } else {
-      source.connect(audioContext.destination);
-    }
+    setBufferSourcePitch(source, pitchRatioForConfig(config));
+    wirePreviewOutput(audioContext, source, config);
 
     source.onended = () => {
       playing = false;
@@ -157,18 +177,13 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
 
     const audio = new Audio(objectUrl);
     mediaElement = audio;
-    applyPitchPlaybackRate(audio, config);
+    setMediaElementPitch(audio, pitchRatioForConfig(config));
 
     audioContext = new AudioContext();
     await audioContext.resume();
 
     const source = audioContext.createMediaElementSource(audio);
-
-    if (voiceEffectIsActive(config)) {
-      connectEffectChain(audioContext, source, config);
-    } else {
-      source.connect(audioContext.destination);
-    }
+    wirePreviewOutput(audioContext, source, config);
 
     audio.onended = () => {
       playing = false;
