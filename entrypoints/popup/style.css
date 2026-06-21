@@ -19,6 +19,50 @@ body {
   margin-bottom: 12px;
 }
 
+.popup__header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.popup__header-copy {
+  min-width: 0;
+}
+
+.popup__readme-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: #818384;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.popup__readme-link:hover {
+  color: #d7dadc;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.popup__readme-link:focus-visible {
+  outline: 2px solid #0079d3;
+  outline-offset: 2px;
+}
+
+.popup__readme-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
 .popup__title {
   margin: 0;
   font-size: 1rem;
@@ -310,6 +354,15 @@ body {
   .popup__hint,
   .popup__micro {
     color: #576f76;
+  }
+
+  .popup__readme-link {
+    color: #576f76;
+  }
+
+  .popup__readme-link:hover {
+    color: #1a1a1b;
+    background: #edeff1;
   }
 
   .popup__section {

@@ -1,14 +1,11 @@
-import { describeCaptureProfile } from '@/src/recorder/mic-constraints';
 import { loadUserPreferences, onUserPreferencesChanged } from '@/src/settings/user-preferences';
-import { renderInfoRow, renderSettingsSection, renderToggleRow } from './settings-shared';
+import { renderSettingsSection, renderToggleRow } from './settings-shared';
 
 function syncAudioToggles(root: HTMLElement, prefs: Awaited<ReturnType<typeof loadUserPreferences>>): void {
-  const profileLabel = root.querySelector<HTMLElement>('#audio-capture-profile');
   const rawMic = root.querySelector<HTMLInputElement>('#audio-raw-mic');
   const enhanced = root.querySelector<HTMLInputElement>('#audio-enhanced-capture');
   const fullSpectrum = root.querySelector<HTMLInputElement>('#audio-full-spectrum');
 
-  if (profileLabel) profileLabel.textContent = describeCaptureProfile(prefs.audio);
   if (rawMic) rawMic.checked = prefs.audio.rawMicCapture ?? false;
   if (enhanced) enhanced.checked = prefs.audio.preferHighQualityCapture ?? false;
   if (fullSpectrum) fullSpectrum.checked = prefs.audio.fullSpectrumViz ?? false;
@@ -19,13 +16,6 @@ export function mountAudioSettingsSection(root: HTMLElement): () => void {
     'Audio',
     'audio-settings-title',
     `
-      ${renderInfoRow({
-        label: 'Capture profile',
-        value: 'Economy (browser defaults)',
-        valueId: 'audio-capture-profile',
-        description:
-          'Active mic path from your settings. Economy uses browser WebRTC defaults; enhanced requests ideal 48 kHz stereo when enabled.',
-      })}
       ${renderToggleRow({
         id: 'audio-raw-mic',
         label: 'Raw microphone capture',
