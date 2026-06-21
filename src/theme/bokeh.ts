@@ -70,6 +70,7 @@ function drawOrb(
   style: BokehBackgroundStyle,
   timeMs: number,
   audioEnergy: number,
+  overlayMode: boolean,
 ): void {
   const { width, height } = canvas;
   const scale = Math.min(width, height);
@@ -83,10 +84,20 @@ function drawOrb(
   const alpha = orb.opacity * breathe * (0.88 + 0.12 * audioEnergy);
 
   const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  gradient.addColorStop(0, rgba(style.coreColor, alpha));
-  gradient.addColorStop(0.28, rgba(style.edgeColor, alpha * 0.55));
-  gradient.addColorStop(0.62, rgba(style.edgeColor, alpha * 0.14));
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  if (overlayMode) {
+    // BUG FIX: Custom bokeh overlay color inversion on photos
+    // Fix: Single tint — ramp alpha/brightness only; no complementary hue in gradient stops
+    const tint = style.coreColor;
+    gradient.addColorStop(0, rgba(tint, alpha * 0.75));
+    gradient.addColorStop(0.35, rgba(tint, alpha * 0.38));
+    gradient.addColorStop(0.68, rgba(tint, alpha * 0.12));
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  } else {
+    gradient.addColorStop(0, rgba(style.coreColor, alpha));
+    gradient.addColorStop(0.28, rgba(style.edgeColor, alpha * 0.55));
+    gradient.addColorStop(0.62, rgba(style.edgeColor, alpha * 0.14));
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  }
 
   ctx.fillStyle = gradient;
   ctx.beginPath();
@@ -115,7 +126,7 @@ export function drawBokehBackground(
   // Additive blend — overlapping orbs bloom like out-of-focus highlights.
   ctx.globalCompositeOperation = 'screen';
   for (const orb of style.orbs) {
-    drawOrb(ctx, canvas, orb, style, timeMs, audioEnergy);
+    drawOrb(ctx, canvas, orb, style, timeMs, audioEnergy, false);
   }
   ctx.restore();
 }
@@ -134,21 +145,33 @@ function stripAlphaHex(color: string): string {
 }
 
 /** Color-tinted bokeh orbs for custom-style overlays atop image backgrounds. */
-export function buildTintedBokehOverlayStyle(
-  barColor: string,
-  glowColor: string,
-): BokehBackgroundStyle {
+export function buildTintedBokehOverlayStyle(barColor: string): BokehBackgroundStyle {
+  const tint = stripAlphaHex(barColor);
   const midnight = BOKEH_STYLES.midnight;
   return {
     ...midnight,
     baseColor: 'transparent',
-    coreColor: stripAlphaHex(barColor),
-    edgeColor: stripAlphaHex(glowColor),
+    coreColor: tint,
+    edgeColor: tint,
     pulseAmount: midnight.pulseAmount * 0.9,
     audioReactivity: midnight.audioReactivity * 0.85,
     orbs: midnight.orbs.map((orb) => ({
       ...orb,
       opacity: orb.opacity * 0.5,
+    })),
+  };
+}
+
+/** Preset bokeh (e.g. Midnight Bokeh) as overlay atop personal/theme image backgrounds. */
+export function buildPresetBokehOverlayStyle(presetKey: string): BokehBackgroundStyle | null {
+  const preset = BOKEH_STYLES[presetKey];
+  if (!preset) return null;
+  return {
+    ...preset,
+    baseColor: 'transparent',
+    orbs: preset.orbs.map((orb) => ({
+      ...orb,
+      opacity: orb.opacity * 0.72,
     })),
   };
 }
@@ -159,14 +182,17 @@ export function drawBokehOverlay(
   canvas: HTMLCanvasElement,
   style: BokehBackgroundStyle,
   options: BokehDrawOptions = {},
+  /** Alpha-only tint overlays use source-over; preset blue orbs keep screen on dark bases. */
+  blendMode: GlobalCompositeOperation = 'screen',
+  overlayMode = false,
 ): void {
   const timeMs = options.timeMs ?? 0;
   const audioEnergy = Math.min(1, Math.max(0, options.audioEnergy ?? 0));
 
   ctx.save();
-  ctx.globalCompositeOperation = 'screen';
+  ctx.globalCompositeOperation = blendMode;
   for (const orb of style.orbs) {
-    drawOrb(ctx, canvas, orb, style, timeMs, audioEnergy);
+    drawOrb(ctx, canvas, orb, style, timeMs, audioEnergy, overlayMode);
   }
   ctx.restore();
 }

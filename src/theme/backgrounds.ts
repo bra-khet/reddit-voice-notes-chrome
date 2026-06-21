@@ -1,4 +1,5 @@
 import {
+  buildPresetBokehOverlayStyle,
   buildTintedBokehOverlayStyle,
   drawBokehBackground,
   drawBokehOverlay,
@@ -167,19 +168,16 @@ function drawUserBackgroundLayer(
   }
 }
 
-export function drawThemeBackground(
+function drawBundledThemeBackground(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
-  bokehOptions: BokehDrawOptions = {},
-  userBackgroundImage: DrawableBackgroundImage | null = null,
+  bokehOptions: BokehDrawOptions,
 ): void {
   const { background, colors } = theme;
 
-  if (userBackgroundImage) {
-    drawUserBackgroundLayer(ctx, canvas, theme, userBackgroundImage);
-  } else switch (background.type) {
+  switch (background.type) {
     case 'solid': {
       ctx.fillStyle = typeof background.value === 'string' ? background.value : colors.bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -210,7 +208,6 @@ export function drawThemeBackground(
           scaleMode: background.scaleMode ?? 'fit',
         });
       } else {
-        // Fallback while image loads or on failure — matches MVP gradient.
         drawThemeFallbackBackground(ctx, canvas, colors);
       }
 
@@ -235,6 +232,36 @@ export function drawThemeBackground(
       ctx.fillStyle = colors.bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
+}
+
+function drawPresetBokehOverlay(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  background: ThemeBackground,
+  bokehOptions: BokehDrawOptions,
+): void {
+  if (background.type !== 'bokeh' || typeof background.value !== 'string') return;
+  const style = buildPresetBokehOverlayStyle(background.value);
+  if (!style) return;
+  drawBokehOverlay(ctx, canvas, style, bokehOptions, 'screen', false);
+}
+
+export function drawThemeBackground(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  theme: WaveformTheme,
+  backgroundImage: HTMLImageElement | null,
+  bokehOptions: BokehDrawOptions = {},
+  userBackgroundImage: DrawableBackgroundImage | null = null,
+): void {
+  if (userBackgroundImage) {
+    drawUserBackgroundLayer(ctx, canvas, theme, userBackgroundImage);
+    // BUG FIX: Midnight Bokeh missing over personal backgrounds
+    // Fix: Preset bokeh draws as orb overlay when user image replaced the dark bokeh base
+    drawPresetBokehOverlay(ctx, canvas, theme.background, bokehOptions);
+  } else {
+    drawBundledThemeBackground(ctx, canvas, theme, backgroundImage, bokehOptions);
+  }
 
   drawDesignEffectOverlays(ctx, canvas, theme, bokehOptions);
 }
@@ -249,8 +276,8 @@ function drawDesignEffectOverlays(
   if (!overlay) return;
 
   if (overlay === 'bokeh') {
-    const style = buildTintedBokehOverlayStyle(theme.colors.bar, theme.colors.glow);
-    drawBokehOverlay(ctx, canvas, style, bokehOptions);
+    const style = buildTintedBokehOverlayStyle(theme.colors.bar);
+    drawBokehOverlay(ctx, canvas, style, bokehOptions, 'source-over', true);
     return;
   }
 

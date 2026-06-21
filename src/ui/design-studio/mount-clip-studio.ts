@@ -275,14 +275,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   function syncPreviewLoop(): void {
     const theme = resolvedTheme();
+    const presetBokeh = backgroundIsBokeh(theme.background);
     const animatedOverlay = themeHasAnimatedOverlay(theme);
-    const hasBundledMotion = backgroundIsBokeh(theme.background);
-    const shouldAnimate = animatedOverlay || hasBundledMotion;
+    const shouldAnimate = presetBokeh || animatedOverlay;
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
       return;
     }
-    if (!shouldAnimate || (activeCustomBackgroundId() && !animatedOverlay)) {
+    if (!shouldAnimate) {
       stopPreviewLoop();
       return;
     }
