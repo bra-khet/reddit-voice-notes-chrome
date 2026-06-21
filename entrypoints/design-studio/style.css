@@ -396,6 +396,12 @@ body {
   line-height: 1.45;
 }
 
+.studio__voice-preset-tip {
+  margin: -2px 0 6px;
+  color: #d7dadc;
+  font-style: italic;
+}
+
 .studio__voice-preset-hint {
   margin: -2px 0 8px;
 }
@@ -458,8 +464,16 @@ body {
   display: none;
 }
 
-.studio__layout-group + .studio__layout-group {
-  margin-top: 12px;
+.studio__layout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.studio__layout-group {
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
 .studio__layout-scale-row {
@@ -474,7 +488,7 @@ body {
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   gap: 6px;
-  width: min(100%, 168px);
+  width: min(100%, 156px);
   margin-top: 8px;
 }
 
@@ -495,7 +509,7 @@ body {
 }
 
 .studio__layout-choice--position {
-  min-height: 48px;
+  min-height: 44px;
   padding: 4px;
 }
 
@@ -608,6 +622,10 @@ body {
 
   .studio__exit-copy {
     color: #576f76;
+  }
+
+  .studio__voice-preset-tip {
+    color: #1a1a1b;
   }
 
   .studio__background-layout {

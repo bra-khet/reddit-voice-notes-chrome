@@ -6,7 +6,7 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
-import { VOICE_EFFECT_PRESETS } from '@/src/voice/presets';
+import { getVoiceEffectPreset, VOICE_EFFECT_PRESETS } from '@/src/voice/presets';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
 import { resolveVoiceEffectConfig } from '@/src/voice/resolve-config';
 import {
@@ -28,6 +28,8 @@ export interface VoiceControlsHandle {
 }
 
 const VOICE_SAVE_DEBOUNCE_MS = 250;
+
+// V4 NOTE: Voice section may become its own panel/tab when Studio sections are segmented.
 
 export function renderVoiceControlFields(): string {
   return `
@@ -51,6 +53,7 @@ export function renderVoiceControlFields(): string {
         <span class="popup__field-label">Voice preset</span>
         <select class="popup__select" data-voice-preset aria-label="Voice preset"></select>
       </label>
+      <p class="studio__voice-preset-tip popup__field-desc" data-voice-preset-tip hidden></p>
       <p class="studio__voice-preset-hint popup__field-desc">
         Presets include special SFX — intensity modulates the selected preset.
         The pitch knob switches to Custom for manual pitch only.
@@ -122,6 +125,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
   const sourceEl = panel.querySelector<HTMLElement>('[data-voice-source]')!;
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-voice-enabled]')!;
   const presetSelect = panel.querySelector<HTMLSelectElement>('[data-voice-preset]')!;
+  const presetTipEl = panel.querySelector<HTMLElement>('[data-voice-preset-tip]')!;
   const pitchMount = panel.querySelector<HTMLElement>('[data-voice-pitch-mount]')!;
   const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
@@ -176,6 +180,18 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
 
   function setStatus(message: string): void {
     statusEl.textContent = message;
+  }
+
+  function updatePresetTip(): void {
+    const presetId = (draftConfig.presetId ?? 'custom') as VoiceEffectPresetId;
+    const hint = getVoiceEffectPreset(presetId).usageHint;
+    if (hint) {
+      presetTipEl.textContent = hint;
+      presetTipEl.hidden = false;
+      return;
+    }
+    presetTipEl.textContent = '';
+    presetTipEl.hidden = true;
   }
 
   function schedulePersist(): void {
@@ -239,6 +255,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     presetSelect.value = draftConfig.presetId ?? 'custom';
     pitchKnob.setValue(resolvedDraft().pitchShift?.semitones ?? 0, true);
     updateIntensityUi();
+    updatePresetTip();
     syncing = false;
   }
 

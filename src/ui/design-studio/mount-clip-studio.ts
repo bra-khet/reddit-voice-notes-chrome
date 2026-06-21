@@ -148,6 +148,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
         </div>
       </section>
       ${renderPreviewBlock('primary')}
+      <!-- V4 NOTE: Style (and other Studio sections below) may be reworked into segmented panels/tabs — keep section boundaries loose. -->
       <section class="studio__section">
         <h2 class="studio__section-title">Style</h2>
         <label class="popup__field studio__field--compact">
@@ -180,15 +181,18 @@ export function mountClipStudio(root: HTMLElement): () => void {
         </label>
       </section>
       ${renderPreviewBlock('secondary')}
+      <!-- V4 NOTE: Background section — layout/sizing controls may move when Studio UI is segmented. -->
       <section class="studio__section studio__section--background">
         <h2 class="studio__section-title">Background</h2>
         ${renderPersonalBackgroundFields()}
         ${renderBackgroundLayoutFields()}
       </section>
+      <!-- V4 NOTE: Effects section — flair/glow may merge with Style or Background in a future segmented layout. -->
       <section class="studio__section studio__section--effects">
         <h2 class="studio__section-title">Effects</h2>
         ${renderBackgroundFlairFields()}
       </section>
+      <!-- V4 NOTE: Voice section — preview/last-recording UX may get its own panel; Subtitles/Captions planned nearby. -->
       <section class="studio__section studio__section--voice">
         <h2 class="studio__section-title">Voice</h2>
         ${renderVoiceControlFields()}

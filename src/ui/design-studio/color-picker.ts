@@ -7,6 +7,8 @@ import {
 import type { DesignOverrides } from '@/src/theme/design-overrides';
 import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
 
+// V4 NOTE: Custom style color controls belong to the Style section — may relocate when Studio UI is segmented.
+
 export interface ColorPickerControls {
   sync(overrides: DesignOverrides | null | undefined): void;
   isUserAdjusting(): boolean;

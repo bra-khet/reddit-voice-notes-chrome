@@ -12,8 +12,12 @@ export const DEFAULT_USER_BACKGROUND_LAYOUT: UserBackgroundLayout = {
 const VALID_SCALE_MODES: readonly BackgroundScaleMode[] = ['fit', 'fill'];
 const VALID_POSITIONS: readonly BackgroundImagePosition[] = [
   'top',
+  'top-left',
+  'top-right',
   'center',
   'bottom',
+  'bottom-left',
+  'bottom-right',
   'left',
   'right',
 ];
@@ -59,6 +63,14 @@ export function computeImageDrawOffset(
   position: BackgroundImagePosition,
 ): { dx: number; dy: number } {
   switch (position) {
+    case 'top-left':
+      return { dx: 0, dy: 0 };
+    case 'top-right':
+      return { dx: canvasWidth - drawWidth, dy: 0 };
+    case 'bottom-left':
+      return { dx: 0, dy: canvasHeight - drawHeight };
+    case 'bottom-right':
+      return { dx: canvasWidth - drawWidth, dy: canvasHeight - drawHeight };
     case 'left':
       return { dx: 0, dy: (canvasHeight - drawHeight) / 2 };
     case 'right':

@@ -5,6 +5,8 @@ export interface VoiceEffectPreset {
   id: VoiceEffectPresetId;
   label: string;
   description: string;
+  /** Design Studio tip shown when selected — helps users compensate for preset quirks. */
+  usageHint?: string;
   config: VoiceEffectConfig;
 }
 
@@ -37,6 +39,7 @@ export const VOICE_EFFECT_PRESETS: readonly VoiceEffectPreset[] = [
     id: 'slight-mask',
     label: 'Slight mask',
     description: 'Gentle pitch shift plus softened highs — light anonymization.',
+    usageHint: 'Speak steadily at normal volume — mumbling is harder to mask.',
     config: {
       enabled: true,
       presetId: 'slight-mask',
@@ -48,6 +51,7 @@ export const VOICE_EFFECT_PRESETS: readonly VoiceEffectPreset[] = [
     id: 'robot',
     label: 'Robot',
     description: 'Down-pitch with compressed dynamics — stylized, not forensic.',
+    usageHint: 'Speak clearly and enunciate — heavy processing can muddy unclear speech.',
     config: {
       enabled: true,
       presetId: 'robot',
@@ -60,6 +64,7 @@ export const VOICE_EFFECT_PRESETS: readonly VoiceEffectPreset[] = [
     id: 'whisper',
     label: 'Whisper',
     description: 'Softer highs and gentle lift — intimate, quiet delivery.',
+    usageHint: 'Speak a little louder than usual — this preset softens quiet delivery.',
     config: {
       enabled: true,
       presetId: 'whisper',

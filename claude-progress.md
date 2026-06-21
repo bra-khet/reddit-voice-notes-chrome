@@ -273,3 +273,12 @@ git checkout main && npm install && npm run dev
 ### Dulcet commit chain
 
 `7ee7bcc` dulcet-0 · `916c21d` dulcet-1 · `04fc6d1` dulcet-2 · `33154b3` dulcet-3 · `55fde8a` dulcet-4 · `b185ca6` intensity fix · `e42bed3` popup fix · dulcet-5 release docs
+
+## v3.0.x polish on `main` (2026-06-21)
+
+Pre-v4 UX polish — no version bump.
+
+- **Voice preset tips:** `usageHint` on Robot, Whisper, Slight mask — shown in Design Studio when selected (`presets.ts` → `voice-controls.ts`)
+- **Background corners:** `top-left` / `top-right` / `bottom-left` / `bottom-right` image position (`theme/types.ts`, `background-layout.ts`, 3×3 position grid)
+- **Background layout:** Image sizing + position side-by-side (`studio__layout-row` flex)
+- **V4 forward-compat notes:** HTML comments in `mount-clip-studio.ts` sections + module comments in voice/background/effects/color-picker — Studio sections may become segmented panels/tabs (Style, Background, Effects, Voice, future Subtitles/Captions)

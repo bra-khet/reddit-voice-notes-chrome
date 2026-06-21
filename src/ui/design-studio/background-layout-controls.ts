@@ -5,6 +5,8 @@ export interface BackgroundLayoutControlsHandle {
   sync(prefs: UserPreferencesV1): void;
 }
 
+// V4 NOTE: Background layout controls may move into a dedicated Background panel when Studio sections are segmented.
+
 const SCALE_OPTIONS: { value: BackgroundScaleMode; label: string; hint: string }[] = [
   {
     value: 'fit',
@@ -24,11 +26,15 @@ const POSITION_OPTIONS: {
   gridColumn: number;
   gridRow: number;
 }[] = [
+  { value: 'top-left', label: 'Top left', gridColumn: 1, gridRow: 1 },
   { value: 'top', label: 'Top', gridColumn: 2, gridRow: 1 },
+  { value: 'top-right', label: 'Top right', gridColumn: 3, gridRow: 1 },
   { value: 'left', label: 'Left', gridColumn: 1, gridRow: 2 },
   { value: 'center', label: 'Center', gridColumn: 2, gridRow: 2 },
   { value: 'right', label: 'Right', gridColumn: 3, gridRow: 2 },
+  { value: 'bottom-left', label: 'Bottom left', gridColumn: 1, gridRow: 3 },
   { value: 'bottom', label: 'Bottom', gridColumn: 2, gridRow: 3 },
+  { value: 'bottom-right', label: 'Bottom right', gridColumn: 3, gridRow: 3 },
 ];
 
 function scaleModeIcon(mode: BackgroundScaleMode): string {
@@ -51,11 +57,15 @@ function scaleModeIcon(mode: BackgroundScaleMode): string {
 
 function positionIcon(position: BackgroundImagePosition): string {
   const photoRects: Record<BackgroundImagePosition, string> = {
+    'top-left': '<rect x="4" y="3" width="10" height="7" rx="1" fill="currentColor"/>',
     top: '<rect x="10" y="3" width="12" height="8" rx="1" fill="currentColor"/>',
-    center: '<rect x="10" y="8" width="12" height="8" rx="1" fill="currentColor"/>',
-    bottom: '<rect x="10" y="13" width="12" height="8" rx="1" fill="currentColor"/>',
+    'top-right': '<rect x="18" y="3" width="10" height="7" rx="1" fill="currentColor"/>',
     left: '<rect x="4" y="8" width="12" height="8" rx="1" fill="currentColor"/>',
+    center: '<rect x="10" y="8" width="12" height="8" rx="1" fill="currentColor"/>',
     right: '<rect x="16" y="8" width="12" height="8" rx="1" fill="currentColor"/>',
+    'bottom-left': '<rect x="4" y="14" width="10" height="7" rx="1" fill="currentColor"/>',
+    bottom: '<rect x="10" y="13" width="12" height="8" rx="1" fill="currentColor"/>',
+    'bottom-right': '<rect x="18" y="14" width="10" height="7" rx="1" fill="currentColor"/>',
   };
   return `
     <svg class="studio__layout-icon studio__layout-icon--small" viewBox="0 0 32 24" aria-hidden="true">
@@ -98,16 +108,18 @@ export function renderBackgroundLayoutFields(): string {
 
   return `
     <div class="studio__background-layout" data-background-layout hidden>
-      <div class="studio__layout-group">
-        <span class="popup__field-label">Image sizing</span>
-        <div class="studio__layout-scale-row" role="radiogroup" aria-label="Background image sizing">
-          ${scaleButtons}
+      <div class="studio__layout-row">
+        <div class="studio__layout-group">
+          <span class="popup__field-label">Image sizing</span>
+          <div class="studio__layout-scale-row" role="radiogroup" aria-label="Background image sizing">
+            ${scaleButtons}
+          </div>
         </div>
-      </div>
-      <div class="studio__layout-group">
-        <span class="popup__field-label">Image position</span>
-        <div class="studio__layout-position-grid" role="radiogroup" aria-label="Background image position">
-          ${positionButtons}
+        <div class="studio__layout-group">
+          <span class="popup__field-label">Image position</span>
+          <div class="studio__layout-position-grid" role="radiogroup" aria-label="Background image position">
+            ${positionButtons}
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,7 @@
 import type { BackgroundEffect, BarGlowEffect, DesignOverrides } from '@/src/theme/design-overrides';
 
+// V4 NOTE: Effects controls may relocate when Design Studio sections are segmented.
+
 export interface EffectControlsHandle {
   sync(overrides: DesignOverrides | null | undefined): void;
 }

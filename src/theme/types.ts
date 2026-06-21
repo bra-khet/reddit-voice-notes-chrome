@@ -20,7 +20,16 @@ export type BackgroundType = 'solid' | 'gradient' | 'image' | 'bokeh';
 export type BackgroundScaleMode = 'fit' | 'fill';
 
 /** Personal background placement within the 16:9 frame. */
-export type BackgroundImagePosition = 'top' | 'center' | 'bottom' | 'left' | 'right';
+export type BackgroundImagePosition =
+  | 'top'
+  | 'top-left'
+  | 'top-right'
+  | 'center'
+  | 'bottom'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'left'
+  | 'right';
 
 export interface UserBackgroundLayout {
   scaleMode: BackgroundScaleMode;
