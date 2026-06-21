@@ -3,7 +3,12 @@ import {
   resolveBokehStyle,
   type BokehDrawOptions,
 } from './bokeh';
-import { loadBackgroundImageElement } from '@/src/storage/background-loader';
+import {
+  type DrawableBackgroundImage,
+  getDrawableBackgroundSize,
+  isDrawableBackgroundReady,
+  loadBackgroundImageElement,
+} from '@/src/storage/background-loader';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { USER_BACKGROUND_DIM_OVERLAY } from '@/src/storage/image-db-types';
 import type { BackgroundScaleMode, ThemeBackground, WaveformTheme } from './types';
@@ -40,12 +45,12 @@ export function isBackgroundAssetKey(value: string): value is BackgroundAssetKey
   return value in BACKGROUND_ASSETS;
 }
 
-export async function loadUserBackgroundImage(id: string): Promise<HTMLImageElement | null> {
+export async function loadUserBackgroundImage(id: string): Promise<DrawableBackgroundImage | null> {
   return loadBackgroundImageElement(id);
 }
 
 export interface ResolvedClipBackgrounds {
-  userBackgroundImage: HTMLImageElement | null;
+  userBackgroundImage: DrawableBackgroundImage | null;
   bundledBackgroundImage: HTMLImageElement | null;
 }
 
@@ -91,7 +96,7 @@ export async function loadBackgroundImage(key: string): Promise<HTMLImageElement
 interface DrawImageBackgroundOptions {
   ctx: CanvasRenderingContext2D;
   canvas: HTMLCanvasElement;
-  image: HTMLImageElement;
+  image: DrawableBackgroundImage;
   letterboxColor: string;
   scaleMode: BackgroundScaleMode;
 }
@@ -107,13 +112,14 @@ function drawImageBackground({
   ctx.fillStyle = letterboxColor;
   ctx.fillRect(0, 0, width, height);
 
+  const { width: imageWidth, height: imageHeight } = getDrawableBackgroundSize(image);
   const scale =
     scaleMode === 'fill'
-      ? Math.max(width / image.naturalWidth, height / image.naturalHeight)
-      : Math.min(width / image.naturalWidth, height / image.naturalHeight);
+      ? Math.max(width / imageWidth, height / imageHeight)
+      : Math.min(width / imageWidth, height / imageHeight);
 
-  const drawWidth = image.naturalWidth * scale;
-  const drawHeight = image.naturalHeight * scale;
+  const drawWidth = imageWidth * scale;
+  const drawHeight = imageHeight * scale;
   const dx = (width - drawWidth) / 2;
   const dy = (height - drawHeight) / 2;
 
@@ -136,9 +142,9 @@ function drawUserBackgroundLayer(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
-  image: HTMLImageElement,
+  image: DrawableBackgroundImage,
 ): void {
-  if (!image.complete || image.naturalWidth <= 0) {
+  if (!isDrawableBackgroundReady(image)) {
     drawThemeFallbackBackground(ctx, canvas, theme.colors);
     return;
   }
@@ -164,7 +170,7 @@ export function drawThemeBackground(
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
   bokehOptions: BokehDrawOptions = {},
-  userBackgroundImage: HTMLImageElement | null = null,
+  userBackgroundImage: DrawableBackgroundImage | null = null,
 ): void {
   const { background, colors } = theme;
 

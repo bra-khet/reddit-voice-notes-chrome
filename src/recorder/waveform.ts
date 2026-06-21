@@ -12,6 +12,7 @@ import {
   resolveClipBackgrounds,
   type WaveformTheme,
 } from '@/src/theme';
+import type { DrawableBackgroundImage } from '@/src/storage/background-loader';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { DEFAULT_THEME_ID, getThemeById } from '@/src/theme/presets';
 
@@ -171,7 +172,7 @@ export class WaveformRenderer {
   private theme: WaveformTheme;
   private customBackgroundId: string | null = null;
   private bundledBackgroundImage: HTMLImageElement | null = null;
-  private userBackgroundImage: HTMLImageElement | null = null;
+  private userBackgroundImage: DrawableBackgroundImage | null = null;
   private backgroundLoadPromise: Promise<void> = Promise.resolve();
   /** Monotonic token — stale async loads must not overwrite newer background state. */
   private backgroundLoadGeneration = 0;
