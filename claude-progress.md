@@ -296,4 +296,4 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 | Voice import graph | No `@/src/voice` barrel from popup/settings; `types.ts` leaf guard intact |
 | Manifest version | `3.1.0` via `package.json` → `wxt.config.ts` |
 
-**Next:** branch v4 (transcription) from `main` after push.
+**Next:** branch **`eloquent`** (v4 transcription) from `main` after push — phase plan in `eloquent-branch.md`.
