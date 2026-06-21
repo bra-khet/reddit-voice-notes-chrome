@@ -124,7 +124,7 @@ function withTimeout<T>(work: Promise<T>, timeoutMs: number, label: string): Pro
   });
 }
 
-async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> {
+export async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> {
   if (ffmpegInstance?.loaded) {
     onProgress?.(0.2, 'ready');
     return ffmpegInstance;

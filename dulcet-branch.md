@@ -147,7 +147,7 @@ Bundled **voice presets** are hardcoded defaults (like theme presets), not store
 | Phase | Name | Scope | Status |
 |-------|------|-------|--------|
 | **dulcet-0** | Audit & types | Map audio→FFmpeg handoff; recorder stop flow; messaging/offscreen contracts; freeze `VoiceEffectConfig`, preset table, filter-string notes | **Done** |
-| **dulcet-1** | Isolated processor | `src/voice/` + `processAudio(blob, config)` in offscreen; no-op + duration-preserving pitch; one supporting effect (gain/EQ); fallback to input blob on error; manual harness | Planned |
+| **dulcet-1** | Isolated processor | `src/voice/` + `processAudio(blob, config)` in offscreen; no-op + duration-preserving pitch; one supporting effect (gain/EQ); fallback to input blob on error; manual harness | **Done** |
 | **dulcet-2** | Studio preview UI | Voice section in Design Studio; Web Audio preview (demo buffer or last recording); pitch slider, presets, debounced playback; **no export wire yet** | Planned |
 | **dulcet-3** | Pipeline wire | Hook recorder stop → voice process (if enabled) → existing transcode; semantic progress stage; cancel + stall; verify viz/audio sync at 2:00 cap | Planned |
 | **dulcet-4** | Profile persistence | `voiceEffectConfig` on `ClipProfile`; Update/Clone/Save to new + exit guard; optional main-popup summary; 1–2 extra effects if budget allows | Planned |
@@ -235,6 +235,21 @@ Rationale: fewest WASM passes; `webmBlob` stays non-destructive in memory; video
 
 Isolated `processAudio()` returns a usable audio blob for enabled configs, returns input unchanged for `enabled: false`, and returns input on any failure. Performance and artifact notes in `claude-progress.md` or phase notes.
 
+#### dulcet-1 implementation notes
+
+| Artifact | Role |
+|----------|------|
+| `src/voice/process-audio.ts` | `processAudio()` / `processAudioBytes()` — FFmpeg audio-only extract + `-af` |
+| `src/voice/offscreen-queue.ts` | `enqueueProcessAudio()` — shares `enqueueTranscodeJob` queue with transcode |
+| `entrypoints/voice-harness/` | Manual QA page — file picker, presets, A/B audio players |
+| `entrypoints/offscreen/main.ts` | `__rvnVoiceHarness` on `globalThis` for DevTools queue testing |
+
+**Behavior:** `enabled: false` or inactive config → input blob unchanged (`applied: false`). FFmpeg error/timeout → input unchanged (`fallback: true`). Success → Opus WebM (`audio/webm;codecs=opus`).
+
+**Harness:** `npm run dev` → open `chrome-extension://<id>/voice-harness.html` → load a recorded `.webm` → pick preset → Process / No-op.
+
+**Perf (informal):** Audio-only pass is faster than full mux transcode; `loudnorm` presets (Whisper) may add several seconds. Production path (dulcet-3) uses single-pass `-af` on full WebM→MP4 instead of this extract step.
+
 ### dulcet-2 — definition of done
 
 User opens Design Studio, adjusts voice settings, hears preview without recording or transcoding. Studio state may hold unsaved voice edits; export unchanged.
@@ -289,4 +304,4 @@ git checkout main && npm install && npm run dev
 
 ## Immediate next step
 
-**dulcet-1 isolated processor** — implement `processAudio(blob, config)` in offscreen using `buildFfmpegAudioFilter()`; no-op + duration-preserving pitch; fallback to input on error; manual harness.
+**dulcet-2 Studio preview UI** — Voice section in Design Studio; Web Audio preview with debounced playback; no export wire yet.
