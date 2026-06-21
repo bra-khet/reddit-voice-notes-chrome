@@ -91,7 +91,9 @@ function buildDynamicsFilter(dynamics: VoiceEffectConfig['dynamics']): string | 
     segments.push('loudnorm=I=-16:TP=-1.5:LRA=11');
   }
   if (dynamics.compressorEnabled) {
-    segments.push('acompressor=threshold=-18dB:ratio=3:attack=5:release=50');
+    // CHANGED: stronger ratio/threshold for Robot preset (dulcet-1 QA).
+    // WHY: single compressor path; Robot should feel more squashed vs plain Deeper pitch.
+    segments.push('acompressor=threshold=-22dB:ratio=6:attack=3:release=35:makeup=2');
   }
 
   return segments.length > 0 ? segments.join(',') : null;
