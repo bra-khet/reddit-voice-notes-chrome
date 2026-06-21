@@ -4,6 +4,8 @@ export interface SettingsToggleOptions {
   id: string;
   label: string;
   description?: string;
+  /** Extra detail shown on the ? help affordance (pretty-3). */
+  helpTip?: string;
   checked: boolean;
   disabled?: boolean;
   comingSoon?: boolean;
@@ -49,10 +51,24 @@ export function renderInfoRow({ label, value, description, valueId }: SettingsIn
   `;
 }
 
+function renderHelpTip(id: string, helpTip: string): string {
+  const tipId = `${id}-help`;
+  return `
+    <button
+      type="button"
+      class="popup__help-tip"
+      id="${tipId}"
+      aria-label="${escapeHtml(helpTip)}"
+      title="${escapeHtml(helpTip)}"
+    >?</button>
+  `;
+}
+
 export function renderToggleRow({
   id,
   label,
   description,
+  helpTip,
   checked,
   disabled = false,
   comingSoon = false,
@@ -61,16 +77,21 @@ export function renderToggleRow({
   const badge = comingSoon
     ? '<span class="popup__badge" aria-hidden="true">Coming soon</span>'
     : '';
+  const help = helpTip ? renderHelpTip(id, helpTip) : '';
   const desc = description
     ? `<p class="popup__field-desc" id="${id}-desc">${escapeHtml(description)}</p>`
     : '';
-  const ariaDescribedBy = description ? ` aria-describedby="${id}-desc"` : '';
+  const describedByParts = [description ? `${id}-desc` : '', helpTip ? `${id}-help` : ''].filter(Boolean);
+  const ariaDescribedBy = describedByParts.length
+    ? ` aria-describedby="${describedByParts.join(' ')}"`
+    : '';
 
   return `
     <div class="${rowClass}">
       <div class="popup__toggle-copy">
         <div class="popup__toggle-heading">
           <label class="popup__toggle-label" for="${id}">${escapeHtml(label)}</label>
+          ${help}
           ${badge}
         </div>
         ${desc}

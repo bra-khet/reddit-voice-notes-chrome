@@ -223,6 +223,36 @@ body {
   gap: 6px;
 }
 
+.popup__help-tip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid #4a4c4e;
+  border-radius: 50%;
+  background: transparent;
+  color: #818384;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.popup__help-tip:hover,
+.popup__help-tip:focus-visible {
+  color: #d7dadc;
+  border-color: #818384;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.popup__help-tip:focus-visible {
+  outline: 2px solid #0079d3;
+  outline-offset: 2px;
+}
+
 .popup__field-desc {
   margin: 4px 0 0;
   font-size: 0.75rem;
@@ -400,6 +430,18 @@ body {
   .popup__toggle-row--disabled .popup__toggle-label,
   .popup__toggle-row--disabled .popup__field-desc {
     color: #7c8b93;
+  }
+
+  .popup__help-tip {
+    border-color: #c8ccd0;
+    color: #576f76;
+  }
+
+  .popup__help-tip:hover,
+  .popup__help-tip:focus-visible {
+    color: #1a1a1b;
+    border-color: #576f76;
+    background: #edeff1;
   }
 
   .popup__toggle-input {

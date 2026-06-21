@@ -81,11 +81,11 @@ entrypoints/popup/            # settings UI for personalization
 
 These items are prepared or designed-for but not activated in the current sprint:
 
-- **Browser audio processing toggle** (`rawMicCapture` in `rvnUserPrefs`): Default **on** (economy). Popup placeholder in Audio settings shell. Implementation in `src/recorder/mic-constraints.ts` via `acquireMicStream()` with `OverconstrainedError` fallback ladder.
-- **Enhanced capture toggle** (`preferHighQualityCapture`): Default **off** (browser sample rate/channels). When on, requests **ideal** 48 kHz + ideal stereo, degrading to mono / browser defaults. Popup placeholder shipped in pretty-2 shell; wired in pretty-3.
+- **Browser audio processing toggle** (`rawMicCapture` in `rvnUserPrefs`): Default **on** (economy). Live in Audio settings (pretty-3). Implementation in `src/recorder/mic-constraints.ts` via `acquireMicStream()` with `OverconstrainedError` fallback ladder. Applies on next recorder open.
+- **Enhanced capture toggle** (`preferHighQualityCapture`): Default **off** (browser sample rate/channels). When on, requests **ideal** 48 kHz + ideal stereo, degrading to mono / browser defaults. Live in pretty-3; applies on next recorder open.
 - **Waveform bar vertical alignment**: Center-mirrored (current), bottom-aligned (classic spectrum), and top-aligned will be user-selectable settings (future UI surface similar to theme picker). The draw code in waveform.ts is being structured to support switching the bar anchoring/positioning without large refactors.
 - **Voice modulation / recorder profiles**: The analysis + recording pipeline should remain extensible. Do not lock out future addition of processing graphs, profile classes, or modulation nodes if voice effects are added later.
-- **Full-spectrum / music mode**: The 32-bar viz currently focuses on 80 Hz – 16 kHz voice range (with revisit-before-merge comment required in code). A toggle for wider music representation will be considered later if users request piping music through the recorder.
+- **Full-spectrum / music mode** (`fullSpectrumViz`): Default off — voice-focused 80 Hz – 16 kHz. Toggle in Audio settings (pretty-3) widens to ~20 Hz – nyquist; hot-swaps live during recording like themes.
 
 These notes are intentionally recorded here so decisions about defaults vs. options can be made after testing.
 
@@ -98,7 +98,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-0** | Theme foundation | Theme model, 5 bundled presets, canvas draw refactor, persistence normalization, `rvnUserPrefs` v1 scaffold | Done |
 | **pretty-1** | Popup — clip appearance | Theme picker, static canvas preview (same draw path as output), bar alignment; synced with recorder panel | Done (in `v1.5.0`) |
 | **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion; audio capture profile + constraint scaffold | Done |
-| **pretty-3** | Audio & viz toggles | Enable raw mic + enhanced capture toggles, full-spectrum/music viz mode, help tooltips | Planned |
+| **pretty-3** | Audio & viz toggles | Enable raw mic + enhanced capture toggles, full-spectrum/music viz mode, help tooltips | Done |
 | **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Planned |
 | **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Planned |
 | **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Planned |

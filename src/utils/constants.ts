@@ -44,14 +44,13 @@ export const ANALYSER_FFT_SIZE = 2048;
  * Lows below ~80 Hz and highs above ~16 kHz are de-emphasized for normal speech.
  * CHANGED: previously used full linear bins from tiny FFT; now voice-centric.
  *
- * IMPORTANT (revisit before merge to main):
- * This range (80 Hz – 16 kHz) is intentionally voice-focused.
- * Before merging the pretty branch, revisit this. The user wants a future UI toggle
- * (similar to themes) so that full-spectrum / music input can be represented without
- * the voice roll-off. See also pretty-branch.md and claude-progress.md notes on
- * "Future audio pipeline & settings".
+ * Voice default: 80 Hz – 16 kHz. Full-spectrum mode (pretty-3 toggle) uses
+ * FULL_SPECTRUM_FREQ_MIN_HZ through nyquist — see waveform.ts.
  */
 export const VOICE_FREQ_MIN_HZ = 80;
 export const VOICE_FREQ_MAX_HZ = 16000;
+
+/** Full-spectrum viz maps bars across the audible range (pretty-3 toggle). */
+export const FULL_SPECTRUM_FREQ_MIN_HZ = 20;
 
 export const EXTENSION_LOG_PREFIX = '[Reddit Voice Notes]';

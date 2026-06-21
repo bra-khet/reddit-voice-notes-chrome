@@ -35,7 +35,7 @@ export interface AudioPreferences {
    * degrades gracefully when hardware cannot honor ideals.
    */
   preferHighQualityCapture?: boolean;
-  /** Planned: widen viz beyond voice-focused 80 Hz – 16 kHz range. */
+  /** Widen viz beyond voice-focused 80 Hz – 16 kHz range (pretty-3). */
   fullSpectrumViz?: boolean;
 }
 

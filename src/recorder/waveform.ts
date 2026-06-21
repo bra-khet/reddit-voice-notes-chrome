@@ -2,6 +2,7 @@ import {
   ANALYSER_FFT_SIZE,
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  FULL_SPECTRUM_FREQ_MIN_HZ,
   VOICE_FREQ_MAX_HZ,
   VOICE_FREQ_MIN_HZ,
   WAVEFORM_TARGET_FPS,
@@ -97,28 +98,27 @@ function compressForViz(n: number): number {
  * BUG FIX: upper spectrum bars never activated (raw low-res linear bins + spectral tilt).
  * Fix: log-band aggregation over voice range + compression.
  *
- * IMPORTANT — revisit before merging the pretty branch:
- * This is deliberately voice-focused (sibilance reaches upper bars now).
- * User requested future UI toggle (music / full spectrum mode).
- * See pretty-branch.md and claude-progress.md "Future audio pipeline & settings".
- * Do not widen without the toggle or the revisit comment will be stale.
+ * Voice mode (default): 80 Hz – 16 kHz. Full-spectrum toggle widens to ~20 Hz – nyquist.
  */
 function computeBandValues(
   frequencyData: Uint8Array,
-  fftSize: number,
   sampleRate: number,
+  minHz: number,
+  maxHz: number,
 ): number[] {
   const binCount = frequencyData.length;
   const nyquist = sampleRate / 2;
   const binHz = nyquist / binCount;
+  const freqMax = Math.min(maxHz, nyquist);
+  const freqMin = Math.max(1, Math.min(minHz, freqMax - 1));
 
   const bands: number[] = [];
   for (let i = 0; i < BAR_COUNT; i += 1) {
     // Log spacing between min and max
     const t0 = i / BAR_COUNT;
     const t1 = (i + 1) / BAR_COUNT;
-    const f0 = VOICE_FREQ_MIN_HZ * Math.pow(VOICE_FREQ_MAX_HZ / VOICE_FREQ_MIN_HZ, t0);
-    const f1 = VOICE_FREQ_MIN_HZ * Math.pow(VOICE_FREQ_MAX_HZ / VOICE_FREQ_MIN_HZ, t1);
+    const f0 = freqMin * Math.pow(freqMax / freqMin, t0);
+    const f1 = freqMin * Math.pow(freqMax / freqMin, t1);
 
     let b0 = Math.max(0, Math.floor(f0 / binHz));
     let b1 = Math.min(binCount - 1, Math.floor(f1 / binHz));
@@ -171,6 +171,7 @@ export class WaveformRenderer {
   // WHY: defaults gave poor high-frequency visibility; alignment will be user-selectable.
   private sampleRate: number;
   private alignment: BarAlignment = 'center'; // default preserves current centered+mirrored look
+  private fullSpectrumViz = false;
   private smoothedAudioEnergy = 0;
 
   constructor(analyser: AnalyserNode, theme: WaveformTheme = getThemeById(DEFAULT_THEME_ID)) {
@@ -210,6 +211,11 @@ export class WaveformRenderer {
   /** Prepared for future user setting (center | bottom | top). Default = center (current mirrored behavior). */
   setBarAlignment(alignment: BarAlignment): void {
     this.alignment = alignment;
+  }
+
+  /** Widen viz beyond voice-focused band for music / ambient input (pretty-3). */
+  setFullSpectrumViz(enabled: boolean): void {
+    this.fullSpectrumViz = enabled;
   }
 
   start(): void {
@@ -253,7 +259,9 @@ export class WaveformRenderer {
     // CHANGED: replaced naive i*step on 32 bins from fft=64.
     // WHY: that produced almost no energy in upper bars for any voice input.
     // Now uses log-banded aggregation over 80 Hz-16 kHz + compression.
-    const bandValues = computeBandValues(this.frequencyData, ANALYSER_FFT_SIZE, this.sampleRate);
+    const minHz = this.fullSpectrumViz ? FULL_SPECTRUM_FREQ_MIN_HZ : VOICE_FREQ_MIN_HZ;
+    const maxHz = this.fullSpectrumViz ? this.sampleRate / 2 : VOICE_FREQ_MAX_HZ;
+    const bandValues = computeBandValues(this.frequencyData, this.sampleRate, minHz, maxHz);
 
     let bandSum = 0;
     for (const value of bandValues) bandSum += value;
