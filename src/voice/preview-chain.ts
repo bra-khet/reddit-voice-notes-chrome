@@ -29,7 +29,7 @@ interface BiquadOptions {
 
 function pitchRatioForConfig(config: VoiceEffectConfig): number {
   const scaled = scaleVoiceEffectByIntensity(config);
-  if (!voiceEffectIsActive(scaled)) return 1;
+  if (!scaled.enabled) return 1;
   const semitones = scaled.pitchShift?.semitones ?? 0;
   if (semitones === 0) return 1;
   return semitonesToPitchRatio(semitones);

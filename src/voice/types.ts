@@ -185,84 +185,9 @@ export function effectiveVoiceIntensity(config: VoiceEffectConfig): number {
   return normalized.intensity ?? VOICE_INTENSITY_DEFAULT;
 }
 
-/**
- * Scale numeric effect magnitudes by intensity/10 (Turbo = 12 → 1.2×).
- * Boolean dynamics flags stay when intensity > 0 and originally enabled.
- */
-export function scaleVoiceEffectByIntensity(config: VoiceEffectConfig): VoiceEffectConfig {
-  const normalized = normalizeVoiceEffectConfig(config);
-  if (!normalized.enabled) return normalized;
-
-  const intensity = normalized.intensity ?? VOICE_INTENSITY_DEFAULT;
-  if (intensity <= 0) {
-    return { ...normalized, enabled: false };
-  }
-
-  const factor = intensity / VOICE_INTENSITY_MAX;
-  const roundGain = (value: number | undefined): number | undefined => {
-    if (value === undefined || Number.isNaN(value)) return undefined;
-    const scaled = Math.round(value * factor * 10) / 10;
-    return scaled === 0 ? undefined : scaled;
-  };
-
-  const semitones = normalized.pitchShift?.semitones ?? 0;
-  const scaledSemitones = clamp(
-    Math.round(semitones * factor),
-    VOICE_SEMITONE_MIN,
-    VOICE_SEMITONE_MAX,
-  );
-
-  const eq = normalized.eq;
-  const scaledEq: EqBandConfig | undefined = eq
-    ? {
-        lowGain: roundGain(eq.lowGain),
-        midGain: roundGain(eq.midGain),
-        highGain: roundGain(eq.highGain),
-      }
-    : undefined;
-
-  const reverbAmount = normalized.reverb?.amount;
-  const scaledReverb: ReverbConfig | undefined =
-    reverbAmount !== undefined
-      ? { amount: clamp(reverbAmount * factor, 0, REVERB_AMOUNT_MAX) }
-      : undefined;
-
-  return {
-    ...normalized,
-    pitchShift: normalized.pitchShift
-      ? { ...normalized.pitchShift, semitones: scaledSemitones }
-      : undefined,
-    eq: scaledEq,
-    reverb: scaledReverb,
-  };
-}
-
-/** Stable equality for profile dirty checks and snapshots. */
-export function voiceEffectConfigsEqual(
-  a: VoiceEffectConfig,
-  b: VoiceEffectConfig,
-): boolean {
-  return (
-    JSON.stringify(normalizeVoiceEffectConfig(a)) ===
-    JSON.stringify(normalizeVoiceEffectConfig(b))
-  );
-}
-
-/** True when config would alter audio (used to skip FFmpeg -af and preview chains). */
-export function voiceEffectIsActive(config: VoiceEffectConfig): boolean {
-  const scaled = scaleVoiceEffectByIntensity(config);
-  if (!scaled.enabled) return false;
-
-  const semitones = scaled.pitchShift?.semitones ?? 0;
-  if (semitones !== 0) return true;
-
-  const eq = scaled.eq;
-  if (eq?.lowGain || eq?.midGain || eq?.highGain) return true;
-
-  if (scaled.dynamics?.normalize || scaled.dynamics?.compressorEnabled) return true;
-
-  const reverbAmount = scaled.reverb?.amount ?? 0;
-  if (reverbAmount > 0) return true;
-
-  return false;
-}
+export {
+  resolveVoiceEffectConfig,
+  scaleVoiceEffectByIntensity,
+  voiceEffectConfigsEqual,
+  voiceEffectIsActive,
+} from './resolve-config';

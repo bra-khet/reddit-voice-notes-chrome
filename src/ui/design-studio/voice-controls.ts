@@ -6,8 +6,9 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
-import { VOICE_EFFECT_PRESETS, voiceConfigFromPreset } from '@/src/voice/presets';
+import { VOICE_EFFECT_PRESETS } from '@/src/voice/presets';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
+import { resolveVoiceEffectConfig } from '@/src/voice/resolve-config';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
@@ -51,7 +52,8 @@ export function renderVoiceControlFields(): string {
         <select class="popup__select" data-voice-preset aria-label="Voice preset"></select>
       </label>
       <p class="studio__voice-preset-hint popup__field-desc">
-        Presets include special SFX — not just pitch. The knob is for custom pitch only.
+        Presets include special SFX — intensity modulates the selected preset.
+        The pitch knob switches to Custom for manual pitch only.
       </p>
       <label class="popup__field studio__field--compact studio__voice-intensity">
         <span class="popup__field-label">
@@ -150,14 +152,20 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     ariaLabel: 'Pitch shift in semitones',
     onChange: (semitones) => {
       if (syncing) return;
-      draftConfig = normalizeVoiceEffectConfig({
+      const resolved = resolveVoiceEffectConfig({
         ...draftConfig,
+        enabled: enabledInput.checked,
+      });
+      // BUG FIX: pitch knob should fork to Custom without dropping preset SFX snapshot
+      // Fix: resolve active preset first, then override pitch and mark custom
+      draftConfig = normalizeVoiceEffectConfig({
+        ...resolved,
         enabled: enabledInput.checked,
         presetId: 'custom',
         pitchShift: {
           semitones,
           preserveDuration: true,
-          exaggerateNatural: draftConfig.pitchShift?.exaggerateNatural ?? false,
+          exaggerateNatural: resolved.pitchShift?.exaggerateNatural ?? false,
         },
       });
       presetSelect.value = 'custom';
@@ -221,11 +229,15 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     });
   }
 
+  function resolvedDraft(): VoiceEffectConfig {
+    return resolveVoiceEffectConfig(mergeLiveToggles(draftConfig));
+  }
+
   function syncControlsFromDraft(): void {
     syncing = true;
     enabledInput.checked = draftConfig.enabled;
     presetSelect.value = draftConfig.presetId ?? 'custom';
-    pitchKnob.setValue(draftConfig.pitchShift?.semitones ?? 0, true);
+    pitchKnob.setValue(resolvedDraft().pitchShift?.semitones ?? 0, true);
     updateIntensityUi();
     syncing = false;
   }
@@ -274,15 +286,15 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
 
   intensityInput.addEventListener('input', () => {
     if (syncing || turboInput.checked) return;
+    // BUG FIX: intensity slider latched to Custom preset
+    // Fix: keep active bundled presetId — intensity only modulates its SFX at preview/export
     draftConfig = normalizeVoiceEffectConfig({
       ...draftConfig,
       enabled: enabledInput.checked,
       intensity: clampIntensity(Number(intensityInput.value)),
       turbo: false,
-      presetId: 'custom',
     });
     intensityValueEl.textContent = `${draftConfig.intensity ?? VOICE_INTENSITY_MAX}/${VOICE_INTENSITY_MAX}`;
-    presetSelect.value = 'custom';
     schedulePersist();
     setStatus('');
   });
@@ -304,7 +316,12 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
   presetSelect.addEventListener('change', () => {
     if (syncing) return;
     const presetId = presetSelect.value as VoiceEffectPresetId;
-    draftConfig = mergeLiveToggles(voiceConfigFromPreset(presetId));
+    draftConfig = mergeLiveToggles({
+      enabled: enabledInput.checked,
+      presetId,
+      intensity: clampIntensity(Number(intensityInput.value)),
+      turbo: turboInput.checked,
+    });
     syncControlsFromDraft();
     schedulePersist();
     setStatus('');
@@ -317,8 +334,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
         return;
       }
 
-      draftConfig.enabled = enabledInput.checked;
-      const config = normalizeVoiceEffectConfig(draftConfig);
+      const config = resolveVoiceEffectConfig(mergeLiveToggles(draftConfig));
       try {
         setStatus(config.enabled ? 'Playing with voice effects…' : 'Playing original audio…');
         await preview.play(config);
@@ -358,7 +374,7 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
 
   return {
     getDraftConfig() {
-      return mergeLiveToggles(draftConfig);
+      return normalizeVoiceEffectConfig(mergeLiveToggles(draftConfig));
     },
     syncFromPreferences(prefs) {
       syncing = true;

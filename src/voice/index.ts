@@ -1,4 +1,5 @@
 export * from './types';
+export * from './resolve-config';
 export * from './presets';
 export * from './filter-graphs';
 export * from './process-audio';
