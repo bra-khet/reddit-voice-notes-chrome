@@ -1,5 +1,6 @@
-import { getThemeById } from '@/src/theme';
+import { resolveAppearanceTheme } from '@/src/theme';
 import { getClipProfileById } from '@/src/settings/clip-profiles';
+import { getCustomStyleById } from '@/src/settings/custom-styles';
 import { loadUserPreferences, onUserPreferencesChanged } from '@/src/settings/user-preferences';
 import { openDesignStudioWindow } from '@/src/ui/design-studio/open-design-studio';
 
@@ -24,16 +25,20 @@ export function mountClipAppearanceSummary(root: HTMLElement): () => void {
     const profile = prefs.appearance.activeProfileId
       ? getClipProfileById(prefs, prefs.appearance.activeProfileId)
       : undefined;
-    const theme = getThemeById(prefs.appearance.activeThemeId);
+    const theme = resolveAppearanceTheme(prefs.appearance);
+    const customStyle = prefs.appearance.activeCustomStyleId
+      ? getCustomStyleById(prefs, prefs.appearance.activeCustomStyleId)
+      : undefined;
+    const styleLabel = customStyle?.name ?? (prefs.appearance.designOverrides?.barColor ? 'Custom' : theme.name);
     const alignment = prefs.appearance.barAlignment ?? 'center';
     const hasBackground = Boolean(prefs.appearance.customBackgroundId);
 
     activeLine.textContent = profile
       ? `Profile: ${profile.name}`
-      : `Style: ${theme.name}`;
+      : `Style: ${styleLabel}`;
 
     const parts = [
-      profile ? `Theme: ${theme.name}` : null,
+      profile ? `Style: ${styleLabel}` : null,
       `Alignment: ${alignment}`,
       hasBackground ? 'Personal background' : 'Theme background',
     ].filter(Boolean);

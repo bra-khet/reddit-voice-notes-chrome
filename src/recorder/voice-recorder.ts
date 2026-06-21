@@ -8,7 +8,7 @@ import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
-import { getThemeById } from '@/src/theme';
+import { resolveAppearanceTheme } from '@/src/theme';
 import {
   loadUserPreferences,
   onUserPreferencesChanged,
@@ -189,7 +189,7 @@ export class VoiceRecorderSession {
       const analyser = this.audioContext.createAnalyser();
       source.connect(analyser);
 
-      const theme = getThemeById(prefs.appearance.activeThemeId);
+      const theme = resolveAppearanceTheme(prefs.appearance);
       this.waveform = new WaveformRenderer(analyser, theme);
       this.waveform.setCustomBackgroundId(prefs.appearance.customBackgroundId ?? null);
       this.waveform.setBarAlignment(prefs.appearance.barAlignment ?? 'center');
@@ -204,7 +204,7 @@ export class VoiceRecorderSession {
       this.prefsUnsubscribe?.();
       this.prefsUnsubscribe = onUserPreferencesChanged((next) => {
         if (!this.waveform) return;
-        this.waveform.setTheme(getThemeById(next.appearance.activeThemeId));
+        this.waveform.setTheme(resolveAppearanceTheme(next.appearance));
         this.waveform.setCustomBackgroundId(next.appearance.customBackgroundId ?? null);
         this.waveform.setBarAlignment(next.appearance.barAlignment ?? 'center');
         this.waveform.setFullSpectrumViz(next.audio.fullSpectrumViz ?? false);

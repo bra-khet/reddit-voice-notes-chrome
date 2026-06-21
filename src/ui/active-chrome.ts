@@ -1,4 +1,4 @@
-import { getThemeById } from '@/src/theme/presets';
+import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
 import type { WaveformTheme } from '@/src/theme/types';
 import {
   defaultThemeChrome,
@@ -35,10 +35,10 @@ export function initActiveChrome(): void {
   chromeInitialized = true;
 
   void loadUserPreferences().then((prefs) => {
-    setActiveChromeFromTheme(getThemeById(prefs.appearance.activeThemeId));
+    setActiveChromeFromTheme(resolveAppearanceTheme(prefs.appearance));
   });
 
   onUserPreferencesChanged((prefs) => {
-    setActiveChromeFromTheme(getThemeById(prefs.appearance.activeThemeId));
+    setActiveChromeFromTheme(resolveAppearanceTheme(prefs.appearance));
   });
 }

@@ -3,5 +3,7 @@ export * from './presets';
 export * from './backgrounds';
 export * from './bokeh';
 export * from './storage';
+export * from './color-utils';
+export * from './design-overrides';
 export type { BarAlignment } from '@/src/recorder/waveform';
 export { renderThemePreview } from '@/src/recorder/waveform';

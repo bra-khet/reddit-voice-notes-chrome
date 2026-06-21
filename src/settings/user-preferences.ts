@@ -6,12 +6,28 @@ import {
   normalizeClipProfiles,
   type ClipProfile,
 } from '@/src/settings/clip-profiles';
+import {
+  createCustomStyleId,
+  customStyleBaseThemeId,
+  defaultCustomStyleOverrides,
+  MAX_CUSTOM_STYLES,
+  normalizeActiveCustomStyleId,
+  normalizeCustomClipStyles,
+  type CustomClipStyle,
+} from '@/src/settings/custom-styles';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
+import {
+  normalizeDesignOverrides,
+  type DesignOverrides,
+} from '@/src/theme/design-overrides';
 import { THEME_STORAGE_KEY } from '@/src/theme/storage';
 import { DEFAULT_THEME_ID, normalizeThemeId } from '@/src/theme/presets';
 
 export type { ClipProfile } from '@/src/settings/clip-profiles';
 export { MAX_CLIP_PROFILES } from '@/src/settings/clip-profiles';
+export type { CustomClipStyle } from '@/src/settings/custom-styles';
+export { MAX_CUSTOM_STYLES } from '@/src/settings/custom-styles';
+export type { DesignOverrides } from '@/src/theme/design-overrides';
 
 /**
  * Versioned user preferences blob — forward-compatible home for popup settings.
@@ -36,6 +52,12 @@ export interface AppearancePreferences {
   savedProfiles?: ClipProfile[];
   /** Active saved profile id, or null when using manual theme/alignment picks. */
   activeProfileId?: string | null;
+  /** User-saved custom color styles based on Neon Glow (pretty-8). */
+  savedCustomStyles?: CustomClipStyle[];
+  /** Active saved custom style id, or null when using a preset or unsaved custom colors. */
+  activeCustomStyleId?: string | null;
+  /** Live custom color overrides — unsaved custom mode or edits atop a saved style. */
+  designOverrides?: DesignOverrides | null;
 }
 
 export interface AudioPreferences {
@@ -104,7 +126,14 @@ function normalizeAudioPreferences(audio: Partial<AudioPreferences> | undefined)
 function mergeAppearancePreferences(
   raw: Partial<AppearancePreferences> | undefined,
 ): AppearancePreferences {
-  const savedProfiles = normalizeClipProfiles(raw?.savedProfiles);
+  const savedCustomStyles = normalizeCustomClipStyles(raw?.savedCustomStyles);
+  const savedProfiles = normalizeClipProfiles(raw?.savedProfiles, savedCustomStyles);
+  const activeCustomStyleId = normalizeActiveCustomStyleId(
+    raw?.activeCustomStyleId,
+    savedCustomStyles,
+  );
+  const designOverrides = normalizeDesignOverrides(raw?.designOverrides);
+
   return {
     ...DEFAULT_USER_PREFERENCES.appearance,
     ...raw,
@@ -113,6 +142,9 @@ function mergeAppearancePreferences(
     savedProfiles,
     activeProfileId: normalizeActiveProfileId(raw?.activeProfileId, savedProfiles),
     customBackgroundId: normalizeBackgroundAssetId(raw?.customBackgroundId),
+    savedCustomStyles,
+    activeCustomStyleId,
+    designOverrides,
   };
 }
 
@@ -218,10 +250,18 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
   const profile = current.appearance.savedProfiles?.find((entry) => entry.id === profileId);
   if (!profile) return current;
 
+  const linkedStyle = profile.customStyleId
+    ? current.appearance.savedCustomStyles?.find((style) => style.id === profile.customStyleId)
+    : undefined;
+
   return saveAppearancePreferences({
     activeThemeId: profile.themeId,
     barAlignment: profile.barAlignment,
     customBackgroundId: profile.customBackgroundId ?? null,
+    activeCustomStyleId: profile.customStyleId ?? null,
+    designOverrides: linkedStyle
+      ? { ...linkedStyle.designOverrides }
+      : (normalizeDesignOverrides(profile.designOverrides) ?? null),
     activeProfileId: profile.id,
   });
 }
@@ -252,6 +292,10 @@ export async function saveCurrentAsClipProfile(name: string): Promise<UserPrefer
     themeId: current.appearance.activeThemeId,
     barAlignment: current.appearance.barAlignment ?? 'center',
     customBackgroundId: current.appearance.customBackgroundId ?? null,
+    customStyleId: current.appearance.activeCustomStyleId ?? null,
+    designOverrides: current.appearance.activeCustomStyleId
+      ? null
+      : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null),
   };
 
   return saveAppearancePreferences({
@@ -274,6 +318,10 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
       themeId: current.appearance.activeThemeId,
       barAlignment: current.appearance.barAlignment ?? 'center',
       customBackgroundId: current.appearance.customBackgroundId ?? null,
+      customStyleId: current.appearance.activeCustomStyleId ?? null,
+      designOverrides: current.appearance.activeCustomStyleId
+        ? null
+        : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null),
     };
   });
 
@@ -282,6 +330,151 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
   }
 
   return saveAppearancePreferences({ savedProfiles: profiles });
+}
+
+export async function applyCustomClipStyle(styleId: string): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const style = current.appearance.savedCustomStyles?.find((entry) => entry.id === styleId);
+  if (!style) return current;
+
+  return saveAppearancePreferences({
+    activeThemeId: style.baseThemeId,
+    activeCustomStyleId: style.id,
+    designOverrides: { ...style.designOverrides },
+  });
+}
+
+export async function enterCustomStyleMode(): Promise<UserPreferencesV1> {
+  return saveAppearancePreferences({
+    activeThemeId: customStyleBaseThemeId(),
+    activeCustomStyleId: null,
+    designOverrides: defaultCustomStyleOverrides(),
+  });
+}
+
+export async function applyPresetClipStyle(themeId: string): Promise<UserPreferencesV1> {
+  return saveAppearancePreferences({
+    activeThemeId: themeId,
+    activeCustomStyleId: null,
+    designOverrides: null,
+  });
+}
+
+export async function saveCustomStyleColors(
+  overrides: DesignOverrides,
+): Promise<UserPreferencesV1> {
+  const normalized = normalizeDesignOverrides(overrides);
+  if (!normalized) {
+    throw new Error('Pick a valid color first.');
+  }
+  return saveAppearancePreferences({ designOverrides: normalized });
+}
+
+export async function saveCurrentAsCustomStyle(name: string): Promise<UserPreferencesV1> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('Enter a style name.');
+  }
+
+  const current = await loadUserPreferences();
+  const overrides = normalizeDesignOverrides(current.appearance.designOverrides);
+  if (!overrides) {
+    throw new Error('Pick a custom color before saving.');
+  }
+
+  const styles = [...(current.appearance.savedCustomStyles ?? [])];
+  if (styles.length >= MAX_CUSTOM_STYLES) {
+    throw new Error(`You can save up to ${MAX_CUSTOM_STYLES} custom styles.`);
+  }
+
+  const duplicate = styles.find((style) => style.name.toLowerCase() === trimmed.toLowerCase());
+  if (duplicate) {
+    throw new Error('A style with that name already exists.');
+  }
+
+  const style: CustomClipStyle = {
+    id: createCustomStyleId(),
+    name: trimmed.slice(0, 40),
+    baseThemeId: customStyleBaseThemeId(),
+    designOverrides: overrides,
+  };
+
+  return saveAppearancePreferences({
+    savedCustomStyles: [...styles, style],
+    activeCustomStyleId: style.id,
+    activeThemeId: style.baseThemeId,
+    designOverrides: { ...overrides },
+  });
+}
+
+export async function updateActiveCustomStyle(): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const styleId = current.appearance.activeCustomStyleId;
+  if (!styleId) {
+    throw new Error('Select a saved custom style to update.');
+  }
+
+  const overrides = normalizeDesignOverrides(current.appearance.designOverrides);
+  if (!overrides) {
+    throw new Error('Pick a valid color first.');
+  }
+
+  const styles = (current.appearance.savedCustomStyles ?? []).map((style) => {
+    if (style.id !== styleId) return style;
+    return { ...style, designOverrides: overrides };
+  });
+
+  if (!styles.some((style) => style.id === styleId)) {
+    throw new Error('Active custom style no longer exists.');
+  }
+
+  return saveAppearancePreferences({ savedCustomStyles: styles });
+}
+
+export async function deleteCustomClipStyle(styleId: string): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const styles = (current.appearance.savedCustomStyles ?? []).filter(
+    (style) => style.id !== styleId,
+  );
+
+  const profiles = (current.appearance.savedProfiles ?? []).map((profile) => {
+    if (profile.customStyleId !== styleId) return profile;
+    return {
+      ...profile,
+      themeId: DEFAULT_THEME_ID,
+      customStyleId: null,
+      designOverrides: null,
+    };
+  });
+
+  const activeProfileId = current.appearance.activeProfileId;
+  const activeProfileUsedStyle =
+    Boolean(activeProfileId) &&
+    (current.appearance.savedProfiles ?? []).some(
+      (profile) => profile.id === activeProfileId && profile.customStyleId === styleId,
+    );
+
+  const patch: Partial<AppearancePreferences> = {
+    savedCustomStyles: styles,
+    savedProfiles: profiles,
+  };
+
+  if (current.appearance.activeCustomStyleId === styleId) {
+    patch.activeCustomStyleId = null;
+    patch.designOverrides = null;
+    patch.activeThemeId = DEFAULT_THEME_ID;
+  }
+
+  if (activeProfileUsedStyle && activeProfileId) {
+    const reverted = profiles.find((profile) => profile.id === activeProfileId);
+    if (reverted) {
+      patch.activeThemeId = reverted.themeId;
+      patch.activeCustomStyleId = null;
+      patch.designOverrides = null;
+    }
+  }
+
+  return saveAppearancePreferences(patch);
 }
 
 export async function deleteClipProfile(profileId: string): Promise<UserPreferencesV1> {

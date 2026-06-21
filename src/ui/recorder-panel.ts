@@ -5,16 +5,15 @@ import {
 } from '@/src/utils/constants';
 import { VoiceRecorderSession, type RecorderState } from '@/src/recorder/voice-recorder';
 import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
-import {
-  DEFAULT_THEME_ID,
-  getThemeById,
-} from '@/src/theme';
+import { resolveAppearanceTheme } from '@/src/theme';
+import { DEFAULT_THEME_ID } from '@/src/theme/presets';
 import { parseClipStyleSelectValue } from '@/src/settings/clip-profiles';
 import {
   applyClipProfile,
   loadUserPreferences,
   onUserPreferencesChanged,
   saveAppearancePreferences,
+  type AppearancePreferences,
 } from '@/src/settings/user-preferences';
 import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
 import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
@@ -295,12 +294,19 @@ export class RecorderPanel {
       if (parsed.kind === 'profile') {
         void applyClipProfile(parsed.profileId).then((prefs) => {
           this.syncClipStyleSelect(prefs);
-          this.applyThemeChrome(prefs.appearance.activeThemeId);
+          this.applyThemeChrome(prefs.appearance);
         });
         return;
       }
 
-      this.applyThemeChrome(parsed.themeId);
+      void loadUserPreferences().then((prefs) => {
+        this.applyThemeChrome({
+          ...prefs.appearance,
+          activeThemeId: parsed.themeId,
+          activeCustomStyleId: null,
+          designOverrides: null,
+        });
+      });
       // CHANGED: preset clip style clears active profile — Design Studio keeps profile selected.
       // WHY: recorder popup should detach from saved profiles when picking a built-in style.
       void saveAppearancePreferences({
@@ -322,8 +328,8 @@ export class RecorderPanel {
     });
   }
 
-  private applyThemeChrome(themeId: string): void {
-    const chrome = deriveChromeFromTheme(getThemeById(themeId));
+  private applyThemeChrome(appearance: AppearancePreferences): void {
+    const chrome = deriveChromeFromTheme(resolveAppearanceTheme(appearance));
     this.panelEl.style.setProperty('--rvn-accent', chrome.accent);
     this.panelEl.style.setProperty('--rvn-accent-hover', chrome.accentHover);
     this.panelEl.style.setProperty('--rvn-accent-text', chrome.accentText);
@@ -356,13 +362,13 @@ export class RecorderPanel {
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = onUserPreferencesChanged((prefs) => {
       this.syncClipStyleSelect(prefs);
-      this.applyThemeChrome(prefs.appearance.activeThemeId);
+      this.applyThemeChrome(prefs.appearance);
     });
 
     try {
       const prefs = await loadUserPreferences();
       this.syncClipStyleSelect(prefs);
-      this.applyThemeChrome(prefs.appearance.activeThemeId);
+      this.applyThemeChrome(prefs.appearance);
       await this.session.prepare();
       this.panelEl.focus();
     } catch {
