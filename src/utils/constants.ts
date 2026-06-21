@@ -1,8 +1,10 @@
 /**
  * Nominal max shown in UI (2 minutes).
  * CHANGED: lowered from 3:00 — see docs/bug-archive.md BUG-001.
- * WHY: ~15 MB cap WebM + base64 relay + canvas video bitrate exceeds stable pipeline limits;
- * 2:20 manual-stop recordings (~14.7 MB) transcode reliably; ~3:00 cap-stop does not.
+ * WHY: ~15 MB cap WebM + base64 relay + canvas video bitrate exceeded stable pipeline limits
+ * before BUG-007 dup-storm fix; 2:20 manual-stop (~14.7 MB) transcode reliably at 2:00 cap.
+ * TENTATIVE: longer caps (e.g. 2:30–2:45) may be safe now that FFmpeg no longer dup-cascades
+ * on large WebM — revisit only after sustained QA on full-length clips at higher bitrates.
  */
 export const DISPLAY_MAX_RECORDING_SECONDS = 120;
 

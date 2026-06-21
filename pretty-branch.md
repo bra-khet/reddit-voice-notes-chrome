@@ -267,7 +267,7 @@ User inspected offscreen/service-worker FFmpeg logs during slow and failed trans
 ### v2.0 merge gate (remaining)
 
 1. ~~**pretty-9 transcode fix**~~ — done (`ffmpeg-runner.ts`); QA on dup-prone recordings still needed
-2. **2:00 cap profiling** — canvas effects at 24 fps; confirm relay size / encode time budgets
+2. **2:00 cap profiling** — QA 2026-06-21: full 2:00 ~43s transcode; stall timeout 60s; cap stays 2:00 (longer length tentatively possible post-BUG-007)
 3. **`npm run build`** — prod bundle verify before merge to `main`
 4. Tag **v2.0** on `pretty`, merge to `main`
 

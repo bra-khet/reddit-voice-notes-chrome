@@ -50,27 +50,51 @@ export async function discardStudioUnsavedChanges(
   return saveAppearancePreferences(entryAppearance);
 }
 
+export function shouldPromptStyleSaveWithProfileUpdate(prefs: UserPreferencesV1): boolean {
+  const profileId = prefs.appearance.activeProfileId;
+  if (!profileId || isPresetProfileId(profileId)) return false;
+  return Boolean(
+    prefs.appearance.activeCustomStyleId && isCustomStyleDirty(prefs.appearance),
+  );
+}
+
+/** Save style edits first when requested — profile snapshots reference saved style colors. */
+export async function updateActiveClipProfileWithStyleOption(
+  saveStyleFirst: boolean,
+): Promise<UserPreferencesV1> {
+  if (saveStyleFirst) {
+    const current = await loadUserPreferences();
+    if (
+      current.appearance.activeCustomStyleId &&
+      isCustomStyleDirty(current.appearance)
+    ) {
+      await updateActiveCustomStyle();
+    }
+  }
+  return updateActiveClipProfile();
+}
+
 /** Persist dirty profile and/or custom style before closing studio. */
 export async function saveStudioUnsavedChanges(): Promise<UserPreferencesV1> {
-  const current = await loadUserPreferences();
+  let prefs = await loadUserPreferences();
 
-  if (current.appearance.activeProfileId) {
-    const profileId = current.appearance.activeProfileId;
-    const profile = getClipProfileById(current, profileId);
-    if (profile && !appearanceMatchesProfile(current.appearance, profile)) {
+  if (
+    prefs.appearance.activeCustomStyleId &&
+    isCustomStyleDirty(prefs.appearance)
+  ) {
+    prefs = await updateActiveCustomStyle();
+  }
+
+  if (prefs.appearance.activeProfileId) {
+    const profileId = prefs.appearance.activeProfileId;
+    const profile = getClipProfileById(prefs, profileId);
+    if (profile && !appearanceMatchesProfile(prefs.appearance, profile)) {
       if (isPresetProfileId(profileId)) {
-        return current;
+        return prefs;
       }
       return updateActiveClipProfile();
     }
   }
 
-  if (
-    current.appearance.activeCustomStyleId &&
-    isCustomStyleDirty(current.appearance)
-  ) {
-    return updateActiveCustomStyle();
-  }
-
-  return current;
+  return prefs;
 }

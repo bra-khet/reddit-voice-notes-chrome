@@ -65,6 +65,8 @@ import {
   discardStudioUnsavedChanges,
   hasStudioUnsavedChanges,
   saveStudioUnsavedChanges,
+  shouldPromptStyleSaveWithProfileUpdate,
+  updateActiveClipProfileWithStyleOption,
 } from '@/src/ui/design-studio/studio-exit';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
@@ -566,10 +568,23 @@ export function mountClipStudio(root: HTMLElement): () => void {
       }
       resetProfileUpdateConfirm();
       invalidateInFlightSaves();
-      void studioPersist(() => updateActiveClipProfile()).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Could not update profile.';
-        window.alert(message);
-      });
+
+      let saveStyleFirst = false;
+      if (activePrefs && shouldPromptStyleSaveWithProfileUpdate(activePrefs)) {
+        const styleName = activeCustomStyle()?.name ?? 'This style';
+        saveStyleFirst = window.confirm(
+          `"${styleName}" has unsaved color edits. Save the style changes too, then update this profile?`,
+        );
+      }
+
+      void studioPersist(() => updateActiveClipProfileWithStyleOption(saveStyleFirst))
+        .then((prefs) => {
+          if (prefs) resetStyleUpdateConfirm();
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Could not update profile.';
+          window.alert(message);
+        });
       return;
     }
 

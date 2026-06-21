@@ -16,7 +16,9 @@ import {
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 /** Fail when meaningful FFmpeg progress stalls — heartbeats do not count. */
-const STALL_TIMEOUT_MS = 45_000;
+// CHANGED: 45s → 60s after BUG-007 dup-storm fix — larger WebM clips can transcode reliably (~45s observed).
+// WHY: Hardened pipeline + timestamp repair accommodates bigger files; stall ceiling was too tight.
+const STALL_TIMEOUT_MS = 60_000;
 /** Background must ack (job accepted for relay) within this window. */
 const ACK_TIMEOUT_MS = 45_000;
 /** Hard ceiling for a single transcode job (includes WASM cold start + queue wait). */

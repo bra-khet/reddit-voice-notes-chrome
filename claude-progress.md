@@ -116,7 +116,7 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 
 **Triggers:** background tab (rAF stall), cap-stop races (BUG-001), sparse frame timestamps.
 
-**Fix:** `ffmpeg-runner.ts` — primary strategy uses `-fflags +genpts+igndts`, `-fps_mode passthrough`, `-r 24`; fallback `h264-aac-fps` with `-vf fps=24`; early abort + strategy retry on dup storm. QA on background-tab recordings still pending.
+**Fix:** `ffmpeg-runner.ts` — primary strategy uses `-fflags +genpts+igndts`, `-fps_mode passthrough`, `-r 24`; fallback `h264-aac-fps` with `-vf fps=24`; early abort + strategy retry on dup storm. QA (2026-06-21): full 2:00 cap ~43s transcode on dense audio; near-silent ~25s. Client stall timeout raised 45s → 60s. **2:00 cap kept**; longer length tentatively possible post-BUG-007 — see `constants.ts` note.
 
 ## Branch split (post-MVP)
 
