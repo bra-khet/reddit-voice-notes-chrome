@@ -8,7 +8,7 @@ import {
   type BarAlignment,
 } from '@/src/theme';
 import {
-  appearanceMatchesProfile,
+  clipProfileMatchesLiveState,
   getClipProfileById,
   PROFILE_SELECT_CUSTOM,
 } from '@/src/settings/clip-profiles';
@@ -110,7 +110,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
         <div class="studio__exit-dialog" role="dialog" aria-labelledby="studio-exit-title">
           <h2 class="studio__exit-title" id="studio-exit-title">Unsaved changes</h2>
           <p class="studio__exit-copy">
-            Your profile or custom style has edits that are not saved. Save them before leaving?
+            Your profile, voice, or custom style has edits that are not saved. Save them before leaving?
           </p>
           <div class="studio__exit-actions">
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-exit-save>
@@ -303,7 +303,11 @@ export function mountClipStudio(root: HTMLElement): () => void {
   function isProfileDirty(): boolean {
     const profile = activeProfile();
     if (!profile || !activePrefs) return false;
-    return !appearanceMatchesProfile(activePrefs.appearance, profile);
+    return !clipProfileMatchesLiveState(
+      activePrefs.appearance,
+      activePrefs.voiceEffect,
+      profile,
+    );
   }
 
   function resetProfileUpdateConfirm(): void {
@@ -539,6 +543,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
     void personalBackground.sync(prefs);
     backgroundLayout.sync(prefs);
+    voiceControls.syncFromPreferences(prefs);
     stopPreviewLoop();
     void refreshPreview();
   }
@@ -578,6 +583,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
     resetProfileUpdateConfirm();
     void studioPersist(() => saveAppearancePreferences(patch));
   });
+
+  const voiceControls = mountVoiceControls(root);
 
   profileSelect.addEventListener('change', () => {
     invalidateInFlightSaves();
@@ -793,8 +800,6 @@ export function mountClipStudio(root: HTMLElement): () => void {
   window.addEventListener('pagehide', pageHideHandler);
 
   void loadUserPreferences().then(applyPrefs);
-
-  const voiceControls = mountVoiceControls(root);
 
   const unsubscribe = onUserPreferencesChanged((prefs) => {
     if (ignoreStoragePrefs) return;

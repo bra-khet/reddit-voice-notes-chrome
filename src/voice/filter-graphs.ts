@@ -31,6 +31,7 @@
  */
 
 import {
+  scaleVoiceEffectByIntensity,
   semitonesToPitchRatio,
   VOICE_EXPORT_SAMPLE_RATE_HZ,
   voiceEffectIsActive,
@@ -114,21 +115,23 @@ export function buildFfmpegAudioFilter(config: VoiceEffectConfig): FfmpegAudioFi
     return { filter: null, stage: 'transcoding' };
   }
 
+  const scaled = scaleVoiceEffectByIntensity(config);
+
   const segments: string[] = [];
 
   const pitch = buildPitchFilter(
-    effectiveSemitones(config),
-    config.pitchShift?.preserveDuration !== false,
+    effectiveSemitones(scaled),
+    scaled.pitchShift?.preserveDuration !== false,
   );
   if (pitch) segments.push(pitch);
 
-  const eq = buildEqFilter(config.eq);
+  const eq = buildEqFilter(scaled.eq);
   if (eq) segments.push(eq);
 
-  const dynamics = buildDynamicsFilter(config.dynamics);
+  const dynamics = buildDynamicsFilter(scaled.dynamics);
   if (dynamics) segments.push(dynamics);
 
-  const reverb = buildReverbFilter(config.reverb);
+  const reverb = buildReverbFilter(scaled.reverb);
   if (reverb) segments.push(reverb);
 
   if (segments.length === 0) {

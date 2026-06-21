@@ -15,6 +15,12 @@ export type VoiceEffectPresetId =
 export const VOICE_SEMITONE_MIN = -12;
 export const VOICE_SEMITONE_MAX = 12;
 
+/** dulcet-4: nominal effect strength; 0 = off, Turbo maps to 12. */
+export const VOICE_INTENSITY_MIN = 0;
+export const VOICE_INTENSITY_MAX = 10;
+export const VOICE_INTENSITY_TURBO = 12;
+export const VOICE_INTENSITY_DEFAULT = 10;
+
 /** Nominal export sample rate — matches AAC transcode path in ffmpeg-runner.ts. */
 export const VOICE_EXPORT_SAMPLE_RATE_HZ = 48_000;
 
@@ -49,11 +55,10 @@ export interface ReverbConfig {
 
 export interface VoiceEffectConfig {
   enabled: boolean;
-  /**
-   * dulcet-4: effect strength 0–10 (off at 0); Turbo toggle maps to magic 12.
-   * Not used in dulcet-2/3 — reserved for additive profile merge.
-   */
+  /** Effect strength 0–10 (off at 0). Turbo forces magic 12. */
   intensity?: number;
+  /** When true, intensity is VOICE_INTENSITY_TURBO and the slider is bypassed. */
+  turbo?: boolean;
   /** Active bundled preset, or `custom` when user edits sliders. */
   presetId?: VoiceEffectPresetId;
   pitchShift?: PitchShiftConfig;
@@ -71,6 +76,8 @@ export const DEFAULT_PITCH_SHIFT: PitchShiftConfig = {
 /** Voice effects off — backward compatible default for profiles without voiceEffectConfig. */
 export const DEFAULT_VOICE_EFFECT_CONFIG: VoiceEffectConfig = {
   enabled: false,
+  intensity: VOICE_INTENSITY_DEFAULT,
+  turbo: false,
   presetId: 'custom',
   pitchShift: { ...DEFAULT_PITCH_SHIFT },
 };
@@ -148,8 +155,21 @@ export function normalizeVoiceEffectConfig(
       ? { amount: clamp(reverbRaw.amount, 0, REVERB_AMOUNT_MAX) }
       : undefined;
 
+  const turbo = raw.turbo === true;
+  let intensity =
+    typeof raw.intensity === 'number' && !Number.isNaN(raw.intensity)
+      ? Math.round(raw.intensity)
+      : VOICE_INTENSITY_DEFAULT;
+  if (turbo) {
+    intensity = VOICE_INTENSITY_TURBO;
+  } else {
+    intensity = clamp(intensity, VOICE_INTENSITY_MIN, VOICE_INTENSITY_MAX);
+  }
+
   return {
     enabled: raw.enabled === true,
+    intensity,
+    turbo,
     presetId,
     pitchShift,
     eq,
@@ -158,20 +178,90 @@ export function normalizeVoiceEffectConfig(
   };
 }
 
-/** True when config would alter audio (used to skip FFmpeg -af and preview chains). */
-export function voiceEffectIsActive(config: VoiceEffectConfig): boolean {
+/** Resolved strength for export/preview scaling (0 when disabled). */
+export function effectiveVoiceIntensity(config: VoiceEffectConfig): number {
   const normalized = normalizeVoiceEffectConfig(config);
-  if (!normalized.enabled) return false;
+  if (!normalized.enabled) return 0;
+  return normalized.intensity ?? VOICE_INTENSITY_DEFAULT;
+}
+
+/**
+ * Scale numeric effect magnitudes by intensity/10 (Turbo = 12 → 1.2×).
+ * Boolean dynamics flags stay when intensity > 0 and originally enabled.
+ */
+export function scaleVoiceEffectByIntensity(config: VoiceEffectConfig): VoiceEffectConfig {
+  const normalized = normalizeVoiceEffectConfig(config);
+  if (!normalized.enabled) return normalized;
+
+  const intensity = normalized.intensity ?? VOICE_INTENSITY_DEFAULT;
+  if (intensity <= 0) {
+    return { ...normalized, enabled: false };
+  }
+
+  const factor = intensity / VOICE_INTENSITY_MAX;
+  const roundGain = (value: number | undefined): number | undefined => {
+    if (value === undefined || Number.isNaN(value)) return undefined;
+    const scaled = Math.round(value * factor * 10) / 10;
+    return scaled === 0 ? undefined : scaled;
+  };
 
   const semitones = normalized.pitchShift?.semitones ?? 0;
-  if (semitones !== 0) return true;
+  const scaledSemitones = clamp(
+    Math.round(semitones * factor),
+    VOICE_SEMITONE_MIN,
+    VOICE_SEMITONE_MAX,
+  );
 
   const eq = normalized.eq;
+  const scaledEq: EqBandConfig | undefined = eq
+    ? {
+        lowGain: roundGain(eq.lowGain),
+        midGain: roundGain(eq.midGain),
+        highGain: roundGain(eq.highGain),
+      }
+    : undefined;
+
+  const reverbAmount = normalized.reverb?.amount;
+  const scaledReverb: ReverbConfig | undefined =
+    reverbAmount !== undefined
+      ? { amount: clamp(reverbAmount * factor, 0, REVERB_AMOUNT_MAX) }
+      : undefined;
+
+  return {
+    ...normalized,
+    pitchShift: normalized.pitchShift
+      ? { ...normalized.pitchShift, semitones: scaledSemitones }
+      : undefined,
+    eq: scaledEq,
+    reverb: scaledReverb,
+  };
+}
+
+/** Stable equality for profile dirty checks and snapshots. */
+export function voiceEffectConfigsEqual(
+  a: VoiceEffectConfig,
+  b: VoiceEffectConfig,
+): boolean {
+  return (
+    JSON.stringify(normalizeVoiceEffectConfig(a)) ===
+    JSON.stringify(normalizeVoiceEffectConfig(b))
+  );
+}
+
+/** True when config would alter audio (used to skip FFmpeg -af and preview chains). */
+export function voiceEffectIsActive(config: VoiceEffectConfig): boolean {
+  const scaled = scaleVoiceEffectByIntensity(config);
+  if (!scaled.enabled) return false;
+
+  const semitones = scaled.pitchShift?.semitones ?? 0;
+  if (semitones !== 0) return true;
+
+  const eq = scaled.eq;
   if (eq?.lowGain || eq?.midGain || eq?.highGain) return true;
 
-  if (normalized.dynamics?.normalize || normalized.dynamics?.compressorEnabled) return true;
+  if (scaled.dynamics?.normalize || scaled.dynamics?.compressorEnabled) return true;
 
-  const reverbAmount = normalized.reverb?.amount ?? 0;
+  const reverbAmount = scaled.reverb?.amount ?? 0;
   if (reverbAmount > 0) return true;
 
   return false;

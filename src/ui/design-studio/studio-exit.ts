@@ -1,4 +1,4 @@
-import { appearanceMatchesProfile, getClipProfileById } from '@/src/settings/clip-profiles';
+import { clipProfileMatchesLiveState, getClipProfileById } from '@/src/settings/clip-profiles';
 import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import { isCustomStyleDirty } from '@/src/settings/custom-styles';
 import {
@@ -15,7 +15,7 @@ import {
 export function hasStudioUnsavedChanges(prefs: UserPreferencesV1): boolean {
   if (prefs.appearance.activeProfileId) {
     const profile = getClipProfileById(prefs, prefs.appearance.activeProfileId);
-    if (profile && !appearanceMatchesProfile(prefs.appearance, profile)) {
+    if (profile && !clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile)) {
       return true;
     }
   }
@@ -37,7 +37,7 @@ export async function discardStudioUnsavedChanges(
 
   if (profileId) {
     const profile = getClipProfileById(current, profileId);
-    if (profile && !appearanceMatchesProfile(current.appearance, profile)) {
+    if (profile && !clipProfileMatchesLiveState(current.appearance, current.voiceEffect, profile)) {
       return applyClipProfile(profileId);
     }
   }
@@ -88,7 +88,7 @@ export async function saveStudioUnsavedChanges(): Promise<UserPreferencesV1> {
   if (prefs.appearance.activeProfileId) {
     const profileId = prefs.appearance.activeProfileId;
     const profile = getClipProfileById(prefs, profileId);
-    if (profile && !appearanceMatchesProfile(prefs.appearance, profile)) {
+    if (profile && !clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile)) {
       if (isPresetProfileId(profileId)) {
         return prefs;
       }

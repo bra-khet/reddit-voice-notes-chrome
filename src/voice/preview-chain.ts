@@ -1,6 +1,7 @@
 import { WEB_AUDIO_PREVIEW_NOTES } from './filter-graphs';
 import {
   normalizeVoiceEffectConfig,
+  scaleVoiceEffectByIntensity,
   semitonesToPitchRatio,
   voiceEffectIsActive,
   type VoiceEffectConfig,
@@ -27,8 +28,9 @@ interface BiquadOptions {
 }
 
 function pitchRatioForConfig(config: VoiceEffectConfig): number {
-  if (!voiceEffectIsActive(config)) return 1;
-  const semitones = config.pitchShift?.semitones ?? 0;
+  const scaled = scaleVoiceEffectByIntensity(config);
+  if (!voiceEffectIsActive(scaled)) return 1;
+  const semitones = scaled.pitchShift?.semitones ?? 0;
   if (semitones === 0) return 1;
   return semitonesToPitchRatio(semitones);
 }
@@ -51,9 +53,10 @@ function wireEffectChain(
   head: AudioNode,
   config: VoiceEffectConfig,
 ): AudioNode {
+  const scaled = scaleVoiceEffectByIntensity(config);
   let node: AudioNode = head;
 
-  const eq = config.eq;
+  const eq = scaled.eq;
   if (eq?.lowGain) {
     node = appendBiquad(ctx, node, { type: 'lowshelf', frequency: 120, gain: eq.lowGain });
   }
@@ -64,7 +67,7 @@ function wireEffectChain(
     node = appendBiquad(ctx, node, { type: 'highshelf', frequency: 8000, gain: eq.highGain });
   }
 
-  if (config.dynamics?.compressorEnabled) {
+  if (scaled.dynamics?.compressorEnabled) {
     const compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -18;
     compressor.ratio.value = 3;
@@ -74,7 +77,7 @@ function wireEffectChain(
     node = compressor;
   }
 
-  if (config.dynamics?.normalize) {
+  if (scaled.dynamics?.normalize) {
     const gain = ctx.createGain();
     gain.gain.value = 1.15;
     node.connect(gain);

@@ -3,6 +3,7 @@ import { getClipProfileById } from '@/src/settings/clip-profiles';
 import { getCustomStyleById } from '@/src/settings/custom-styles';
 import { loadUserPreferences, onUserPreferencesChanged } from '@/src/settings/user-preferences';
 import { openDesignStudioWindow } from '@/src/ui/design-studio/open-design-studio';
+import { formatVoiceEffectSummary } from '@/src/voice/voice-summary';
 
 export function mountClipAppearanceSummary(root: HTMLElement): () => void {
   root.innerHTML = `
@@ -37,10 +38,13 @@ export function mountClipAppearanceSummary(root: HTMLElement): () => void {
       ? `Profile: ${profile.name}`
       : `Style: ${styleLabel}`;
 
+    const voiceSummary = formatVoiceEffectSummary(prefs.voiceEffect);
+
     const parts = [
       profile ? `Style: ${styleLabel}` : null,
       `Alignment: ${alignment}`,
       hasBackground ? 'Personal background' : 'Theme background',
+      `Voice: ${voiceSummary}`,
     ].filter(Boolean);
 
     detailLine.textContent = parts.join(' · ');

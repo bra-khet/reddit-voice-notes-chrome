@@ -1,12 +1,19 @@
 import { formatRecordingCapClock } from '@/src/utils/constants';
 import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
-import { loadUserPreferences, saveVoiceEffectPreferences } from '@/src/settings/user-preferences';
+import {
+  loadUserPreferences,
+  saveVoiceEffectPreferences,
+  type UserPreferencesV1,
+} from '@/src/settings/user-preferences';
 import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
 import { VOICE_EFFECT_PRESETS, voiceConfigFromPreset } from '@/src/voice/presets';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
+  VOICE_INTENSITY_MAX,
+  VOICE_INTENSITY_MIN,
+  VOICE_INTENSITY_TURBO,
   VOICE_SEMITONE_MAX,
   VOICE_SEMITONE_MIN,
   type VoiceEffectConfig,
@@ -16,6 +23,7 @@ import {
 export interface VoiceControlsHandle {
   dispose(): void;
   getDraftConfig(): VoiceEffectConfig;
+  syncFromPreferences(prefs: UserPreferencesV1): void;
 }
 
 const VOICE_SAVE_DEBOUNCE_MS = 250;
@@ -45,6 +53,33 @@ export function renderVoiceControlFields(): string {
       <p class="studio__voice-preset-hint popup__field-desc">
         Presets include special SFX — not just pitch. The knob is for custom pitch only.
       </p>
+      <label class="popup__field studio__field--compact studio__voice-intensity">
+        <span class="popup__field-label">
+          Intensity <span data-voice-intensity-value>10/10</span>
+        </span>
+        <input
+          class="popup__range"
+          type="range"
+          min="${VOICE_INTENSITY_MIN}"
+          max="${VOICE_INTENSITY_MAX}"
+          step="1"
+          value="10"
+          data-voice-intensity
+          aria-label="Voice effect intensity"
+        />
+      </label>
+      <label class="popup__toggle-row studio__voice-toggle">
+        <span class="popup__toggle-copy">
+          <span class="popup__toggle-label">Turbo</span>
+          <p class="popup__field-desc">Extra punch — maps to magic intensity ${VOICE_INTENSITY_TURBO}.</p>
+        </span>
+        <input
+          class="popup__toggle-input"
+          type="checkbox"
+          data-voice-turbo
+          aria-label="Turbo voice effect boost"
+        />
+      </label>
       <div class="studio__voice-pitch">
         <div class="studio__knob-host" data-voice-pitch-mount></div>
       </div>
@@ -86,6 +121,9 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-voice-enabled]')!;
   const presetSelect = panel.querySelector<HTMLSelectElement>('[data-voice-preset]')!;
   const pitchMount = panel.querySelector<HTMLElement>('[data-voice-pitch-mount]')!;
+  const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
+  const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
+  const turboInput = panel.querySelector<HTMLInputElement>('[data-voice-turbo]')!;
   const playBtn = panel.querySelector<HTMLButtonElement>('[data-voice-play]')!;
   const stopBtn = panel.querySelector<HTMLButtonElement>('[data-voice-stop]')!;
   const statusEl = panel.querySelector<HTMLElement>('[data-voice-status]')!;
@@ -153,11 +191,42 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     });
   }
 
+  function updateIntensityUi(): void {
+    const turbo = draftConfig.turbo === true;
+    const intensity = turbo
+      ? VOICE_INTENSITY_TURBO
+      : (draftConfig.intensity ?? VOICE_INTENSITY_MAX);
+    intensityInput.disabled = turbo;
+    intensityInput.value = String(
+      turbo ? VOICE_INTENSITY_MAX : clampIntensity(intensity),
+    );
+    intensityValueEl.textContent = turbo
+      ? `Turbo (${VOICE_INTENSITY_TURBO})`
+      : `${clampIntensity(intensity)}/${VOICE_INTENSITY_MAX}`;
+    turboInput.checked = turbo;
+  }
+
+  function clampIntensity(value: number): number {
+    return Math.min(VOICE_INTENSITY_MAX, Math.max(VOICE_INTENSITY_MIN, Math.round(value)));
+  }
+
+  function mergeLiveToggles(config: VoiceEffectConfig): VoiceEffectConfig {
+    return normalizeVoiceEffectConfig({
+      ...config,
+      enabled: enabledInput.checked,
+      intensity: draftConfig.turbo
+        ? VOICE_INTENSITY_TURBO
+        : clampIntensity(Number(intensityInput.value)),
+      turbo: turboInput.checked,
+    });
+  }
+
   function syncControlsFromDraft(): void {
     syncing = true;
     enabledInput.checked = draftConfig.enabled;
     presetSelect.value = draftConfig.presetId ?? 'custom';
     pitchKnob.setValue(draftConfig.pitchShift?.semitones ?? 0, true);
+    updateIntensityUi();
     syncing = false;
   }
 
@@ -203,11 +272,39 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
     schedulePersist();
   });
 
+  intensityInput.addEventListener('input', () => {
+    if (syncing || turboInput.checked) return;
+    draftConfig = normalizeVoiceEffectConfig({
+      ...draftConfig,
+      enabled: enabledInput.checked,
+      intensity: clampIntensity(Number(intensityInput.value)),
+      turbo: false,
+      presetId: 'custom',
+    });
+    intensityValueEl.textContent = `${draftConfig.intensity ?? VOICE_INTENSITY_MAX}/${VOICE_INTENSITY_MAX}`;
+    presetSelect.value = 'custom';
+    schedulePersist();
+    setStatus('');
+  });
+
+  turboInput.addEventListener('change', () => {
+    if (syncing) return;
+    const turbo = turboInput.checked;
+    draftConfig = normalizeVoiceEffectConfig({
+      ...draftConfig,
+      enabled: enabledInput.checked,
+      turbo,
+      intensity: turbo ? VOICE_INTENSITY_TURBO : clampIntensity(Number(intensityInput.value)),
+    });
+    updateIntensityUi();
+    schedulePersist();
+    setStatus('');
+  });
+
   presetSelect.addEventListener('change', () => {
     if (syncing) return;
     const presetId = presetSelect.value as VoiceEffectPresetId;
-    draftConfig = voiceConfigFromPreset(presetId);
-    draftConfig.enabled = enabledInput.checked;
+    draftConfig = mergeLiveToggles(voiceConfigFromPreset(presetId));
     syncControlsFromDraft();
     schedulePersist();
     setStatus('');
@@ -261,10 +358,13 @@ export function mountVoiceControls(root: HTMLElement): VoiceControlsHandle {
 
   return {
     getDraftConfig() {
-      return normalizeVoiceEffectConfig({
-        ...draftConfig,
-        enabled: enabledInput.checked,
-      });
+      return mergeLiveToggles(draftConfig);
+    },
+    syncFromPreferences(prefs) {
+      syncing = true;
+      draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+      syncControlsFromDraft();
+      syncing = false;
     },
     dispose() {
       window.clearInterval(playPoll);

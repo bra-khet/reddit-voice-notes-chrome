@@ -281,6 +281,25 @@ export async function saveAppearancePreferences(
   return next;
 }
 
+function voiceEffectFromProfile(profile: ClipProfile): VoiceEffectConfig | null {
+  if (profile.voiceEffectConfig != null) {
+    return normalizeVoiceEffectConfig(profile.voiceEffectConfig);
+  }
+  // Virtual bundled presets carry visual defaults only — keep live voice prefs.
+  if (isPresetProfileId(profile.id)) {
+    return null;
+  }
+  return normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
+}
+
+async function persistUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
+  await browser.storage.local.set({
+    [USER_PREFS_STORAGE_KEY]: next,
+    [THEME_STORAGE_KEY]: next.appearance.activeThemeId,
+  });
+  return next;
+}
+
 export async function applyClipProfile(profileId: string): Promise<UserPreferencesV1> {
   const current = await loadUserPreferences();
   const profile = getClipProfileById(current, profileId);
@@ -290,18 +309,25 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
     ? current.appearance.savedCustomStyles?.find((style) => style.id === profile.customStyleId)
     : undefined;
 
-  return saveAppearancePreferences({
-    activeThemeId: profile.themeId,
-    barAlignment: profile.barAlignment,
-    customBackgroundId: profile.customBackgroundId ?? null,
-    backgroundScaleMode: profile.backgroundScaleMode,
-    backgroundPosition: profile.backgroundPosition,
-    activeCustomStyleId: profile.customStyleId ?? null,
-    designOverrides: linkedStyle
-      ? { ...linkedStyle.designOverrides }
-      : (normalizeDesignOverrides(profile.designOverrides) ?? null),
-    activeProfileId: profile.id,
-  });
+  const next: UserPreferencesV1 = {
+    ...current,
+    appearance: mergeAppearancePreferences({
+      ...current.appearance,
+      activeThemeId: profile.themeId,
+      barAlignment: profile.barAlignment,
+      customBackgroundId: profile.customBackgroundId ?? null,
+      backgroundScaleMode: profile.backgroundScaleMode,
+      backgroundPosition: profile.backgroundPosition,
+      activeCustomStyleId: profile.customStyleId ?? null,
+      designOverrides: linkedStyle
+        ? { ...linkedStyle.designOverrides }
+        : (normalizeDesignOverrides(profile.designOverrides) ?? null),
+      activeProfileId: profile.id,
+    }),
+    voiceEffect: voiceEffectFromProfile(profile) ?? current.voiceEffect,
+  };
+
+  return persistUserPreferences(next);
 }
 
 export type SaveClipProfileOptions = {
@@ -351,6 +377,7 @@ export async function saveCurrentAsClipProfile(
     backgroundPosition: current.appearance.backgroundPosition,
     customStyleId,
     designOverrides,
+    voiceEffectConfig: normalizeVoiceEffectConfig(current.voiceEffect),
   };
 
   return saveAppearancePreferences({
@@ -382,6 +409,7 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
       designOverrides: current.appearance.activeCustomStyleId
         ? null
         : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null),
+      voiceEffectConfig: normalizeVoiceEffectConfig(current.voiceEffect),
     };
   });
 

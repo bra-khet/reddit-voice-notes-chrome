@@ -13,6 +13,12 @@ import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { designOverridesMatch, normalizeDesignOverrides } from '@/src/theme/design-overrides';
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
 import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/user-preferences';
+import {
+  DEFAULT_VOICE_EFFECT_CONFIG,
+  normalizeVoiceEffectConfig,
+  voiceEffectConfigsEqual,
+  type VoiceEffectConfig,
+} from '@/src/voice/types';
 
 export const MAX_CLIP_PROFILES = 12;
 export const PROFILE_ID_PREFIX = 'clip-' as const;
@@ -31,6 +37,8 @@ export interface ClipProfile {
   customStyleId?: string | null;
   /** Snapshot of unsaved custom colors when the profile was saved. */
   designOverrides?: import('@/src/theme/design-overrides').DesignOverrides | null;
+  /** dulcet-4: voice effect snapshot — absent on legacy profiles means voice-off. */
+  voiceEffectConfig?: VoiceEffectConfig | null;
 }
 
 const VALID_BAR_ALIGNMENTS: readonly BarAlignment[] = ['center', 'bottom', 'top'];
@@ -79,6 +87,10 @@ export function normalizeClipProfiles(
       backgroundPosition: normalizeBackgroundPosition(raw.backgroundPosition),
       customStyleId,
       designOverrides,
+      voiceEffectConfig:
+        raw.voiceEffectConfig != null
+          ? normalizeVoiceEffectConfig(raw.voiceEffectConfig)
+          : null,
     });
 
     if (normalized.length >= MAX_CLIP_PROFILES) break;
@@ -107,6 +119,34 @@ export function getClipProfileById(
     return getPresetClipProfile(presetThemeIdFromProfileId(profileId));
   }
   return prefs.appearance.savedProfiles?.find((profile) => profile.id === profileId);
+}
+
+/** Legacy saved profiles without voiceEffectConfig compare as voice-off. */
+export function voiceEffectMatchesProfile(
+  live: VoiceEffectConfig | undefined,
+  profile: ClipProfile,
+): boolean {
+  if (isPresetProfileId(profile.id)) {
+    return true;
+  }
+
+  const liveNorm = normalizeVoiceEffectConfig(live);
+  const snapshotNorm =
+    profile.voiceEffectConfig != null
+      ? normalizeVoiceEffectConfig(profile.voiceEffectConfig)
+      : normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
+  return voiceEffectConfigsEqual(liveNorm, snapshotNorm);
+}
+
+export function clipProfileMatchesLiveState(
+  appearance: AppearancePreferences,
+  voiceEffect: VoiceEffectConfig | undefined,
+  profile: ClipProfile,
+): boolean {
+  return (
+    appearanceMatchesProfile(appearance, profile) &&
+    voiceEffectMatchesProfile(voiceEffect, profile)
+  );
 }
 
 export function appearanceMatchesProfile(
@@ -141,7 +181,9 @@ export function appearanceMatchesProfile(
 
 export function findMatchingClipProfile(prefs: UserPreferencesV1): ClipProfile | undefined {
   const profiles = prefs.appearance.savedProfiles ?? [];
-  return profiles.find((profile) => appearanceMatchesProfile(prefs.appearance, profile));
+  return profiles.find((profile) =>
+    clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile),
+  );
 }
 
 /** Recorder panel select value for a saved profile. */

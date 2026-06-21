@@ -1,6 +1,6 @@
 import { listThemePresets } from '@/src/theme';
 import {
-  appearanceMatchesProfile,
+  clipProfileMatchesLiveState,
   getClipProfileById,
   profileSelectValue,
   PROFILE_SELECT_CUSTOM,
@@ -23,7 +23,8 @@ export function populateProfileSelect(select: HTMLSelectElement, prefs: UserPref
     const option = document.createElement('option');
     option.value = profile.id;
     const dirty =
-      profile.id === activeId && !appearanceMatchesProfile(prefs.appearance, profile);
+      profile.id === activeId &&
+      !clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile);
     option.textContent = dirty ? `${profile.name} · unsaved` : profile.name;
     select.append(option);
   }
