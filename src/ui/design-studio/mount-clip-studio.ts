@@ -3,6 +3,7 @@ import {
   listThemePresets,
   renderThemePreview,
   resolveAppearanceTheme,
+  themeHasAnimatedOverlay,
   type BarAlignment,
 } from '@/src/theme';
 import {
@@ -41,6 +42,10 @@ import {
   mountColorPickerControls,
   renderColorPickerFields,
 } from '@/src/ui/design-studio/color-picker';
+import {
+  mountEffectControls,
+  renderEffectControlFields,
+} from '@/src/ui/design-studio/effect-controls';
 import {
   mountPersonalBackgroundControls,
   renderPersonalBackgroundFields,
@@ -98,6 +103,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
         </label>
         <div data-custom-style-panel hidden>
           ${renderColorPickerFields()}
+          ${renderEffectControlFields()}
           <div class="popup__profile-actions">
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-style>
               Save as style
@@ -269,11 +275,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   function syncPreviewLoop(): void {
     const theme = resolvedTheme();
-    if (
-      activeCustomBackgroundId() ||
-      !backgroundIsBokeh(theme.background) ||
-      (activePrefs && shouldReduceMotion(activePrefs))
-    ) {
+    const animatedOverlay = themeHasAnimatedOverlay(theme);
+    const hasBundledMotion = backgroundIsBokeh(theme.background);
+    const shouldAnimate = animatedOverlay || hasBundledMotion;
+    if (activePrefs && shouldReduceMotion(activePrefs)) {
+      stopPreviewLoop();
+      return;
+    }
+    if (!shouldAnimate || (activeCustomBackgroundId() && !animatedOverlay)) {
       stopPreviewLoop();
       return;
     }
@@ -338,7 +347,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     };
   }
 
-  function applyLocalColorOverrides(overrides: DesignOverrides): void {
+  function applyLocalDesignOverrides(overrides: DesignOverrides): void {
     if (!activePrefs) return;
     activePrefs = {
       ...activePrefs,
@@ -355,12 +364,26 @@ export function mountClipStudio(root: HTMLElement): () => void {
     void refreshPreview();
   }
 
-  function scheduleColorPersist(overrides: DesignOverrides): void {
+  function scheduleDesignPersist(overrides: DesignOverrides): void {
     cancelPendingColorSave();
     colorSaveTimer = window.setTimeout(() => {
       colorSaveTimer = 0;
       void studioPersist(() => saveCustomStyleColors(overrides));
     }, COLOR_SAVE_DEBOUNCE_MS);
+  }
+
+  function mergeDesignOverrides(
+    patch: Partial<DesignOverrides>,
+  ): DesignOverrides | null {
+    const current = activePrefs?.appearance.designOverrides;
+    const barColor = patch.barColor ?? current?.barColor;
+    if (!barColor) return null;
+    return {
+      barColor,
+      glowColor: patch.glowColor ?? current?.glowColor,
+      backgroundEffect: patch.backgroundEffect ?? current?.backgroundEffect ?? 'none',
+      barGlow: patch.barGlow ?? current?.barGlow ?? 'default',
+    };
   }
 
   function applyPrefs(prefs: UserPreferencesV1): void {
@@ -371,6 +394,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
     if (isStylePanelVisible(prefs) && !colorPicker.isUserAdjusting()) {
       colorPicker.sync(prefs.appearance.designOverrides);
+      effectControls.sync(prefs.appearance.designOverrides);
     }
 
     void personalBackground.sync(prefs);
@@ -379,8 +403,17 @@ export function mountClipStudio(root: HTMLElement): () => void {
   }
 
   const colorPicker = mountColorPickerControls(root, (overrides) => {
-    applyLocalColorOverrides(overrides);
-    scheduleColorPersist(overrides);
+    const merged = mergeDesignOverrides(overrides);
+    if (!merged) return;
+    applyLocalDesignOverrides(merged);
+    scheduleDesignPersist(merged);
+  });
+
+  const effectControls = mountEffectControls(root, (patch) => {
+    const merged = mergeDesignOverrides(patch);
+    if (!merged) return;
+    applyLocalDesignOverrides(merged);
+    scheduleDesignPersist(merged);
   });
 
   const personalBackground = mountPersonalBackgroundControls(root, (prefs) => {

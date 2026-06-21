@@ -9,6 +9,7 @@ import {
 } from '@/src/utils/constants';
 import {
   drawThemeBackground,
+  effectiveBarGlow,
   resolveClipBackgrounds,
   type WaveformTheme,
 } from '@/src/theme';
@@ -326,7 +327,8 @@ export class WaveformRenderer {
     const maxBarHeight = canvas.height * 0.7;
     const layout = computeBarLayout(canvas.width, theme);
     const { barWidth, spacing, startX } = layout;
-    const { cornerRadius, glow } = theme.bars;
+    const { cornerRadius } = theme.bars;
+    const glow = effectiveBarGlow(theme);
 
     const uniformLevel = compressForViz(this.smoothedAudioEnergy);
 
@@ -381,7 +383,8 @@ function drawBarsFromLevels(
   const maxBarHeight = canvas.height * 0.7;
   const layout = computeBarLayout(canvas.width, theme);
   const { barWidth, spacing, startX } = layout;
-  const { cornerRadius, glow } = theme.bars;
+  const { cornerRadius } = theme.bars;
+  const glow = effectiveBarGlow(theme);
 
   for (let i = 0; i < BAR_COUNT; i += 1) {
     const normalized = compressForViz(Math.min(1, levels[i] ?? 0));

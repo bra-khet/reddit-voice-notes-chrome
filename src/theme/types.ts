@@ -38,10 +38,17 @@ export interface ThemeBackground {
   scaleMode?: BackgroundScaleMode;
 }
 
+/** Optional flair merged from Design Studio custom styles (pretty-8). */
+export interface ThemeDesignEffects {
+  backgroundOverlay?: 'bokeh' | 'sparkle';
+  barGlowMultiplier?: number;
+}
+
 export interface WaveformTheme {
   id: string;
   name: string;
   bars: ThemeBarStyle;
   colors: ThemeColors;
   background: ThemeBackground;
+  designEffects?: ThemeDesignEffects;
 }

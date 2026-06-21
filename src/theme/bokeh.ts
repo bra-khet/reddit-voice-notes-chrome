@@ -128,3 +128,45 @@ export function resolveBokehStyle(background: ThemeBackground): BokehBackgroundS
 export function backgroundIsBokeh(background: ThemeBackground): boolean {
   return background.type === 'bokeh' && typeof background.value === 'string';
 }
+
+function stripAlphaHex(color: string): string {
+  return color.length === 9 ? color.slice(0, 7) : color;
+}
+
+/** Color-tinted bokeh orbs for custom-style overlays atop image backgrounds. */
+export function buildTintedBokehOverlayStyle(
+  barColor: string,
+  glowColor: string,
+): BokehBackgroundStyle {
+  const midnight = BOKEH_STYLES.midnight;
+  return {
+    ...midnight,
+    baseColor: 'transparent',
+    coreColor: stripAlphaHex(barColor),
+    edgeColor: stripAlphaHex(glowColor),
+    pulseAmount: midnight.pulseAmount * 0.9,
+    audioReactivity: midnight.audioReactivity * 0.85,
+    orbs: midnight.orbs.map((orb) => ({
+      ...orb,
+      opacity: orb.opacity * 0.5,
+    })),
+  };
+}
+
+/** Draw orbs only — base background already rendered underneath. */
+export function drawBokehOverlay(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  style: BokehBackgroundStyle,
+  options: BokehDrawOptions = {},
+): void {
+  const timeMs = options.timeMs ?? 0;
+  const audioEnergy = Math.min(1, Math.max(0, options.audioEnergy ?? 0));
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (const orb of style.orbs) {
+    drawOrb(ctx, canvas, orb, style, timeMs, audioEnergy);
+  }
+  ctx.restore();
+}

@@ -2,6 +2,7 @@ export * from './types';
 export * from './presets';
 export * from './backgrounds';
 export * from './bokeh';
+export * from './sparkle';
 export * from './storage';
 export * from './color-utils';
 export * from './design-overrides';

@@ -5,14 +5,22 @@ import {
   normalizeHexColor,
 } from '@/src/theme/color-utils';
 import { getThemeById } from '@/src/theme/presets';
-import type { WaveformTheme } from '@/src/theme/types';
+import type { ThemeDesignEffects, WaveformTheme } from '@/src/theme/types';
 
-/** User color overrides merged atop a bundled preset (pretty-8). */
+export type BackgroundEffect = 'none' | 'bokeh' | 'sparkle';
+export type BarGlowEffect = 'default' | 'boosted';
+
+const VALID_BACKGROUND_EFFECTS: readonly BackgroundEffect[] = ['none', 'bokeh', 'sparkle'];
+const VALID_BAR_GLOW_EFFECTS: readonly BarGlowEffect[] = ['default', 'boosted'];
+
+const BOOSTED_BAR_GLOW_MULTIPLIER = 1.65;
+
+/** User color + effect overrides merged atop a bundled preset (pretty-8). */
 export interface DesignOverrides {
   barColor: string;
   glowColor?: string;
-  /** Reserved for pretty-8 effect toggles (bokeh, sparkle, …). */
-  backgroundEffect?: 'none' | 'bokeh' | 'sparkle';
+  backgroundEffect?: BackgroundEffect;
+  barGlow?: BarGlowEffect;
 }
 
 export const CUSTOM_STYLE_BASE_THEME_ID = 'neon-glow' as const;
@@ -20,7 +28,19 @@ export const CUSTOM_STYLE_BASE_THEME_ID = 'neon-glow' as const;
 export const DEFAULT_CUSTOM_STYLE_OVERRIDES: DesignOverrides = {
   barColor: '#00e5ff',
   glowColor: '#ff00e5aa',
+  backgroundEffect: 'none',
+  barGlow: 'default',
 };
+
+function normalizeBackgroundEffect(raw: BackgroundEffect | undefined): BackgroundEffect {
+  if (raw && VALID_BACKGROUND_EFFECTS.includes(raw)) return raw;
+  return 'none';
+}
+
+function normalizeBarGlow(raw: BarGlowEffect | undefined): BarGlowEffect {
+  if (raw && VALID_BAR_GLOW_EFFECTS.includes(raw)) return raw;
+  return 'default';
+}
 
 export function normalizeDesignOverrides(
   raw: DesignOverrides | null | undefined,
@@ -43,7 +63,8 @@ export function normalizeDesignOverrides(
   return {
     barColor,
     glowColor: glowColor ?? deriveGlowColor(barColor),
-    backgroundEffect: raw.backgroundEffect,
+    backgroundEffect: normalizeBackgroundEffect(raw.backgroundEffect),
+    barGlow: normalizeBarGlow(raw.barGlow),
   };
 }
 
@@ -55,7 +76,36 @@ export function designOverridesMatch(
   const right = normalizeDesignOverrides(b);
   if (!left && !right) return true;
   if (!left || !right) return false;
-  return left.barColor === right.barColor && (left.glowColor ?? '') === (right.glowColor ?? '');
+  return (
+    left.barColor === right.barColor &&
+    (left.glowColor ?? '') === (right.glowColor ?? '') &&
+    left.backgroundEffect === right.backgroundEffect &&
+    left.barGlow === right.barGlow
+  );
+}
+
+function buildDesignEffects(overrides: DesignOverrides): ThemeDesignEffects | undefined {
+  const backgroundOverlay =
+    overrides.backgroundEffect === 'bokeh' || overrides.backgroundEffect === 'sparkle'
+      ? overrides.backgroundEffect
+      : undefined;
+  const barGlowMultiplier =
+    overrides.barGlow === 'boosted' ? BOOSTED_BAR_GLOW_MULTIPLIER : undefined;
+
+  if (!backgroundOverlay && !barGlowMultiplier) return undefined;
+  return {
+    backgroundOverlay,
+    barGlowMultiplier,
+  };
+}
+
+export function themeHasAnimatedOverlay(theme: WaveformTheme): boolean {
+  const overlay = theme.designEffects?.backgroundOverlay;
+  return overlay === 'bokeh' || overlay === 'sparkle';
+}
+
+export function effectiveBarGlow(theme: WaveformTheme): number {
+  return theme.bars.glow * (theme.designEffects?.barGlowMultiplier ?? 1);
 }
 
 export function applyDesignOverrides(
@@ -67,6 +117,7 @@ export function applyDesignOverrides(
 
   const barColor = normalized.barColor;
   const glowColor = normalized.glowColor ?? deriveGlowColor(barColor);
+  const designEffects = buildDesignEffects(normalized);
 
   return {
     ...base,
@@ -75,6 +126,7 @@ export function applyDesignOverrides(
       glow: glowColor,
       bg: deriveBackgroundColor(barColor),
     },
+    designEffects,
   };
 }
 

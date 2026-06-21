@@ -1,8 +1,11 @@
 import {
+  buildTintedBokehOverlayStyle,
   drawBokehBackground,
+  drawBokehOverlay,
   resolveBokehStyle,
   type BokehDrawOptions,
 } from './bokeh';
+import { drawSparkleOverlay } from './sparkle';
 import {
   type DrawableBackgroundImage,
   getDrawableBackgroundSize,
@@ -176,10 +179,7 @@ export function drawThemeBackground(
 
   if (userBackgroundImage) {
     drawUserBackgroundLayer(ctx, canvas, theme, userBackgroundImage);
-    return;
-  }
-
-  switch (background.type) {
+  } else switch (background.type) {
     case 'solid': {
       ctx.fillStyle = typeof background.value === 'string' ? background.value : colors.bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -234,6 +234,28 @@ export function drawThemeBackground(
     default:
       ctx.fillStyle = colors.bg;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  drawDesignEffectOverlays(ctx, canvas, theme, bokehOptions);
+}
+
+function drawDesignEffectOverlays(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  theme: WaveformTheme,
+  bokehOptions: BokehDrawOptions,
+): void {
+  const overlay = theme.designEffects?.backgroundOverlay;
+  if (!overlay) return;
+
+  if (overlay === 'bokeh') {
+    const style = buildTintedBokehOverlayStyle(theme.colors.bar, theme.colors.glow);
+    drawBokehOverlay(ctx, canvas, style, bokehOptions);
+    return;
+  }
+
+  if (overlay === 'sparkle') {
+    drawSparkleOverlay(ctx, canvas, theme.colors.bar, theme.colors.glow, bokehOptions);
   }
 }
 
