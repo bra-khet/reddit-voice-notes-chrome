@@ -1,11 +1,11 @@
 import './style.css';
-import readmeIconUrl from '@/assets/github-README-icon.png';
 import { mountAudioSettingsSection } from '@/src/ui/popup/audio-settings';
 import { mountClipAppearanceSection } from '@/src/ui/popup/clip-appearance';
 import { mountNotificationSettingsSection } from '@/src/ui/popup/notification-settings';
 import { mountRecordingSettingsSection } from '@/src/ui/popup/recording-settings';
 
 const README_URL = 'https://github.com/bra-khet/reddit-voice-notes-chrome/blob/main/README.md';
+const README_ICON_URL = browser.runtime.getURL('icon/github-README-icon.png' as never);
 const manifest = browser.runtime.getManifest();
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -24,7 +24,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           title="Stuck? Read the guide here."
           aria-label="Stuck? Read the guide here (opens README on GitHub)"
         >
-          <img class="popup__readme-icon" src="${readmeIconUrl}" width="14" height="14" alt="" />
+          <img class="popup__readme-icon" src="${README_ICON_URL}" width="16" height="16" alt="" />
           <span>README</span>
         </a>
       </div>
