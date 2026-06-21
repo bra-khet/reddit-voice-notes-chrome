@@ -6,11 +6,21 @@ All recording, visualization, transcoding, and voice effects happen **client-sid
 
 ## Status
 
-**Stable `main` v3.0.0** (2026-06) — Voice effects release on top of v2 personalization: pitch shift, EQ, light stylization presets, intensity/Turbo modulation, profile persistence, Design Studio preview, and FFmpeg `-af` export with graceful fallback.
+**Stable `main` v3.1.0** (2026-06) — Design Studio UX polish on v3 voice effects: collapsible Bar style / Background / Voice panels, corner background alignment, preset usage tips, single live preview.
 
-Previous stable: **v2.0.0** (Design Studio, profiles, personal backgrounds, hardened transcode). Development history: `pretty-branch.md` (v2), `dulcet-branch.md` (v3).
+Previous stable: **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3).
 
-### What's new in v3.0
+### What's new in v3.1
+
+| Area | Highlights |
+|------|------------|
+| **Collapsible Studio** | Bar style, Background, and Voice roll-ups with live collapsed summaries |
+| **Bar style** | Renamed from Style; Effects nested inside; summary shows swatch, S/V, alignment badge |
+| **Background** | 3×3 corner alignment; sizing + position side-by-side |
+| **Voice tips** | Robot / Whisper / Slight mask show compensating hints when selected |
+| **Preview** | One master Live preview (secondary/tertiary previews removed) |
+
+### v3.0 recap
 
 | Area | Highlights |
 |------|------------|
@@ -25,7 +35,7 @@ Previous stable: **v2.0.0** (Design Studio, profiles, personal backgrounds, hard
 
 | Area | Highlights |
 |------|------------|
-| **Design Studio** | Clip appearance — colors, backgrounds, effects, triple live previews |
+| **Design Studio** | Clip appearance — colors, backgrounds, effects, live preview |
 | **Profiles & styles** | Up to 12 saved clip profiles and 12 custom color styles |
 | **Personal backgrounds** | IndexedDB + chunked relay to Reddit canvas (WYSIWYG) |
 | **Pipeline** | BUG-007 dup-storm fix, stall detection, 60s client ceiling, 2:00 cap |
@@ -132,7 +142,7 @@ Output: `.output/chrome-mv3/`
 npm run zip
 ```
 
-Output: `.output/reddit-voice-notes-3.0.0-chrome.zip` (~10 MB)
+Output: `.output/reddit-voice-notes-3.1.0-chrome.zip` (~10 MB)
 
 ### Type check
 
@@ -173,7 +183,8 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 
 | Tag | Meaning |
 |-----|---------|
-| `v3.0.0` | Stable release on `main` — voice effects (`dulcet` merge, 2026-06) |
+| `v3.1.0` | Design Studio collapsible panels + UX polish (2026-06) |
+| `v3.0.0` | Voice effects (`dulcet` merge, 2026-06) |
 | `v2.0.0` | Design Studio + personalization (`pretty` merge) |
 | `v1.5.0` | Prior stable MVP + themes |
 
@@ -183,4 +194,4 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 
 ## License
 
-Private — v3.0 stable.
+Private — v3.1 stable.

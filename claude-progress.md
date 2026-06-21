@@ -132,7 +132,7 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 
 | Branch | Role |
 |--------|------|
-| `main` | **v3.0.0** stable — voice effects + v2 personalization (2026-06) |
+| `main` | **v3.1.0** stable — Design Studio UX polish on v3 (2026-06) |
 | `pretty` | **Merged** into `main` as **v2.0.0** (2026-06-21); branch retained for history |
 | `dulcet` | **Merged** into `main` as **v3.0.0** (2026-06); branch retained for history |
 
@@ -274,12 +274,26 @@ git checkout main && npm install && npm run dev
 
 `7ee7bcc` dulcet-0 · `916c21d` dulcet-1 · `04fc6d1` dulcet-2 · `33154b3` dulcet-3 · `55fde8a` dulcet-4 · `b185ca6` intensity fix · `e42bed3` popup fix · dulcet-5 release docs
 
-## v3.0.x polish on `main` (2026-06-21)
+## v3.1.0 stable on `main` (2026-06-21)
 
-Pre-v4 UX polish — no version bump.
+**Tag:** `v3.1.0` · **Release zip:** `.output/reddit-voice-notes-3.1.0-chrome.zip` (~10.3 MB)
 
-- **Voice preset tips:** `usageHint` on Robot, Whisper, Slight mask — shown in Design Studio when selected (`presets.ts` → `voice-controls.ts`)
-- **Background corners:** `top-left` / `top-right` / `bottom-left` / `bottom-right` image position (`theme/types.ts`, `background-layout.ts`, 3×3 position grid)
-- **Background layout:** Image sizing + position side-by-side (`studio__layout-row` flex)
-- **Studio collapsible panels:** Header + profile bar + single **Live preview** stay fixed; **Bar style** (Effects nested inside), **Background**, **Voice** are `<details>` roll-ups with collapsed summaries (`studio-section-summaries.ts`); secondary/tertiary previews removed
-- **V4 transcript layers:** `.ignore/transcript-design-notes.txt` — subtitles topmost over bars over background; subtitle backdrop + cheap text effects (shadow clone cheat)
+Pre-v4 Design Studio UX release — no pipeline changes.
+
+- **Voice preset tips:** `usageHint` on Robot, Whisper, Slight mask
+- **Background corners:** 3×3 image position grid; sizing + position side-by-side
+- **Collapsible panels:** Bar style (Effects nested), Background, Voice — collapsed summaries via `studio-section-summaries.ts`; single Live preview
+- **Summary polish:** S/V integers; higher-contrast alignment badge
+- **V4 transcript layers:** `.ignore/transcript-design-notes.txt` — subtitles topmost over bars over background; subtitle backdrop + cheap text effects
+
+### Pre-release audit (v3.1.0 gate)
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | Pass |
+| `npm run zip` | Pass → `reddit-voice-notes-3.1.0-chrome.zip` |
+| `npm run compile` | Pre-existing only: `background.ts` browser ns, `background-loader.ts` strictness (non-blocking) |
+| Voice import graph | No `@/src/voice` barrel from popup/settings; `types.ts` leaf guard intact |
+| Manifest version | `3.1.0` via `package.json` → `wxt.config.ts` |
+
+**Next:** branch v4 (transcription) from `main` after push.

@@ -59,8 +59,8 @@ export function renderBarStyleSummaryHtml(ctx: StudioSummaryContext): string {
   const label = styleLabel(prefs);
   const color = barColor(prefs);
   const hsv = hexToHsv(color);
-  const sat = hsv?.s ?? 0;
-  const val = hsv?.v ?? 0;
+  const sat = Math.round(hsv?.s ?? 0);
+  const val = Math.round(hsv?.v ?? 0);
   const alignment = prefs.appearance.barAlignment ?? 'center';
   const overrides = prefs.appearance.designOverrides;
   const flair =
