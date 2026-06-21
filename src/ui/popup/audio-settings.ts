@@ -4,6 +4,7 @@ import {
   saveAudioPreferences,
 } from '@/src/settings/user-preferences';
 import { bindToggle, renderSettingsSection, renderToggleRow } from './settings-shared';
+import { showRestartCaution } from './restart-caution';
 
 function syncAudioToggles(root: HTMLElement, prefs: Awaited<ReturnType<typeof loadUserPreferences>>): void {
   const rawMic = root.querySelector<HTMLInputElement>('#audio-raw-mic');
@@ -52,14 +53,17 @@ export function mountAudioSettingsSection(root: HTMLElement): () => void {
   );
 
   bindToggle(root, 'audio-raw-mic', (checked) => {
+    showRestartCaution();
     void saveAudioPreferences({ rawMicCapture: checked });
   });
 
   bindToggle(root, 'audio-enhanced-capture', (checked) => {
+    showRestartCaution();
     void saveAudioPreferences({ preferHighQualityCapture: checked });
   });
 
   bindToggle(root, 'audio-full-spectrum', (checked) => {
+    showRestartCaution();
     void saveAudioPreferences({ fullSpectrumViz: checked });
   });
 

@@ -9,7 +9,11 @@ import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
 import { getThemeById } from '@/src/theme';
-import { loadUserPreferences, onUserPreferencesChanged } from '@/src/settings/user-preferences';
+import {
+  loadUserPreferences,
+  onUserPreferencesChanged,
+  shouldReduceMotion,
+} from '@/src/settings/user-preferences';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -189,6 +193,7 @@ export class VoiceRecorderSession {
       this.waveform = new WaveformRenderer(analyser, theme);
       this.waveform.setBarAlignment(prefs.appearance.barAlignment ?? 'center');
       this.waveform.setFullSpectrumViz(prefs.audio.fullSpectrumViz ?? false);
+      this.waveform.setReduceMotion(shouldReduceMotion(prefs));
       await this.waveform.whenReady();
       this.waveform.start();
 
@@ -201,6 +206,7 @@ export class VoiceRecorderSession {
         this.waveform.setTheme(getThemeById(next.appearance.activeThemeId));
         this.waveform.setBarAlignment(next.appearance.barAlignment ?? 'center');
         this.waveform.setFullSpectrumViz(next.audio.fullSpectrumViz ?? false);
+        this.waveform.setReduceMotion(shouldReduceMotion(next));
         void this.waveform.whenReady();
       });
 

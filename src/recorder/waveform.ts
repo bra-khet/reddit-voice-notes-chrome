@@ -19,6 +19,14 @@ const FRAME_INTERVAL_MS = 1000 / WAVEFORM_TARGET_FPS;
 const BAR_COUNT = 32;
 const MIN_BAR_HEIGHT = 4;
 
+/** Fixed spectral silhouette for reduced-motion mode — amplitude scales, shape stays calm. */
+const REDUCED_MOTION_BAR_SHAPE: readonly number[] = [
+  0.42, 0.58, 0.71, 0.55, 0.48, 0.62, 0.78, 0.66,
+  0.52, 0.44, 0.57, 0.69, 0.74, 0.61, 0.5, 0.46,
+  0.53, 0.67, 0.72, 0.59, 0.41, 0.38, 0.49, 0.63,
+  0.7, 0.56, 0.45, 0.4, 0.47, 0.6, 0.65, 0.51,
+];
+
 interface BarLayout {
   barWidth: number;
   spacing: number;
@@ -172,6 +180,7 @@ export class WaveformRenderer {
   private sampleRate: number;
   private alignment: BarAlignment = 'center'; // default preserves current centered+mirrored look
   private fullSpectrumViz = false;
+  private reduceMotion = false;
   private smoothedAudioEnergy = 0;
 
   constructor(analyser: AnalyserNode, theme: WaveformTheme = getThemeById(DEFAULT_THEME_ID)) {
@@ -216,6 +225,11 @@ export class WaveformRenderer {
   /** Widen viz beyond voice-focused band for music / ambient input (pretty-3). */
   setFullSpectrumViz(enabled: boolean): void {
     this.fullSpectrumViz = enabled;
+  }
+
+  /** Simplify bar motion and freeze animated backgrounds when OS requests reduced motion (pretty-4). */
+  setReduceMotion(enabled: boolean): void {
+    this.reduceMotion = enabled;
   }
 
   start(): void {
@@ -266,10 +280,13 @@ export class WaveformRenderer {
     let bandSum = 0;
     for (const value of bandValues) bandSum += value;
     const instantEnergy = bandValues.length > 0 ? bandSum / bandValues.length / 255 : 0;
-    this.smoothedAudioEnergy = this.smoothedAudioEnergy * 0.82 + instantEnergy * 0.18;
+    const energySmoothing = this.reduceMotion ? 0.94 : 0.82;
+    const energyBlend = this.reduceMotion ? 0.06 : 0.18;
+    this.smoothedAudioEnergy =
+      this.smoothedAudioEnergy * energySmoothing + instantEnergy * energyBlend;
 
     drawThemeBackground(ctx, canvas, theme, this.backgroundImage, {
-      timeMs: performance.now(),
+      timeMs: this.reduceMotion ? 0 : performance.now(),
       audioEnergy: this.smoothedAudioEnergy,
     });
 
@@ -279,6 +296,8 @@ export class WaveformRenderer {
     const { barWidth, spacing, startX } = layout;
     const { cornerRadius, glow } = theme.bars;
 
+    const uniformLevel = compressForViz(this.smoothedAudioEnergy);
+
     // Optional light per-frame peak normalization so loud speech fills range.
     // Combined with compressForViz this makes upper spectrum visible on sibilants etc.
     let peak = 0;
@@ -286,10 +305,15 @@ export class WaveformRenderer {
     const peakScale = peak > 1 ? 255 / peak : 1;
 
     for (let i = 0; i < BAR_COUNT; i += 1) {
-      const raw = bandValues[i] ?? 0;
-      // Peak scale first (so strongest bar can reach full), then compress.
-      const rawNorm = Math.min(1, (raw * peakScale) / 255);
-      const normalized = compressForViz(rawNorm);
+      let normalized: number;
+      if (this.reduceMotion) {
+        const shape = REDUCED_MOTION_BAR_SHAPE[i] ?? 0.5;
+        normalized = compressForViz(Math.min(1, uniformLevel * shape));
+      } else {
+        const raw = bandValues[i] ?? 0;
+        const rawNorm = Math.min(1, (raw * peakScale) / 255);
+        normalized = compressForViz(rawNorm);
+      }
 
       const barHeight = Math.max(MIN_BAR_HEIGHT, normalized * maxBarHeight);
       const x = startX + i * (barWidth + spacing);

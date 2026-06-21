@@ -3,6 +3,7 @@ import { mountAudioSettingsSection } from '@/src/ui/popup/audio-settings';
 import { mountClipAppearanceSection } from '@/src/ui/popup/clip-appearance';
 import { mountNotificationSettingsSection } from '@/src/ui/popup/notification-settings';
 import { mountRecordingSettingsSection } from '@/src/ui/popup/recording-settings';
+import { mountRestartCaution } from '@/src/ui/popup/restart-caution';
 
 const README_URL = 'https://github.com/bra-khet/reddit-voice-notes-chrome/blob/main/README.md';
 const README_ICON_URL = browser.runtime.getURL('icon/github-README-icon.png' as never);
@@ -49,6 +50,8 @@ const unmountFns = [
   mountRecordingSettingsSection(document.querySelector<HTMLElement>('[data-recording-settings]')!),
   mountNotificationSettingsSection(document.querySelector<HTMLElement>('[data-notification-settings]')!),
 ];
+
+mountRestartCaution(document.querySelector<HTMLElement>('#app')!);
 
 document.querySelector<HTMLButtonElement>('#reload-extension')!.addEventListener('click', () => {
   browser.runtime.reload();

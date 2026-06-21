@@ -14,7 +14,7 @@ export interface AppearancePreferences {
   activeThemeId: string;
   /** Center-mirrored (default), bottom, or top bar anchoring. */
   barAlignment?: BarAlignment;
-  /** When true, simplify waveform motion if the OS requests reduced motion (pretty-2 UI; pretty-4 draw). */
+  /** When true, simplify waveform motion if the OS requests reduced motion (pretty-4 draw). */
   respectReducedMotion?: boolean;
   /**
    * Planned (pretty-7): IndexedDB record id for a user-uploaded background image.

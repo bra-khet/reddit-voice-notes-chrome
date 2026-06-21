@@ -86,6 +86,63 @@ export const THEME_PRESETS: WaveformTheme[] = [
     },
   },
   {
+    id: 'high-contrast',
+    name: 'High Contrast',
+    bars: {
+      width: 16,
+      spacing: 4,
+      cornerRadius: 2,
+      glow: 0,
+    },
+    colors: {
+      bar: '#ffffff',
+      glow: '#ffffff',
+      bg: '#000000',
+    },
+    background: {
+      type: 'solid',
+      value: '#000000',
+    },
+  },
+  {
+    id: 'amber-signal',
+    name: 'Amber Signal',
+    bars: {
+      width: 14,
+      spacing: 5,
+      cornerRadius: 3,
+      glow: 2,
+    },
+    colors: {
+      bar: '#ffb000',
+      glow: '#ffffff88',
+      bg: '#0a0a0a',
+    },
+    background: {
+      type: 'solid',
+      value: '#0a0a0a',
+    },
+  },
+  {
+    id: 'cool-signal',
+    name: 'Cool Signal',
+    bars: {
+      width: 14,
+      spacing: 5,
+      cornerRadius: 3,
+      glow: 2,
+    },
+    colors: {
+      bar: '#4fc3f7',
+      glow: '#ffffff88',
+      bg: '#0a0a0a',
+    },
+    background: {
+      type: 'solid',
+      value: '#0a0a0a',
+    },
+  },
+  {
     id: 'warm-glow',
     name: 'Warm Glow',
     bars: {

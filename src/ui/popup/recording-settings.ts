@@ -13,6 +13,7 @@ import {
   renderSettingsSection,
   renderToggleRow,
 } from './settings-shared';
+import { showRestartCaution } from './restart-caution';
 
 export function mountRecordingSettingsSection(root: HTMLElement): () => void {
   const capClock = formatRecordingCapClock();
@@ -47,6 +48,7 @@ export function mountRecordingSettingsSection(root: HTMLElement): () => void {
   );
 
   const reducedMotionToggle = bindToggle(root, 'recording-reduced-motion', (checked) => {
+    showRestartCaution();
     void saveAppearancePreferences({ respectReducedMotion: checked });
   });
 
