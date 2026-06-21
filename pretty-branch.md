@@ -69,7 +69,8 @@ src/recorder/waveform.ts      # draw loop, themes
 src/recorder/voice-recorder.ts # canvas stream → MediaRecorder (preview = output)
 src/ui/tokens.ts              # shared colors / spacing
 src/ui/recorder-panel.ts      # live UI theming
-src/settings/                 # persist user theme/background choices
+src/settings/                 # persist user theme/background choices (ids only)
+src/storage/                  # ImageDB blobs + ref reconcile/prune (pretty-7a)
 entrypoints/popup/            # quick settings (presets, profiles, image pick)
 entrypoints/design-studio/    # light design studio popup (pretty-8) — planned
 src/theme/                    # presets + future override merge for studio output
@@ -106,7 +107,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Done |
 | **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Done |
 | **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Done |
-| **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Planned |
+| **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Done |
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Planned |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Planned |
 | **pretty-8** | Light design studio | Color pickers + simple background/bar flairs (bokeh, sparkle/twinkle); separate studio popup; no bar-count/spacing logic | Planned |
@@ -115,8 +116,10 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 ### ImageDB notes (pretty-7)
 
 - Personal backgrounds are **drawn to the canvas during capture** — preview = output, same as bundled presets today.
-- Storage lives in **IndexedDB** (not `chrome.storage.local`); prefs hold only image record ids + metadata.
-- `UserPreferencesV1` will gain `appearance.customBackgroundId` (or profile-level refs) without breaking v1 merge defaults.
+- **Two-layer storage:** blobs in **IndexedDB** (`rvnImageDb` / `backgrounds` store); prefs hold only `bg-…` ids + profile refs (`appearance.customBackgroundId`, `ClipProfile.customBackgroundId`).
+- **pretty-7a (done):** `src/storage/image-db.ts` — import, quotas, list/get/delete, object-URL cache; `background-refs.ts` — reconcile stale prefs refs, prune orphans. Image import only; video MIME reserved behind `import_disabled` until loop canvas support.
+- **Limits (7a):** 8 MB/image, 24 assets, 64 MB total; 15 MB reserved cap for future video/loops.
+- **7b** wires `createBackgroundObjectUrl()` into `loadBackgroundIfNeeded()`; **7c** adds popup upload/pick/remove UI.
 
 ### QA finding: live theme swap during recording (2026-06)
 

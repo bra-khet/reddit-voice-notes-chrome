@@ -60,6 +60,30 @@ When exposing quality toggles, prefer **`ideal` MediaTrackConstraints** (and sim
 - `src/recorder/mic-constraints.ts` — constraint builders + `acquireMicStream()` fallback ladder.
 - `src/settings/user-preferences.ts` — `AudioPreferences` schema + normalization.
 
+### Personal backgrounds — ImageDB (pretty-7)
+
+User background blobs are **too large for `chrome.storage.local`** (multi‑MB images; future lightweight video/loops may reach ~15 MB). Split storage by responsibility:
+
+| Layer | Holds | Rationale |
+|-------|--------|-----------|
+| **`chrome.storage.local` (`rvnUserPrefs`)** | `customBackgroundId` (`bg-…` refs) + profile metadata | Small, cross-context, hot-swappable like theme ids |
+| **IndexedDB (`rvnImageDb`)** | Blob + mime, dimensions, `mediaKind` | Large binary store; shared across popup, content script, service worker |
+
+**Rules:**
+
+1. **Never put blobs in prefs** — only normalized `bg-` ids; invalid ids strip on `reconcileBackgroundPreferences()`.
+2. **Import gates** — pretty-7a allows **images only** (JPEG/PNG/WebP/GIF); video MIME types are schema-ready but rejected until canvas loop support ships.
+3. **Quota ladder** — per-file cap (8 MB images / 15 MB reserved video), max asset count, max total bytes; fail with typed `BackgroundImportError` before write.
+4. **Orphan hygiene** — `pruneUnreferencedBackgrounds()` after deletes; prefs refs are the source of truth for retention.
+5. **Canvas path (7b+)** — resolve id → object URL → same `loadBackgroundIfNeeded()` hot-swap as bundled assets; preview = output.
+6. **Fallback** — missing/decode failure → theme gradient letterbox; never block recording.
+
+### Reference implementation
+
+- `src/storage/image-db.ts` — IndexedDB CRUD, import validation, object-URL cache.
+- `src/storage/background-refs.ts` — ref collection, reconcile, prune.
+- `src/settings/user-preferences.ts` — `customBackgroundId` normalization on merge.
+
 ### Canvas personalization (pretty-8 design studio)
 
 - **Theme = data driving draw calls** — user overrides merge onto a base preset; do not fork parallel recorders.

@@ -1,4 +1,6 @@
 import './style.css';
+import { reconcileBackgroundPreferences } from '@/src/storage/background-refs';
+import { loadUserPreferences } from '@/src/settings/user-preferences';
 import { mountAudioSettingsSection } from '@/src/ui/popup/audio-settings';
 import { mountClipAppearanceSection } from '@/src/ui/popup/clip-appearance';
 import { mountNotificationSettingsSection } from '@/src/ui/popup/notification-settings';
@@ -52,6 +54,9 @@ const unmountFns = [
 ];
 
 mountRestartCaution(document.querySelector<HTMLElement>('#app')!);
+
+// pretty-7a: drop stale `bg-…` prefs refs when ImageDB records are missing.
+void loadUserPreferences().then(reconcileBackgroundPreferences);
 
 document.querySelector<HTMLButtonElement>('#reload-extension')!.addEventListener('click', () => {
   browser.runtime.reload();

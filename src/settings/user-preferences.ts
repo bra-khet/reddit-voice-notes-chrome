@@ -6,6 +6,7 @@ import {
   normalizeClipProfiles,
   type ClipProfile,
 } from '@/src/settings/clip-profiles';
+import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { THEME_STORAGE_KEY } from '@/src/theme/storage';
 import { DEFAULT_THEME_ID, normalizeThemeId } from '@/src/theme/presets';
 
@@ -27,8 +28,8 @@ export interface AppearancePreferences {
   /** When true, simplify waveform motion if the OS requests reduced motion (pretty-4 draw). */
   respectReducedMotion?: boolean;
   /**
-   * Planned (pretty-7): IndexedDB record id for a user-uploaded background image.
-   * Canvas draws this during capture — not composited after transcode.
+   * ImageDB record id (`bg-…`) for a user-uploaded background (pretty-7).
+   * Blob lives in IndexedDB; prefs store only this reference.
    */
   customBackgroundId?: string | null;
   /** User-saved theme + alignment combos (pretty-6). */
@@ -111,6 +112,7 @@ function mergeAppearancePreferences(
     barAlignment: normalizeBarAlignment(raw?.barAlignment),
     savedProfiles,
     activeProfileId: normalizeActiveProfileId(raw?.activeProfileId, savedProfiles),
+    customBackgroundId: normalizeBackgroundAssetId(raw?.customBackgroundId),
   };
 }
 

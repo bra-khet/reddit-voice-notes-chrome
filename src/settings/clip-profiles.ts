@@ -1,4 +1,5 @@
 import type { BarAlignment } from '@/src/recorder/waveform';
+import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
 import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/user-preferences';
 
@@ -11,7 +12,7 @@ export interface ClipProfile {
   name: string;
   themeId: string;
   barAlignment: BarAlignment;
-  /** Reserved for pretty-7 ImageDB backgrounds. */
+  /** ImageDB record id (`bg-…`) when this profile uses a personal background. */
   customBackgroundId?: string | null;
 }
 
@@ -46,7 +47,7 @@ export function normalizeClipProfiles(profiles: ClipProfile[] | undefined): Clip
       name: name.slice(0, 40),
       themeId: normalizeThemeId(raw.themeId),
       barAlignment: normalizeBarAlignment(raw.barAlignment),
-      customBackgroundId: raw.customBackgroundId ?? null,
+      customBackgroundId: normalizeBackgroundAssetId(raw.customBackgroundId),
     });
 
     if (normalized.length >= MAX_CLIP_PROFILES) break;

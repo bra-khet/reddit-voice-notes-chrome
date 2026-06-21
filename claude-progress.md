@@ -62,7 +62,8 @@ Two different `Sending WebM` byte sizes = two sessions, not one duplicate send. 
 - Recorder panel + toast accents derived from active clip theme (`src/ui/theme-chrome.ts`)
 - Version source: `package.json` → `wxt.config.ts` manifest → `src/utils/version.ts` popup label
 - pretty-6: named clip profiles (`savedProfiles` + `activeProfileId` in `rvnUserPrefs`, up to 12)
-- **Roadmap:** pretty-8 = light design studio (colors + bokeh/sparkle flairs, **separate popup**); bar count/spacing out of scope; v2.0 after pretty-8 + pretty-9
+- **Roadmap:** pretty-7b/c = canvas + popup for personal backgrounds; pretty-8 = light design studio; v2.0 after pretty-8 + pretty-9
+- **pretty-7a (2026-06):** ImageDB storage layer — `src/storage/image-db.ts` (IndexedDB blobs, import quotas, object-URL cache), `background-refs.ts` (reconcile/prune); prefs normalize `bg-…` ids only
 
 ## Branch split (post-MVP)
 
