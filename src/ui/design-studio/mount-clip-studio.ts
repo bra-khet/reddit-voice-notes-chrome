@@ -60,6 +60,7 @@ import {
   isStylePanelVisible,
   populateDesignStudioStyleSelect,
 } from '@/src/ui/style-select';
+import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
 import {
   discardStudioUnsavedChanges,
   hasStudioUnsavedChanges,
@@ -108,41 +109,31 @@ export function mountClipStudio(root: HTMLElement): () => void {
           </div>
         </div>
       </div>
-      <div class="studio__preview-wrap">
-        <canvas
-          class="studio__preview-canvas"
-          data-preview-canvas
-          width="640"
-          height="360"
-          aria-label="Clip style preview"
-          role="img"
-        ></canvas>
-      </div>
-      <div class="studio__panel">
-        <h2 class="studio__panel-title">Profile</h2>
-        <label class="popup__field">
-          <span class="popup__field-label">Saved profile</span>
-          <select class="popup__select" data-profile-select aria-label="Saved profile"></select>
+      <section class="studio__profile-bar">
+        <label class="studio__profile-bar-field">
+          <span class="studio__profile-bar-label">Profile</span>
+          <select class="popup__select studio__profile-bar-select" data-profile-select aria-label="Saved profile"></select>
         </label>
-        <div class="popup__profile-actions">
+        <div class="studio__profile-bar-actions">
           <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>
             Save as profile
           </button>
           <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
-            Delete profile
+            Delete
           </button>
         </div>
-      </div>
-      <div class="studio__panel">
-        <h2 class="studio__panel-title">Style</h2>
-        <label class="popup__field">
+      </section>
+      ${renderPreviewBlock('primary')}
+      <section class="studio__section">
+        <h2 class="studio__section-title">Style</h2>
+        <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Clip style</span>
           <select class="popup__select" data-theme-select aria-label="Clip style"></select>
         </label>
         <div data-custom-style-panel hidden>
           ${renderColorPickerFields()}
           ${renderEffectControlFields()}
-          <div class="popup__profile-actions">
+          <div class="popup__profile-actions studio__inline-actions">
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-style>
               Save as style
             </button>
@@ -151,16 +142,17 @@ export function mountClipStudio(root: HTMLElement): () => void {
             </button>
           </div>
         </div>
-        <label class="popup__field">
+        <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Bar alignment</span>
           <select class="popup__select" data-alignment-select aria-label="Bar alignment"></select>
         </label>
-      </div>
-      <div class="studio__panel">
-        <h2 class="studio__panel-title">Background</h2>
+      </section>
+      ${renderPreviewBlock('secondary')}
+      <section class="studio__section studio__section--background">
+        <h2 class="studio__section-title">Background</h2>
         ${renderPersonalBackgroundFields()}
         ${renderBackgroundLayoutFields()}
-      </div>
+      </section>
       <p class="studio__footer-note">
         Changes apply live to the recorder. With a profile or custom style selected, use
         <strong>Update profile</strong> or <strong>Update style</strong> to save edits.
@@ -168,7 +160,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
     </main>
   `;
 
-  const previewCanvas = root.querySelector<HTMLCanvasElement>('[data-preview-canvas]')!;
+  const previewCanvases = () =>
+    [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')];
   const profileSelect = root.querySelector<HTMLSelectElement>('[data-profile-select]')!;
   const themeSelect = root.querySelector<HTMLSelectElement>('[data-theme-select]')!;
   const alignmentSelect = root.querySelector<HTMLSelectElement>('[data-alignment-select]')!;
@@ -342,28 +335,32 @@ export function mountClipStudio(root: HTMLElement): () => void {
       previewRaf = requestAnimationFrame(tick);
       if (now - lastPreviewFrame < 1000 / PREVIEW_ANIM_FPS) return;
       lastPreviewFrame = now;
-      void renderThemePreview(
-        previewCanvas,
-        resolvedTheme(),
-        activeAlignment,
-        now,
-        activeCustomBackgroundId(),
-        activeBackgroundLayout(),
-      );
+      for (const canvas of previewCanvases()) {
+        void renderThemePreview(
+          canvas,
+          resolvedTheme(),
+          activeAlignment,
+          now,
+          activeCustomBackgroundId(),
+          activeBackgroundLayout(),
+        );
+      }
     };
     previewRaf = requestAnimationFrame(tick);
   }
 
   async function refreshPreview(timeMs?: number): Promise<void> {
     const generation = ++renderGeneration;
-    await renderThemePreview(
-      previewCanvas,
-      resolvedTheme(),
-      activeAlignment,
-      timeMs,
-      activeCustomBackgroundId(),
-      activeBackgroundLayout(),
-    );
+    for (const canvas of previewCanvases()) {
+      await renderThemePreview(
+        canvas,
+        resolvedTheme(),
+        activeAlignment,
+        timeMs,
+        activeCustomBackgroundId(),
+        activeBackgroundLayout(),
+      );
+    }
     if (generation !== renderGeneration) return;
     syncPreviewLoop();
   }
