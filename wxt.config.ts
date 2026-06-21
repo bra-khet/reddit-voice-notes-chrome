@@ -32,7 +32,7 @@ export default defineConfig({
         // Fix: expose both the core files and the full nested esm tree.
         // CHANGED: expose theme background SVGs for canvas drawImage in content scripts.
         // WHY: loadBackgroundImage() sets img.src to chrome-extension://… from Reddit pages.
-        resources: ['ffmpeg/*', 'ffmpeg/esm/*', 'assets/backgrounds/*'],
+        resources: ['ffmpeg/*', 'ffmpeg/esm/*', 'assets/backgrounds/*', 'vosk/*'],
         matches: ['<all_urls>'],
       },
     ],

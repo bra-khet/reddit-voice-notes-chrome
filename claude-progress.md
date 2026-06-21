@@ -296,4 +296,23 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 | Voice import graph | No `@/src/voice` barrel from popup/settings; `types.ts` leaf guard intact |
 | Manifest version | `3.1.0` via `package.json` → `wxt.config.ts` |
 
-**Next:** branch **`eloquent`** (v4 transcription) from `main` after push — phase plan in `eloquent-branch.md`.
+**Next:** eloquent-1 — parallel transcribe wire from `stopRecording()` (see `eloquent-branch.md`).
+
+## eloquent branch — v4 transcription (2026-06)
+
+**Branch:** `eloquent` from `main` v3.1.0 · **Plan:** `eloquent-branch.md`
+
+| Phase | Status |
+|-------|--------|
+| **eloquent-0** | **Done** — Vosk spike, frozen types, transcribe harness |
+| eloquent-1 … eloquent-5 | Pending |
+
+### eloquent-0 deliverables
+
+- `src/transcription/` — types, WebM decode, Vosk loader, `transcribeWebmBlob()`, SRT builder, separate `enqueueTranscribeJob` queue
+- `MSG_TRANSCRIBE_*` message contracts frozen in `messaging/types.ts` (wired in eloquent-1)
+- `entrypoints/transcribe-harness/` — manual QA page
+- `scripts/fetch-vosk-model.mjs` — downloads `vosk-model-small-en-us-0.15.tar.gz` to `public/vosk/` on postinstall
+- **Worker decision:** extend existing offscreen + separate transcription queue; avoid concurrent FFmpeg + Vosk until profiled
+
+**Harness:** `chrome-extension://<id>/transcribe-harness.html`

@@ -1,6 +1,6 @@
 # `eloquent` branch — automated subtitles & transcription (Vosk WASM)
 
-**Status:** Not started — branch from **`main` v3.1.0** (2026-06).  
+**Status:** eloquent-0 complete on **`eloquent`** branch (2026-06). Baseline: **`main` v3.1.0**.  
 **Target release:** v4.0.0 on `main` after merge from `eloquent`.  
 **Baseline:** `main` v3.1.0 (Design Studio collapsible UX, voice effects, hardened transcode pipeline).
 
@@ -211,7 +211,7 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 
 | Phase | Name | Scope | Status |
 |-------|------|-------|--------|
-| **eloquent-0** | Spike & types | Vosk WASM isolated on WebM blob; freeze `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig`; worker/queue decision; manual harness page | Pending |
+| **eloquent-0** | Spike & types | Vosk WASM isolated on WebM blob; freeze `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig`; worker/queue decision; manual harness page | **Done** |
 | **eloquent-1** | Parallel wire | `stopRecording()` clones WebM; fire `TRANSCODE_*` + `TRANSCRIBE_*` in parallel; log/store result; no Studio UI yet | Pending |
 | **eloquent-2** | Studio editor | Subtitles panel in Design Studio; editable transcript; style + backdrop preview on master canvas; collapsed summary chips | Pending |
 | **eloquent-3** | Burn-in export | `.srt` generation; second FFmpeg pass `base.mp4` → `final.mp4`; full E2E when user confirms subs | Pending |
@@ -220,12 +220,29 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 
 ### eloquent-0 — audit checklist
 
-- [ ] Trace WebM blob from `voice-recorder.ts` `stopRecording()` — identify clone point before `transcodeWebmToMp4()`
-- [ ] Profile FFmpeg offscreen heap usage at 2:00 cap; estimate headroom for Vosk model + inference buffers
-- [ ] Spike: load Vosk WASM + English model in isolation; feed WebM audio; return segments
-- [ ] Decide offscreen extension vs second offscreen document; document queue isolation
-- [ ] Freeze types in `src/transcription/types.ts` (no UI, no recorder wire)
-- [ ] Optional harness: `entrypoints/transcribe-harness/` — file picker, model load button, JSON result dump
+- [x] Trace WebM blob from `voice-recorder.ts` `stopRecording()` — clone after `validateWebmRecording()`, before `transcodeToMp4()` (line ~330 `this.webmBlob`)
+- [x] Memory budget note: FFmpeg ~32 MB WASM heap + Vosk model ~40 MB + inference — **do not run concurrent jobs** until eloquent-1 profiles; separate `enqueueTranscribeJob` queue
+- [x] Spike: `transcribeWebmBlob()` — WebM → mono 16 kHz PCM → Vosk segments + word timestamps
+- [x] **Worker decision:** extend existing offscreen doc in eloquent-1 with `MSG_TRANSCRIBE_*`; **separate transcription queue** (not `enqueueTranscodeJob`)
+- [x] Frozen types in `src/transcription/types.ts`; `MSG_TRANSCRIBE_*` contracts in `messaging/types.ts`
+- [x] Harness: `entrypoints/transcribe-harness/` — file picker, model URL, JSON + SRT dump
+
+#### eloquent-0 — implementation notes (2026-06)
+
+| Artifact | Role |
+|----------|------|
+| `src/transcription/types.ts` | Frozen `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig` + normalizers |
+| `src/transcription/decode-webm-audio.ts` | Muxed WebM → mono 16 kHz PCM (`decodeAudioData` + OfflineAudioContext fallback) |
+| `src/transcription/vosk-loader.ts` | Singleton `createModel()` lifecycle |
+| `src/transcription/transcribe-audio.ts` | `transcribeWebmBlob()` — chunked `acceptWaveformFloat`, graceful fallback |
+| `src/transcription/transcribe-queue.ts` | Serialized transcription jobs (isolated from FFmpeg queue) |
+| `src/transcription/srt-builder.ts` | `buildSrtFromSegments()` for eloquent-3 |
+| `scripts/fetch-vosk-model.mjs` | Postinstall download → `public/vosk/model.tar.gz` (skip via `SKIP_VOSK_MODEL=1`) |
+| `entrypoints/transcribe-harness/` | Manual QA — `transcribe-harness.html` |
+
+**Harness:** `npm run dev` → `chrome-extension://<id>/transcribe-harness.html` → load Reddit WebM → Transcribe.
+
+**Dependency:** `vosk-browser@0.0.8` (embedded WASM worker; model bundled separately ~40 MB).
 
 #### eloquent-0 — target handoff diagram
 

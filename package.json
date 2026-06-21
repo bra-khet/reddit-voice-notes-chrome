@@ -12,11 +12,12 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "postinstall": "wxt prepare && node scripts/copy-ffmpeg-core.mjs"
+    "postinstall": "wxt prepare && node scripts/copy-ffmpeg-core.mjs && node scripts/fetch-vosk-model.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2"
+    "@ffmpeg/util": "^0.12.2",
+    "vosk-browser": "^0.0.8"
   },
   "devDependencies": {
     "@ffmpeg/core": "^0.12.10",

@@ -62,7 +62,7 @@ Previous stable: **v3.0.0** (voice effects), **v2.0.0** (Design Studio + persona
 
 **Disabled path:** identical to v2 — no `-af`, no extra WASM work.
 
-**Manual QA harness:** `chrome-extension://<id>/voice-harness.html` (dev build)
+**Manual QA harnesses:** `voice-harness.html` (voice effects), `transcribe-harness.html` (Vosk STT spike, eloquent branch)
 
 ## Tech stack
 
@@ -82,9 +82,11 @@ entrypoints/
   offscreen/             # FFmpeg WASM worker
   popup/                 # Settings hub
   voice-harness/         # Manual voice effect QA (v3)
+  transcribe-harness/    # Manual Vosk transcription QA (v4 eloquent)
 public/
   icon/                  # Extension icons
   ffmpeg/                # WASM core (copied on postinstall)
+  vosk/                  # Vosk model tar.gz (fetched on postinstall, gitignored)
 src/
   recorder/              # getUserMedia + canvas + MediaRecorder
   voice/                 # Effect types, presets, resolve-config, preview, -af graphs
@@ -92,6 +94,7 @@ src/
   storage/               # ImageDB, last-recording relay
   ui/design-studio/      # Studio controls + voice-controls.ts
   ffmpeg/                # Transcode messaging + ffmpeg-runner
+  transcription/         # Vosk STT types + transcribeWebmBlob (eloquent)
 docs/
   engineering-principles.md
   bug-archive.md         # BUG-001 … BUG-009

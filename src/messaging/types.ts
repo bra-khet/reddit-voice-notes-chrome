@@ -11,6 +11,14 @@ export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
 export const MSG_SAVE_LAST_RECORDING = 'rvn/save-last-recording' as const;
 
+/** eloquent-0 — frozen message contracts (wired in eloquent-1). */
+export const MSG_TRANSCRIBE_START = 'rvn/transcribe-start' as const;
+export const MSG_TRANSCRIBE_ACK = 'rvn/transcribe-ack' as const;
+export const MSG_TRANSCRIBE_OFFSCREEN = 'rvn/transcribe-offscreen' as const;
+export const MSG_TRANSCRIBE_PROGRESS = 'rvn/transcribe-progress' as const;
+export const MSG_TRANSCRIBE_COMPLETE = 'rvn/transcribe-complete' as const;
+export const MSG_TRANSCRIBE_CANCEL = 'rvn/transcribe-cancel' as const;
+
 /** @deprecated Use MSG_TRANSCODE_START — kept for grep compatibility */
 export const MSG_TRANSCODE = MSG_TRANSCODE_START;
 
@@ -95,3 +103,55 @@ export type TranscodeBroadcast =
   | TranscodeAckResponse
   | TranscodeProgressMessage
   | TranscodeCompleteMessage;
+
+/** eloquent-1 — parallel transcription fork payload (raw WebM clone). */
+export interface TranscribeStartRequest {
+  type: typeof MSG_TRANSCRIBE_START;
+  jobId: string;
+  webmBase64: string;
+  webmByteLength: number;
+  language?: string;
+}
+
+export interface TranscribeAckResponse {
+  type: typeof MSG_TRANSCRIBE_ACK;
+  jobId: string;
+  ok: boolean;
+  error?: string;
+}
+
+export interface TranscribeOffscreenRequest {
+  type: typeof MSG_TRANSCRIBE_OFFSCREEN;
+  target: 'offscreen';
+  jobId: string;
+  webmBase64: string;
+  webmByteLength: number;
+  language?: string;
+}
+
+export interface TranscribeCancelRequest {
+  type: typeof MSG_TRANSCRIBE_CANCEL;
+  jobId: string;
+  target?: 'offscreen';
+}
+
+export interface TranscribeProgressMessage {
+  type: typeof MSG_TRANSCRIBE_PROGRESS;
+  jobId: string;
+  progress: number;
+  stage?: string;
+}
+
+export interface TranscribeCompleteMessage {
+  type: typeof MSG_TRANSCRIBE_COMPLETE;
+  jobId: string;
+  ok: boolean;
+  /** JSON-serialized TranscriptResult when ok. */
+  transcriptJson?: string;
+  error?: string;
+}
+
+export type TranscribeBroadcast =
+  | TranscribeAckResponse
+  | TranscribeProgressMessage
+  | TranscribeCompleteMessage;
