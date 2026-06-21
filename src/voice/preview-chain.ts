@@ -1,9 +1,8 @@
 import { WEB_AUDIO_PREVIEW_NOTES } from './filter-graphs';
+import { scaleVoiceEffectByIntensity, voiceEffectIsActive } from './resolve-config';
 import {
   normalizeVoiceEffectConfig,
-  scaleVoiceEffectByIntensity,
   semitonesToPitchRatio,
-  voiceEffectIsActive,
   type VoiceEffectConfig,
 } from './types';
 

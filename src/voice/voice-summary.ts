@@ -1,8 +1,8 @@
 import { getVoiceEffectPreset } from './presets';
+import { voiceEffectIsActive } from './resolve-config';
 import {
   effectiveVoiceIntensity,
   normalizeVoiceEffectConfig,
-  voiceEffectIsActive,
   type VoiceEffectConfig,
 } from './types';
 

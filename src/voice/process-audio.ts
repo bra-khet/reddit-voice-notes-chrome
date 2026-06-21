@@ -4,9 +4,9 @@ import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import { buildFfmpegAudioFilter } from './filter-graphs';
 import {
   normalizeVoiceEffectConfig,
-  voiceEffectIsActive,
   type VoiceEffectConfig,
 } from './types';
+import { voiceEffectIsActive } from './resolve-config';
 
 const WEBM_EBML_MAGIC = [0x1a, 0x45, 0xdf, 0xa3] as const;
 const MIN_INPUT_BYTES = 256;

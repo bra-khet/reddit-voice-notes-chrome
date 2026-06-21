@@ -30,11 +30,10 @@
  *   aecho=0.8:0.9:40|80:0.3
  */
 
+import { scaleVoiceEffectByIntensity, voiceEffectIsActive } from './resolve-config';
 import {
-  scaleVoiceEffectByIntensity,
   semitonesToPitchRatio,
   VOICE_EXPORT_SAMPLE_RATE_HZ,
-  voiceEffectIsActive,
   type VoiceEffectConfig,
 } from './types';
 

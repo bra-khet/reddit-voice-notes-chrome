@@ -185,9 +185,3 @@ export function effectiveVoiceIntensity(config: VoiceEffectConfig): number {
   return normalized.intensity ?? VOICE_INTENSITY_DEFAULT;
 }
 
-export {
-  resolveVoiceEffectConfig,
-  scaleVoiceEffectByIntensity,
-  voiceEffectConfigsEqual,
-  voiceEffectIsActive,
-} from './resolve-config';

@@ -13,10 +13,10 @@ import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { designOverridesMatch, normalizeDesignOverrides } from '@/src/theme/design-overrides';
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
 import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/user-preferences';
+import { voiceEffectConfigsEqual } from '@/src/voice/resolve-config';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
-  voiceEffectConfigsEqual,
   type VoiceEffectConfig,
 } from '@/src/voice/types';
 

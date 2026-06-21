@@ -1,10 +1,10 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
 import { buildFfmpegAudioFilter } from '@/src/voice/filter-graphs';
+import { voiceEffectIsActive } from '@/src/voice/resolve-config';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
-  voiceEffectIsActive,
   type VoiceEffectConfig,
 } from '@/src/voice/types';
 
