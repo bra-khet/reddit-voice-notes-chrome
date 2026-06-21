@@ -8,6 +8,7 @@ const MIN_WEBM_BYTES = 256;
 
 /** Flat per-strategy exec ceiling — size scaling caused false stalls on healthy jobs. */
 const STRATEGY_EXEC_TIMEOUT_MS = 75_000;
+const LOAD_FFMPEG_TIMEOUT_MS = 30_000;
 const WASM_SETTLE_MS = 200;
 
 let ffmpegInstance: FFmpeg | null = null;
@@ -77,13 +78,32 @@ function summarizeFfmpegLogs(lines: string[]): string {
   return tail.join(' | ');
 }
 
+function withTimeout<T>(work: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
+    }, timeoutMs);
+
+    void work.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> {
   if (ffmpegInstance?.loaded) {
     onProgress?.(0.2, 'ready');
     return ffmpegInstance;
   }
 
-  if (loadPromise) return loadPromise;
+  if (loadPromise) return withTimeout(loadPromise, LOAD_FFMPEG_TIMEOUT_MS, 'FFmpeg load');
 
   loadPromise = (async () => {
     onProgress?.(0.05, 'checking-assets');
@@ -130,7 +150,7 @@ async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> 
     throw error;
   });
 
-  return loadPromise;
+  return withTimeout(loadPromise, LOAD_FFMPEG_TIMEOUT_MS, 'FFmpeg load');
 }
 
 /** Reddit-ready encode first; remux-only fallback second. Fewer strategies = fewer stall windows. */

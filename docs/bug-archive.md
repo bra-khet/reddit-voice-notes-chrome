@@ -199,3 +199,36 @@ Explicit pipeline checks at every hop (no heuristics):
 - `src/recorder/voice-recorder.ts` — session epoch, abort, early processing phase
 - `src/ffmpeg/transcoder.ts` — AbortSignal, monotonic progress
 - `src/ui/recorder-panel.ts` — dispose aborts via session.dispose()
+
+---
+
+## BUG-006 — Infinite transcode hang (heartbeats mask stall) (2026-06)
+
+### Symptoms
+
+- ~1 minute recordings sometimes finish in ~3s, sometimes hang indefinitely until manual cancel.
+- UI pegs at ~20% converting; no client timeout even past 90s.
+- Console shows normal `Sending WebM for transcode` / preflight logs; no obvious error.
+
+### Root causes (confirmed)
+
+1. **Heartbeats counted as progress** — Offscreen emits `*-heartbeat` progress every 8s. Content script reset its 45s stall timer on *any* progress message, so a hung `ffmpeg.exec()` or `loadFfmpeg()` never tripped client stall detection.
+2. **Client abort did not stop offscreen** — BUG-005 aborted the content listener and released `transcode-lock`, but FFmpeg kept running in the offscreen queue, blocking subsequent jobs.
+3. **`loadFfmpeg()` had no timeout** — A stuck WASM fetch/load could heartbeat forever without reaching `execWithTimeout`.
+4. **Absolute client ceiling was 6 minutes** — Too long for user-facing failure on a ~2 MB clip.
+
+### Fix (2026-06)
+
+- Stall timer resets only on **meaningful** progress (ratio increase or non-heartbeat stage change).
+- `MSG_TRANSCODE_CANCEL` propagates client/background cancel → offscreen `disposeFfmpeg()` + queue skip.
+- Background **supersedes** prior tab job when a new transcode starts.
+- Offscreen **90s wall-clock** per attempt; `loadFfmpeg` **30s** timeout.
+- Client absolute max reduced to **90s**.
+
+### Related files
+
+- `src/ffmpeg/transcoder.ts` — meaningful stall detection, cancel on fail/abort
+- `src/ffmpeg/transcode-cancel.ts` — offscreen cancellation registry
+- `entrypoints/offscreen/main.ts` — wall-clock timeout, cancel handling
+- `entrypoints/background.ts` — cancel relay, tab supersede
+- `src/ffmpeg/ffmpeg-runner.ts` — load timeout

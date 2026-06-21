@@ -1,4 +1,11 @@
 import { disposeFfmpeg, runWebmToMp4 } from '@/src/ffmpeg/ffmpeg-runner';
+import {
+  assertTranscodeNotCancelled,
+  clearTranscodeCancelled,
+  isTranscodeCancelled,
+  markTranscodeCancelled,
+  setRunningTranscodeJob,
+} from '@/src/ffmpeg/transcode-cancel';
 import { enqueueTranscodeJob } from '@/src/ffmpeg/transcode-queue';
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import {
@@ -9,11 +16,13 @@ import {
 import {
   MSG_OFFSCREEN_PING,
   MSG_OFFSCREEN_PONG,
+  MSG_TRANSCODE_CANCEL,
   MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_OFFSCREEN,
   MSG_TRANSCODE_PROGRESS,
   type OffscreenPingRequest,
   type OffscreenPongResponse,
+  type TranscodeCancelRequest,
   type TranscodeCompleteMessage,
   type TranscodeOffscreenRequest,
   type TranscodeProgressMessage,
@@ -21,6 +30,8 @@ import {
 
 const HEARTBEAT_INTERVAL_MS = 8_000;
 const JOB_RETRY_DELAY_MS = 400;
+/** Wall-clock ceiling per job attempt — independent of heartbeat traffic. */
+const JOB_WALL_CLOCK_MS = 90_000;
 
 function broadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
   void browser.runtime.sendMessage(message).catch((error) => {
@@ -38,10 +49,40 @@ function broadcastProgress(jobId: string, progress: number, stage?: string): voi
   broadcast(progressMsg);
 }
 
+function broadcastCancelled(jobId: string): void {
+  const completeMsg: TranscodeCompleteMessage = {
+    type: MSG_TRANSCODE_COMPLETE,
+    jobId,
+    ok: false,
+    error: 'Transcode cancelled.',
+  };
+  broadcast(completeMsg);
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+async function withJobWallClock<T>(jobId: string, work: () => Promise<T>): Promise<T> {
+  let timer: number | null = null;
+
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = window.setTimeout(() => {
+      markTranscodeCancelled(jobId);
+      disposeFfmpeg();
+      reject(
+        new Error(`Transcode timed out after ${Math.round(JOB_WALL_CLOCK_MS / 1000)}s. Reload the extension and try again.`),
+      );
+    }, JOB_WALL_CLOCK_MS);
+  });
+
+  try {
+    return await Promise.race([work(), timeout]);
+  } finally {
+    if (timer !== null) window.clearTimeout(timer);
+  }
 }
 
 async function runTranscodeAttempt(
@@ -53,11 +94,13 @@ async function runTranscodeAttempt(
   let lastStage = attempt === 1 ? 'queued' : 'retry';
 
   const heartbeat = window.setInterval(() => {
+    if (isTranscodeCancelled(jobId)) return;
     broadcastProgress(jobId, lastRatio, `${lastStage}-heartbeat`);
   }, HEARTBEAT_INTERVAL_MS);
 
   try {
     return await runWebmToMp4(webmBytes, (ratio, stage) => {
+      assertTranscodeNotCancelled(jobId);
       lastRatio = Math.max(lastRatio, ratio);
       lastStage = stage;
       broadcastProgress(jobId, ratio, stage);
@@ -77,6 +120,13 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
+  const cancel = message as TranscodeCancelRequest;
+  if (cancel.type === MSG_TRANSCODE_CANCEL && cancel.target === 'offscreen') {
+    markTranscodeCancelled(cancel.jobId);
+    sendResponse({ ok: true, jobId: cancel.jobId });
+    return;
+  }
+
   const request = message as TranscodeOffscreenRequest;
   if (request.type !== MSG_TRANSCODE_OFFSCREEN || request.target !== 'offscreen') {
     return;
@@ -87,7 +137,14 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   void enqueueTranscodeJob(async () => {
     const startedAt = Date.now();
+    setRunningTranscodeJob(request.jobId);
+
     try {
+      if (isTranscodeCancelled(request.jobId)) {
+        broadcastCancelled(request.jobId);
+        return;
+      }
+
       if (!request.webmBase64 || request.webmByteLength <= 0) {
         throw new Error(
           `WebM payload missing in offscreen worker (bytes=${request.webmByteLength}).`,
@@ -103,15 +160,24 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
       let mp4: Uint8Array;
       try {
-        mp4 = await runTranscodeAttempt(request.jobId, webmBytes, 1);
+        mp4 = await withJobWallClock(request.jobId, () =>
+          runTranscodeAttempt(request.jobId, webmBytes, 1),
+        );
       } catch (firstError) {
+        if (isTranscodeCancelled(request.jobId)) {
+          broadcastCancelled(request.jobId);
+          return;
+        }
         console.warn('[Reddit Voice Notes] Transcode retry after failure', request.jobId, firstError);
         disposeFfmpeg();
         await delay(JOB_RETRY_DELAY_MS);
         broadcastProgress(request.jobId, 0.05, 'retry');
-        mp4 = await runTranscodeAttempt(request.jobId, webmBytes, 2);
+        mp4 = await withJobWallClock(request.jobId, () =>
+          runTranscodeAttempt(request.jobId, webmBytes, 2),
+        );
       }
 
+      assertTranscodeNotCancelled(request.jobId);
       assertMp4Bytes(mp4, 'FFmpeg output');
       const mp4Packed = packBinary(mp4.slice());
       verifyMp4PackedBinary(mp4Packed);
@@ -131,6 +197,10 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         elapsedMs: Date.now() - startedAt,
       });
     } catch (error) {
+      if (isTranscodeCancelled(request.jobId)) {
+        broadcastCancelled(request.jobId);
+        return;
+      }
       disposeFfmpeg();
       console.error('[Reddit Voice Notes] Transcode failed:', request.jobId, error);
       const completeMsg: TranscodeCompleteMessage = {
@@ -140,6 +210,9 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         error: error instanceof Error ? error.message : String(error),
       };
       broadcast(completeMsg);
+    } finally {
+      setRunningTranscodeJob(null);
+      clearTranscodeCancelled(request.jobId);
     }
   });
 

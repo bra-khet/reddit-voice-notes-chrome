@@ -3,6 +3,7 @@ export const MSG_TRANSCODE_ACK = 'rvn/transcode-ack' as const;
 export const MSG_TRANSCODE_OFFSCREEN = 'rvn/transcode-offscreen' as const;
 export const MSG_TRANSCODE_PROGRESS = 'rvn/transcode-progress' as const;
 export const MSG_TRANSCODE_COMPLETE = 'rvn/transcode-complete' as const;
+export const MSG_TRANSCODE_CANCEL = 'rvn/transcode-cancel' as const;
 export const MSG_OFFSCREEN_PING = 'rvn/offscreen-ping' as const;
 export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
@@ -31,6 +32,13 @@ export interface TranscodeOffscreenRequest {
   jobId: string;
   webmBase64: string;
   webmByteLength: number;
+}
+
+export interface TranscodeCancelRequest {
+  type: typeof MSG_TRANSCODE_CANCEL;
+  jobId: string;
+  /** Set when background relays to the offscreen worker. */
+  target?: 'offscreen';
 }
 
 export interface TranscodeProgressMessage {

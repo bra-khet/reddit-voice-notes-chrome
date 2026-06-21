@@ -3,22 +3,50 @@ import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import { verifyMp4PackedBinary, verifyWebmPackedBinary } from '@/src/messaging/binary-verify';
 import {
   MSG_TRANSCODE_ACK,
+  MSG_TRANSCODE_CANCEL,
   MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_PROGRESS,
   MSG_TRANSCODE_START,
   type TranscodeAckResponse,
+  type TranscodeCancelRequest,
   type TranscodeCompleteMessage,
   type TranscodeProgressMessage,
   type TranscodeStartRequest,
 } from '@/src/messaging/types';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
-/** Fail only when progress truly stalls — not on slow but healthy jobs. */
+/** Fail when meaningful FFmpeg progress stalls — heartbeats do not count. */
 const STALL_TIMEOUT_MS = 45_000;
 /** Background must ack (job accepted for relay) within this window. */
 const ACK_TIMEOUT_MS = 45_000;
 /** Hard ceiling for a single transcode job (includes WASM cold start + queue wait). */
-const ABSOLUTE_MAX_MS = 6 * 60 * 1000;
+const ABSOLUTE_MAX_MS = 90_000;
+
+function isHeartbeatStage(stage: string | undefined): boolean {
+  return Boolean(stage?.endsWith('-heartbeat'));
+}
+
+function isMeaningfulProgress(
+  msg: TranscodeProgressMessage,
+  lastRatio: number,
+  lastStage: string,
+): boolean {
+  if (isHeartbeatStage(msg.stage)) return false;
+  const ratio = msg.progress / 100;
+  if (ratio > lastRatio + 0.005) return true;
+  if (msg.stage && msg.stage !== lastStage && !isHeartbeatStage(msg.stage)) return true;
+  return false;
+}
+
+function requestOffscreenCancel(jobId: string): void {
+  const cancel: TranscodeCancelRequest = {
+    type: MSG_TRANSCODE_CANCEL,
+    jobId,
+  };
+  void browser.runtime.sendMessage(cancel).catch(() => {
+    // Offscreen may already be gone.
+  });
+}
 
 function isExtensionContextValid(): boolean {
   try {
@@ -77,7 +105,9 @@ async function transcodeWebmToMp4Inner(
     let absoluteTimer: number | null = null;
     let ackTimer: number | null = null;
     let gotAck = false;
-    let lastProgressAt = Date.now();
+    let lastMeaningfulProgressAt = Date.now();
+    let lastMeaningfulRatio = 0;
+    let lastMeaningfulStage = '';
     let lastReportedRatio = 0;
 
     const reportProgress = (ratio: number) => {
@@ -98,6 +128,7 @@ async function transcodeWebmToMp4Inner(
     };
 
     const fail = (message: string, asAbort = false) => {
+      requestOffscreenCancel(jobId);
       cleanup();
       if (asAbort) {
         reject(new DOMException(message, 'AbortError'));
@@ -113,18 +144,22 @@ async function transcodeWebmToMp4Inner(
     signal?.addEventListener('abort', onAbort);
 
     const resetStallTimer = () => {
-      lastProgressAt = Date.now();
+      lastMeaningfulProgressAt = Date.now();
       if (stallTimer !== null) window.clearTimeout(stallTimer);
       stallTimer = window.setTimeout(() => {
-        const stalledFor = Math.round((Date.now() - lastProgressAt) / 1000);
+        const stalledFor = Math.round((Date.now() - lastMeaningfulProgressAt) / 1000);
+        requestOffscreenCancel(jobId);
         fail(
-          `Transcode stalled (no progress for ${stalledFor}s). Reload the extension if this keeps happening.`,
+          `Transcode stalled (no real progress for ${stalledFor}s). Reload the extension if this keeps happening.`,
         );
       }, STALL_TIMEOUT_MS);
     };
 
     absoluteTimer = window.setTimeout(() => {
-      fail(`FFmpeg transcoding exceeded the ${Math.round(ABSOLUTE_MAX_MS / 60_000)}-minute safety limit.`);
+      requestOffscreenCancel(jobId);
+      fail(
+        `FFmpeg transcoding exceeded the ${Math.round(ABSOLUTE_MAX_MS / 1000)}s safety limit. Reload the extension and try again.`,
+      );
     }, ABSOLUTE_MAX_MS);
 
     ackTimer = window.setTimeout(() => {
@@ -141,7 +176,11 @@ async function transcodeWebmToMp4Inner(
 
       if ((message as { type: string }).type === MSG_TRANSCODE_PROGRESS) {
         const progressMsg = message as TranscodeProgressMessage;
-        resetStallTimer();
+        if (isMeaningfulProgress(progressMsg, lastMeaningfulRatio, lastMeaningfulStage)) {
+          lastMeaningfulRatio = Math.max(lastMeaningfulRatio, progressMsg.progress / 100);
+          lastMeaningfulStage = progressMsg.stage ?? lastMeaningfulStage;
+          resetStallTimer();
+        }
         reportProgress(progressMsg.progress / 100);
         return;
       }

@@ -4,6 +4,7 @@ import { expectedBase64CharLength } from '@/src/messaging/binary-verify';
 import {
   MSG_OFFSCREEN_PING,
   MSG_TRANSCODE_ACK,
+  MSG_TRANSCODE_CANCEL,
   MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_OFFSCREEN,
   MSG_TRANSCODE_PROGRESS,
@@ -11,6 +12,7 @@ import {
   type OffscreenPingRequest,
   type OffscreenPongResponse,
   type TranscodeAckResponse,
+  type TranscodeCancelRequest,
   type TranscodeCompleteMessage,
   type TranscodeOffscreenRequest,
   type TranscodeProgressMessage,
@@ -44,6 +46,7 @@ let creatingOffscreen: Promise<void> | null = null;
 // BUG FIX: Transcode progress stuck at 0%
 // Fix: Offscreen runtime.sendMessage does not reach content scripts; relay via tabs.sendMessage.
 const transcodeTabByJobId = new Map<string, number>();
+const activeJobByTabId = new Map<number, string>();
 
 let activeTranscodeJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -81,13 +84,42 @@ function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCo
   });
 
   if (message.type === MSG_TRANSCODE_COMPLETE) {
+    const tabId = transcodeTabByJobId.get(message.jobId);
+    if (tabId !== undefined && activeJobByTabId.get(tabId) === message.jobId) {
+      activeJobByTabId.delete(tabId);
+    }
     transcodeTabByJobId.delete(message.jobId);
     stopTranscodeKeepAlive();
   }
 }
 
+async function cancelOffscreenJob(jobId: string): Promise<void> {
+  const cancel: TranscodeCancelRequest = {
+    type: MSG_TRANSCODE_CANCEL,
+    target: 'offscreen',
+    jobId,
+  };
+  try {
+    await ensureOffscreenDocument();
+    await browser.runtime.sendMessage(cancel);
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Offscreen cancel failed:', jobId, error);
+  }
+}
+
 async function registerTranscodeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
   if (senderTabId !== undefined) {
+    const previousJobId = activeJobByTabId.get(senderTabId);
+    if (previousJobId && previousJobId !== jobId) {
+      console.warn('[Reddit Voice Notes] Superseding in-flight transcode', {
+        tabId: senderTabId,
+        previousJobId,
+        jobId,
+      });
+      transcodeTabByJobId.delete(previousJobId);
+      void cancelOffscreenJob(previousJobId);
+    }
+    activeJobByTabId.set(senderTabId, jobId);
     transcodeTabByJobId.set(jobId, senderTabId);
     return;
   }
@@ -208,10 +240,13 @@ export default defineBackground(() => {
   // browser.commands.onCommand.addListener((command) => { ... });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (isOffscreenTarget(message)) return;
-
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
+      if (type === MSG_TRANSCODE_CANCEL) {
+        const jobId = (message as TranscodeCancelRequest).jobId;
+        if (jobId) void cancelOffscreenJob(jobId);
+        return;
+      }
       if (type === MSG_TRANSCODE_PROGRESS || type === MSG_TRANSCODE_COMPLETE) {
         relayTranscodeBroadcast(
           message as TranscodeProgressMessage | TranscodeCompleteMessage,
@@ -219,6 +254,8 @@ export default defineBackground(() => {
         return;
       }
     }
+
+    if (isOffscreenTarget(message)) return;
 
     const request = message as TranscodeStartRequest;
     if (request?.type !== MSG_TRANSCODE_START) return;
