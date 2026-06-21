@@ -49,6 +49,11 @@ export interface ReverbConfig {
 
 export interface VoiceEffectConfig {
   enabled: boolean;
+  /**
+   * dulcet-4: effect strength 0–10 (off at 0); Turbo toggle maps to magic 12.
+   * Not used in dulcet-2/3 — reserved for additive profile merge.
+   */
+  intensity?: number;
   /** Active bundled preset, or `custom` when user edits sliders. */
   presetId?: VoiceEffectPresetId;
   pitchShift?: PitchShiftConfig;

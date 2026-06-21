@@ -389,6 +389,36 @@ body {
   padding-top: 2px;
 }
 
+.studio__voice-source {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  color: #818384;
+  line-height: 1.45;
+}
+
+.studio__voice-toggle {
+  margin-bottom: 10px;
+}
+
+.studio__voice-pitch {
+  display: flex;
+  justify-content: flex-start;
+  margin: 4px 0 12px;
+}
+
+.studio__voice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.studio__voice-status {
+  margin: 0;
+  min-height: 1.2em;
+}
+
 .studio__effect-toggle {
   margin-bottom: 0;
 }

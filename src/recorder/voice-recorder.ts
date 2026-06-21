@@ -14,6 +14,7 @@ import {
   onUserPreferencesChanged,
   shouldReduceMotion,
 } from '@/src/settings/user-preferences';
+import { saveLastRecording } from '@/src/storage/last-recording-db';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -328,6 +329,10 @@ export class VoiceRecorderSession {
         });
         return;
       }
+
+      // CHANGED: persist last take for Design Studio voice preview (dulcet-2).
+      // WHY: Studio runs on extension origin; IDB write is async and must not block transcode.
+      void saveLastRecording(this.webmBlob, this.elapsedSeconds);
 
       if (this.isSuperseded(stopEpoch)) return;
 

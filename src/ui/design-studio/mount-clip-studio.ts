@@ -55,6 +55,10 @@ import {
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
 import {
+  mountVoiceControls,
+  renderVoiceControlFields,
+} from '@/src/ui/design-studio/voice-controls';
+import {
   mountPersonalBackgroundControls,
   renderPersonalBackgroundFields,
 } from '@/src/ui/popup/personal-background';
@@ -184,6 +188,10 @@ export function mountClipStudio(root: HTMLElement): () => void {
       <section class="studio__section studio__section--effects">
         <h2 class="studio__section-title">Effects</h2>
         ${renderBackgroundFlairFields()}
+      </section>
+      <section class="studio__section studio__section--voice">
+        <h2 class="studio__section-title">Voice</h2>
+        ${renderVoiceControlFields()}
       </section>
       ${renderPreviewBlock('tertiary')}
       <p class="studio__footer-note">
@@ -786,6 +794,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   void loadUserPreferences().then(applyPrefs);
 
+  const voiceControls = mountVoiceControls(root);
+
   const unsubscribe = onUserPreferencesChanged((prefs) => {
     if (ignoreStoragePrefs) return;
     resetProfileUpdateConfirm();
@@ -796,6 +806,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
   return () => {
     cancelPendingColorSave();
     stopPreviewLoop();
+    voiceControls.dispose();
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('pagehide', pageHideHandler);
     unsubscribe();
