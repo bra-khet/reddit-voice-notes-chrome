@@ -4,10 +4,10 @@ import { mountClipAppearanceSection } from '@/src/ui/popup/clip-appearance';
 import { mountNotificationSettingsSection } from '@/src/ui/popup/notification-settings';
 import { mountRecordingSettingsSection } from '@/src/ui/popup/recording-settings';
 import { mountRestartCaution } from '@/src/ui/popup/restart-caution';
+import { APP_VERSION } from '@/src/utils/version';
 
 const README_URL = 'https://github.com/bra-khet/reddit-voice-notes-chrome/blob/main/README.md';
 const README_ICON_URL = browser.runtime.getURL('icon/github-README-icon.png' as never);
-const manifest = browser.runtime.getManifest();
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <main class="popup">
@@ -15,7 +15,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="popup__header-row">
         <div class="popup__header-copy">
           <h1 class="popup__title">Reddit Voice Notes</h1>
-          <p class="popup__version">v${manifest.version} · Pretty</p>
+          <p class="popup__version">v${APP_VERSION} · Pretty</p>
         </div>
         <a
           class="popup__readme-link"

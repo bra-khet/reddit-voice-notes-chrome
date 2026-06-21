@@ -7,8 +7,10 @@ import { VoiceRecorderSession, type RecorderState } from '@/src/recorder/voice-r
 import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
 import {
   DEFAULT_THEME_ID,
+  getThemeById,
   listThemePresets,
 } from '@/src/theme';
+import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import {
   loadUserPreferences,
   onUserPreferencesChanged,
@@ -78,7 +80,7 @@ export class RecorderPanel {
           color: ${RVN_COLORS.textPrimary};
           font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-          border: 1px solid ${RVN_COLORS.panelBorder};
+          border: 1px solid var(--rvn-panel-border, ${RVN_COLORS.panelBorder});
           color-scheme: dark;
         }
         .header {
@@ -98,7 +100,7 @@ export class RecorderPanel {
           border-radius: 8px;
         }
         .close:hover { background: rgba(255,255,255,0.08); color: ${RVN_COLORS.textPrimary}; }
-        .close:focus-visible { outline: 2px solid ${RVN_COLORS.redditBlue}; outline-offset: 2px; }
+        .close:focus-visible { outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue}); outline-offset: 2px; }
         .status {
           color: ${RVN_COLORS.textMuted};
           font-size: 12px;
@@ -128,7 +130,7 @@ export class RecorderPanel {
         .time-progress__bar {
           height: 100%;
           width: 0%;
-          background: ${RVN_COLORS.redditBlue};
+          background: var(--rvn-accent, ${RVN_COLORS.redditBlue});
           transition: width 0.25s linear, background 0.2s ease;
         }
         .time-progress__bar--warning { background: ${RVN_COLORS.warning}; }
@@ -166,7 +168,7 @@ export class RecorderPanel {
           cursor: pointer;
         }
         .theme-row__select:focus-visible {
-          outline: 2px solid ${RVN_COLORS.redditBlue};
+          outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue});
           outline-offset: 2px;
         }
         .theme-row__select:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -180,7 +182,7 @@ export class RecorderPanel {
         .progress__bar {
           height: 100%;
           width: 0%;
-          background: ${RVN_COLORS.redditBlue};
+          background: var(--rvn-accent, ${RVN_COLORS.redditBlue});
           transition: width 0.2s ease;
         }
         .actions { display: flex; gap: 8px; }
@@ -193,11 +195,17 @@ export class RecorderPanel {
           font-weight: 600;
           cursor: pointer;
         }
-        .action--primary { background: ${RVN_COLORS.redditOrange}; color: #fff; }
-        .action--primary:hover { background: ${RVN_COLORS.redditOrangeHover}; }
+        .action--primary {
+          background: var(--rvn-accent, ${RVN_COLORS.redditOrange});
+          color: var(--rvn-accent-text, #fff);
+        }
+        .action--primary:hover {
+          background: var(--rvn-accent-hover, ${RVN_COLORS.redditOrangeHover});
+          filter: brightness(1.06);
+        }
         .action--secondary { background: ${RVN_COLORS.surfaceRaised}; color: ${RVN_COLORS.textPrimary}; }
         .action--secondary:hover { background: ${RVN_COLORS.panelBorder}; }
-        .action:focus-visible { outline: 2px solid ${RVN_COLORS.redditBlue}; outline-offset: 2px; }
+        .action:focus-visible { outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue}); outline-offset: 2px; }
         .action:disabled { opacity: 0.5; cursor: not-allowed; }
         .tertiary {
           display: block;
@@ -215,7 +223,7 @@ export class RecorderPanel {
           text-underline-offset: 2px;
         }
         .tertiary:hover { color: ${RVN_COLORS.textPrimary}; }
-        .tertiary:focus-visible { outline: 2px solid ${RVN_COLORS.redditBlue}; outline-offset: 2px; border-radius: 4px; }
+        .tertiary:focus-visible { outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue}); outline-offset: 2px; border-radius: 4px; }
         @media (prefers-color-scheme: light) {
           .panel {
             background: #ffffff;
@@ -288,6 +296,7 @@ export class RecorderPanel {
     }
 
     this.themeSelect.addEventListener('change', () => {
+      this.applyThemeChrome(this.themeSelect.value);
       void saveAppearancePreferences({ activeThemeId: this.themeSelect.value });
     });
 
@@ -302,6 +311,15 @@ export class RecorderPanel {
         this.requestClose();
       }
     });
+  }
+
+  private applyThemeChrome(themeId: string): void {
+    const chrome = deriveChromeFromTheme(getThemeById(themeId));
+    this.panelEl.style.setProperty('--rvn-accent', chrome.accent);
+    this.panelEl.style.setProperty('--rvn-accent-hover', chrome.accentHover);
+    this.panelEl.style.setProperty('--rvn-accent-text', chrome.accentText);
+    this.panelEl.style.setProperty('--rvn-focus', chrome.focusRing);
+    this.panelEl.style.setProperty('--rvn-panel-border', chrome.panelBorder);
   }
 
   async open(): Promise<void> {
@@ -328,11 +346,13 @@ export class RecorderPanel {
       if (this.themeSelect.value !== themeId) {
         this.themeSelect.value = themeId;
       }
+      this.applyThemeChrome(themeId);
     });
 
     try {
       const prefs = await loadUserPreferences();
       this.themeSelect.value = prefs.appearance.activeThemeId;
+      this.applyThemeChrome(prefs.appearance.activeThemeId);
       await this.session.prepare();
       this.panelEl.focus();
     } catch {

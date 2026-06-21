@@ -1,6 +1,6 @@
 # `pretty` branch — visual polish & personalization
 
-**`main`** is the stable release line (`v1.5.0` as of 2026-06). Continued experimentation happens on **`pretty`**.
+**`main`** is the stable release line (`v1.5.0` as of 2026-06). Continued experimentation happens on **`pretty`** (`v1.6.0` — audio settings, accessibility presets, themed UI chrome).
 
 ## Goal
 
@@ -100,7 +100,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-2** | Popup — full settings shell | Section cards for Audio, Recording, Notifications; disabled placeholders for unreleased toggles; reduced-motion; audio capture profile + constraint scaffold | Done |
 | **pretty-3** | Audio & viz toggles | Enable raw mic + enhanced capture toggles, full-spectrum/music viz mode, help tooltips | Done |
 | **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Done |
-| **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Planned |
+| **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Done |
 | **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Planned |
 | **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Planned |
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Planned |

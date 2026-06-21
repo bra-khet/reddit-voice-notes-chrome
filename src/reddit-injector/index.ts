@@ -1,3 +1,4 @@
+import { initActiveChrome } from '@/src/ui/active-chrome';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils';
 import { startComposerObserver, stopComposerObserver } from './observer';
 import { removeAllInjectedButtons } from './injector';
@@ -15,6 +16,7 @@ export function initRedditVoiceNotes(): void {
   initialized = true;
 
   console.log(`${EXTENSION_LOG_PREFIX} Reddit injector starting`);
+  initActiveChrome();
   startComposerObserver();
   // initVoiceNoteShortcut();
 }

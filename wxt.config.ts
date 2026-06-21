@@ -1,4 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'wxt';
+
+const packageJson = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'package.json'), 'utf8'),
+) as { version: string };
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -10,7 +17,7 @@ export default defineConfig({
     name: 'Reddit Voice Notes',
     description:
       'Record short voice notes with an animated waveform and export MP4 for Reddit video comments.',
-    version: '1.6.0',
+    version: packageJson.version,
     // CHANGED: add tabs — required for background → content-script transcode progress relay in prod builds.
     // WHY: WXT dev injects tabs automatically; without it, tabs.sendMessage relay silently fails → FFmpeg stuck at 0%.
     permissions: ['storage', 'offscreen', 'tabs'],

@@ -55,12 +55,19 @@ Two different `Sending WebM` byte sizes = two sessions, not one duplicate send. 
 - Themes, hardened FFmpeg pipeline, popup clip-appearance settings, 2:00 cap
 - **QA finding — live theme swap during recording is safe** (see below); comment-panel lockout kept as UX guard only
 
+## v1.6.0 (`pretty` branch, 2026-06)
+
+- pretty-2–5: settings shell, audio/viz toggles, accessibility presets, reduced-motion waveform draw
+- Restart caution when audio/recording prefs change (reload extension recommended)
+- Recorder panel + toast accents derived from active clip theme (`src/ui/theme-chrome.ts`)
+- Version source: `package.json` → `wxt.config.ts` manifest → `src/utils/version.ts` popup label
+
 ## Branch split (post-MVP)
 
 | Branch | Role |
 |--------|------|
 | `main` | Stable releases — `v1.5.0` (themes + pipeline hardening) |
-| `pretty` | Continued visual polish / ImageDB — see `pretty-branch.md` |
+| `pretty` | Visual polish — **`v1.6.0`**; next: pretty-6 named profiles, then ImageDB (pretty-7) |
 
 ## Architecture note: mid-recording theme changes (QA-verified 2026-06)
 

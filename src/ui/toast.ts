@@ -1,14 +1,17 @@
+import { getActiveChrome, subscribeActiveChrome } from '@/src/ui/active-chrome';
+import type { ThemeChrome } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
 
 const TOAST_HOST_ATTR = 'data-rvn-toast-host';
 const TOAST_STYLE_ID = 'rvn-toast-styles';
 
-function ensureToastStyles(): void {
-  if (document.getElementById(TOAST_STYLE_ID)) return;
+function buildToastStyleText(chrome: ThemeChrome): string {
+  const panelBg = RVN_COLORS.panelBg;
+  const text = RVN_COLORS.textPrimary;
+  const border = RVN_COLORS.panelBorder;
+  const infoAccent = chrome.toastInfoAccent;
 
-  const style = document.createElement('style');
-  style.id = TOAST_STYLE_ID;
-  style.textContent = `
+  return `
     .rvn-toast {
       position: fixed;
       bottom: 24px;
@@ -17,11 +20,11 @@ function ensureToastStyles(): void {
       max-width: 320px;
       padding: 12px 16px;
       border-radius: 8px;
-      background: ${RVN_COLORS.panelBg};
-      color: ${RVN_COLORS.textPrimary};
+      background: ${panelBg};
+      color: ${text};
       font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
-      border: 1px solid ${RVN_COLORS.panelBorder};
+      border: 1px solid ${border};
       opacity: 0;
       transform: translateY(8px);
       transition: opacity 0.2s ease, transform 0.2s ease;
@@ -36,7 +39,7 @@ function ensureToastStyles(): void {
       border-left: 3px solid ${RVN_COLORS.error};
     }
     .rvn-toast--info {
-      border-left: 3px solid ${RVN_COLORS.redditBlue};
+      border-left: 3px solid ${infoAccent};
     }
     @media (prefers-color-scheme: light) {
       .rvn-toast {
@@ -48,7 +51,27 @@ function ensureToastStyles(): void {
       }
     }
   `;
-  document.head.appendChild(style);
+}
+
+function ensureToastStyles(): void {
+  let style = document.getElementById(TOAST_STYLE_ID);
+  if (!style) {
+    style = document.createElement('style');
+    style.id = TOAST_STYLE_ID;
+    document.head.appendChild(style);
+  }
+  style.textContent = buildToastStyleText(getActiveChrome());
+}
+
+let chromeSubscribed = false;
+
+function ensureChromeSubscription(): void {
+  if (chromeSubscribed) return;
+  chromeSubscribed = true;
+  subscribeActiveChrome(() => {
+    const style = document.getElementById(TOAST_STYLE_ID);
+    if (style) style.textContent = buildToastStyleText(getActiveChrome());
+  });
 }
 
 function getToastHost(): HTMLElement {
@@ -69,6 +92,7 @@ export function showToast(message: string, variant: 'info' | 'error' = 'info', d
   if (message === lastToastMessage) return;
   lastToastMessage = message;
 
+  ensureChromeSubscription();
   ensureToastStyles();
   const host = getToastHost();
 
