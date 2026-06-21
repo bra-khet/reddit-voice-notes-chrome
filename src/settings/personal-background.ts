@@ -1,4 +1,4 @@
-import { pruneUnreferencedBackgrounds } from '@/src/storage/background-refs';
+import { evictBackgroundImageElementCache } from '@/src/storage/background-loader';
 import { deleteBackgroundAsset, normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import {
   loadUserPreferences,
@@ -6,6 +6,8 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 
+// BUG FIX: Delete image wiped entire library
+// Fix: Removed pruneUnreferencedBackgrounds after single delete — it deleted all unreferenced uploads.
 /** Remove a stored background and clear prefs/profile refs that pointed at it (pretty-7c). */
 export async function deletePersonalBackgroundAsset(assetId: string): Promise<UserPreferencesV1> {
   const normalized = normalizeBackgroundAssetId(assetId);
@@ -25,14 +27,12 @@ export async function deletePersonalBackgroundAsset(assetId: string): Promise<Us
   });
 
   await deleteBackgroundAsset(normalized);
+  evictBackgroundImageElementCache(normalized);
 
-  const prefs = await saveAppearancePreferences({
+  return saveAppearancePreferences({
     customBackgroundId: nextActiveId,
     savedProfiles,
   });
-
-  await pruneUnreferencedBackgrounds(prefs);
-  return prefs;
 }
 
 export async function setActivePersonalBackground(
@@ -40,6 +40,5 @@ export async function setActivePersonalBackground(
 ): Promise<UserPreferencesV1> {
   return saveAppearancePreferences({
     customBackgroundId: normalizeBackgroundAssetId(assetId),
-    activeProfileId: null,
   });
 }

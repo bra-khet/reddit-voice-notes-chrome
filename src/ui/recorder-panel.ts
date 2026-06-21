@@ -303,7 +303,6 @@ export class RecorderPanel {
       this.applyThemeChrome(parsed.themeId);
       void saveAppearancePreferences({
         activeThemeId: parsed.themeId,
-        activeProfileId: null,
       }).then((prefs) => this.syncClipStyleSelect(prefs));
     });
 

@@ -3,10 +3,8 @@ import {
   resolveBokehStyle,
   type BokehDrawOptions,
 } from './bokeh';
-import {
-  loadBackgroundImageElement,
-  normalizeBackgroundAssetId,
-} from '@/src/storage/image-db';
+import { loadBackgroundImageElement } from '@/src/storage/background-loader';
+import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { USER_BACKGROUND_DIM_OVERLAY } from '@/src/storage/image-db-types';
 import type { BackgroundScaleMode, ThemeBackground, WaveformTheme } from './types';
 

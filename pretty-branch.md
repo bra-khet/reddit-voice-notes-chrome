@@ -110,7 +110,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Done |
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Done |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Done |
-| **pretty-8** | Light design studio | Color pickers + simple background/bar flairs (bokeh, sparkle/twinkle); separate studio popup; no bar-count/spacing logic | Planned |
+| **pretty-8** | Light design studio | Clip appearance migrated to Design Studio popup; profile **Update** UX; color/effect pickers next | In progress |
 | **pretty-9** | Perf & merge readiness | 2:00 cap profiling, prod bundle verify, merge criteria vs `main`, tag **v2.0** | Planned |
 
 ### ImageDB notes (pretty-7)

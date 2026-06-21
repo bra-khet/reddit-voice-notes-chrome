@@ -260,6 +260,30 @@ export async function saveCurrentAsClipProfile(name: string): Promise<UserPrefer
   });
 }
 
+export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const profileId = current.appearance.activeProfileId;
+  if (!profileId) {
+    throw new Error('Select a saved profile to update.');
+  }
+
+  const profiles = (current.appearance.savedProfiles ?? []).map((profile) => {
+    if (profile.id !== profileId) return profile;
+    return {
+      ...profile,
+      themeId: current.appearance.activeThemeId,
+      barAlignment: current.appearance.barAlignment ?? 'center',
+      customBackgroundId: current.appearance.customBackgroundId ?? null,
+    };
+  });
+
+  if (!profiles.some((profile) => profile.id === profileId)) {
+    throw new Error('Active profile no longer exists.');
+  }
+
+  return saveAppearancePreferences({ savedProfiles: profiles });
+}
+
 export async function deleteClipProfile(profileId: string): Promise<UserPreferencesV1> {
   const current = await loadUserPreferences();
   const profiles = (current.appearance.savedProfiles ?? []).filter(

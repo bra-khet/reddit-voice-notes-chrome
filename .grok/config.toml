@@ -1,0 +1,13 @@
+# Project-scoped MCP: attach to WXT dev Chrome, not native Chrome.
+# Start `npm run dev` first so port 9223 is listening.
+[mcp_servers.chrome-devtools]
+command = "cmd"
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "chrome-devtools-mcp@latest",
+    "--browser-url=http://127.0.0.1:9223",
+]
+enabled = true
+startup_timeout_sec = 30

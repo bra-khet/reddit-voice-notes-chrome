@@ -2,7 +2,7 @@ import './style.css';
 import { reconcileBackgroundPreferences } from '@/src/storage/background-refs';
 import { loadUserPreferences } from '@/src/settings/user-preferences';
 import { mountAudioSettingsSection } from '@/src/ui/popup/audio-settings';
-import { mountClipAppearanceSection } from '@/src/ui/popup/clip-appearance';
+import { mountClipAppearanceSummary } from '@/src/ui/popup/clip-appearance-summary';
 import { mountNotificationSettingsSection } from '@/src/ui/popup/notification-settings';
 import { mountRecordingSettingsSection } from '@/src/ui/popup/recording-settings';
 import { mountRestartCaution } from '@/src/ui/popup/restart-caution';
@@ -36,7 +36,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       Open a Reddit comment box with video comments enabled, then click the microphone
       button next to the video icon.
     </p>
-    <div data-clip-appearance></div>
+    <div data-clip-summary></div>
     <div data-audio-settings></div>
     <div data-recording-settings></div>
     <div data-notification-settings></div>
@@ -47,7 +47,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 `;
 
 const unmountFns = [
-  mountClipAppearanceSection(document.querySelector<HTMLElement>('[data-clip-appearance]')!),
+  mountClipAppearanceSummary(document.querySelector<HTMLElement>('[data-clip-summary]')!),
   mountAudioSettingsSection(document.querySelector<HTMLElement>('[data-audio-settings]')!),
   mountRecordingSettingsSection(document.querySelector<HTMLElement>('[data-recording-settings]')!),
   mountNotificationSettingsSection(document.querySelector<HTMLElement>('[data-notification-settings]')!),

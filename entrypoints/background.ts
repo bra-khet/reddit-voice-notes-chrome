@@ -2,6 +2,12 @@
 // import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
 import { expectedBase64CharLength } from '@/src/messaging/binary-verify';
 import {
+  MSG_GET_BACKGROUND_BLOB,
+  type GetBackgroundBlobRequest,
+  type GetBackgroundBlobResponse,
+} from '@/src/messaging/background-blob';
+import { getBackgroundAsset } from '@/src/storage/image-db';
+import {
   MSG_OFFSCREEN_PING,
   MSG_TRANSCODE_ACK,
   MSG_TRANSCODE_CANCEL,
@@ -242,6 +248,30 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
+
+      if (type === MSG_GET_BACKGROUND_BLOB) {
+        void (async () => {
+          const response: GetBackgroundBlobResponse = { ok: false };
+          try {
+            const { id } = message as GetBackgroundBlobRequest;
+            const record = await getBackgroundAsset(id);
+            if (!record) {
+              response.error = 'Background not found.';
+              sendResponse(response);
+              return;
+            }
+            response.ok = true;
+            response.mimeType = record.mimeType;
+            response.buffer = await record.blob.arrayBuffer();
+            sendResponse(response);
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+            sendResponse(response);
+          }
+        })();
+        return true;
+      }
+
       if (type === MSG_TRANSCODE_CANCEL) {
         const jobId = (message as TranscodeCancelRequest).jobId;
         if (jobId) void cancelOffscreenJob(jobId);

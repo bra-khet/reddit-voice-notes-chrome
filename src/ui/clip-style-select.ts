@@ -1,5 +1,7 @@
 import { listThemePresets } from '@/src/theme';
 import {
+  appearanceMatchesProfile,
+  getClipProfileById,
   profileSelectValue,
   PROFILE_SELECT_CUSTOM,
   resolveClipStyleSelectValue,
@@ -8,21 +10,25 @@ import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 
 export function populateProfileSelect(select: HTMLSelectElement, prefs: UserPreferencesV1): void {
   const profiles = prefs.appearance.savedProfiles ?? [];
+  const activeId = prefs.appearance.activeProfileId;
   select.replaceChildren();
 
   const customOption = document.createElement('option');
   customOption.value = PROFILE_SELECT_CUSTOM;
-  customOption.textContent = 'Custom';
+  customOption.textContent = 'Custom (unsaved)';
   select.append(customOption);
 
   for (const profile of profiles) {
     const option = document.createElement('option');
     option.value = profile.id;
-    option.textContent = profile.name;
+    const dirty =
+      profile.id === activeId && !appearanceMatchesProfile(prefs.appearance, profile);
+    option.textContent = dirty ? `${profile.name} · unsaved` : profile.name;
     select.append(option);
   }
 
-  select.value = prefs.appearance.activeProfileId ?? PROFILE_SELECT_CUSTOM;
+  const activeProfile = activeId ? getClipProfileById(prefs, activeId) : undefined;
+  select.value = activeProfile ? activeId! : PROFILE_SELECT_CUSTOM;
 }
 
 export function populateRecorderClipStyleSelect(
