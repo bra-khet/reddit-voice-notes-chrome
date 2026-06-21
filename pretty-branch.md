@@ -110,8 +110,18 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Done |
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Done |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Done |
-| **pretty-8** | Light design studio | Clip appearance migrated to Design Studio popup; profile **Update** UX; color/effect pickers next | In progress |
+| **pretty-8** | Light design studio | Design Studio shell + personal bg WYSIWYG on recorder canvas (**prototype milestone** `pretty-8-design-studio-prototype`); color/effect pickers next | In progress |
 | **pretty-9** | Perf & merge readiness | 2:00 cap profiling, prod bundle verify, merge criteria vs `main`, tag **v2.0** | Planned |
+
+### Milestone: `pretty-8-design-studio-prototype` (2026-06-20)
+
+**Tagged on `pretty` branch.** Initial working Design Studio prototype: upload/pick personal backgrounds in studio, live preview, and **matching output on the Reddit recorder canvas** (no console errors in QA).
+
+**Why this was the hardest engineering problem so far:** Crossing the extension ↔ page boundary with multi-MB image blobs while preserving single-canvas WYSIWYG. Extension pages use ImageDB directly; Reddit content scripts require a background-worker relay with chunked base64 (MV3 message size limits), CSP-safe decode (`createImageBitmap` / blob URLs), and race-free async loading in `WaveformRenderer`.
+
+**Key files:** `src/storage/background-loader.ts`, `src/messaging/background-blob.ts`, `entrypoints/background.ts`, `src/recorder/waveform.ts`, `src/theme/backgrounds.ts`, `entrypoints/design-studio/`.
+
+**Not done yet:** HSV/HEX color pickers, bokeh/sparkle toggles, `designOverrides` on profiles, pretty-9 perf validation, **v2.0** merge to `main`.
 
 ### ImageDB notes (pretty-7)
 
@@ -121,6 +131,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 - **Limits (7a):** 8 MB/image, 24 assets, 64 MB total; 15 MB reserved cap for future video/loops.
 - **7b (done):** `resolveClipBackgrounds()` + `setCustomBackgroundId()` hot-swap personal images on live canvas and popup preview; fill + 35% dim; missing blob falls back to theme background.
 - **7c (done):** Popup upload/pick/delete in Clip appearance; profiles persist `customBackgroundId`; library quota hint.
+- **7d / relay (done, prototype tag):** Chunked base64 blob relay (`BACKGROUND_BLOB_PORT` + meta/chunk messages) from background worker to Reddit content script; CSP-safe decode; recorder canvas matches Design Studio preview.
 
 ### QA finding: live theme swap during recording (2026-06)
 

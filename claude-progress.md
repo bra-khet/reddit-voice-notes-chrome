@@ -67,6 +67,31 @@ Two different `Sending WebM` byte sizes = two sessions, not one duplicate send. 
 - **pretty-7b (2026-06):** Canvas draw — `resolveClipBackgrounds()` / `loadBackgroundImageElement()` → `drawThemeBackground()` user layer; `WaveformRenderer.setCustomBackgroundId()` + prefs hot-swap in `voice-recorder.ts`; popup preview passes `customBackgroundId`
 - **pretty-7c (2026-06):** Popup personal background UI — upload/pick/delete in Clip appearance; `personal-background.ts` + `settings/personal-background.ts` delete/prune helpers
 - **pretty-8 shell (2026-06):** Design Studio popup (`design-studio.html`) — clip appearance migrated; main popup summary + Open Design Studio; profile **Update profile** / **Sure?** UX; fixes: delete-one-only, content-script background relay via `MSG_GET_BACKGROUND_BLOB`
+- **pretty-8 prototype milestone (2026-06-20, tag `pretty-8-design-studio-prototype`):** Personal backgrounds **WYSIWYG on Reddit recorder canvas** — preview matches live output and baked MP4. Largest technical hurdle on the project to date: extension ImageDB blobs must reach a **content script** on `https://www.reddit.com` and decode under page CSP.
+
+### Personal background relay — content script canvas (pretty-7/8, QA-verified 2026-06-20)
+
+**Problem:** Design Studio / popup (extension pages) read ImageDB directly; recorder runs on Reddit and cannot. Bundled theme SVGs work via `chrome-extension://` + `web_accessible_resources`; personal blobs do not.
+
+**Failure modes encountered (in order):**
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Theme bg only, no console error | Stale async load race in `WaveformRenderer` constructor | Generation counter; defer initial load until `setCustomBackgroundId()` |
+| `decode returned null` | `FileReader` → `data:` URL blocked by Reddit `img-src` CSP | `blob:` URL + `createImageBitmap` fallback (`DrawableBackgroundImage`) |
+| `createImageBitmap: could not be decoded` | Raw `ArrayBuffer` corrupts across MV3 relay hops | Base64 transport (same rule as WebM in `messaging/binary.ts`) |
+| `port relay failed: unknown error` / `message relay failed: no response` | Single-message payload exceeded MV3 practical size for multi-MB images | **Chunked relay:** 256 KB raw slices via port (`meta` → `chunk`* → `done`) + `MSG_GET_BACKGROUND_BLOB_META` / `_CHUNK` fallback |
+
+**Working architecture:**
+
+1. Prefs hold `bg-…` id only; blobs in extension-origin ImageDB.
+2. Background worker reads IDB, streams chunked base64 to content script.
+3. Content script assembles bytes → `Blob` → decode (blob URL / `ImageBitmap`) → `drawThemeBackground()` user layer.
+4. Same draw path as `renderThemePreview()` — preview = recorder canvas = MP4.
+
+**UX split (pretty-8):** Design Studio keeps **active profile** when editing theme/alignment/background (**Update profile**). Recorder popup **clears `activeProfileId`** when picking a built-in clip style preset.
+
+**Remaining before v2.0 merge:** pretty-8 color/effect pickers; pretty-9 perf pass; not merge-ready yet — prototype milestone only.
 
 ## Branch split (post-MVP)
 
