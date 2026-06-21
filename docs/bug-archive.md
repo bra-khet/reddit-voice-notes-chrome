@@ -265,12 +265,12 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - **Cap-stop races** — see BUG-001; truncated final chunks may worsen timestamp gaps.
 - Stop/`requestData` timing edge cases.
 
-### Proposed fix (pretty-9, pending)
+### Fix (2026-06-21, pretty-9)
 
-- Add `-fps_mode passthrough` or explicit `-r 24` (+ dup-tolerant sync) to `TRANSCODE_STRATEGIES[0]`.
-- Parse FFmpeg logs early — abort/retry when `1k tbr` or dup count spikes in first second.
-- Recording-side: reduce bad WebM from background-tab and cap-stop conditions.
-- Optional preflight heuristic for dup-prone streams.
+1. **Primary encode** (`h264-aac`): `-fflags +genpts+igndts`, `-fps_mode passthrough`, `-r 24` — avoids CFR dup to bogus 1k fps timeline.
+2. **Fallback encode** (`h264-aac-fps`): `-vf fps=24` when passthrough strategy still dup-storms.
+3. **Early abort**: log watcher sets dup-storm flag when `dup≥100`, dup/frame ≥ 0.5, or “More than N frames duplicated”; strategy aborts in ~200ms and retries next strategy instead of hanging at 75s.
+4. **Remux fallback** (`faststart`) unchanged as last resort.
 
 ### Related files
 

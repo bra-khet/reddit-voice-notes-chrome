@@ -114,7 +114,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + position + dim overlay; fallback on load failure | Done |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Done |
 | **pretty-8** | Light design studio | Design Studio shell, personal bg WYSIWYG, HSV/HEX custom styles, bokeh/sparkle/glow, dual preview, radial color controls, fit/fill bg layout, virtual preset profiles (recorder), studio exit guard | Done |
-| **pretty-9** | Perf & merge readiness | Transcode timestamp/dup-storm fix, 2:00 cap profiling, prod bundle verify, merge criteria vs `main`, tag **v2.0** | In progress |
+| **pretty-9** | Perf & merge readiness | Transcode timestamp/dup-storm fix (**done**), 2:00 cap profiling, prod bundle verify, merge criteria vs `main`, tag **v2.0** | In progress |
 
 ### Milestone: `pretty-8-design-studio-prototype` (2026-06-20)
 
@@ -217,7 +217,7 @@ Profile before merge: measure canvas cost of any new flair at 24 fps on a 2:00 c
 
 **UX split preserved:** Design Studio still clears `activeProfileId` when picking a bundled preset (manual/custom mode). Recorder popup uses virtual preset profiles for a consistent reset path.
 
-### pretty-9: transcode slowdown diagnosis (2026-06-21, **not yet fixed**)
+### pretty-9: transcode slowdown diagnosis + fix (2026-06-21)
 
 User inspected offscreen/service-worker FFmpeg logs during slow and failed transcodes. **Root cause is an FFmpeg frame-duplication storm**, not general WASM slowness or relay payload size.
 
@@ -243,16 +243,16 @@ User inspected offscreen/service-worker FFmpeg logs during slow and failed trans
 - Cap-stop races (see BUG-001)
 - Stop timing / final-chunk edge cases
 
-#### Proposed fixes (pretty-9, pending implementation)
+#### Fix implemented (2026-06-21)
 
 | Layer | Action |
 |-------|--------|
-| FFmpeg args | Add `-fps_mode passthrough` or explicit `-r 24` + dup-friendly sync on `h264-aac` |
-| Early abort | Detect `1k tbr` or dup storm in first second of encode logs → fail fast / retry |
-| Recording | Reduce bad WebM from background-tab stalls and cap-stop timing |
-| Preflight | Optional probe for dup-prone metadata before enqueue |
+| FFmpeg primary | `h264-aac`: `-fflags +genpts+igndts`, `-fps_mode passthrough`, `-r 24` |
+| FFmpeg fallback | `h264-aac-fps`: `-vf fps=24` when primary still dup-storms |
+| Early abort | Log watcher aborts strategy when dup ≥ 100 or dup/frame ≥ 0.5 → retry next strategy |
+| Remux | `faststart` unchanged as last resort |
 
-**Related files:** `src/ffmpeg/ffmpeg-runner.ts` (`TRANSCODE_STRATEGIES`), `src/ffmpeg/webm-preflight.ts`, `src/recorder/voice-recorder.ts` (`captureStream(WAVEFORM_TARGET_FPS)`). See `docs/bug-archive.md` **BUG-007**.
+**Related files:** `src/ffmpeg/ffmpeg-runner.ts`. See `docs/bug-archive.md` **BUG-007**.
 
 ### Session commits (2026-06-21, `pretty` branch)
 
@@ -266,7 +266,7 @@ User inspected offscreen/service-worker FFmpeg logs during slow and failed trans
 
 ### v2.0 merge gate (remaining)
 
-1. **pretty-9 transcode fix** — timestamp normalization + dup-storm detection (see above)
+1. ~~**pretty-9 transcode fix**~~ — done (`ffmpeg-runner.ts`); QA on dup-prone recordings still needed
 2. **2:00 cap profiling** — canvas effects at 24 fps; confirm relay size / encode time budgets
 3. **`npm run build`** — prod bundle verify before merge to `main`
 4. Tag **v2.0** on `pretty`, merge to `main`

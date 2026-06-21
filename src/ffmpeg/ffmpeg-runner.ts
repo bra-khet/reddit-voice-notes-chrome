@@ -1,5 +1,5 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
+import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
 
 export type FfmpegProgressCallback = (ratio: number, stage: string) => void;
 
@@ -10,6 +10,11 @@ const MIN_WEBM_BYTES = 256;
 const STRATEGY_EXEC_TIMEOUT_MS = 75_000;
 const LOAD_FFMPEG_TIMEOUT_MS = 30_000;
 const WASM_SETTLE_MS = 200;
+const OUTPUT_FRAME_RATE = String(WAVEFORM_TARGET_FPS);
+/** BUG-007: abort encode when FFmpeg duplicates frames to a bogus high-fps timeline. */
+const DUP_STORM_MIN_DUP = 100;
+const DUP_STORM_FRAME_RATIO = 0.5;
+const DUP_STORM_POLL_MS = 200;
 
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
@@ -46,10 +51,32 @@ function isFfmpegVersionBanner(line: string): boolean {
   );
 }
 
-function attachLogCollector(ffmpeg: FFmpeg): { lines: string[]; detach: () => void } {
+function parseFfmpegProgressLine(line: string): { frame: number; dup: number } | null {
+  const match = line.match(/frame=\s*(\d+).*?\bdup=(\d+)/);
+  if (!match) return null;
+  return { frame: Number.parseInt(match[1], 10), dup: Number.parseInt(match[2], 10) };
+}
+
+function isDupStormProgress(frame: number, dup: number): boolean {
+  if (dup >= DUP_STORM_MIN_DUP) return true;
+  return frame > 0 && dup / frame >= DUP_STORM_FRAME_RATIO;
+}
+
+/** Detect FFmpeg CFR sync runaway on WebM with broken PTS (BUG-007). */
+function shouldAbortDupStorm(line: string): boolean {
+  if (/more than \d+ frames duplicated/i.test(line)) return true;
+  const progress = parseFfmpegProgressLine(line);
+  return progress !== null && isDupStormProgress(progress.frame, progress.dup);
+}
+
+function attachLogCollector(
+  ffmpeg: FFmpeg,
+  onLine?: (line: string) => void,
+): { lines: string[]; detach: () => void } {
   const lines: string[] = [];
   const handler = ({ message }: { message: string }) => {
     lines.push(message);
+    onLine?.(message);
     console.log(`${EXTENSION_LOG_PREFIX} [ffmpeg]`, message);
   };
   ffmpeg.on('log', handler);
@@ -153,13 +180,48 @@ async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<FFmpeg> 
   return withTimeout(loadPromise, LOAD_FFMPEG_TIMEOUT_MS, 'FFmpeg load');
 }
 
-/** Reddit-ready encode first; remux-only fallback second. Fewer strategies = fewer stall windows. */
+// BUG FIX: FFmpeg frame duplication storm on bad WebM timestamps (BUG-007)
+// Fix: passthrough + output -r on primary encode; fps filter fallback; early dup-storm abort + retry.
+// Sync: docs/bug-archive.md BUG-007, pretty-branch.md § pretty-9
+/**
+ * Reddit-ready encode first; timestamp-repair fallbacks before remux-only.
+ */
 const TRANSCODE_STRATEGIES = [
   {
     name: 'h264-aac',
     args: [
+      '-fflags',
+      '+genpts+igndts',
       '-i',
       'input.webm',
+      '-fps_mode',
+      'passthrough',
+      '-r',
+      OUTPUT_FRAME_RATE,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'ultrafast',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-movflags',
+      '+faststart',
+      'output.mp4',
+    ],
+  },
+  {
+    name: 'h264-aac-fps',
+    args: [
+      '-fflags',
+      '+genpts+igndts',
+      '-i',
+      'input.webm',
+      '-vf',
+      `fps=${OUTPUT_FRAME_RATE}`,
       '-c:v',
       'libx264',
       '-preset',
@@ -196,38 +258,55 @@ async function writeInputWebm(ffmpeg: FFmpeg, inputBytes: Uint8Array): Promise<v
   await ffmpeg.writeFile('input.webm', inputBytes.slice());
 }
 
-type ExecResult = { exitCode: number; timedOut: boolean };
+type ExecResult = { exitCode: number; timedOut: boolean; dupStorm?: boolean };
 
 async function execWithTimeout(
   ffmpeg: FFmpeg,
   args: string[],
   timeoutMs: number,
+  abortRef?: { dupStorm: boolean },
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
     let settled = false;
 
-    const timer = window.setTimeout(() => {
+    const finish = (result: ExecResult) => {
       if (settled) return;
       settled = true;
+      window.clearTimeout(timer);
+      window.clearInterval(dupPoll);
+      resolve(result);
+    };
+
+    const timer = window.setTimeout(() => {
+      finish({
+        exitCode: -1,
+        timedOut: true,
+      });
       console.warn(
         `${EXTENSION_LOG_PREFIX} FFmpeg strategy timed out after ${Math.round(timeoutMs / 1000)}s — terminating worker`,
       );
       disposeFfmpeg();
-      resolve({ exitCode: -1, timedOut: true });
     }, timeoutMs);
+
+    const dupPoll = window.setInterval(() => {
+      if (!abortRef?.dupStorm || settled) return;
+      console.warn(
+        `${EXTENSION_LOG_PREFIX} FFmpeg dup storm detected — aborting strategy early (BUG-007)`,
+      );
+      disposeFfmpeg();
+      finish({ exitCode: -2, timedOut: false, dupStorm: true });
+    }, DUP_STORM_POLL_MS);
 
     void ffmpeg
       .exec(args)
       .then((exitCode) => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timer);
-        resolve({ exitCode, timedOut: false });
+        finish({ exitCode, timedOut: false });
       })
       .catch((error: unknown) => {
         if (settled) return;
         settled = true;
         window.clearTimeout(timer);
+        window.clearInterval(dupPoll);
         reject(error);
       });
   });
@@ -246,7 +325,12 @@ async function transcodeWithStrategies(
     await safeDeleteFile(ffmpeg, 'output.mp4');
     onProgress?.(0.2, `transcoding-${strategy.name}`);
 
-    const { lines, detach } = attachLogCollector(ffmpeg);
+    const abortRef = { dupStorm: false };
+    const { lines, detach } = attachLogCollector(ffmpeg, (line) => {
+      if (shouldAbortDupStorm(line)) {
+        abortRef.dupStorm = true;
+      }
+    });
     let result: ExecResult = { exitCode: 1, timedOut: false };
 
     const progressHandler = onFfmpegRatio
@@ -255,7 +339,12 @@ async function transcodeWithStrategies(
     if (progressHandler) ffmpeg.on('progress', progressHandler);
 
     try {
-      result = await execWithTimeout(ffmpeg, [...strategy.args], STRATEGY_EXEC_TIMEOUT_MS);
+      result = await execWithTimeout(
+        ffmpeg,
+        [...strategy.args],
+        STRATEGY_EXEC_TIMEOUT_MS,
+        abortRef,
+      );
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       attempts.push(`${strategy.name}: ${detail}`);
@@ -271,6 +360,12 @@ async function transcodeWithStrategies(
       attempts.push(
         `${strategy.name}: timed out after ${Math.round(STRATEGY_EXEC_TIMEOUT_MS / 1000)}s`,
       );
+      await wasmSettle();
+      continue;
+    }
+
+    if (result.dupStorm) {
+      attempts.push(`${strategy.name}: dup storm — retrying with next strategy`);
       await wasmSettle();
       continue;
     }

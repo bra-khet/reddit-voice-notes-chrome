@@ -101,7 +101,7 @@ Two different `Sending WebM` byte sizes = two sessions, not one duplicate send. 
 
 Dropdown label changed to a bundled preset but canvas kept last saved profile (`activeThemeId` only). Fix: virtual `preset-{themeId}` profiles in `src/settings/preset-profiles.ts`; recorder uses `applyClipProfile()` for all picks including presets.
 
-#### Transcode slowdown — frame duplication storm (pretty-9, **diagnosed, not fixed**)
+#### Transcode slowdown — frame duplication storm (BUG-007, **fixed 2026-06-21**)
 
 Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM cold start or WebM relay size.
 
@@ -116,7 +116,7 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 
 **Triggers:** background tab (rAF stall), cap-stop races (BUG-001), sparse frame timestamps.
 
-**Proposed fix:** `-fps_mode passthrough` or `-r 24` on `h264-aac`; early abort on dup storm; recording-side timing improvements. Full write-up: `pretty-branch.md` § pretty-9; `docs/bug-archive.md` BUG-007.
+**Fix:** `ffmpeg-runner.ts` — primary strategy uses `-fflags +genpts+igndts`, `-fps_mode passthrough`, `-r 24`; fallback `h264-aac-fps` with `-vf fps=24`; early abort + strategy retry on dup storm. QA on background-tab recordings still pending.
 
 ## Branch split (post-MVP)
 
