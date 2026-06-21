@@ -391,11 +391,12 @@ export async function enterCustomStyleMode(): Promise<UserPreferencesV1> {
 }
 
 export async function applyPresetClipStyle(themeId: string): Promise<UserPreferencesV1> {
+  // BUG FIX: preset switch dropped saved profile in Design Studio
+  // Fix: keep activeProfileId — bundled presets are style templates; switching them edits the active profile like custom color tweaks
   return saveAppearancePreferences({
     activeThemeId: themeId,
     activeCustomStyleId: null,
     designOverrides: null,
-    activeProfileId: null,
   });
 }
 
