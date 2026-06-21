@@ -44,8 +44,8 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
         <select class="popup__select" data-profile-select aria-label="Saved profile"></select>
       </label>
       <div class="popup__profile-actions">
-        <button type="button" class="popup__link" data-save-profile>Save as profile</button>
-        <button type="button" class="popup__link popup__link--danger" data-delete-profile hidden>Delete profile</button>
+        <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>Save as profile</button>
+        <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>Delete profile</button>
       </div>
       <label class="popup__field">
         <span class="popup__field-label">Clip style</span>
