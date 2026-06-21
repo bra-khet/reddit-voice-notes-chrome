@@ -1,6 +1,6 @@
 /**
  * 360° radial value dial — hue-wheel-style drag (pointer capture, spin around center).
- * Graphics: triangle slope wrapped around the ring; 0% at 3 o'clock, peak at full turn;
+ * Graphics: triangle slope wrapped around the ring; 0/100% meet at 12 o'clock (top);
  * tick marks every 10% with rising inner depth.
  */
 
@@ -24,10 +24,12 @@ export interface RadialKnobOptions {
   onChange: (value: number) => void;
 }
 
-/** 0 = 3 o'clock; increases clockwise (full 360° = min → max). */
+const KNOB_ANGLE_OFFSET = -90;
+
+/** 0 / 100 at 12 o'clock; increases clockwise (full 360° = min → max). */
 function valueToAngleDeg(value: number, min: number, max: number): number {
   const t = max === min ? 0 : (value - min) / (max - min);
-  return t * 360;
+  return KNOB_ANGLE_OFFSET + t * 360;
 }
 
 function angleDegToValue(angleDeg: number, min: number, max: number): number {
@@ -40,7 +42,8 @@ function clientToAngleDeg(clientX: number, clientY: number, rect: DOMRect): numb
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
   const radians = Math.atan2(clientY - cy, clientX - cx);
-  return (radians * 180) / Math.PI;
+  const raw = (radians * 180) / Math.PI;
+  return ((raw - KNOB_ANGLE_OFFSET) % 360 + 360) % 360;
 }
 
 function polar(cx: number, cy: number, radius: number, angleDeg: number): { x: number; y: number } {
@@ -72,12 +75,13 @@ function drawKnobFace(canvas: HTMLCanvasElement, value: number, min: number, max
   ctx.lineWidth = 2;
   ctx.stroke();
 
+  const valueFraction = max === min ? 0 : (value - min) / (max - min);
   const valueAngle = valueToAngleDeg(value, min, max);
   const steps = 10;
 
   for (let i = 0; i <= steps; i += 1) {
     const fraction = i / steps;
-    const angle = fraction * 360;
+    const angle = KNOB_ANGLE_OFFSET + fraction * 360;
     const innerR = innerRadiusForValue(fraction);
     const outer = polar(cx, cy, KNOB_R_OUTER - 1, angle);
     const inner = polar(cx, cy, innerR, angle);
@@ -90,15 +94,16 @@ function drawKnobFace(canvas: HTMLCanvasElement, value: number, min: number, max
     ctx.stroke();
   }
 
-  if (valueAngle > 0.5) {
-    const wedgeSteps = Math.max(2, Math.ceil(valueAngle / 4));
+  if (valueFraction > 0.001) {
+    const sweepDeg = valueFraction * 360;
+    const wedgeSteps = Math.max(2, Math.ceil(sweepDeg / 4));
     ctx.beginPath();
-    const startInner = polar(cx, cy, innerRadiusForValue(0), 0);
+    const startInner = polar(cx, cy, innerRadiusForValue(0), KNOB_ANGLE_OFFSET);
     ctx.moveTo(startInner.x, startInner.y);
 
     for (let i = 0; i <= wedgeSteps; i += 1) {
-      const angle = (i / wedgeSteps) * valueAngle;
-      const fraction = angle / 360;
+      const fraction = (i / wedgeSteps) * valueFraction;
+      const angle = KNOB_ANGLE_OFFSET + fraction * 360;
       const point = polar(cx, cy, innerRadiusForValue(fraction), angle);
       ctx.lineTo(point.x, point.y);
     }
@@ -107,7 +112,8 @@ function drawKnobFace(canvas: HTMLCanvasElement, value: number, min: number, max
     ctx.lineTo(endOuter.x, endOuter.y);
 
     for (let i = wedgeSteps; i >= 0; i -= 1) {
-      const angle = (i / wedgeSteps) * valueAngle;
+      const fraction = (i / wedgeSteps) * valueFraction;
+      const angle = KNOB_ANGLE_OFFSET + fraction * 360;
       const point = polar(cx, cy, KNOB_R_OUTER - 1, angle);
       ctx.lineTo(point.x, point.y);
     }
