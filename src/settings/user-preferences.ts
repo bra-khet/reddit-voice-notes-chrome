@@ -1,5 +1,10 @@
 import type { BarAlignment } from '@/src/recorder/waveform';
 import {
+  normalizeBackgroundPosition,
+  normalizeBackgroundScaleMode,
+} from '@/src/theme/background-layout';
+import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
+import {
   createClipProfileId,
   MAX_CLIP_PROFILES,
   normalizeActiveProfileId,
@@ -48,6 +53,10 @@ export interface AppearancePreferences {
    * Blob lives in IndexedDB; prefs store only this reference.
    */
   customBackgroundId?: string | null;
+  /** Personal background scale: fit (letterbox) or fill (crop). Default fill. */
+  backgroundScaleMode?: BackgroundScaleMode;
+  /** Personal background anchor when letterboxing or cropping. Default center. */
+  backgroundPosition?: BackgroundImagePosition;
   /** User-saved theme + alignment combos (pretty-6). */
   savedProfiles?: ClipProfile[];
   /** Active saved profile id, or null when using manual theme/alignment picks. */
@@ -142,6 +151,8 @@ function mergeAppearancePreferences(
     savedProfiles,
     activeProfileId: normalizeActiveProfileId(raw?.activeProfileId, savedProfiles),
     customBackgroundId: normalizeBackgroundAssetId(raw?.customBackgroundId),
+    backgroundScaleMode: normalizeBackgroundScaleMode(raw?.backgroundScaleMode),
+    backgroundPosition: normalizeBackgroundPosition(raw?.backgroundPosition),
     savedCustomStyles,
     activeCustomStyleId,
     designOverrides,
@@ -258,6 +269,8 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
     activeThemeId: profile.themeId,
     barAlignment: profile.barAlignment,
     customBackgroundId: profile.customBackgroundId ?? null,
+    backgroundScaleMode: profile.backgroundScaleMode,
+    backgroundPosition: profile.backgroundPosition,
     activeCustomStyleId: profile.customStyleId ?? null,
     designOverrides: linkedStyle
       ? { ...linkedStyle.designOverrides }
@@ -292,6 +305,8 @@ export async function saveCurrentAsClipProfile(name: string): Promise<UserPrefer
     themeId: current.appearance.activeThemeId,
     barAlignment: current.appearance.barAlignment ?? 'center',
     customBackgroundId: current.appearance.customBackgroundId ?? null,
+    backgroundScaleMode: current.appearance.backgroundScaleMode,
+    backgroundPosition: current.appearance.backgroundPosition,
     customStyleId: current.appearance.activeCustomStyleId ?? null,
     designOverrides: current.appearance.activeCustomStyleId
       ? null
@@ -318,6 +333,8 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
       themeId: current.appearance.activeThemeId,
       barAlignment: current.appearance.barAlignment ?? 'center',
       customBackgroundId: current.appearance.customBackgroundId ?? null,
+      backgroundScaleMode: current.appearance.backgroundScaleMode,
+      backgroundPosition: current.appearance.backgroundPosition,
       customStyleId: current.appearance.activeCustomStyleId ?? null,
       designOverrides: current.appearance.activeCustomStyleId
         ? null

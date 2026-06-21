@@ -247,6 +247,90 @@ body {
   filter: brightness(1.08);
 }
 
+.studio__background-layout {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #343536;
+}
+
+.studio__background-layout[hidden] {
+  display: none;
+}
+
+.studio__layout-group + .studio__layout-group {
+  margin-top: 12px;
+}
+
+.studio__layout-scale-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.studio__layout-position-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
+  width: min(100%, 168px);
+  margin-top: 8px;
+}
+
+.studio__layout-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 72px;
+  padding: 8px 6px;
+  border: 1px solid #343536;
+  border-radius: 10px;
+  background: #1a1a1b;
+  color: #818384;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.studio__layout-choice--position {
+  min-height: 48px;
+  padding: 4px;
+}
+
+.studio__layout-choice:hover {
+  color: #d7dadc;
+  border-color: #4a4c4e;
+}
+
+.studio__layout-choice:focus-visible {
+  outline: 2px solid #0079d3;
+  outline-offset: 2px;
+}
+
+.studio__layout-choice--active {
+  color: #d7dadc;
+  border-color: #0079d3;
+  background: rgba(0, 121, 211, 0.12);
+  box-shadow: 0 0 0 1px rgba(0, 121, 211, 0.35);
+}
+
+.studio__layout-choice-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.studio__layout-icon {
+  display: block;
+  width: 40px;
+  height: auto;
+}
+
+.studio__layout-icon--small {
+  width: 32px;
+}
+
 @media (prefers-color-scheme: light) {
   .studio__preview-wrap {
     border-color: #edeff1;
@@ -291,5 +375,25 @@ body {
 
   .studio__exit-copy {
     color: #576f76;
+  }
+
+  .studio__background-layout {
+    border-top-color: #edeff1;
+  }
+
+  .studio__layout-choice {
+    background: #f6f7f8;
+    border-color: #edeff1;
+    color: #576f76;
+  }
+
+  .studio__layout-choice:hover {
+    color: #1a1a1b;
+    border-color: #c8ccd0;
+  }
+
+  .studio__layout-choice--active {
+    color: #1a1a1b;
+    background: rgba(0, 121, 211, 0.08);
   }
 }

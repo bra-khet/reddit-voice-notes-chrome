@@ -15,10 +15,20 @@ import {
 } from '@/src/storage/background-loader';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { USER_BACKGROUND_DIM_OVERLAY } from '@/src/storage/image-db-types';
-import type { BackgroundScaleMode, ThemeBackground, WaveformTheme } from './types';
+import {
+  computeImageDrawOffset,
+  DEFAULT_USER_BACKGROUND_LAYOUT,
+  normalizeUserBackgroundLayout,
+} from './background-layout';
+import type {
+  BackgroundScaleMode,
+  ThemeBackground,
+  UserBackgroundLayout,
+  WaveformTheme,
+} from './types';
 
-/** Personal backgrounds cover the frame; bundled theme images default to contain. */
-export const USER_BACKGROUND_SCALE_MODE: BackgroundScaleMode = 'fill';
+export { DEFAULT_USER_BACKGROUND_LAYOUT, normalizeUserBackgroundLayout } from './background-layout';
+export type { UserBackgroundLayout } from './types';
 
 export type { BokehDrawOptions };
 
@@ -58,22 +68,24 @@ export interface ResolvedClipBackgrounds {
   bundledBackgroundImage: HTMLImageElement | null;
 }
 
-/** Resolve personal ImageDB background first; fall back to bundled theme image (pretty-7b). */
+/** Resolve personal ImageDB background and bundled theme assets (pretty-7b / pretty-8 fit mode). */
 export async function resolveClipBackgrounds(
   theme: WaveformTheme,
   customBackgroundId: string | null | undefined,
 ): Promise<ResolvedClipBackgrounds> {
   const normalizedId = normalizeBackgroundAssetId(customBackgroundId);
+  let userBackgroundImage: DrawableBackgroundImage | null = null;
   if (normalizedId) {
-    const userBackgroundImage = await loadUserBackgroundImage(normalizedId);
-    if (userBackgroundImage) {
-      return { userBackgroundImage, bundledBackgroundImage: null };
-    }
+    userBackgroundImage = await loadUserBackgroundImage(normalizedId);
   }
 
   let bundledBackgroundImage: HTMLImageElement | null = null;
   if (backgroundNeedsImage(theme.background) && typeof theme.background.value === 'string') {
     bundledBackgroundImage = await loadBackgroundImage(theme.background.value);
+  }
+
+  if (userBackgroundImage) {
+    return { userBackgroundImage, bundledBackgroundImage };
   }
 
   return { userBackgroundImage: null, bundledBackgroundImage };
@@ -103,6 +115,9 @@ interface DrawImageBackgroundOptions {
   image: DrawableBackgroundImage;
   letterboxColor: string;
   scaleMode: BackgroundScaleMode;
+  layout: UserBackgroundLayout;
+  /** When true, theme backdrop is already drawn — only place the image (fit mode). */
+  skipLetterboxFill?: boolean;
 }
 
 function drawImageBackground({
@@ -111,10 +126,14 @@ function drawImageBackground({
   image,
   letterboxColor,
   scaleMode,
+  layout,
+  skipLetterboxFill = false,
 }: DrawImageBackgroundOptions): void {
   const { width, height } = canvas;
-  ctx.fillStyle = letterboxColor;
-  ctx.fillRect(0, 0, width, height);
+  if (!skipLetterboxFill) {
+    ctx.fillStyle = letterboxColor;
+    ctx.fillRect(0, 0, width, height);
+  }
 
   const { width: imageWidth, height: imageHeight } = getDrawableBackgroundSize(image);
   const scale =
@@ -124,8 +143,13 @@ function drawImageBackground({
 
   const drawWidth = imageWidth * scale;
   const drawHeight = imageHeight * scale;
-  const dx = (width - drawWidth) / 2;
-  const dy = (height - drawHeight) / 2;
+  const { dx, dy } = computeImageDrawOffset(
+    width,
+    height,
+    drawWidth,
+    drawHeight,
+    layout.position,
+  );
 
   ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
 }
@@ -147,19 +171,36 @@ function drawUserBackgroundLayer(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   image: DrawableBackgroundImage,
+  bundledBackgroundImage: HTMLImageElement | null,
+  bokehOptions: BokehDrawOptions,
+  layout: UserBackgroundLayout,
 ): void {
   if (!isDrawableBackgroundReady(image)) {
     drawThemeFallbackBackground(ctx, canvas, theme.colors);
     return;
   }
 
-  drawImageBackground({
-    ctx,
-    canvas,
-    image,
-    letterboxColor: theme.colors.bg,
-    scaleMode: USER_BACKGROUND_SCALE_MODE,
-  });
+  if (layout.scaleMode === 'fit') {
+    drawBundledThemeBackground(ctx, canvas, theme, bundledBackgroundImage, bokehOptions);
+    drawImageBackground({
+      ctx,
+      canvas,
+      image,
+      letterboxColor: theme.colors.bg,
+      scaleMode: 'fit',
+      layout,
+      skipLetterboxFill: true,
+    });
+  } else {
+    drawImageBackground({
+      ctx,
+      canvas,
+      image,
+      letterboxColor: theme.colors.bg,
+      scaleMode: 'fill',
+      layout,
+    });
+  }
 
   const dim = USER_BACKGROUND_DIM_OVERLAY;
   if (dim > 0) {
@@ -206,6 +247,7 @@ function drawBundledThemeBackground(
           image: backgroundImage,
           letterboxColor: colors.bg,
           scaleMode: background.scaleMode ?? 'fit',
+          layout: DEFAULT_USER_BACKGROUND_LAYOUT,
         });
       } else {
         drawThemeFallbackBackground(ctx, canvas, colors);
@@ -253,12 +295,26 @@ export function drawThemeBackground(
   backgroundImage: HTMLImageElement | null,
   bokehOptions: BokehDrawOptions = {},
   userBackgroundImage: DrawableBackgroundImage | null = null,
+  userLayout: UserBackgroundLayout = DEFAULT_USER_BACKGROUND_LAYOUT,
 ): void {
+  const layout = normalizeUserBackgroundLayout(userLayout);
+
   if (userBackgroundImage) {
-    drawUserBackgroundLayer(ctx, canvas, theme, userBackgroundImage);
-    // BUG FIX: Midnight Bokeh missing over personal backgrounds
-    // Fix: Preset bokeh draws as orb overlay when user image replaced the dark bokeh base
-    drawPresetBokehOverlay(ctx, canvas, theme.background, bokehOptions);
+    drawUserBackgroundLayer(
+      ctx,
+      canvas,
+      theme,
+      userBackgroundImage,
+      backgroundImage,
+      bokehOptions,
+      layout,
+    );
+    // BUG FIX: Midnight Bokeh missing over personal backgrounds (fill mode)
+    // Fix: Preset bokeh draws as orb overlay when fill mode replaces the dark bokeh base
+    // Sync: skip when fit mode — letterbox already shows the full preset backdrop
+    if (layout.scaleMode === 'fill') {
+      drawPresetBokehOverlay(ctx, canvas, theme.background, bokehOptions);
+    }
   } else {
     drawBundledThemeBackground(ctx, canvas, theme, backgroundImage, bokehOptions);
   }

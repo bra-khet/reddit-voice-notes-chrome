@@ -4,6 +4,7 @@ import {
   renderThemePreview,
   resolveAppearanceTheme,
   themeHasAnimatedOverlay,
+  userBackgroundLayoutFromAppearance,
   type BarAlignment,
 } from '@/src/theme';
 import {
@@ -46,6 +47,10 @@ import {
   mountEffectControls,
   renderEffectControlFields,
 } from '@/src/ui/design-studio/effect-controls';
+import {
+  mountBackgroundLayoutControls,
+  renderBackgroundLayoutFields,
+} from '@/src/ui/design-studio/background-layout-controls';
 import {
   mountPersonalBackgroundControls,
   renderPersonalBackgroundFields,
@@ -153,6 +158,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
       <div class="studio__panel">
         <h2 class="studio__panel-title">Background</h2>
         ${renderPersonalBackgroundFields()}
+        ${renderBackgroundLayoutFields()}
       </div>
       <p class="studio__footer-note">
         Changes apply live to the recorder. With a profile or custom style selected, use
@@ -236,6 +242,10 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   function activeCustomBackgroundId(): string | null {
     return activePrefs?.appearance.customBackgroundId ?? null;
+  }
+
+  function activeBackgroundLayout() {
+    return userBackgroundLayoutFromAppearance(activePrefs?.appearance ?? {});
   }
 
   function resolvedTheme() {
@@ -337,6 +347,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
         activeAlignment,
         now,
         activeCustomBackgroundId(),
+        activeBackgroundLayout(),
       );
     };
     previewRaf = requestAnimationFrame(tick);
@@ -350,6 +361,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
       activeAlignment,
       timeMs,
       activeCustomBackgroundId(),
+      activeBackgroundLayout(),
     );
     if (generation !== renderGeneration) return;
     syncPreviewLoop();
@@ -471,6 +483,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     }
 
     void personalBackground.sync(prefs);
+    backgroundLayout.sync(prefs);
     stopPreviewLoop();
     void refreshPreview();
   }
@@ -496,6 +509,12 @@ export function mountClipStudio(root: HTMLElement): () => void {
     requestAnimationFrame(() => {
       ignoreStoragePrefs = false;
     });
+  });
+
+  const backgroundLayout = mountBackgroundLayoutControls(root, (patch) => {
+    invalidateInFlightSaves();
+    resetProfileUpdateConfirm();
+    void studioPersist(() => saveAppearancePreferences(patch));
   });
 
   profileSelect.addEventListener('change', () => {

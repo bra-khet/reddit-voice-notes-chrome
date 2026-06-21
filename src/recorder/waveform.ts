@@ -11,6 +11,8 @@ import {
   drawThemeBackground,
   effectiveBarGlow,
   resolveClipBackgrounds,
+  userBackgroundLayoutFromAppearance,
+  type UserBackgroundLayout,
   type WaveformTheme,
 } from '@/src/theme';
 import type { DrawableBackgroundImage } from '@/src/storage/background-loader';
@@ -172,6 +174,7 @@ export class WaveformRenderer {
   private readonly frequencyData: Uint8Array;
   private theme: WaveformTheme;
   private customBackgroundId: string | null = null;
+  private userBackgroundLayout: UserBackgroundLayout = userBackgroundLayoutFromAppearance({});
   private bundledBackgroundImage: HTMLImageElement | null = null;
   private userBackgroundImage: DrawableBackgroundImage | null = null;
   private backgroundLoadPromise: Promise<void> = Promise.resolve();
@@ -228,6 +231,11 @@ export class WaveformRenderer {
   setCustomBackgroundId(id: string | null | undefined): void {
     this.customBackgroundId = normalizeBackgroundAssetId(id);
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
+  }
+
+  /** Personal background fit/fill and anchor (pretty-8). */
+  setUserBackgroundLayout(layout: UserBackgroundLayout): void {
+    this.userBackgroundLayout = layout;
   }
 
   /** Prepared for future user setting (center | bottom | top). Default = center (current mirrored behavior). */
@@ -321,6 +329,7 @@ export class WaveformRenderer {
         audioEnergy: this.smoothedAudioEnergy,
       },
       this.userBackgroundImage,
+      this.userBackgroundLayout,
     );
 
     const centerY = canvas.height / 2;
@@ -409,6 +418,7 @@ export async function renderThemePreview(
   alignment: BarAlignment = 'center',
   timeMs: number = performance.now(),
   customBackgroundId: string | null = null,
+  userBackgroundLayout: UserBackgroundLayout = userBackgroundLayoutFromAppearance({}),
 ): Promise<void> {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -421,9 +431,17 @@ export async function renderThemePreview(
     customBackgroundId,
   );
 
-  drawThemeBackground(ctx, canvas, theme, bundledBackgroundImage, {
-    timeMs,
-    audioEnergy: 0.32,
-  }, userBackgroundImage);
+  drawThemeBackground(
+    ctx,
+    canvas,
+    theme,
+    bundledBackgroundImage,
+    {
+      timeMs,
+      audioEnergy: 0.32,
+    },
+    userBackgroundImage,
+    userBackgroundLayout,
+  );
   drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);
 }

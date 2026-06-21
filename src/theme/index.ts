@@ -6,5 +6,6 @@ export * from './sparkle';
 export * from './storage';
 export * from './color-utils';
 export * from './design-overrides';
+export * from './background-layout';
 export type { BarAlignment } from '@/src/recorder/waveform';
 export { renderThemePreview } from '@/src/recorder/waveform';

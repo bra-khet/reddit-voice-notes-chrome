@@ -19,6 +19,14 @@ export type BackgroundType = 'solid' | 'gradient' | 'image' | 'bokeh';
 /** `fit` = contain (letterbox); `fill` = cover (crop). */
 export type BackgroundScaleMode = 'fit' | 'fill';
 
+/** Personal background placement within the 16:9 frame. */
+export type BackgroundImagePosition = 'top' | 'center' | 'bottom' | 'left' | 'right';
+
+export interface UserBackgroundLayout {
+  scaleMode: BackgroundScaleMode;
+  position: BackgroundImagePosition;
+}
+
 export interface GradientStop {
   offset: number;
   color: string;

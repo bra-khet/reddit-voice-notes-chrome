@@ -1,4 +1,9 @@
 import type { BarAlignment } from '@/src/recorder/waveform';
+import {
+  normalizeBackgroundPosition,
+  normalizeBackgroundScaleMode,
+} from '@/src/theme/background-layout';
+import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { designOverridesMatch, normalizeDesignOverrides } from '@/src/theme/design-overrides';
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
@@ -15,6 +20,8 @@ export interface ClipProfile {
   barAlignment: BarAlignment;
   /** ImageDB record id (`bg-…`) when this profile uses a personal background. */
   customBackgroundId?: string | null;
+  backgroundScaleMode?: BackgroundScaleMode;
+  backgroundPosition?: BackgroundImagePosition;
   /** Saved custom clip style (`style-…`) when this profile uses user colors. */
   customStyleId?: string | null;
   /** Snapshot of unsaved custom colors when the profile was saved. */
@@ -63,6 +70,8 @@ export function normalizeClipProfiles(
       themeId: normalizeThemeId(raw.themeId),
       barAlignment: normalizeBarAlignment(raw.barAlignment),
       customBackgroundId: normalizeBackgroundAssetId(raw.customBackgroundId),
+      backgroundScaleMode: normalizeBackgroundScaleMode(raw.backgroundScaleMode),
+      backgroundPosition: normalizeBackgroundPosition(raw.backgroundPosition),
       customStyleId,
       designOverrides,
     });
@@ -112,6 +121,8 @@ export function appearanceMatchesProfile(
     appearance.activeThemeId === profile.themeId &&
     (appearance.barAlignment ?? 'center') === profile.barAlignment &&
     (appearance.customBackgroundId ?? null) === (profile.customBackgroundId ?? null) &&
+    (appearance.backgroundScaleMode ?? 'fill') === (profile.backgroundScaleMode ?? 'fill') &&
+    (appearance.backgroundPosition ?? 'center') === (profile.backgroundPosition ?? 'center') &&
     styleMatches
   );
 }
