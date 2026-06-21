@@ -6,54 +6,65 @@ All recording, visualization, and transcoding happens **client-side** in the bro
 
 ## Status
 
-**Stable `main` v1.5.0** — MVP recording pipeline + themed waveform canvas, hardened transcode pipeline.
+**Stable `main` v2.0.0** (2026-06) — The full personalization release: themed waveform canvas, named clip profiles, custom color styles, personal image backgrounds, Design Studio, and a hardened FFmpeg pipeline.
 
-**`pretty` branch v1.6.0** — Settings hub, named profiles, accessibility themes, themed UI chrome. Roadmap: personal backgrounds (pretty-7), then a **light design studio** for colors and simple effects (pretty-8), then **v2.0** merge (pretty-9). See `pretty-branch.md`.
+Previous stable: **v1.5.0** (MVP themes + pipeline hardening). Development history on the merged `pretty` branch is documented in `pretty-branch.md`.
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| 0 | Scaffold & project structure | Done |
-| 1 | Permissions + Reddit button injection | Done |
-| 2 | Recorder core (WebM, no FFmpeg) | Done |
-| 3 | FFmpeg.wasm WebM → MP4 | Done |
-| 4 | Polish, limits, error states | Done |
-| 5 | Reddit auto-attach (best-effort) | Done |
-| 6 | Shortcuts, settings popup, finalization | Done |
+### What's new in v2.0
+
+| Area | Highlights |
+|------|------------|
+| **Design Studio** | Dedicated popup for clip appearance — HSV/HEX color pickers, radial dials, triple live previews, background fit/fill/position |
+| **Profiles & styles** | Up to 12 saved clip profiles and 12 custom color styles; **Update**, **Clone**, and **Save to new** fork paths |
+| **Personal backgrounds** | IndexedDB image library, chunked relay to Reddit canvas, WYSIWYG preview = recorded MP4 |
+| **Effects** | Background flair (bokeh/sparkle), boosted bar glow; Effects section scaffold for future layers |
+| **Pipeline** | BUG-007 dup-storm fix (`-fps_mode passthrough`), stall detection, cancel propagation, 60s client stall ceiling |
+| **Settings hub** | Audio/viz toggles, accessibility presets, reduced-motion waveform, themed recorder chrome |
 
 ## Features
 
 - Mic button injected next to Reddit's video icon (Shadow DOM–aware)
-- Floating recorder with live waveform, 2-minute cap, discard/cancel flows
+- Floating recorder with live waveform, **2-minute cap**, discard/cancel flows
 - Client-side WebM capture → FFmpeg.wasm MP4 (offscreen document)
+- Bundled + custom clip themes; hot-swap safe mid-recording (popup / Design Studio)
 - Download MP4 (primary, always reliable)
 - Best-effort **Attach to Reddit** via native file input
-- Configurable keyboard shortcut (default **Ctrl+Shift+X** / **⌘+Shift+X** on Mac) <-- ts broken sorry
-- Settings popup to change shortcut, reload extension
+- Settings popup + **Design Studio** for clip personalization
+- Reload extension from popup after updates
 
 ## Tech stack
 
 - **[WXT](https://wxt.dev)** — Manifest V3 extension framework with Vite, TypeScript, and hot reload
 - **Vanilla TypeScript** — no framework in content scripts; Shadow DOM for UI
 - **ffmpeg.wasm** — lazy-loaded client-side transcoding in an offscreen document
+- **IndexedDB** — personal background blobs (`rvnImageDb`)
 
 ## Project layout
 
 ```
 entrypoints/
-  background.ts          # Service worker, offscreen orchestration, commands
+  background.ts          # Service worker, transcode relay, background blob relay
   content.ts             # Runs on reddit.com only
+  design-studio/         # Clip personalization popup (v2)
   offscreen/             # FFmpeg WASM worker
-  popup/                 # Settings popup (shortcut, reload)
+  popup/                 # Settings hub
 public/
-  icon/                  # Extension icons + mic.svg source
+  icon/                  # Extension icons
+  ffmpeg/                # WASM core (copied on postinstall)
 src/
   recorder/              # getUserMedia + canvas + MediaRecorder
-  reddit-injector/       # DOM detection, injection, auto-attach, shortcuts
-  settings/              # Shortcut config (chrome.storage.sync)
-  ui/                    # Recorder panel, toasts, icons
+  reddit-injector/       # DOM detection, injection, auto-attach
+  settings/              # Profiles, custom styles, user prefs
+  storage/               # ImageDB + background relay
+  theme/                 # Presets, overrides, backgrounds
+  ui/design-studio/      # Studio controls + save pathways
   ffmpeg/                # Transcode messaging + ffmpeg-runner
   messaging/             # MV3 message types + base64 binary transport
 wxt.config.ts
+docs/
+  engineering-principles.md
+  bug-archive.md
+pretty-branch.md         # v2 phase plan + merge history
 ```
 
 ## Development
@@ -82,9 +93,10 @@ Visit [reddit.com](https://www.reddit.com), open a post with video comments enab
 
 ### Usage
 
-1. Click the mic button **or** press **Ctrl+Shift+X** (customizable in the extension popup) <-- ts broken sorry
+1. Click the mic button in a Reddit comment composer
 2. Record → Stop → wait for FFmpeg → **Download MP4** or **Attach to Reddit**
-3. Post your comment
+3. Optional: open the extension popup or **Design Studio** to personalize clip appearance before recording
+4. Post your comment
 
 ### Production build
 
@@ -94,38 +106,35 @@ npm run build
 
 Output: `.output/chrome-mv3/`
 
+### Release zip (GitHub / sideload)
+
+```bash
+npm run zip
+```
+
+Output: `.output/reddit-voice-notes-2.0.0-chrome.zip` (~10 MB)
+
 ### Type check
 
 ```bash
 npm run compile
 ```
 
-### Package zip
-
-```bash
-npm run zip
-```
+Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; the WXT production build is the release gate (`npm run build`).
 
 ## Permissions
 
 | Permission | Purpose |
 |------------|---------|
-| `storage` | Persist keyboard shortcut settings |
+| `storage` | User preferences, profiles, shortcut settings |
 | `offscreen` | FFmpeg WASM transcoding (Chrome 109+) |
+| `tabs` | Transcode progress relay to Reddit content script |
 | `host_permissions` for `reddit.com` | Content script injection |
 | Microphone (runtime) | Requested when recording starts |
 
-## Keyboard shortcut
-
-- **Default:** `Ctrl+Shift+X` (Windows/Linux) / `⌘+Shift+X` (Mac)
-- **Change:** Open the extension popup → click the shortcut field → press your combo
-- **Chrome command:** Also registered as `open-voice-recorder` — rebindable at `chrome://extensions/shortcuts`
-
-Shortcut works when a Reddit comment composer is available (focused or on page).
-
 ## MVP constraints
 
-- **2-minute hard cap** on recordings (see `docs/bug-archive.md` for why not Reddit's 3:00)
+- **2-minute hard cap** on recordings (see `docs/bug-archive.md` BUG-001; longer caps tentatively possible post-BUG-007)
 - **MP4 output** (H.264 + AAC) for Reddit compatibility
 - **Download path is primary** — auto-attach is best-effort
 - **Client-side only** — no external servers except Reddit upload
@@ -141,9 +150,17 @@ Reddit's comment toolbar lives inside web-component shadow trees. The extension 
 ## Known limitations
 
 - Reload extension + hard-refresh Reddit after updates
-- Very long recordings stress large base64 messages (~3 min near Chrome limits)
+- Keyboard shortcut reinstatement deferred (Reddit contenteditable conflicts) — use mic button
+- Background tab pauses canvas `requestAnimationFrame` (audio still records)
 - Auto-attach may break when Reddit changes uploader UI — download always works
-- `chrome://extensions/shortcuts` and popup shortcut settings are separate bindings
+
+## Release tags
+
+| Tag | Meaning |
+|-----|---------|
+| `v2.0.0` | Stable release on `main` — merge of `pretty` (2026-06) |
+| `pretty-profile-style-premerge` | Pre-merge checkpoint on `pretty` |
+| `v1.5.0` | Prior stable MVP + themes |
 
 ## Dev dependency security notes
 
@@ -151,4 +168,4 @@ Reddit's comment toolbar lives inside web-component shadow trees. The extension 
 
 ## License
 
-Private — MVP complete.
+Private — v2.0 stable.

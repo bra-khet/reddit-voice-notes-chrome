@@ -1,6 +1,8 @@
 # `pretty` branch — visual polish & personalization
 
-**`main`** is the stable release line (`v1.5.0` as of 2026-06). Continued experimentation happens on **`pretty`** (`v1.6.0` — audio settings, accessibility presets, themed UI chrome).
+**MERGED → `main` as v2.0.0 (2026-06-21).** This document is the historical phase plan and engineering record for the v2 release. Active stable development continues on **`main`**; `pretty` is retained as a merged branch reference.
+
+**Prior:** `main` v1.5.0 (MVP themes + pipeline). **`pretty`** shipped v1.6.0–v2.0.0 gate (pretty-0 through pretty-9).
 
 ## Goal
 
@@ -114,7 +116,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + position + dim overlay; fallback on load failure | Done |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Done |
 | **pretty-8** | Light design studio | Design Studio shell, personal bg WYSIWYG, HSV/HEX custom styles, bokeh/sparkle/glow, dual preview, radial color controls, fit/fill bg layout, virtual preset profiles (recorder), studio exit guard | Done |
-| **pretty-9** | Perf & merge readiness | Transcode timestamp/dup-storm fix (**done**), 2:00 cap profiling, prod bundle verify, merge criteria vs `main`, tag **v2.0** | In progress |
+| **pretty-9** | Perf & merge readiness | Transcode dup-storm fix, cap QA, prod zip verify, merge to `main`, tag **v2.0.0** | Done |
 
 ### Milestone: `pretty-8-design-studio-prototype` (2026-06-20)
 
@@ -272,12 +274,11 @@ User inspected offscreen/service-worker FFmpeg logs during slow and failed trans
 
 **Resume merge work from this tag** if anything else must ship before `pretty` → `main`.
 
-### v2.0 merge gate (remaining)
+### v2.0 merge (completed 2026-06-21)
 
-1. ~~**pretty-9 transcode fix**~~ — done (`ffmpeg-runner.ts`); QA on dup-prone recordings still needed
-2. **2:00 cap profiling** — QA 2026-06-21: full 2:00 ~43s transcode; stall timeout 60s; cap stays 2:00 (longer length tentatively possible post-BUG-007)
-3. **`npm run build`** — prod bundle verify before merge to `main`
-4. Tag **v2.0** on `pretty`, merge to `main`
+- **Tag `v2.0.0`** on `main` after merge of `pretty`
+- **Checkpoint tags:** `pretty-profile-style-premerge`, `pretty-8-design-studio-prototype`
+- **Release artifact:** `npm run zip` → `.output/reddit-voice-notes-2.0.0-chrome.zip`
 
 ## Legacy suggested order (superseded by phase table above)
 

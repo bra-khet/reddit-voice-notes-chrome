@@ -1,5 +1,15 @@
 # Reddit Voice Notes — Session Progress
 
+## v2.0.0 stable — `pretty` merged to `main` (2026-06-21)
+
+**Tag:** `v2.0.0` · **Pre-merge checkpoint:** `pretty-profile-style-premerge`
+
+Largest project milestone: full clip personalization (Design Studio, profiles, custom styles, personal backgrounds, effects scaffold) on top of hardened MVP transcode pipeline (BUG-007 dup-storm fix, semantic stall detection, 60s client ceiling).
+
+**Release build:** `npm run zip` → `.output/reddit-voice-notes-2.0.0-chrome.zip` (~10 MB)
+
+**Sanity check (pre-merge):** `npm run build` + `npm run zip` pass; `tsc --noEmit` has pre-existing strictness warnings in `background-loader.ts` / `background.ts` (non-blocking for WXT build).
+
 ## MVP complete — v1.0.0
 
 | Phase | Status |
@@ -123,7 +133,8 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 | Branch | Role |
 |--------|------|
 | `main` | Stable releases — `v1.5.0` (themes + pipeline hardening) |
-| `pretty` | **`v1.6.0`** (pretty-0–8 done) → **pretty-9** transcode fix + perf + **v2.0** merge |
+| `pretty` | **Merged** into `main` as **v2.0.0** (2026-06-21); branch retained for history |
+| `main` | **v2.0.0** stable — personalization + hardened pipeline |
 
 ## Architecture note: mid-recording theme changes (QA-verified 2026-06)
 
