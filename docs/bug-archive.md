@@ -236,3 +236,45 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - `entrypoints/offscreen/main.ts` — wall-clock timeout, cancel handling
 - `entrypoints/background.ts` — cancel relay, tab supersede
 - `src/ffmpeg/ffmpeg-runner.ts` — load timeout
+
+---
+
+## BUG-007 — FFmpeg frame duplication storm on bad WebM timestamps (2026-06)
+
+### Symptoms
+
+- Same-length recordings sometimes transcode in ~10s, sometimes hang or crawl at `speed` ~0.2× until client/offscreen timeout.
+- FFmpeg logs show `dup` climbing with frame count (e.g. `dup=984` at frame 1006) and **"More than 1000 frames duplicated"**.
+- Input probe reports `vp8 … **1k tbr, 1k tbn**`, often `Duration: N/A`.
+- Output stream shows **~1000 fps** instead of ~24 fps.
+
+### Root causes (confirmed via offscreen logs, 2026-06-21)
+
+1. **Broken/missing video PTS in MediaRecorder WebM** — `canvas.captureStream(24)` + `MediaRecorder` can emit WebM where FFmpeg infers a bogus **1000 fps** timebase (`1k tbr`).
+2. **No timestamp normalization in encode strategy** — `h264-aac` in `ffmpeg-runner.ts` passes through with no `-r`, `-fps_mode`, `-vsync`, or PTS repair.
+3. **CFR sync duplicates frames** — FFmpeg stretches sparse real frames across the bogus timeline → thousands of libx264 encodes in WASM (`threads=1`).
+4. **Preflight does not catch it** — `webm-preflight.ts` treats `Duration: N/A` / `Infinity` as normal Chrome behavior (BUG-004); no check for `1k tbr` or dup-prone metadata.
+
+### Healthy baseline (for comparison)
+
+- Input `~22 tbr`; output `~22 fps`; `dup` single digits; `speed` 4–5×; ~44s clip → ~10s transcode.
+
+### Likely triggers
+
+- Reddit tab **backgrounded** — `requestAnimationFrame` stalls; bursty/sparse canvas frame timestamps.
+- **Cap-stop races** — see BUG-001; truncated final chunks may worsen timestamp gaps.
+- Stop/`requestData` timing edge cases.
+
+### Proposed fix (pretty-9, pending)
+
+- Add `-fps_mode passthrough` or explicit `-r 24` (+ dup-tolerant sync) to `TRANSCODE_STRATEGIES[0]`.
+- Parse FFmpeg logs early — abort/retry when `1k tbr` or dup count spikes in first second.
+- Recording-side: reduce bad WebM from background-tab and cap-stop conditions.
+- Optional preflight heuristic for dup-prone streams.
+
+### Related files
+
+- `src/ffmpeg/ffmpeg-runner.ts` — `TRANSCODE_STRATEGIES`, log collector
+- `src/ffmpeg/webm-preflight.ts` — duration/size checks only today
+- `src/recorder/voice-recorder.ts` — `captureStream(WAVEFORM_TARGET_FPS)`, MediaRecorder stop
+- `pretty-branch.md` — pretty-9 diagnosis section

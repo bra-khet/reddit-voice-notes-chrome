@@ -91,14 +91,39 @@ Two different `Sending WebM` byte sizes = two sessions, not one duplicate send. 
 
 **UX split (pretty-8):** Design Studio keeps **active profile** when editing theme/alignment/background (**Update profile**); picking a bundled preset there still clears `activeProfileId` (manual/custom mode). **Recorder popup (2026-06-21):** bundled clip styles are **virtual dummy profiles** (`preset-{themeId}` in `src/settings/preset-profiles.ts`) — not stored in `savedProfiles`, but selected via the same `applyClipProfile()` path as user profiles so preset picks fully reset theme, personal background, custom style, and overrides (fixes dropdown label changing without canvas update).
 
-**Remaining before v2.0 merge:** pretty-8 color/effect pickers; pretty-9 perf pass; not merge-ready yet — prototype milestone only.
+**Remaining before v2.0 merge:** pretty-9 transcode fix + cap profiling + prod bundle verify (see below).
+
+### Session 2026-06-21 — pretty-8 completion + transcode diagnosis
+
+**pretty-8 done.** Commits `bdec256` → `e881258`: personal bg fit/fill/position; virtual preset profiles (recorder); Design Studio HSV/HEX + radial dials + dual preview + effect toggles + exit guard.
+
+#### Recorder preset bug (fixed, `58bf1e7`)
+
+Dropdown label changed to a bundled preset but canvas kept last saved profile (`activeThemeId` only). Fix: virtual `preset-{themeId}` profiles in `src/settings/preset-profiles.ts`; recorder uses `applyClipProfile()` for all picks including presets.
+
+#### Transcode slowdown — frame duplication storm (pretty-9, **diagnosed, not fixed**)
+
+Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM cold start or WebM relay size.
+
+| Slow | Fast |
+|------|------|
+| Input `1k tbr`, `Duration: N/A` | Input `~22 tbr` |
+| Output `1k fps`, `dup=984+`, `speed` ~0.2× | `dup` single digits, `speed` 4–5× |
+
+**Chain:** `MediaRecorder` + `captureStream(24)` → WebM with missing/broken PTS → FFmpeg `h264-aac` (no `-r` / `-fps_mode` / `-vsync`) → CFR sync duplicates to 1000 fps timeline → thousands of libx264 frames in single-thread WASM.
+
+**Preflight gap:** `webm-preflight.ts` accepts `Duration: N/A` / `Infinity` (normal for Chrome WebM) — does not detect `1k tbr` dup-prone blobs.
+
+**Triggers:** background tab (rAF stall), cap-stop races (BUG-001), sparse frame timestamps.
+
+**Proposed fix:** `-fps_mode passthrough` or `-r 24` on `h264-aac`; early abort on dup storm; recording-side timing improvements. Full write-up: `pretty-branch.md` § pretty-9; `docs/bug-archive.md` BUG-007.
 
 ## Branch split (post-MVP)
 
 | Branch | Role |
 |--------|------|
 | `main` | Stable releases — `v1.5.0` (themes + pipeline hardening) |
-| `pretty` | **`v1.6.0`** (pretty-0–6 done) → **pretty-7** ImageDB → **pretty-8** light design studio → **pretty-9** perf + **v2.0** merge |
+| `pretty` | **`v1.6.0`** (pretty-0–8 done) → **pretty-9** transcode fix + perf + **v2.0** merge |
 
 ## Architecture note: mid-recording theme changes (QA-verified 2026-06)
 
