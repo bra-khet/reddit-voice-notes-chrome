@@ -45,8 +45,10 @@ import {
   renderColorPickerFields,
 } from '@/src/ui/design-studio/color-picker';
 import {
-  mountEffectControls,
-  renderEffectControlFields,
+  mountBackgroundFlairControls,
+  mountBarGlowControl,
+  renderBackgroundFlairFields,
+  renderBarGlowField,
 } from '@/src/ui/design-studio/effect-controls';
 import {
   mountBackgroundLayoutControls,
@@ -150,7 +152,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
         </label>
         <div data-custom-style-panel hidden>
           ${renderColorPickerFields()}
-          ${renderEffectControlFields()}
+          ${renderBarGlowField()}
           <div class="popup__profile-actions studio__inline-actions">
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-style>
               Save as style
@@ -179,6 +181,11 @@ export function mountClipStudio(root: HTMLElement): () => void {
         ${renderPersonalBackgroundFields()}
         ${renderBackgroundLayoutFields()}
       </section>
+      <section class="studio__section studio__section--effects">
+        <h2 class="studio__section-title">Effects</h2>
+        ${renderBackgroundFlairFields()}
+      </section>
+      ${renderPreviewBlock('tertiary')}
       <p class="studio__footer-note">
         Changes apply live to the recorder. <strong>Clone</strong> then edit, or edit then
         <strong>Save to new</strong> — both reach the same fork. <strong>Update</strong> overwrites
@@ -464,7 +471,8 @@ export function mountClipStudio(root: HTMLElement): () => void {
     patch: Partial<DesignOverrides>,
   ): DesignOverrides | null {
     const current = activePrefs?.appearance.designOverrides;
-    const barColor = patch.barColor ?? current?.barColor;
+    const barColor =
+      patch.barColor ?? current?.barColor ?? (activePrefs ? resolvedTheme().colors.bar : undefined);
     if (!barColor) return null;
     return {
       barColor,
@@ -514,9 +522,11 @@ export function mountClipStudio(root: HTMLElement): () => void {
     syncProfileActions(prefs);
     syncStyleButton(prefs);
 
+    backgroundFlairControls.sync(prefs.appearance.designOverrides);
+
     if (isStylePanelVisible(prefs) && !colorPicker.isUserAdjusting()) {
       colorPicker.sync(prefs.appearance.designOverrides);
-      effectControls.sync(prefs.appearance.designOverrides);
+      barGlowControl.sync(prefs.appearance.designOverrides);
     }
 
     void personalBackground.sync(prefs);
@@ -532,8 +542,15 @@ export function mountClipStudio(root: HTMLElement): () => void {
     scheduleDesignPersist(merged);
   });
 
-  const effectControls = mountEffectControls(root, (patch) => {
-    const merged = mergeDesignOverrides(patch);
+  const backgroundFlairControls = mountBackgroundFlairControls(root, (backgroundEffect) => {
+    const merged = mergeDesignOverrides({ backgroundEffect });
+    if (!merged) return;
+    applyLocalDesignOverrides(merged);
+    scheduleDesignPersist(merged);
+  });
+
+  const barGlowControl = mountBarGlowControl(root, (barGlow) => {
+    const merged = mergeDesignOverrides({ barGlow });
     if (!merged) return;
     applyLocalDesignOverrides(merged);
     scheduleDesignPersist(merged);

@@ -142,6 +142,14 @@ body {
   border-color: #4a4c4e;
 }
 
+.studio__preview-wrap--tertiary {
+  margin-top: 4px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  border-style: dashed;
+  border-color: #3d6b55;
+}
+
 .studio__preview-label {
   position: absolute;
   top: 8px;
@@ -172,8 +180,17 @@ body {
 }
 
 .studio__section--background {
+  border-bottom: 1px solid #343536;
+  padding-bottom: 14px;
+}
+
+.studio__section--effects {
   border-bottom: none;
   padding-bottom: 0;
+}
+
+.studio__section--effects .studio__section-title {
+  border-left-color: #1a7f5c;
 }
 
 .studio__section-title {
@@ -498,6 +515,14 @@ body {
 
   .studio__preview-wrap--secondary {
     border-color: #c8ccd0;
+  }
+
+  .studio__preview-wrap--tertiary {
+    border-color: #8eb8a4;
+  }
+
+  .studio__section--effects .studio__section-title {
+    border-left-color: #1a7f5c;
   }
 
   .studio__preview-label {

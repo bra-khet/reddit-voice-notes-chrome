@@ -264,6 +264,14 @@ User inspected offscreen/service-worker FFmpeg logs during slow and failed trans
 | `c16332c` | Hue wheel center fix + 360° SV dial graphics |
 | `e881258` | SV dial top-zero rotation + knob label spacing |
 
+### Milestone: `pretty-profile-style-premerge` (2026-06-21)
+
+**Annotated tag on `pretty` branch.** Checkpoint before merging to `main`: profile/style UX complete, transcode hardened, Effects section scaffold for future layered flairs.
+
+**Includes:** Design Studio profiles + custom styles; HSV/HEX + radial dials; Clone / Save to new fork paths; nested style roll-up prompts; virtual preset profiles (recorder); personal bg fit/fill/position; BUG-007 dup-storm fix; 60s transcode stall; Effects section (background flair + tertiary preview).
+
+**Resume merge work from this tag** if anything else must ship before `pretty` → `main`.
+
 ### v2.0 merge gate (remaining)
 
 1. ~~**pretty-9 transcode fix**~~ — done (`ffmpeg-runner.ts`); QA on dup-prone recordings still needed
