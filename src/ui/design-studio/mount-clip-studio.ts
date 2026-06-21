@@ -15,6 +15,7 @@ import {
   isCustomStyleDirty,
   parseStyleSelectValue,
   profilesAffectedByStyleDeletion,
+  resolveStyleSelectValue,
 } from '@/src/settings/custom-styles';
 import {
   applyClipProfile,
@@ -34,6 +35,7 @@ import {
   updateActiveCustomStyle,
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
+import type { DesignOverrides } from '@/src/theme/design-overrides';
 import { populateProfileSelect } from '@/src/ui/clip-style-select';
 import {
   mountColorPickerControls,
@@ -53,6 +55,8 @@ const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
   { value: 'center', label: 'Center (mirrored)' },
   { value: 'bottom', label: 'Bottom' },
 ];
+
+const COLOR_SAVE_DEBOUNCE_MS = 200;
 
 export function mountClipStudio(root: HTMLElement): () => void {
   root.innerHTML = `
@@ -143,7 +147,41 @@ export function mountClipStudio(root: HTMLElement): () => void {
   let lastPreviewFrame = 0;
   let profileUpdateConfirmPending = false;
   let styleUpdateConfirmPending = false;
+  let studioSaveGeneration = 0;
+  let ignoreStoragePrefs = false;
+  let colorSaveTimer = 0;
   const PREVIEW_ANIM_FPS = 12;
+
+  function cancelPendingColorSave(): void {
+    if (colorSaveTimer) {
+      window.clearTimeout(colorSaveTimer);
+      colorSaveTimer = 0;
+    }
+  }
+
+  function invalidateInFlightSaves(): void {
+    studioSaveGeneration += 1;
+    cancelPendingColorSave();
+  }
+
+  async function studioPersist(
+    saveFn: () => Promise<UserPreferencesV1>,
+  ): Promise<UserPreferencesV1 | undefined> {
+    const generation = ++studioSaveGeneration;
+    ignoreStoragePrefs = true;
+    try {
+      const prefs = await saveFn();
+      if (generation !== studioSaveGeneration) return undefined;
+      applyPrefs(prefs);
+      return prefs;
+    } finally {
+      requestAnimationFrame(() => {
+        if (generation === studioSaveGeneration) {
+          ignoreStoragePrefs = false;
+        }
+      });
+    }
+  }
 
   function stopPreviewLoop(): void {
     if (previewRaf) cancelAnimationFrame(previewRaf);
@@ -276,60 +314,121 @@ export function mountClipStudio(root: HTMLElement): () => void {
     syncProfileButton(prefs);
   }
 
-  function applyPrefs(prefs: UserPreferencesV1): void {
-    activePrefs = prefs;
-    activeAlignment = prefs.appearance.barAlignment ?? 'center';
+  function syncSelectControls(prefs: UserPreferencesV1): void {
     populateProfileSelect(profileSelect, prefs);
     populateDesignStudioStyleSelect(themeSelect, prefs);
+    activeAlignment = prefs.appearance.barAlignment ?? 'center';
     alignmentSelect.value = activeAlignment;
+  }
+
+  function hasPendingColorEdit(): boolean {
+    return colorSaveTimer !== 0 || colorPicker.isUserAdjusting();
+  }
+
+  function mergePendingColorState(prefs: UserPreferencesV1): UserPreferencesV1 {
+    if (!activePrefs || !hasPendingColorEdit()) return prefs;
+    return {
+      ...prefs,
+      appearance: {
+        ...prefs.appearance,
+        activeThemeId: activePrefs.appearance.activeThemeId,
+        activeCustomStyleId: activePrefs.appearance.activeCustomStyleId,
+        designOverrides: activePrefs.appearance.designOverrides,
+      },
+    };
+  }
+
+  function applyLocalColorOverrides(overrides: DesignOverrides): void {
+    if (!activePrefs) return;
+    activePrefs = {
+      ...activePrefs,
+      appearance: {
+        ...activePrefs.appearance,
+        designOverrides: overrides,
+      },
+    };
+    resetProfileUpdateConfirm();
+    resetStyleUpdateConfirm();
+    syncProfileButton(activePrefs);
+    syncStyleButton(activePrefs);
+    stopPreviewLoop();
+    void refreshPreview();
+  }
+
+  function scheduleColorPersist(overrides: DesignOverrides): void {
+    cancelPendingColorSave();
+    colorSaveTimer = window.setTimeout(() => {
+      colorSaveTimer = 0;
+      void studioPersist(() => saveCustomStyleColors(overrides));
+    }, COLOR_SAVE_DEBOUNCE_MS);
+  }
+
+  function applyPrefs(prefs: UserPreferencesV1): void {
+    activePrefs = prefs;
+    syncSelectControls(prefs);
     syncProfileActions(prefs);
     syncStyleButton(prefs);
-    colorPicker.sync(prefs.appearance.designOverrides);
+
+    if (isStylePanelVisible(prefs) && !colorPicker.isUserAdjusting()) {
+      colorPicker.sync(prefs.appearance.designOverrides);
+    }
+
     void personalBackground.sync(prefs);
     stopPreviewLoop();
     void refreshPreview();
   }
 
   const colorPicker = mountColorPickerControls(root, (overrides) => {
-    resetProfileUpdateConfirm();
-    resetStyleUpdateConfirm();
-    void saveCustomStyleColors(overrides).then(applyPrefs);
+    applyLocalColorOverrides(overrides);
+    scheduleColorPersist(overrides);
   });
 
-  const personalBackground = mountPersonalBackgroundControls(root, applyPrefs);
+  const personalBackground = mountPersonalBackgroundControls(root, (prefs) => {
+    invalidateInFlightSaves();
+    ignoreStoragePrefs = true;
+    applyPrefs(prefs);
+    requestAnimationFrame(() => {
+      ignoreStoragePrefs = false;
+    });
+  });
 
   profileSelect.addEventListener('change', () => {
+    invalidateInFlightSaves();
     resetProfileUpdateConfirm();
     resetStyleUpdateConfirm();
     const value = profileSelect.value;
     if (value === PROFILE_SELECT_CUSTOM) {
-      void saveAppearancePreferences({ activeProfileId: null }).then(applyPrefs);
+      void studioPersist(() => saveAppearancePreferences({ activeProfileId: null }));
       return;
     }
-    void applyClipProfile(value).then(applyPrefs);
+    void studioPersist(() => applyClipProfile(value));
   });
 
   themeSelect.addEventListener('change', () => {
+    invalidateInFlightSaves();
     resetProfileUpdateConfirm();
     resetStyleUpdateConfirm();
     const parsed = parseStyleSelectValue(themeSelect.value);
     if (parsed.kind === 'custom') {
-      void enterCustomStyleMode().then(applyPrefs);
+      void studioPersist(() => enterCustomStyleMode());
       return;
     }
     if (parsed.kind === 'saved') {
-      void applyCustomClipStyle(parsed.styleId).then(applyPrefs);
+      void studioPersist(() => applyCustomClipStyle(parsed.styleId));
       return;
     }
-    void applyPresetClipStyle(parsed.themeId).then(applyPrefs);
+    void studioPersist(() => applyPresetClipStyle(parsed.themeId));
   });
 
   alignmentSelect.addEventListener('change', () => {
+    invalidateInFlightSaves();
     resetProfileUpdateConfirm();
     const alignment = alignmentSelect.value as BarAlignment;
-    void saveAppearancePreferences({
-      barAlignment: alignment,
-    }).then(applyPrefs);
+    void studioPersist(() =>
+      saveAppearancePreferences({
+        barAlignment: alignment,
+      }),
+    );
   });
 
   saveProfileBtn.addEventListener('click', () => {
@@ -342,32 +441,31 @@ export function mountClipStudio(root: HTMLElement): () => void {
         return;
       }
       resetProfileUpdateConfirm();
-      void updateActiveClipProfile()
-        .then(applyPrefs)
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : 'Could not update profile.';
-          window.alert(message);
-        });
+      invalidateInFlightSaves();
+      void studioPersist(() => updateActiveClipProfile()).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Could not update profile.';
+        window.alert(message);
+      });
       return;
     }
 
     const name = window.prompt('Name this profile (style, alignment, and background):');
     if (name === null) return;
-    void saveCurrentAsClipProfile(name)
-      .then(applyPrefs)
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Could not save profile.';
-        window.alert(message);
-      });
+    invalidateInFlightSaves();
+    void studioPersist(() => saveCurrentAsClipProfile(name)).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Could not save profile.';
+      window.alert(message);
+    });
   });
 
   deleteProfileBtn.addEventListener('click', () => {
     resetProfileUpdateConfirm();
+    invalidateInFlightSaves();
     const profileId = activePrefs?.appearance.activeProfileId;
     if (!profileId) return;
     const profileName = activeProfile()?.name ?? 'this profile';
     if (!window.confirm(`Delete "${profileName}"?`)) return;
-    void deleteClipProfile(profileId).then(applyPrefs);
+    void studioPersist(() => deleteClipProfile(profileId));
   });
 
   saveStyleBtn.addEventListener('click', () => {
@@ -380,27 +478,26 @@ export function mountClipStudio(root: HTMLElement): () => void {
         return;
       }
       resetStyleUpdateConfirm();
-      void updateActiveCustomStyle()
-        .then(applyPrefs)
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : 'Could not update style.';
-          window.alert(message);
-        });
+      invalidateInFlightSaves();
+      void studioPersist(() => updateActiveCustomStyle()).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Could not update style.';
+        window.alert(message);
+      });
       return;
     }
 
     const name = window.prompt('Name this custom style:');
     if (name === null) return;
-    void saveCurrentAsCustomStyle(name)
-      .then(applyPrefs)
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Could not save style.';
-        window.alert(message);
-      });
+    invalidateInFlightSaves();
+    void studioPersist(() => saveCurrentAsCustomStyle(name)).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Could not save style.';
+      window.alert(message);
+    });
   });
 
   deleteStyleBtn.addEventListener('click', () => {
     resetStyleUpdateConfirm();
+    invalidateInFlightSaves();
     const styleId = activePrefs?.appearance.activeCustomStyleId;
     if (!styleId || !activePrefs) return;
 
@@ -410,25 +507,23 @@ export function mountClipStudio(root: HTMLElement): () => void {
       affectedProfiles.length > 0
         ? ` Saved profiles using it (${affectedProfiles.join(', ')}) will revert to Classic.`
         : '';
-    if (
-      !window.confirm(
-        `Delete "${styleName}"?${profileWarning}`,
-      )
-    ) {
+    if (!window.confirm(`Delete "${styleName}"?${profileWarning}`)) {
       return;
     }
-    void deleteCustomClipStyle(styleId).then(applyPrefs);
+    void studioPersist(() => deleteCustomClipStyle(styleId));
   });
 
   void loadUserPreferences().then(applyPrefs);
 
   const unsubscribe = onUserPreferencesChanged((prefs) => {
+    if (ignoreStoragePrefs) return;
     resetProfileUpdateConfirm();
     resetStyleUpdateConfirm();
-    applyPrefs(prefs);
+    applyPrefs(mergePendingColorState(prefs));
   });
 
   return () => {
+    cancelPendingColorSave();
     stopPreviewLoop();
     unsubscribe();
   };

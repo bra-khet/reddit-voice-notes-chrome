@@ -8,6 +8,7 @@ import type { DesignOverrides } from '@/src/theme/design-overrides';
 
 export interface ColorPickerControls {
   sync(overrides: DesignOverrides | null | undefined): void;
+  isUserAdjusting(): boolean;
 }
 
 export function renderColorPickerFields(): string {
@@ -59,18 +60,21 @@ export function mountColorPickerControls(
   const valInput = panel.querySelector<HTMLInputElement>('[data-color-val]')!;
 
   let syncing = false;
+  let userAdjusting = false;
 
-  function emitFromHsv(h: number, s: number, v: number): void {
-    const barColor = hsvToHex(h, s, v);
-    swatch.style.background = barColor;
-    hexInput.value = barColor;
-    onColorChange({
-      barColor,
-      glowColor: deriveGlowColor(barColor),
-    });
+  function setUserAdjusting(next: boolean): void {
+    userAdjusting = next;
   }
 
-  function applyHex(hex: string): boolean {
+  function overridesFromHsv(h: number, s: number, v: number): DesignOverrides {
+    const barColor = hsvToHex(h, s, v);
+    return {
+      barColor,
+      glowColor: deriveGlowColor(barColor),
+    };
+  }
+
+  function setUIFromHex(hex: string, emit: boolean): boolean {
     const normalized = normalizeHexColor(hex);
     if (!normalized) return false;
     const hsv = hexToHsv(normalized);
@@ -84,12 +88,30 @@ export function mountColorPickerControls(
     hexInput.value = normalized;
     syncing = false;
 
-    onColorChange({
-      barColor: normalized,
-      glowColor: deriveGlowColor(normalized),
-    });
+    // BUG FIX: Design Studio control snap / feedback loop
+    // Fix: sync() must update controls only — never call onColorChange (was re-saving prefs in a loop)
+    if (emit) {
+      onColorChange({
+        barColor: normalized,
+        glowColor: deriveGlowColor(normalized),
+      });
+    }
     return true;
   }
+
+  function emitFromHsv(h: number, s: number, v: number): void {
+    const overrides = overridesFromHsv(h, s, v);
+    swatch.style.background = overrides.barColor;
+    hexInput.value = overrides.barColor;
+    onColorChange(overrides);
+  }
+
+  panel.addEventListener('focusin', () => setUserAdjusting(true));
+  panel.addEventListener('focusout', (event) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && panel.contains(next)) return;
+    setUserAdjusting(false);
+  });
 
   hueInput.addEventListener('input', () => {
     if (syncing) return;
@@ -118,9 +140,13 @@ export function mountColorPickerControls(
     );
   });
 
+  hueInput.addEventListener('pointerdown', () => setUserAdjusting(true));
+  satInput.addEventListener('pointerdown', () => setUserAdjusting(true));
+  valInput.addEventListener('pointerdown', () => setUserAdjusting(true));
+
   hexInput.addEventListener('change', () => {
     if (syncing) return;
-    if (!applyHex(hexInput.value)) {
+    if (!setUIFromHex(hexInput.value, true)) {
       hexInput.value = swatch.style.background || '#00e5ff';
     }
   });
@@ -135,7 +161,10 @@ export function mountColorPickerControls(
   return {
     sync(overrides) {
       const barColor = overrides?.barColor ?? '#00e5ff';
-      applyHex(barColor);
+      setUIFromHex(barColor, false);
+    },
+    isUserAdjusting() {
+      return userAdjusting;
     },
   };
 }
