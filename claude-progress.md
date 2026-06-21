@@ -61,13 +61,14 @@ Two different `Sending WebM` byte sizes = two sessions, not one duplicate send. 
 - Restart caution when audio/recording prefs change (reload extension recommended)
 - Recorder panel + toast accents derived from active clip theme (`src/ui/theme-chrome.ts`)
 - Version source: `package.json` → `wxt.config.ts` manifest → `src/utils/version.ts` popup label
+- pretty-6: named clip profiles (`savedProfiles` + `activeProfileId` in `rvnUserPrefs`, up to 12)
 
 ## Branch split (post-MVP)
 
 | Branch | Role |
 |--------|------|
 | `main` | Stable releases — `v1.5.0` (themes + pipeline hardening) |
-| `pretty` | Visual polish — **`v1.6.0`**; next: pretty-6 named profiles, then ImageDB (pretty-7) |
+| `pretty` | Visual polish — **`v1.6.0`** (pretty-0–6 done); next: ImageDB custom backgrounds (pretty-7) |
 
 ## Architecture note: mid-recording theme changes (QA-verified 2026-06)
 

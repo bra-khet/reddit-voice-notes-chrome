@@ -8,14 +8,16 @@ import { attachMp4ToComposer } from '@/src/reddit-injector/video-attach';
 import {
   DEFAULT_THEME_ID,
   getThemeById,
-  listThemePresets,
 } from '@/src/theme';
-import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
+import { parseClipStyleSelectValue } from '@/src/settings/clip-profiles';
 import {
+  applyClipProfile,
   loadUserPreferences,
   onUserPreferencesChanged,
   saveAppearancePreferences,
 } from '@/src/settings/user-preferences';
+import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
+import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
 import { showToast } from './toast';
 
@@ -288,16 +290,21 @@ export class RecorderPanel {
     this.closeBtn = this.shadow.querySelector('.close')!;
     this.themeSelect = this.shadow.querySelector('[data-theme]')!;
 
-    for (const preset of listThemePresets()) {
-      const option = document.createElement('option');
-      option.value = preset.id;
-      option.textContent = preset.name;
-      this.themeSelect.append(option);
-    }
-
     this.themeSelect.addEventListener('change', () => {
-      this.applyThemeChrome(this.themeSelect.value);
-      void saveAppearancePreferences({ activeThemeId: this.themeSelect.value });
+      const parsed = parseClipStyleSelectValue(this.themeSelect.value);
+      if (parsed.kind === 'profile') {
+        void applyClipProfile(parsed.profileId).then((prefs) => {
+          this.syncClipStyleSelect(prefs);
+          this.applyThemeChrome(prefs.appearance.activeThemeId);
+        });
+        return;
+      }
+
+      this.applyThemeChrome(parsed.themeId);
+      void saveAppearancePreferences({
+        activeThemeId: parsed.themeId,
+        activeProfileId: null,
+      }).then((prefs) => this.syncClipStyleSelect(prefs));
     });
 
     this.primaryBtn.addEventListener('click', () => this.onPrimaryClick());
@@ -322,6 +329,10 @@ export class RecorderPanel {
     this.panelEl.style.setProperty('--rvn-panel-border', chrome.panelBorder);
   }
 
+  private syncClipStyleSelect(prefs: Awaited<ReturnType<typeof loadUserPreferences>>): void {
+    populateRecorderClipStyleSelect(this.themeSelect, prefs);
+  }
+
   async open(): Promise<void> {
     this.previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
@@ -342,16 +353,13 @@ export class RecorderPanel {
 
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = onUserPreferencesChanged((prefs) => {
-      const themeId = prefs.appearance.activeThemeId;
-      if (this.themeSelect.value !== themeId) {
-        this.themeSelect.value = themeId;
-      }
-      this.applyThemeChrome(themeId);
+      this.syncClipStyleSelect(prefs);
+      this.applyThemeChrome(prefs.appearance.activeThemeId);
     });
 
     try {
       const prefs = await loadUserPreferences();
-      this.themeSelect.value = prefs.appearance.activeThemeId;
+      this.syncClipStyleSelect(prefs);
       this.applyThemeChrome(prefs.appearance.activeThemeId);
       await this.session.prepare();
       this.panelEl.focus();
@@ -515,7 +523,7 @@ export class RecorderPanel {
     const themeEditable = state.phase === 'ready' || state.phase === 'idle';
     themeRow.hidden = !themeEditable;
     this.themeSelect.disabled = !themeEditable || state.phase === 'idle';
-    if (themeEditable && this.themeSelect.value === '') {
+    if (themeEditable && !this.themeSelect.value) {
       this.themeSelect.value = DEFAULT_THEME_ID;
     }
 

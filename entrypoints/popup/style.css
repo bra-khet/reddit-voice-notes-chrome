@@ -153,6 +153,21 @@ body {
   color: #4fbcff;
 }
 
+.popup__profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
+.popup__link--danger {
+  color: #ff4500;
+}
+
+.popup__link--danger:hover {
+  color: #ff6a33;
+}
+
 .popup__preview-wrap {
   margin-bottom: 12px;
   border-radius: 10px;
@@ -408,6 +423,14 @@ body {
   .popup__readme-link:hover {
     color: #1a1a1b;
     background: #edeff1;
+  }
+
+  .popup__link--danger {
+    color: #d93900;
+  }
+
+  .popup__link--danger:hover {
+    color: #ff4500;
   }
 
   .popup__section {

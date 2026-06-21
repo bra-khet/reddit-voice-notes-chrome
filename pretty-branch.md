@@ -101,7 +101,7 @@ These notes are intentionally recorded here so decisions about defaults vs. opti
 | **pretty-3** | Audio & viz toggles | Enable raw mic + enhanced capture toggles, full-spectrum/music viz mode, help tooltips | Done |
 | **pretty-4** | Accessibility & themes | High-contrast / colorblind-safe presets, `prefers-reduced-motion` waveform, contrast pass | Done |
 | **pretty-5** | UI chrome | Recorder panel + toast theming aligned with active clip style | Done |
-| **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Planned |
+| **pretty-6** | Named profiles | User-saved theme combos (beyond built-in presets) in `rvnUserPrefs` | Done |
 | **pretty-7a** | ImageDB — storage layer | IndexedDB for user background blobs (too large for `chrome.storage.local`); import/size limits; migration hooks in prefs | Planned |
 | **pretty-7b** | ImageDB — canvas integration | Draw user images to live canvas during record (not post-composite); fit/fill + dim overlay; fallback on load failure | Planned |
 | **pretty-7c** | ImageDB — popup UI | Pick / upload / remove personal backgrounds; preview in popup; assign to profile or active theme | Planned |

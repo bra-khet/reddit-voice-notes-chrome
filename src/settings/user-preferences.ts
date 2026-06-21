@@ -1,6 +1,16 @@
 import type { BarAlignment } from '@/src/recorder/waveform';
+import {
+  createClipProfileId,
+  MAX_CLIP_PROFILES,
+  normalizeActiveProfileId,
+  normalizeClipProfiles,
+  type ClipProfile,
+} from '@/src/settings/clip-profiles';
 import { THEME_STORAGE_KEY } from '@/src/theme/storage';
 import { DEFAULT_THEME_ID, normalizeThemeId } from '@/src/theme/presets';
+
+export type { ClipProfile } from '@/src/settings/clip-profiles';
+export { MAX_CLIP_PROFILES } from '@/src/settings/clip-profiles';
 
 /**
  * Versioned user preferences blob — forward-compatible home for popup settings.
@@ -21,6 +31,10 @@ export interface AppearancePreferences {
    * Canvas draws this during capture — not composited after transcode.
    */
   customBackgroundId?: string | null;
+  /** User-saved theme + alignment combos (pretty-6). */
+  savedProfiles?: ClipProfile[];
+  /** Active saved profile id, or null when using manual theme/alignment picks. */
+  activeProfileId?: string | null;
 }
 
 export interface AudioPreferences {
@@ -86,15 +100,27 @@ function normalizeAudioPreferences(audio: Partial<AudioPreferences> | undefined)
   };
 }
 
+function mergeAppearancePreferences(
+  raw: Partial<AppearancePreferences> | undefined,
+): AppearancePreferences {
+  const savedProfiles = normalizeClipProfiles(raw?.savedProfiles);
+  return {
+    ...DEFAULT_USER_PREFERENCES.appearance,
+    ...raw,
+    activeThemeId: normalizeThemeId(raw?.activeThemeId),
+    barAlignment: normalizeBarAlignment(raw?.barAlignment),
+    savedProfiles,
+    activeProfileId: normalizeActiveProfileId(raw?.activeProfileId, savedProfiles),
+  };
+}
+
 function mergePreferences(raw: Partial<UserPreferencesV1> | undefined): UserPreferencesV1 {
   return {
     version: USER_PREFS_VERSION,
-    appearance: {
+    appearance: mergeAppearancePreferences({
       ...DEFAULT_USER_PREFERENCES.appearance,
       ...raw?.appearance,
-      activeThemeId: normalizeThemeId(raw?.appearance?.activeThemeId),
-      barAlignment: normalizeBarAlignment(raw?.appearance?.barAlignment),
-    },
+    }),
     audio: normalizeAudioPreferences({
       ...DEFAULT_USER_PREFERENCES.audio,
       ...raw?.audio,
@@ -169,12 +195,12 @@ export async function saveAppearancePreferences(
   const current = await loadUserPreferences();
   const next: UserPreferencesV1 = {
     ...current,
-    appearance: {
+    appearance: mergeAppearancePreferences({
       ...current.appearance,
       ...patch,
       activeThemeId: normalizeThemeId(patch.activeThemeId ?? current.appearance.activeThemeId),
       barAlignment: normalizeBarAlignment(patch.barAlignment ?? current.appearance.barAlignment),
-    },
+    }),
   };
 
   await browser.storage.local.set({
@@ -183,6 +209,67 @@ export async function saveAppearancePreferences(
   });
 
   return next;
+}
+
+export async function applyClipProfile(profileId: string): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const profile = current.appearance.savedProfiles?.find((entry) => entry.id === profileId);
+  if (!profile) return current;
+
+  return saveAppearancePreferences({
+    activeThemeId: profile.themeId,
+    barAlignment: profile.barAlignment,
+    customBackgroundId: profile.customBackgroundId ?? null,
+    activeProfileId: profile.id,
+  });
+}
+
+export async function saveCurrentAsClipProfile(name: string): Promise<UserPreferencesV1> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('Enter a profile name.');
+  }
+
+  const current = await loadUserPreferences();
+  const profiles = [...(current.appearance.savedProfiles ?? [])];
+
+  if (profiles.length >= MAX_CLIP_PROFILES) {
+    throw new Error(`You can save up to ${MAX_CLIP_PROFILES} profiles.`);
+  }
+
+  const duplicate = profiles.find(
+    (profile) => profile.name.toLowerCase() === trimmed.toLowerCase(),
+  );
+  if (duplicate) {
+    throw new Error('A profile with that name already exists.');
+  }
+
+  const profile: ClipProfile = {
+    id: createClipProfileId(),
+    name: trimmed.slice(0, 40),
+    themeId: current.appearance.activeThemeId,
+    barAlignment: current.appearance.barAlignment ?? 'center',
+    customBackgroundId: current.appearance.customBackgroundId ?? null,
+  };
+
+  return saveAppearancePreferences({
+    savedProfiles: [...profiles, profile],
+    activeProfileId: profile.id,
+  });
+}
+
+export async function deleteClipProfile(profileId: string): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const profiles = (current.appearance.savedProfiles ?? []).filter(
+    (profile) => profile.id !== profileId,
+  );
+  const activeProfileId =
+    current.appearance.activeProfileId === profileId ? null : current.appearance.activeProfileId;
+
+  return saveAppearancePreferences({
+    savedProfiles: profiles,
+    activeProfileId,
+  });
 }
 
 /** True when prefs allow honoring the OS reduced-motion preference. */

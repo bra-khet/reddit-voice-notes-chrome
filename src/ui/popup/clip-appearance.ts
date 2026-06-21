@@ -5,13 +5,18 @@ import {
   renderThemePreview,
   type BarAlignment,
 } from '@/src/theme';
+import { PROFILE_SELECT_CUSTOM } from '@/src/settings/clip-profiles';
 import {
+  applyClipProfile,
+  deleteClipProfile,
   loadUserPreferences,
   onUserPreferencesChanged,
   saveAppearancePreferences,
+  saveCurrentAsClipProfile,
   shouldReduceMotion,
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
+import { populateProfileSelect } from '@/src/ui/clip-style-select';
 
 // UX: top → center → bottom matches vertical bar position on the canvas (intuitive order).
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -35,6 +40,14 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
         ></canvas>
       </div>
       <label class="popup__field">
+        <span class="popup__field-label">Saved profile</span>
+        <select class="popup__select" data-profile-select aria-label="Saved profile"></select>
+      </label>
+      <div class="popup__profile-actions">
+        <button type="button" class="popup__link" data-save-profile>Save as profile</button>
+        <button type="button" class="popup__link popup__link--danger" data-delete-profile hidden>Delete profile</button>
+      </div>
+      <label class="popup__field">
         <span class="popup__field-label">Clip style</span>
         <select class="popup__select" data-theme-select aria-label="Clip style"></select>
       </label>
@@ -42,13 +55,16 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
         <span class="popup__field-label">Bar alignment</span>
         <select class="popup__select" data-alignment-select aria-label="Bar alignment"></select>
       </label>
-      <p class="popup__micro">Preview matches your recorded clip — background and bars draw live to the canvas.</p>
+      <p class="popup__micro">Save a profile to recall a theme + alignment combo. Preview matches your recorded clip.</p>
     </section>
   `;
 
   const previewCanvas = root.querySelector<HTMLCanvasElement>('[data-preview-canvas]')!;
+  const profileSelect = root.querySelector<HTMLSelectElement>('[data-profile-select]')!;
   const themeSelect = root.querySelector<HTMLSelectElement>('[data-theme-select]')!;
   const alignmentSelect = root.querySelector<HTMLSelectElement>('[data-alignment-select]')!;
+  const saveProfileBtn = root.querySelector<HTMLButtonElement>('[data-save-profile]')!;
+  const deleteProfileBtn = root.querySelector<HTMLButtonElement>('[data-delete-profile]')!;
 
   for (const preset of listThemePresets()) {
     const option = document.createElement('option');
@@ -103,23 +119,67 @@ export function mountClipAppearanceSection(root: HTMLElement): () => void {
     syncPreviewLoop();
   }
 
+  function syncProfileActions(prefs: UserPreferencesV1): void {
+    const hasActiveProfile = Boolean(prefs.appearance.activeProfileId);
+    deleteProfileBtn.hidden = !hasActiveProfile;
+    deleteProfileBtn.disabled = !hasActiveProfile;
+  }
+
   function applyPrefs(prefs: UserPreferencesV1): void {
     activePrefs = prefs;
     activeThemeId = prefs.appearance.activeThemeId;
     activeAlignment = prefs.appearance.barAlignment ?? 'center';
+    populateProfileSelect(profileSelect, prefs);
     themeSelect.value = activeThemeId;
     alignmentSelect.value = activeAlignment;
+    syncProfileActions(prefs);
     stopPreviewLoop();
     void refreshPreview();
   }
 
+  profileSelect.addEventListener('change', () => {
+    const value = profileSelect.value;
+    if (value === PROFILE_SELECT_CUSTOM) {
+      void saveAppearancePreferences({ activeProfileId: null }).then(applyPrefs);
+      return;
+    }
+    void applyClipProfile(value).then(applyPrefs);
+  });
+
   themeSelect.addEventListener('change', () => {
-    void saveAppearancePreferences({ activeThemeId: themeSelect.value }).then(applyPrefs);
+    void saveAppearancePreferences({
+      activeThemeId: themeSelect.value,
+      activeProfileId: null,
+    }).then(applyPrefs);
   });
 
   alignmentSelect.addEventListener('change', () => {
     const alignment = alignmentSelect.value as BarAlignment;
-    void saveAppearancePreferences({ barAlignment: alignment }).then(applyPrefs);
+    void saveAppearancePreferences({
+      barAlignment: alignment,
+      activeProfileId: null,
+    }).then(applyPrefs);
+  });
+
+  saveProfileBtn.addEventListener('click', () => {
+    const name = window.prompt('Name this profile (theme + alignment):');
+    if (name === null) return;
+    void saveCurrentAsClipProfile(name)
+      .then(applyPrefs)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Could not save profile.';
+        window.alert(message);
+      });
+  });
+
+  deleteProfileBtn.addEventListener('click', () => {
+    const profileId = activePrefs?.appearance.activeProfileId;
+    if (!profileId) return;
+    const profileName =
+      activePrefs?.appearance.savedProfiles?.find((profile) => profile.id === profileId)?.name ??
+      'this profile';
+    if (!window.confirm(`Delete "${profileName}"?`)) return;
+    void deleteClipProfile(profileId).then(applyPrefs);
   });
 
   void loadUserPreferences().then(applyPrefs);
