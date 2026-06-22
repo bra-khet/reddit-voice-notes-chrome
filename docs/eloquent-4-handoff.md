@@ -8,7 +8,7 @@
 | `v3.2.0` | `707709d` | Verified subtitle **burn-in** (BUG-025 drawtext-font) |
 | `eloquent-4a-subtitle-mgmt` | `6c43775` | Edit-before-bake Studio UI (initial) |
 | `v3.3.0` | `73e78f6` | **Release:** eloquent-4a verified — edit → bake → attach with edited SRT |
-| `v3.3.1` | `4ea3896` | BUG-027 false **Update profile** highlight on Studio open |
+| `v3.3.1` | `ea636d3` | BUG-027 false **Update profile** highlight on Studio open |
 
 **Prior profile baseline:** `eloquent-profile-nominal` (`8834d4e`) — still valid for prefs/profile race rules.
 
