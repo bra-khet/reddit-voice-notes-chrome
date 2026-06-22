@@ -789,6 +789,30 @@ A second race: `mountSubtitleControls` async `loadUserPreferences()` updated the
 
 ---
 
+## BUG-028 (2026-06): glow burn-in regressed — success but no visible subs + halo misalignment
+
+### Symptom
+
+After composable glow/shadow work (`8619bac`), Design Studio bake reports success and recorder accepts the baked MP4, but opened video has **no captions**. Preview shows halo glow with a **mis-scaled duplicate** text offset from the main caption.
+
+### Root cause
+
+1. **Invalid `drawtext` `fontcolor`** — main layer used `0xFFFFFF@1.00`. FFmpeg drawtext accepts `white`/`black` or `0xRRGGBBAA`, not `0xRRGGBB@opacity`. The entire `-vf` chain failed to apply; runner fell through to **`subtitles-srt`** (BUG-025 silent no-op in wasm) which still exited 0 → false success.
+2. **Halo core at 1.14× font size** — oversized duplicate used the same `y` expression; `text_h` scales with `fontsize`, so the glow core did not align with the main caption in preview or bake.
+
+### Fix
+
+- Restore **BUG-025 simple path** when theme glow is off: one `drawtext` per cue, `fontcolor=white|black`, built-in `shadowcolor` on main layer.
+- Glow-on path: main layer uses `white`/`black`; glow/shadow duplicates use `black@opacity`, `white@opacity`, or `0xRRGGBBAA`.
+- Halo uses **same font size** as main text + offset ring copies only (no scaled core).
+- Expanded `burnInLogIndicatesFailure` needles for filter parse errors.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/transcription/subtitle-effects.ts`, `src/transcription/subtitle-preview.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.

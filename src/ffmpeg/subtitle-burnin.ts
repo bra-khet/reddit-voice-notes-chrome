@@ -1,7 +1,9 @@
 import {
   buildGlowLayerSpecs,
+  drawtextMainFontColor,
   ffmpegDrawtextColor,
   resolveSubtitleEffectPalette,
+  subtitleStyleNeedsGlowLayers,
 } from '@/src/transcription/subtitle-effects';
 import { buildSrtFromSegments } from '@/src/transcription/srt-builder';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
@@ -124,6 +126,47 @@ function drawtextYWithOffset(y: string, offsetY: number): string {
   return `${y}${sign}${Math.abs(offsetY)}`;
 }
 
+function segmentTiming(segment: TranscriptSegment): { start: number; end: number; text: string } {
+  const text = segment.text.trim();
+  const start = Math.max(0, segment.start);
+  const end = Math.max(start + 0.35, segment.end);
+  return { start, end, text };
+}
+
+/**
+ * BUG-025 proven path: one drawtext per cue, built-in shadow on the main layer.
+ * Used whenever theme glow layers are off.
+ */
+function buildSimpleDrawtextFilter(
+  segments: TranscriptSegment[],
+  style: SubtitleStyleConfig,
+  fontFile: string,
+): string {
+  const fontSize = style.fontSize ?? 22;
+  const y = drawtextY(style.position, fontSize);
+  const fontColor = drawtextMainFontColor(style);
+  const backdropOn = style.backdrop?.enabled !== false;
+  const opacity = style.backdrop?.opacity ?? 0.72;
+  const box = backdropOn ? `:box=1:boxcolor=black@${opacity.toFixed(2)}:boxborderw=12` : '';
+  const shadow = style.shadow;
+  const shadowOn = shadow?.enabled !== false;
+  const shadowOpts = shadowOn
+    ? `:shadowcolor=black@${(shadow?.opacity ?? 0.85).toFixed(2)}:shadowx=${shadow?.offsetX ?? 2}:shadowy=${shadow?.offsetY ?? 2}`
+    : '';
+
+  const parts = segments.map((segment) => {
+    const { start, end, text } = segmentTiming(segment);
+    if (!text) return '';
+    return (
+      `drawtext=fontfile=${fontFile}:fontcolor=${fontColor}:fontsize=${fontSize}` +
+      `:x=(w-text_w)/2:y=${y}${box}${shadowOpts}` +
+      `:text='${escapeDrawtext(text)}':enable='between(t,${start},${end})'`
+    );
+  });
+
+  return parts.filter(Boolean).join(',');
+}
+
 interface DrawtextLayer {
   text: string;
   start: number;
@@ -136,59 +179,51 @@ interface DrawtextLayer {
 }
 
 function buildDrawtextLayer(layer: DrawtextLayer, fontFile: string): string {
-  const start = Math.max(0, layer.start);
-  const end = Math.max(start + 0.35, layer.end);
   return (
     `drawtext=fontfile=${fontFile}:fontcolor=${layer.fontColor}:fontsize=${layer.fontSize}` +
     `:x=${layer.x}:y=${layer.y}${layer.box ?? ''}` +
-    `:text='${escapeDrawtext(layer.text)}':enable='between(t,${start},${end})'`
+    `:text='${escapeDrawtext(layer.text)}':enable='between(t,${layer.start},${layer.end})'`
   );
 }
 
-function buildSegmentLayers(
+function buildSegmentGlowLayers(
   segment: TranscriptSegment,
   style: SubtitleStyleConfig,
   fontFile: string,
   themeBarColor: string,
 ): string[] {
-  const text = segment.text.trim();
+  const { start, end, text } = segmentTiming(segment);
   if (!text) return [];
 
   const fontSize = style.fontSize ?? 22;
   const yBase = drawtextY(style.position, fontSize);
-  const start = Math.max(0, segment.start);
-  const end = Math.max(start + 0.35, segment.end);
   const palette = resolveSubtitleEffectPalette(style, themeBarColor);
+  const glow = style.glow!;
   const layers: DrawtextLayer[] = [];
 
-  const glow = style.glow ?? { enabled: false };
-  if (glow.enabled === true) {
-    for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
-      layers.push({
-        text,
-        start,
-        end,
-        fontSize: spec.fontSize,
-        fontColor: ffmpegDrawtextColor(palette.glowHex, spec.opacity),
-        x: drawtextX(spec.offsetX),
-        y: drawtextYWithOffset(yBase, spec.offsetY),
-      });
-    }
+  for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
+    layers.push({
+      text,
+      start,
+      end,
+      fontSize: spec.fontSize,
+      fontColor: ffmpegDrawtextColor(palette.glowHex, spec.opacity),
+      x: drawtextX(spec.offsetX),
+      y: drawtextYWithOffset(yBase, spec.offsetY),
+    });
   }
 
   const shadow = style.shadow;
   if (shadow?.enabled !== false) {
     const shadowOpacity = shadow?.opacity ?? 0.85;
-    const shadowX = shadow?.offsetX ?? 2;
-    const shadowY = shadow?.offsetY ?? 2;
     layers.push({
       text,
       start,
       end,
       fontSize,
       fontColor: ffmpegDrawtextColor(palette.shadowHex, shadowOpacity),
-      x: drawtextX(shadowX),
-      y: drawtextYWithOffset(yBase, shadowY),
+      x: drawtextX(shadow?.offsetX ?? 2),
+      y: drawtextYWithOffset(yBase, shadow?.offsetY ?? 2),
     });
   }
 
@@ -203,7 +238,7 @@ function buildSegmentLayers(
     start,
     end,
     fontSize,
-    fontColor: ffmpegDrawtextColor(palette.textHex, 1),
+    fontColor: drawtextMainFontColor(style),
     x: drawtextX(0),
     y: yBase,
     box,
@@ -218,8 +253,12 @@ function buildDrawtextFilter(
   fontFile: string,
   themeBarColor: string,
 ): string {
+  if (!subtitleStyleNeedsGlowLayers(style)) {
+    return buildSimpleDrawtextFilter(segments, style, fontFile);
+  }
+
   const parts = segments.flatMap((segment) =>
-    buildSegmentLayers(segment, style, fontFile, themeBarColor),
+    buildSegmentGlowLayers(segment, style, fontFile, themeBarColor),
   );
   return parts.join(',');
 }
@@ -238,6 +277,9 @@ export function burnInLogIndicatesFailure(lines: string[]): string | null {
     'invalid argument',
     'fontconfig error',
     'failed to load libass',
+    'error parsing filter',
+    'unable to parse option',
+    'failed to set value',
   ];
   for (const needle of needles) {
     if (text.includes(needle)) return needle;

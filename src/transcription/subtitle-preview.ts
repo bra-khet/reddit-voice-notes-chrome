@@ -115,12 +115,12 @@ export function drawSubtitlePreview(
   const glow = style.glow;
 
   if (glow?.enabled === true) {
+    ctx.fillStyle = hexToRgba(palette.glowHex, 1);
     for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
-      ctx.font = `600 ${spec.fontSize}px ${fontFamily}`;
-      ctx.fillStyle = hexToRgba(palette.glowHex, spec.opacity);
+      ctx.globalAlpha = spec.opacity;
       drawTextLines(ctx, lines, textX, textY, lineHeight, spec.offsetX, spec.offsetY);
     }
-    ctx.font = `600 ${fontSize}px ${fontFamily}`;
+    ctx.globalAlpha = 1;
   }
 
   const shadow = style.shadow;
