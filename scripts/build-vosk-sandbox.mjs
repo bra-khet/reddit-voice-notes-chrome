@@ -13,21 +13,30 @@ const IDBFS_SYNC_REJECT =
   'if(err){reject("Failed to sync file system: "+err);}';
 const IDBFS_SYNC_SKIP =
   'if(err){log("File system sync skipped: "+err,1);resolve();}';
+const MODEL_URL_RESOLVE_OLD =
+  'const fullModelUrl = new URL(modelUrl, location.href.replace(/^blob:/, ""));';
+// BUG-014: blob:null worker location → invalid base "null/<uuid>" after stripping blob: prefix.
+const MODEL_URL_RESOLVE_NEW =
+  'const fullModelUrl = (modelUrl.includes("://") ? new URL(modelUrl) : new URL(modelUrl, "https://invalid.invalid/"));';
 
-/** BUG-013: null-origin sandbox cannot spawn chrome-extension:// workers — keep blob worker + skip IDBFS fatal sync. */
+/** Patch embedded vosk-browser worker for manifest sandbox / blob:null constraints. */
 function patchVoskEmbeddedWorker(contents) {
   const match = contents.match(/createBase64WorkerFactory\('([^']+)'/);
   if (!match) {
     throw new Error('Could not find vosk-browser embedded worker payload');
   }
 
-  const decoded = Buffer.from(match[1], 'base64').toString('utf8');
+  let decoded = Buffer.from(match[1], 'base64').toString('utf8');
   if (!decoded.includes(IDBFS_SYNC_REJECT)) {
     throw new Error('vosk-browser IDBFS syncFilesystem patch target missing — update patchVoskEmbeddedWorker()');
   }
+  if (!decoded.includes(MODEL_URL_RESOLVE_OLD)) {
+    throw new Error('vosk-browser model URL resolve patch target missing — update patchVoskEmbeddedWorker()');
+  }
 
-  const patched = decoded.replace(IDBFS_SYNC_REJECT, IDBFS_SYNC_SKIP);
-  const reb64 = Buffer.from(patched, 'utf8').toString('base64');
+  decoded = decoded.replace(IDBFS_SYNC_REJECT, IDBFS_SYNC_SKIP);
+  decoded = decoded.replace(MODEL_URL_RESOLVE_OLD, MODEL_URL_RESOLVE_NEW);
+  const reb64 = Buffer.from(decoded, 'utf8').toString('base64');
   return contents.replace(match[1], reb64);
 }
 

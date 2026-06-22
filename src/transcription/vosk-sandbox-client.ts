@@ -1,4 +1,4 @@
-import { VOSK_SANDBOX_PATH } from './constants';
+import { normalizeAbsoluteExtensionUrl, VOSK_SANDBOX_PATH } from './constants';
 import type { TranscriptResult } from './types';
 import {
   isVoskSandboxClientMessage,
@@ -79,6 +79,7 @@ export async function transcribePcmInSandbox(
 
   const id = crypto.randomUUID();
   const outbound = new Float32Array(samples);
+  const absoluteModelUrl = normalizeAbsoluteExtensionUrl(modelUrl);
 
   return new Promise<TranscriptResult>((resolve, reject) => {
     const onMessage = (event: MessageEvent): void => {
@@ -109,7 +110,7 @@ export async function transcribePcmInSandbox(
       {
         type: VOSK_SANDBOX_TRANSCRIBE,
         id,
-        modelUrl,
+        modelUrl: absoluteModelUrl,
         samples: outbound,
         sampleRate,
         language,

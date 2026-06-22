@@ -440,6 +440,37 @@ BUG-011 traded BUG-010 blob CSP for extension-origin IDBFS, but packaged workers
 
 ---
 
+## BUG-014 — Vosk worker invalid URL base in blob:null context (2026-06)
+
+### Symptoms
+
+- After BUG-013 blob worker restore: `TypeError: Failed to construct 'URL': Invalid base URL` in `blob:null/<uuid>` worker (~line 240).
+- Sandbox posts error to harness; fallback empty transcript.
+
+### Root cause (confirmed)
+
+vosk-browser worker resolves model download URL as:
+
+```js
+new URL(modelUrl, location.href.replace(/^blob:/, ""))
+```
+
+In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yields `null/<uuid>` — **not a valid base URL**. Chrome throws even when `modelUrl` is absolute `chrome-extension://…`.
+
+### Fix (2026-06, `eloquent`)
+
+- `patchVoskEmbeddedWorker()` — if `modelUrl` contains `://`, use `new URL(modelUrl)` only (no blob base).
+- `normalizeAbsoluteExtensionUrl()` in `constants.ts` — parent validates `chrome-extension://` before `postMessage`.
+- `vosk/*` remains in `web_accessible_resources` for worker fetch.
+
+### Related files
+
+- `scripts/build-vosk-sandbox.mjs`
+- `src/transcription/constants.ts`, `vosk-sandbox-client.ts`
+- `wxt.config.ts` — `web_accessible_resources`
+
+---
+
 ## BUG-012 — vosk-browser UMD import undefined under esbuild (2026-06)
 
 ### Symptoms

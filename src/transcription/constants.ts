@@ -14,5 +14,28 @@ export const TRANSCRIBE_CHUNK_SAMPLES = 4096;
 export const TRANSCRIBE_TIMEOUT_MS = 120_000;
 
 export function resolveVoskModelUrl(): string {
-  return browser.runtime.getURL(VOSK_MODEL_PATH as never);
+  return normalizeAbsoluteExtensionUrl(browser.runtime.getURL(VOSK_MODEL_PATH as never));
+}
+
+/**
+ * Sandbox / blob workers cannot resolve relative URLs — parent must pass absolute chrome-extension:// URLs.
+ */
+export function normalizeAbsoluteExtensionUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) {
+    throw new Error('Vosk model URL is empty');
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error(`Vosk model URL must be absolute — got "${trimmed}"`);
+  }
+
+  if (parsed.protocol !== 'chrome-extension:') {
+    throw new Error(`Vosk model URL must be chrome-extension:// — got "${parsed.href}"`);
+  }
+
+  return parsed.href;
 }

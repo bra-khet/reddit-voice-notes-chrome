@@ -23,6 +23,24 @@ record → canvas WebM → FFmpeg transcode → attach/download MP4
 
 **Not the same as personal-background relay:** Image relay solved Reddit **page** CSP and MV3 **message size** limits via chunked base64 + `createImageBitmap`. Transcription solves **extension** CSP eval limits via sandbox isolation + `postMessage`.
 
+## Per-step security & compatibility (sandbox path)
+
+Each hop has **different** rules — fixes for one layer do not transfer.
+
+| Step | Where | Origin / CSP | Requirement | Bug refs |
+|------|-------|--------------|-------------|----------|
+| WebM decode | Extension page | `chrome-extension://` | Web Audio only; no eval | — |
+| PCM relay | `postMessage` + transferable | cross null ↔ extension | `targetOrigin: '*'`; validate `event.source` | — |
+| Sandbox document | `vosk-sandbox.html` | null + sandbox CSP | Static bundle; no Vite HMR localhost | eloquent-0 |
+| Main-thread Vosk | sandbox JS | `unsafe-eval` OK | esbuild UMD→ESM unwrap | BUG-012 |
+| Worker spawn | blob worker | `worker-src blob:` | Cannot use `chrome-extension://` worker URL from null parent | BUG-010, BUG-013 |
+| Worker IDBFS | blob:null worker | no IndexedDB | Non-fatal sync; MEMFS per session | BUG-011, BUG-013 |
+| Model URL | worker fetch | blob:null base invalid | Parent passes **absolute** `chrome-extension://…/vosk/model.tar.gz` | BUG-014 |
+| Model bytes | worker XHR/fetch | WAR | `vosk/*` in `web_accessible_resources` | wxt.config |
+| Inference | worker WASM | sandbox CSP | Serialized `enqueueTranscribeJob` | eloquent-1 |
+
+**Viability (eloquent-0):** Yes, with the patched sandbox + blob-worker path above. It is **not** drop-in vosk-browser; each null-origin sharp edge needs an explicit build-time or protocol patch. Long-term, extension-origin offscreen + different Vosk packaging may be cleaner if IDBFS caching or worker ergonomics become requirements.
+
 ## Layer model (compositing — unchanged from v4 design)
 
 Bottom → top in final MP4:

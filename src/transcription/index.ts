@@ -21,7 +21,13 @@ export {
   type TranscriptSource,
 } from './types';
 
-export { resolveVoskModelUrl, VOSK_MODEL_PATH, VOSK_SANDBOX_PATH, VOSK_TARGET_SAMPLE_RATE } from './constants';
+export {
+  normalizeAbsoluteExtensionUrl,
+  resolveVoskModelUrl,
+  VOSK_MODEL_PATH,
+  VOSK_SANDBOX_PATH,
+  VOSK_TARGET_SAMPLE_RATE,
+} from './constants';
 export { buildSrtFromSegments } from './srt-builder';
 export { enqueueTranscribeJob } from './transcribe-queue';
 export { resetVoskForHarness, transcribeWebmBlob } from './transcribe-audio';
