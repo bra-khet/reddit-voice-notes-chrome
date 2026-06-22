@@ -11,7 +11,7 @@ export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
 export const MSG_SAVE_LAST_RECORDING = 'rvn/save-last-recording' as const;
 
-/** eloquent-0 — frozen message contracts (wired in eloquent-1). */
+/** eloquent-1 — parallel transcription fork message contracts. */
 export const MSG_TRANSCRIBE_START = 'rvn/transcribe-start' as const;
 export const MSG_TRANSCRIBE_ACK = 'rvn/transcribe-ack' as const;
 export const MSG_TRANSCRIBE_OFFSCREEN = 'rvn/transcribe-offscreen' as const;

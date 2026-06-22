@@ -9,7 +9,7 @@ import {
   markTranscodeCancelled,
   setRunningTranscodeJob,
 } from '@/src/ffmpeg/transcode-cancel';
-import { enqueueTranscodeJob } from '@/src/ffmpeg/transcode-queue';
+import { enqueueTranscodeJob, whenTranscodeQueueIdle } from '@/src/ffmpeg/transcode-queue';
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import {
   assertMp4Bytes,
@@ -23,13 +23,31 @@ import {
   MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_OFFSCREEN,
   MSG_TRANSCODE_PROGRESS,
+  MSG_TRANSCRIBE_CANCEL,
+  MSG_TRANSCRIBE_COMPLETE,
+  MSG_TRANSCRIBE_OFFSCREEN,
+  MSG_TRANSCRIBE_PROGRESS,
   type OffscreenPingRequest,
   type OffscreenPongResponse,
   type TranscodeCancelRequest,
   type TranscodeCompleteMessage,
   type TranscodeOffscreenRequest,
   type TranscodeProgressMessage,
+  type TranscribeCancelRequest,
+  type TranscribeCompleteMessage,
+  type TranscribeOffscreenRequest,
+  type TranscribeProgressMessage,
 } from '@/src/messaging/types';
+import { transcribeWebmBlob } from '@/src/transcription/transcribe-audio';
+import {
+  assertTranscribeNotCancelled,
+  clearTranscribeCancelled,
+  isTranscribeCancelled,
+  markTranscribeCancelled,
+  setRunningTranscribeJob,
+} from '@/src/transcription/transcribe-cancel';
+import { enqueueTranscribeJob } from '@/src/transcription/transcribe-queue';
+import { resolveVoskModelUrl } from '@/src/transcription/constants';
 
 const HEARTBEAT_INTERVAL_MS = 8_000;
 const JOB_RETRY_DELAY_MS = 400;
@@ -40,6 +58,32 @@ function broadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage)
   void browser.runtime.sendMessage(message).catch((error) => {
     console.warn('[Reddit Voice Notes] Progress broadcast failed:', error);
   });
+}
+
+function broadcastTranscribe(message: TranscribeProgressMessage | TranscribeCompleteMessage): void {
+  void browser.runtime.sendMessage(message).catch((error) => {
+    console.warn('[Reddit Voice Notes] Transcribe broadcast failed:', error);
+  });
+}
+
+function broadcastTranscribeProgress(jobId: string, progress: number, stage?: string): void {
+  const progressMsg: TranscribeProgressMessage = {
+    type: MSG_TRANSCRIBE_PROGRESS,
+    jobId,
+    progress: Math.min(100, Math.max(0, Math.round(progress * 100))),
+    stage,
+  };
+  broadcastTranscribe(progressMsg);
+}
+
+function broadcastTranscribeCancelled(jobId: string): void {
+  const completeMsg: TranscribeCompleteMessage = {
+    type: MSG_TRANSCRIBE_COMPLETE,
+    jobId,
+    ok: false,
+    error: 'Transcription cancelled.',
+  };
+  broadcastTranscribe(completeMsg);
 }
 
 function broadcastProgress(jobId: string, progress: number, stage?: string): void {
@@ -133,6 +177,96 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (cancel.type === MSG_TRANSCODE_CANCEL && cancel.target === 'offscreen') {
     markTranscodeCancelled(cancel.jobId);
     sendResponse({ ok: true, jobId: cancel.jobId });
+    return;
+  }
+
+  const transcribeCancel = message as TranscribeCancelRequest;
+  if (transcribeCancel.type === MSG_TRANSCRIBE_CANCEL && transcribeCancel.target === 'offscreen') {
+    markTranscribeCancelled(transcribeCancel.jobId);
+    sendResponse({ ok: true, jobId: transcribeCancel.jobId });
+    return;
+  }
+
+  const transcribeRequest = message as TranscribeOffscreenRequest;
+  if (transcribeRequest.type === MSG_TRANSCRIBE_OFFSCREEN && transcribeRequest.target === 'offscreen') {
+    sendResponse({ ok: true, jobId: transcribeRequest.jobId });
+    broadcastTranscribeProgress(transcribeRequest.jobId, 0.01, 'queued');
+
+    void enqueueTranscribeJob(async () => {
+      const startedAt = Date.now();
+      setRunningTranscribeJob(transcribeRequest.jobId);
+
+      try {
+        if (isTranscribeCancelled(transcribeRequest.jobId)) {
+          broadcastTranscribeCancelled(transcribeRequest.jobId);
+          return;
+        }
+
+        // CHANGED: defer Vosk until FFmpeg queue is idle.
+        // WHY: eloquent-1 parallel dispatch must not stack ~32 MB FFmpeg heap + ~40 MB Vosk model.
+        broadcastTranscribeProgress(transcribeRequest.jobId, 0.02, 'waiting-for-transcode');
+        await whenTranscodeQueueIdle();
+        assertTranscribeNotCancelled(transcribeRequest.jobId);
+
+        if (!transcribeRequest.webmBase64 || transcribeRequest.webmByteLength <= 0) {
+          throw new Error(
+            `WebM payload missing in offscreen transcribe worker (bytes=${transcribeRequest.webmByteLength}).`,
+          );
+        }
+
+        const webmBytes = unpackBinary(transcribeRequest.webmBase64, transcribeRequest.webmByteLength).slice();
+        assertWebmBytes(webmBytes, 'Offscreen transcribe unpack');
+        const webmBlob = new Blob([webmBytes], { type: 'video/webm' });
+
+        console.log('[Reddit Voice Notes] Transcribe job started', transcribeRequest.jobId, {
+          webmBytes: webmBytes.byteLength,
+          base64Chars: transcribeRequest.webmBase64.length,
+        });
+
+        const outcome = await transcribeWebmBlob(webmBlob, {
+          modelUrl: resolveVoskModelUrl(),
+          language: transcribeRequest.language,
+          onProgress: (ratio, stage) => {
+            assertTranscribeNotCancelled(transcribeRequest.jobId);
+            broadcastTranscribeProgress(transcribeRequest.jobId, ratio, stage);
+          },
+        });
+
+        assertTranscribeNotCancelled(transcribeRequest.jobId);
+        broadcastTranscribeProgress(transcribeRequest.jobId, 1, 'done');
+
+        const completeMsg: TranscribeCompleteMessage = {
+          type: MSG_TRANSCRIBE_COMPLETE,
+          jobId: transcribeRequest.jobId,
+          ok: outcome.applied,
+          transcriptJson: JSON.stringify(outcome.result),
+          error: outcome.fallback ? outcome.stage : undefined,
+        };
+        broadcastTranscribe(completeMsg);
+        console.log('[Reddit Voice Notes] Transcribe job finished', transcribeRequest.jobId, {
+          segments: outcome.result.segments.length,
+          chars: outcome.result.text.length,
+          elapsedMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        if (isTranscribeCancelled(transcribeRequest.jobId)) {
+          broadcastTranscribeCancelled(transcribeRequest.jobId);
+          return;
+        }
+        console.error('[Reddit Voice Notes] Transcribe failed:', transcribeRequest.jobId, error);
+        const completeMsg: TranscribeCompleteMessage = {
+          type: MSG_TRANSCRIBE_COMPLETE,
+          jobId: transcribeRequest.jobId,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+        broadcastTranscribe(completeMsg);
+      } finally {
+        setRunningTranscribeJob(null);
+        clearTranscribeCancelled(transcribeRequest.jobId);
+      }
+    });
+
     return;
   }
 
@@ -236,9 +370,10 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   voiceConfigFromPreset,
 };
 
-/** eloquent-0 — transcription harness hooks (eloquent-1 wires MSG_TRANSCRIBE_* here). */
+/** eloquent-1 — offscreen transcription via MSG_TRANSCRIBE_* + vosk-sandbox iframe. */
 (globalThis as Record<string, unknown>).__rvnTranscribeHarness = {
-  note: 'Vosk runs in vosk-sandbox.html iframe — see docs/transcription-architecture.md',
+  transcribeWebmBlob,
+  resolveVoskModelUrl,
 };
 
 console.log('[Reddit Voice Notes] Offscreen FFmpeg worker ready');

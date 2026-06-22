@@ -305,7 +305,8 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 | Phase | Status |
 |-------|--------|
 | **eloquent-0** | **Done** — harness QA verified (JSON + SRT); tag **`eloquent-0-vosk-spike`** |
-| eloquent-1 … eloquent-5 | Pending |
+| **eloquent-1** | **Done** — parallel `MSG_TRANSCRIBE_*` wire from `stopRecording()`; session transcript store |
+| eloquent-2 … eloquent-5 | Pending |
 
 ### eloquent-0 — what shipped
 
@@ -366,6 +367,16 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 `6f4b390` plan · `1898277` eloquent-0 spike · `915ce96` sandbox attempt · `f58996a` static sandbox · `f96248b` BUG-010 · `2e786ce` BUG-011 · `1413376` BUG-012 · `179f345` BUG-013 · `bf34b59` BUG-014 · `84862f9` BUG-015 PCM + inference pacing · tag **`eloquent-0-vosk-spike`**
 
-### Next: eloquent-1
+### eloquent-1 — parallel wire (2026-06)
 
-Wire parallel `transcribeWebmBlob(webmClone)` from `stopRecording()` after validated WebM retained; background/offscreen `MSG_TRANSCRIBE_*` relay; no Studio UI yet.
+- `voice-recorder.ts` — non-blocking `webmClone.slice()` + `forkTranscribeWebm()` alongside `transcodeToMp4()`
+- `transcribe-client.ts` — content-script `MSG_TRANSCRIBE_*` client (mirrors transcode relay)
+- `background.ts` / `offscreen/main.ts` — transcribe relay + `enqueueTranscribeJob`; Vosk deferred via `whenTranscodeQueueIdle()` (memory gate)
+- `session-transcript.ts` — in-memory + `sessionStorage` for latest `TranscriptResult`
+- Cancel: `transcribeGeneration` + `AbortController` on session bump (BUG-005 pattern)
+
+**QA:** Record on Reddit → console shows `Sending WebM for transcribe` + `Transcribe complete` with segment count; MP4 export unchanged on transcribe failure.
+
+### Next: eloquent-2
+
+Design Studio Subtitles panel — editable transcript + style preview on master canvas.

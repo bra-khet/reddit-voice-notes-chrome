@@ -27,6 +27,12 @@ import {
   MSG_TRANSCODE_OFFSCREEN,
   MSG_TRANSCODE_PROGRESS,
   MSG_TRANSCODE_START,
+  MSG_TRANSCRIBE_ACK,
+  MSG_TRANSCRIBE_CANCEL,
+  MSG_TRANSCRIBE_COMPLETE,
+  MSG_TRANSCRIBE_OFFSCREEN,
+  MSG_TRANSCRIBE_PROGRESS,
+  MSG_TRANSCRIBE_START,
   type OffscreenPingRequest,
   type OffscreenPongResponse,
   type SaveLastRecordingRequest,
@@ -37,6 +43,12 @@ import {
   type TranscodeOffscreenRequest,
   type TranscodeProgressMessage,
   type TranscodeStartRequest,
+  type TranscribeAckResponse,
+  type TranscribeCancelRequest,
+  type TranscribeCompleteMessage,
+  type TranscribeOffscreenRequest,
+  type TranscribeProgressMessage,
+  type TranscribeStartRequest,
 } from '@/src/messaging/types';
 
 const OFFSCREEN_PATH = 'offscreen.html';
@@ -66,17 +78,19 @@ let creatingOffscreen: Promise<void> | null = null;
 // BUG FIX: Transcode progress stuck at 0%
 // Fix: Offscreen runtime.sendMessage does not reach content scripts; relay via tabs.sendMessage.
 const transcodeTabByJobId = new Map<string, number>();
-const activeJobByTabId = new Map<number, string>();
+const activeTranscodeJobByTabId = new Map<number, string>();
+const transcribeTabByJobId = new Map<string, number>();
+const activeTranscribeJobByTabId = new Map<number, string>();
 
-let activeTranscodeJobs = 0;
+let activeRelayJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 
-function startTranscodeKeepAlive(): void {
-  activeTranscodeJobs += 1;
+function startRelayKeepAlive(): void {
+  activeRelayJobs += 1;
   if (keepAliveInterval) return;
 
   // BUG FIX: FFmpeg stuck at 0% in production zip/build loads
-  // Fix: MV3 service worker sleeps after relay; poll runtime while transcodes run (WXT dev does this automatically).
+  // Fix: MV3 service worker sleeps after relay; poll runtime while offscreen jobs run (WXT dev does this automatically).
   keepAliveInterval = setInterval(() => {
     void browser.runtime.getPlatformInfo().catch(() => {
       // Service worker may be shutting down.
@@ -84,9 +98,9 @@ function startTranscodeKeepAlive(): void {
   }, KEEP_ALIVE_INTERVAL_MS);
 }
 
-function stopTranscodeKeepAlive(): void {
-  activeTranscodeJobs = Math.max(0, activeTranscodeJobs - 1);
-  if (activeTranscodeJobs === 0 && keepAliveInterval) {
+function stopRelayKeepAlive(): void {
+  activeRelayJobs = Math.max(0, activeRelayJobs - 1);
+  if (activeRelayJobs === 0 && keepAliveInterval) {
     clearInterval(keepAliveInterval);
     keepAliveInterval = null;
   }
@@ -105,11 +119,32 @@ function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCo
 
   if (message.type === MSG_TRANSCODE_COMPLETE) {
     const tabId = transcodeTabByJobId.get(message.jobId);
-    if (tabId !== undefined && activeJobByTabId.get(tabId) === message.jobId) {
-      activeJobByTabId.delete(tabId);
+    if (tabId !== undefined && activeTranscodeJobByTabId.get(tabId) === message.jobId) {
+      activeTranscodeJobByTabId.delete(tabId);
     }
     transcodeTabByJobId.delete(message.jobId);
-    stopTranscodeKeepAlive();
+    stopRelayKeepAlive();
+  }
+}
+
+function relayTranscribeBroadcast(message: TranscribeProgressMessage | TranscribeCompleteMessage): void {
+  const tabId = transcribeTabByJobId.get(message.jobId);
+  if (tabId === undefined) {
+    console.warn('[Reddit Voice Notes] No tab registered for transcribe relay', message.jobId);
+    return;
+  }
+
+  void browser.tabs.sendMessage(tabId, message).catch((error) => {
+    console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
+  });
+
+  if (message.type === MSG_TRANSCRIBE_COMPLETE) {
+    const tabId = transcribeTabByJobId.get(message.jobId);
+    if (tabId !== undefined && activeTranscribeJobByTabId.get(tabId) === message.jobId) {
+      activeTranscribeJobByTabId.delete(tabId);
+    }
+    transcribeTabByJobId.delete(message.jobId);
+    stopRelayKeepAlive();
   }
 }
 
@@ -127,9 +162,23 @@ async function cancelOffscreenJob(jobId: string): Promise<void> {
   }
 }
 
+async function cancelOffscreenTranscribeJob(jobId: string): Promise<void> {
+  const cancel: TranscribeCancelRequest = {
+    type: MSG_TRANSCRIBE_CANCEL,
+    target: 'offscreen',
+    jobId,
+  };
+  try {
+    await ensureOffscreenDocument();
+    await browser.runtime.sendMessage(cancel);
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Offscreen transcribe cancel failed:', jobId, error);
+  }
+}
+
 async function registerTranscodeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
   if (senderTabId !== undefined) {
-    const previousJobId = activeJobByTabId.get(senderTabId);
+    const previousJobId = activeTranscodeJobByTabId.get(senderTabId);
     if (previousJobId && previousJobId !== jobId) {
       console.warn('[Reddit Voice Notes] Superseding in-flight transcode', {
         tabId: senderTabId,
@@ -139,7 +188,7 @@ async function registerTranscodeTab(jobId: string, senderTabId: number | undefin
       transcodeTabByJobId.delete(previousJobId);
       void cancelOffscreenJob(previousJobId);
     }
-    activeJobByTabId.set(senderTabId, jobId);
+    activeTranscodeJobByTabId.set(senderTabId, jobId);
     transcodeTabByJobId.set(jobId, senderTabId);
     return;
   }
@@ -163,6 +212,33 @@ function isOffscreenTarget(message: unknown): boolean {
   );
 }
 
+async function registerTranscribeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
+  if (senderTabId !== undefined) {
+    const previousJobId = activeTranscribeJobByTabId.get(senderTabId);
+    if (previousJobId && previousJobId !== jobId) {
+      console.warn('[Reddit Voice Notes] Superseding in-flight transcribe', {
+        tabId: senderTabId,
+        previousJobId,
+        jobId,
+      });
+      transcribeTabByJobId.delete(previousJobId);
+      void cancelOffscreenTranscribeJob(previousJobId);
+    }
+    activeTranscribeJobByTabId.set(senderTabId, jobId);
+    transcribeTabByJobId.set(jobId, senderTabId);
+    return;
+  }
+
+  const tabs = await browser.tabs.query({ url: [...REDDIT_TAB_URLS] });
+  const target = tabs.find((tab) => tab.active) ?? tabs[0];
+  if (target?.id !== undefined) {
+    transcribeTabByJobId.set(jobId, target.id);
+    return;
+  }
+
+  console.warn('[Reddit Voice Notes] Could not resolve Reddit tab for transcribe relay', jobId);
+}
+
 function validateTranscodeStartRequest(request: TranscodeStartRequest): void {
   if (!request.jobId) {
     throw new Error('Transcode request missing jobId.');
@@ -175,6 +251,22 @@ function validateTranscodeStartRequest(request: TranscodeStartRequest): void {
   if (Math.abs(request.webmBase64.length - expectedChars) > 4) {
     throw new Error(
       `WebM base64 length mismatch at relay (bytes=${request.webmByteLength}, chars=${request.webmBase64.length}, expected≈${expectedChars}).`,
+    );
+  }
+}
+
+function validateTranscribeStartRequest(request: TranscribeStartRequest): void {
+  if (!request.jobId) {
+    throw new Error('Transcribe request missing jobId.');
+  }
+  if (!request.webmBase64 || request.webmByteLength <= 0) {
+    throw new Error(`WebM payload missing at transcribe relay (bytes=${request.webmByteLength}).`);
+  }
+
+  const expectedChars = expectedBase64CharLength(request.webmByteLength);
+  if (Math.abs(request.webmBase64.length - expectedChars) > 4) {
+    throw new Error(
+      `WebM base64 length mismatch at transcribe relay (bytes=${request.webmByteLength}, chars=${request.webmBase64.length}, expected≈${expectedChars}).`,
     );
   }
 }
@@ -230,7 +322,9 @@ async function waitForOffscreenReady(): Promise<void> {
   throw new Error('FFmpeg offscreen worker failed to start.');
 }
 
-async function dispatchToOffscreen(request: TranscodeOffscreenRequest): Promise<void> {
+async function dispatchToOffscreen(
+  request: TranscodeOffscreenRequest | TranscribeOffscreenRequest,
+): Promise<void> {
   await ensureOffscreenDocument();
   await waitForOffscreenReady();
 
@@ -248,6 +342,16 @@ function relayTranscodeFailure(jobId: string, error: unknown): void {
     error: error instanceof Error ? error.message : String(error),
   };
   relayTranscodeBroadcast(completeMsg);
+}
+
+function relayTranscribeFailure(jobId: string, error: unknown): void {
+  const completeMsg: TranscribeCompleteMessage = {
+    type: MSG_TRANSCRIBE_COMPLETE,
+    jobId,
+    ok: false,
+    error: error instanceof Error ? error.message : String(error),
+  };
+  relayTranscribeBroadcast(completeMsg);
 }
 
 async function loadBackgroundBytes(
@@ -443,15 +547,83 @@ export default defineBackground(() => {
         if (jobId) void cancelOffscreenJob(jobId);
         return;
       }
+      if (type === MSG_TRANSCRIBE_CANCEL) {
+        const jobId = (message as TranscribeCancelRequest).jobId;
+        if (jobId) void cancelOffscreenTranscribeJob(jobId);
+        return;
+      }
       if (type === MSG_TRANSCODE_PROGRESS || type === MSG_TRANSCODE_COMPLETE) {
         relayTranscodeBroadcast(
           message as TranscodeProgressMessage | TranscodeCompleteMessage,
         );
         return;
       }
+      if (type === MSG_TRANSCRIBE_PROGRESS || type === MSG_TRANSCRIBE_COMPLETE) {
+        relayTranscribeBroadcast(
+          message as TranscribeProgressMessage | TranscribeCompleteMessage,
+        );
+        return;
+      }
     }
 
     if (isOffscreenTarget(message)) return;
+
+    const transcribeRequest = message as TranscribeStartRequest;
+    if (transcribeRequest?.type === MSG_TRANSCRIBE_START) {
+      void (async () => {
+        let ackSent = false;
+
+        try {
+          validateTranscribeStartRequest(transcribeRequest);
+          await registerTranscribeTab(transcribeRequest.jobId, sender.tab?.id);
+          startRelayKeepAlive();
+
+          const ack: TranscribeAckResponse = {
+            type: MSG_TRANSCRIBE_ACK,
+            jobId: transcribeRequest.jobId,
+            ok: true,
+          };
+          sendResponse(ack);
+          ackSent = true;
+
+          console.log('[Reddit Voice Notes] Relaying WebM to offscreen transcribe', {
+            jobId: transcribeRequest.jobId,
+            bytes: transcribeRequest.webmByteLength,
+            base64Chars: transcribeRequest.webmBase64.length,
+            tabId: transcribeTabByJobId.get(transcribeRequest.jobId),
+          });
+
+          const offscreenRequest: TranscribeOffscreenRequest = {
+            type: MSG_TRANSCRIBE_OFFSCREEN,
+            target: 'offscreen',
+            jobId: transcribeRequest.jobId,
+            webmBase64: transcribeRequest.webmBase64,
+            webmByteLength: transcribeRequest.webmByteLength,
+            language: transcribeRequest.language,
+          };
+
+          await dispatchToOffscreen(offscreenRequest);
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+
+          if (!ackSent) {
+            const failAck: TranscribeAckResponse = {
+              type: MSG_TRANSCRIBE_ACK,
+              jobId: transcribeRequest.jobId,
+              ok: false,
+              error: errMsg,
+            };
+            sendResponse(failAck);
+          } else {
+            transcribeTabByJobId.delete(transcribeRequest.jobId);
+            stopRelayKeepAlive();
+            relayTranscribeFailure(transcribeRequest.jobId, error);
+          }
+        }
+      })();
+
+      return true;
+    }
 
     const request = message as TranscodeStartRequest;
     if (request?.type !== MSG_TRANSCODE_START) return;
@@ -462,7 +634,7 @@ export default defineBackground(() => {
       try {
         validateTranscodeStartRequest(request);
         await registerTranscodeTab(request.jobId, sender.tab?.id);
-        startTranscodeKeepAlive();
+        startRelayKeepAlive();
 
         const ack: TranscodeAckResponse = {
           type: MSG_TRANSCODE_ACK,
@@ -502,7 +674,7 @@ export default defineBackground(() => {
           sendResponse(failAck);
         } else {
           transcodeTabByJobId.delete(request.jobId);
-          stopTranscodeKeepAlive();
+          stopRelayKeepAlive();
           relayTranscodeFailure(request.jobId, error);
         }
       }

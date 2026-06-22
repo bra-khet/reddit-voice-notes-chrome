@@ -15,6 +15,9 @@ import {
   shouldReduceMotion,
 } from '@/src/settings/user-preferences';
 import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
+import { forkTranscribeWebm } from '@/src/transcription/transcribe-client';
+import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
+import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -105,7 +108,9 @@ export class VoiceRecorderSession {
   private disposed = false;
   private sessionEpoch = 0;
   private transcodeGeneration = 0;
+  private transcribeGeneration = 0;
   private transcodeAbort: AbortController | null = null;
+  private transcribeAbort: AbortController | null = null;
   private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stopInFlight = false;
   private prefsUnsubscribe: (() => void) | null = null;
@@ -287,10 +292,18 @@ export class VoiceRecorderSession {
     this.transcodeAbort = null;
   }
 
+  private abortTranscribe(): void {
+    this.transcribeAbort?.abort();
+    this.transcribeAbort = null;
+  }
+
   private bumpSession(): void {
     this.sessionEpoch += 1;
     this.transcodeGeneration += 1;
+    this.transcribeGeneration += 1;
     this.abortTranscode();
+    this.abortTranscribe();
+    clearSessionTranscript();
   }
 
   private isSuperseded(stopEpoch: number): boolean {
@@ -350,6 +363,12 @@ export class VoiceRecorderSession {
       try {
         await validateWebmRecording(this.webmBlob);
         if (this.isSuperseded(stopEpoch)) return;
+
+        // CHANGED: parallel non-blocking transcription fork on raw WebM clone (eloquent-1).
+        // WHY: STT must not block or fail FFmpeg export; separate MSG_TRANSCRIBE_* relay.
+        const webmClone = this.webmBlob.slice(0, this.webmBlob.size, this.webmBlob.type);
+        void this.forkTranscribe(webmClone, stopEpoch);
+
         await this.transcodeToMp4(stopEpoch);
       } catch (error) {
         if (this.isSuperseded(stopEpoch)) return;
@@ -358,6 +377,51 @@ export class VoiceRecorderSession {
       }
     } finally {
       this.stopInFlight = false;
+    }
+  }
+
+  private async forkTranscribe(webm: Blob, stopEpoch: number): Promise<void> {
+    const generation = this.transcribeGeneration;
+    this.abortTranscribe();
+    const controller = new AbortController();
+    this.transcribeAbort = controller;
+
+    try {
+      const outcome = await forkTranscribeWebm(webm, {
+        signal: controller.signal,
+        onProgress: (ratio, stage) => {
+          if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
+          console.log(`${EXTENSION_LOG_PREFIX} Transcribe progress`, {
+            ratio: Math.round(ratio * 100),
+            stage,
+          });
+        },
+      });
+
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
+      if (!outcome) return;
+
+      if (outcome.applied) {
+        setSessionTranscript(outcome.result, outcome.jobId);
+      }
+
+      console.log(`${EXTENSION_LOG_PREFIX} Transcribe complete`, {
+        jobId: outcome.jobId,
+        segments: outcome.result.segments.length,
+        chars: outcome.result.text.length,
+        applied: outcome.applied,
+        fallback: outcome.fallback,
+        stage: outcome.stage,
+        elapsedMs: outcome.elapsedMs,
+      });
+    } catch (error) {
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      console.warn(`${EXTENSION_LOG_PREFIX} Transcribe fork failed (non-blocking):`, error);
+    } finally {
+      if (this.transcribeAbort === controller) {
+        this.transcribeAbort = null;
+      }
     }
   }
 
