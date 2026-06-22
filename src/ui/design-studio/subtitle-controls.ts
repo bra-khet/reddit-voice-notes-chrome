@@ -1,5 +1,10 @@
 import { loadSessionTranscript, type SessionTranscriptSnapshot } from '@/src/storage/session-transcript-db';
 import {
+  loadUserPreferences,
+  saveTranscriptPreferences,
+  type UserPreferencesV1,
+} from '@/src/settings/user-preferences';
+import {
   DEFAULT_TRANSCRIPT_CONFIG,
   normalizeSubtitleStyle,
   normalizeTranscriptConfig,
@@ -13,7 +18,10 @@ export interface SubtitleControlsHandle {
   dispose(): void;
   getDraftConfig(): TranscriptConfig;
   getPreviewOptions(): SubtitlePreviewOptions | undefined;
+  syncFromPreferences(prefs: UserPreferencesV1): void;
 }
+
+const TRANSCRIPT_SAVE_DEBOUNCE_MS = 250;
 
 const POSITION_OPTIONS: { value: SubtitleStyleConfig['position']; label: string }[] = [
   { value: 'bottom', label: 'Bottom' },
@@ -140,6 +148,7 @@ export function mountSubtitleControls(
   let draftConfig: TranscriptConfig = normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
   let lastSnapshot: SessionTranscriptSnapshot | null = null;
   let syncing = false;
+  let saveTimer = 0;
 
   for (const option of POSITION_OPTIONS) {
     const el = document.createElement('option');
@@ -150,6 +159,44 @@ export function mountSubtitleControls(
 
   function notifyDraftChange(): void {
     onDraftChange?.();
+  }
+
+  function schedulePersist(): void {
+    if (saveTimer) window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => {
+      saveTimer = 0;
+      void saveTranscriptPreferences(getDraftConfig()).catch((error: unknown) => {
+        console.warn('[Reddit Voice Notes] Transcript prefs save failed', error);
+      });
+    }, TRANSCRIPT_SAVE_DEBOUNCE_MS);
+  }
+
+  function persistNow(): void {
+    if (saveTimer) {
+      window.clearTimeout(saveTimer);
+      saveTimer = 0;
+    }
+    void saveTranscriptPreferences(getDraftConfig()).catch((error: unknown) => {
+      console.warn('[Reddit Voice Notes] Transcript prefs save failed', error);
+    });
+  }
+
+  function mergeIdbTranscriptIfNewer(): void {
+    if (!lastSnapshot) return;
+
+    const shouldApply =
+      !draftConfig.result?.text?.trim() ||
+      lastSnapshot.capturedAt > (draftConfig.resultCapturedAt ?? 0);
+
+    if (!shouldApply) return;
+
+    draftConfig = normalizeTranscriptConfig({
+      ...draftConfig,
+      result: lastSnapshot.result,
+      resultCapturedAt: lastSnapshot.capturedAt,
+    });
+    syncControlsFromDraft();
+    schedulePersist();
   }
 
   function previewText(): string {
@@ -234,14 +281,8 @@ export function mountSubtitleControls(
 
   async function loadTranscriptSource(): Promise<void> {
     lastSnapshot = await loadSessionTranscript();
-    if (lastSnapshot) {
-      draftConfig = normalizeTranscriptConfig({
-        ...draftConfig,
-        result: lastSnapshot.result,
-      });
-    }
     updateSourceCopy();
-    syncControlsFromDraft();
+    mergeIdbTranscriptIfNewer();
   }
 
   enabledInput.addEventListener('change', () => {
@@ -255,6 +296,7 @@ export function mountSubtitleControls(
       }),
     };
     syncEnabledUi();
+    schedulePersist();
     notifyDraftChange();
   });
 
@@ -274,12 +316,14 @@ export function mountSubtitleControls(
         source: 'manual',
       },
     };
+    schedulePersist();
     notifyDraftChange();
   });
 
   positionSelect.addEventListener('change', () => {
     if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
     notifyDraftChange();
   });
 
@@ -287,6 +331,7 @@ export function mountSubtitleControls(
     if (syncing) return;
     fontSizeValueEl.textContent = `${fontSizeInput.value}px`;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
     notifyDraftChange();
   });
 
@@ -294,6 +339,7 @@ export function mountSubtitleControls(
     if (syncing) return;
     backdropOpacityInput.disabled = !backdropInput.checked;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
     notifyDraftChange();
   });
 
@@ -301,6 +347,7 @@ export function mountSubtitleControls(
     if (syncing) return;
     backdropOpacityValueEl.textContent = `${backdropOpacityInput.value}%`;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
     notifyDraftChange();
   });
 
@@ -310,11 +357,25 @@ export function mountSubtitleControls(
   };
 
   document.addEventListener('visibilitychange', onVisibility);
-  void loadTranscriptSource();
+
+  void loadUserPreferences().then((prefs) => {
+    draftConfig = normalizeTranscriptConfig(prefs.transcriptConfig);
+    syncControlsFromDraft();
+    void loadTranscriptSource();
+  });
 
   return {
+    syncFromPreferences(prefs: UserPreferencesV1): void {
+      syncing = true;
+      draftConfig = normalizeTranscriptConfig(prefs.transcriptConfig);
+      syncControlsFromDraft();
+      syncing = false;
+      void loadTranscriptSource();
+    },
     dispose(): void {
       document.removeEventListener('visibilitychange', onVisibility);
+      if (saveTimer) window.clearTimeout(saveTimer);
+      persistNow();
     },
     getDraftConfig(): TranscriptConfig {
       return normalizeTranscriptConfig({

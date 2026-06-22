@@ -340,6 +340,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     return !clipProfileMatchesLiveState(
       activePrefs.appearance,
       activePrefs.voiceEffect,
+      subtitleControls.getDraftConfig(),
       profile,
     );
   }
@@ -591,6 +592,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     void personalBackground.sync(prefs);
     backgroundLayout.sync(prefs);
     voiceControls.syncFromPreferences(prefs);
+    subtitleControls.syncFromPreferences(prefs);
     syncSectionSummaries();
     stopPreviewLoop();
     void refreshPreview();

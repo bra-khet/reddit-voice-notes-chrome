@@ -24,7 +24,12 @@ export function populateProfileSelect(select: HTMLSelectElement, prefs: UserPref
     option.value = profile.id;
     const dirty =
       profile.id === activeId &&
-      !clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile);
+      !clipProfileMatchesLiveState(
+        prefs.appearance,
+        prefs.voiceEffect,
+        prefs.transcriptConfig,
+        profile,
+      );
     option.textContent = dirty ? `${profile.name} · unsaved` : profile.name;
     select.append(option);
   }

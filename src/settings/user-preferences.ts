@@ -31,6 +31,11 @@ import {
 import { THEME_STORAGE_KEY } from '@/src/theme/storage';
 import { DEFAULT_THEME_ID, normalizeThemeId } from '@/src/theme/presets';
 import {
+  DEFAULT_TRANSCRIPT_CONFIG,
+  normalizeTranscriptConfig,
+  type TranscriptConfig,
+} from '@/src/transcription/types';
+import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
   type VoiceEffectConfig,
@@ -105,6 +110,8 @@ export interface UserPreferencesV1 {
   notifications: NotificationPreferences;
   /** Active voice effect config for export (dulcet-3); profile snapshot in dulcet-4. */
   voiceEffect?: VoiceEffectConfig;
+  /** Subtitle / transcript studio state (eloquent-2+). */
+  transcriptConfig?: TranscriptConfig;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
@@ -123,6 +130,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
     showResultToasts: true,
   },
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
+  transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
 };
 
 const VALID_BAR_ALIGNMENTS: readonly BarAlignment[] = ['center', 'bottom', 'top'];
@@ -186,6 +194,7 @@ function mergePreferences(raw: Partial<UserPreferencesV1> | undefined): UserPref
       ...raw?.notifications,
     },
     voiceEffect: normalizeVoiceEffectConfig(raw?.voiceEffect),
+    transcriptConfig: normalizeTranscriptConfig(raw?.transcriptConfig),
   };
 }
 
@@ -243,6 +252,19 @@ export async function saveVoiceEffectPreferences(
   return next;
 }
 
+export async function saveTranscriptPreferences(
+  config: TranscriptConfig,
+): Promise<UserPreferencesV1> {
+  const current = await loadUserPreferences();
+  const next: UserPreferencesV1 = {
+    ...current,
+    transcriptConfig: normalizeTranscriptConfig(config),
+  };
+
+  await browser.storage.local.set({ [USER_PREFS_STORAGE_KEY]: next });
+  return next;
+}
+
 export async function saveAudioPreferences(
   patch: Partial<AudioPreferences>,
 ): Promise<UserPreferencesV1> {
@@ -292,6 +314,16 @@ function voiceEffectFromProfile(profile: ClipProfile): VoiceEffectConfig | null 
   return normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
 }
 
+function transcriptConfigFromProfile(profile: ClipProfile): TranscriptConfig | null {
+  if (profile.transcriptConfig != null) {
+    return normalizeTranscriptConfig(profile.transcriptConfig);
+  }
+  if (isPresetProfileId(profile.id)) {
+    return null;
+  }
+  return normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
+}
+
 async function persistUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
   await browser.storage.local.set({
     [USER_PREFS_STORAGE_KEY]: next,
@@ -325,6 +357,7 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
       activeProfileId: profile.id,
     }),
     voiceEffect: voiceEffectFromProfile(profile) ?? current.voiceEffect,
+    transcriptConfig: transcriptConfigFromProfile(profile) ?? current.transcriptConfig,
   };
 
   return persistUserPreferences(next);
@@ -378,6 +411,7 @@ export async function saveCurrentAsClipProfile(
     customStyleId,
     designOverrides,
     voiceEffectConfig: normalizeVoiceEffectConfig(current.voiceEffect),
+    transcriptConfig: normalizeTranscriptConfig(current.transcriptConfig),
   };
 
   return saveAppearancePreferences({
@@ -410,6 +444,7 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
         ? null
         : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null),
       voiceEffectConfig: normalizeVoiceEffectConfig(current.voiceEffect),
+      transcriptConfig: normalizeTranscriptConfig(current.transcriptConfig),
     };
   });
 

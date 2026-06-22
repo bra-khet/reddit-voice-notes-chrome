@@ -13,6 +13,12 @@ import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { designOverridesMatch, normalizeDesignOverrides } from '@/src/theme/design-overrides';
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
 import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/user-preferences';
+import {
+  DEFAULT_TRANSCRIPT_CONFIG,
+  normalizeTranscriptConfig,
+  transcriptConfigsEqual,
+  type TranscriptConfig,
+} from '@/src/transcription/types';
 import { voiceEffectConfigsEqual } from '@/src/voice/resolve-config';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
@@ -39,6 +45,8 @@ export interface ClipProfile {
   designOverrides?: import('@/src/theme/design-overrides').DesignOverrides | null;
   /** dulcet-4: voice effect snapshot — absent on legacy profiles means voice-off. */
   voiceEffectConfig?: VoiceEffectConfig | null;
+  /** eloquent-2: subtitle snapshot — absent on legacy profiles means subtitles-off. */
+  transcriptConfig?: TranscriptConfig | null;
 }
 
 const VALID_BAR_ALIGNMENTS: readonly BarAlignment[] = ['center', 'bottom', 'top'];
@@ -91,6 +99,10 @@ export function normalizeClipProfiles(
         raw.voiceEffectConfig != null
           ? normalizeVoiceEffectConfig(raw.voiceEffectConfig)
           : null,
+      transcriptConfig:
+        raw.transcriptConfig != null
+          ? normalizeTranscriptConfig(raw.transcriptConfig)
+          : null,
     });
 
     if (normalized.length >= MAX_CLIP_PROFILES) break;
@@ -138,14 +150,33 @@ export function voiceEffectMatchesProfile(
   return voiceEffectConfigsEqual(liveNorm, snapshotNorm);
 }
 
+/** Legacy saved profiles without transcriptConfig compare as subtitles-off. */
+export function transcriptConfigMatchesProfile(
+  live: TranscriptConfig | undefined,
+  profile: ClipProfile,
+): boolean {
+  if (isPresetProfileId(profile.id)) {
+    return true;
+  }
+
+  const liveNorm = normalizeTranscriptConfig(live);
+  const snapshotNorm =
+    profile.transcriptConfig != null
+      ? normalizeTranscriptConfig(profile.transcriptConfig)
+      : normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
+  return transcriptConfigsEqual(liveNorm, snapshotNorm);
+}
+
 export function clipProfileMatchesLiveState(
   appearance: AppearancePreferences,
   voiceEffect: VoiceEffectConfig | undefined,
+  transcriptConfig: TranscriptConfig | undefined,
   profile: ClipProfile,
 ): boolean {
   return (
     appearanceMatchesProfile(appearance, profile) &&
-    voiceEffectMatchesProfile(voiceEffect, profile)
+    voiceEffectMatchesProfile(voiceEffect, profile) &&
+    transcriptConfigMatchesProfile(transcriptConfig, profile)
   );
 }
 
@@ -182,7 +213,12 @@ export function appearanceMatchesProfile(
 export function findMatchingClipProfile(prefs: UserPreferencesV1): ClipProfile | undefined {
   const profiles = prefs.appearance.savedProfiles ?? [];
   return profiles.find((profile) =>
-    clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile),
+    clipProfileMatchesLiveState(
+      prefs.appearance,
+      prefs.voiceEffect,
+      prefs.transcriptConfig,
+      profile,
+    ),
   );
 }
 

@@ -52,6 +52,8 @@ export interface TranscriptConfig {
   transcriptionEnabled: boolean;
   result?: TranscriptResult | null;
   style: SubtitleStyleConfig;
+  /** Ms when `result` was last merged from the STT relay (IDB). */
+  resultCapturedAt?: number;
 }
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
@@ -125,7 +127,30 @@ export function normalizeTranscriptConfig(raw: Partial<TranscriptConfig> | null 
     transcriptionEnabled: raw?.transcriptionEnabled === true,
     result: raw?.result ?? null,
     style: normalizeSubtitleStyle(raw?.style),
+    resultCapturedAt:
+      typeof raw?.resultCapturedAt === 'number' && Number.isFinite(raw.resultCapturedAt)
+        ? raw.resultCapturedAt
+        : undefined,
   };
+}
+
+function subtitleStylesEqual(a: SubtitleStyleConfig, b: SubtitleStyleConfig): boolean {
+  const left = normalizeSubtitleStyle(a);
+  const right = normalizeSubtitleStyle(b);
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function transcriptConfigsEqual(
+  a: TranscriptConfig | null | undefined,
+  b: TranscriptConfig | null | undefined,
+): boolean {
+  const left = normalizeTranscriptConfig(a ?? undefined);
+  const right = normalizeTranscriptConfig(b ?? undefined);
+  return (
+    left.transcriptionEnabled === right.transcriptionEnabled &&
+    transcriptResultsEqual(left.result, right.result) &&
+    subtitleStylesEqual(left.style, right.style)
+  );
 }
 
 export function transcriptSegmentsEqual(a: TranscriptSegment[], b: TranscriptSegment[]): boolean {
