@@ -1,6 +1,7 @@
 /**
- * Transcription barrel — offscreen + harness only (eloquent-0).
- * Popup/settings must import leaf files (e.g. types.ts) — not this barrel — to avoid pulling Vosk WASM.
+ * Transcription barrel — harness + offscreen clients only (eloquent-0).
+ * Popup/settings must import leaf files (e.g. types.ts) — not this barrel.
+ * Vosk WASM loads only inside vosk.sandbox.html (manifest sandbox CSP).
  */
 
 export {
@@ -20,8 +21,8 @@ export {
   type TranscriptSource,
 } from './types';
 
-export { resolveVoskModelUrl, VOSK_MODEL_PATH, VOSK_TARGET_SAMPLE_RATE } from './constants';
+export { resolveVoskModelUrl, VOSK_MODEL_PATH, VOSK_SANDBOX_PATH, VOSK_TARGET_SAMPLE_RATE } from './constants';
 export { buildSrtFromSegments } from './srt-builder';
 export { enqueueTranscribeJob } from './transcribe-queue';
 export { resetVoskForHarness, transcribeWebmBlob } from './transcribe-audio';
-export { disposeVoskModel, loadVoskModel, voskModelIsLoaded } from './vosk-loader';
+export { disposeVoskSandbox, ensureVoskSandbox, transcribePcmInSandbox } from './vosk-sandbox-client';

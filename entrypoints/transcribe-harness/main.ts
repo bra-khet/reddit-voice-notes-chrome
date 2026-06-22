@@ -11,6 +11,7 @@ app.innerHTML = `
     <p class="hint">eloquent-0 manual QA — open via <code>transcribe-harness.html</code> on the extension origin.</p>
     <p class="hint">First run downloads/loads the Vosk model (~40 MB). Run <code>npm install</code> if the model is missing.</p>
     <p class="hint">Use a <strong>WebM</strong> from the recorder — MP4 and other formats are not supported in this harness.</p>
+    <p class="hint">Vosk runs in a manifest <strong>sandbox</strong> iframe (MV3 blocks eval on extension pages). Reload the extension after manifest changes.</p>
     <label class="field">
       <span>Recording (WebM)</span>
       <input type="file" id="file" accept="video/webm,audio/webm,.webm" />
