@@ -12,11 +12,16 @@ export default defineConfig({
   srcDir: '.',
   manifest: {
     content_security_policy: {
-      // Vosk Emscripten needs unsafe-eval — MV3 extension_pages cannot grant it.
-      // Inference runs in manifest sandbox (entrypoints/vosk.sandbox) via iframe + postMessage.
+      // MV3 extension_pages: wasm-unsafe-eval only (FFmpeg). No unsafe-eval — Chrome forbids it.
       extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+      // Manifest sandbox (vosk-sandbox.html): allows Vosk Emscripten eval. Built via esbuild, not WXT HMR.
       sandbox:
         "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self';",
+    },
+    // CHANGED: static public sandbox page — WXT sandbox entrypoints break in dev (null-origin + localhost CORS).
+    // WHY: vosk-sandbox.html loads self-contained public/vosk-sandbox.js from extension package in dev and prod.
+    sandbox: {
+      pages: ['vosk-sandbox.html'],
     },
     name: 'Reddit Voice Notes',
     description:

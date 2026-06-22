@@ -314,6 +314,6 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 - `entrypoints/transcribe-harness/` — manual QA page
 - `scripts/fetch-vosk-model.mjs` — downloads `vosk-model-small-en-us-0.15.tar.gz` to `public/vosk/` on postinstall
 - **Worker decision:** extend existing offscreen + separate transcription queue; avoid concurrent FFmpeg + Vosk until profiled
-- **CSP fix:** MV3 forbids `unsafe-eval` on extension_pages — Vosk runs in `vosk.html` manifest sandbox via iframe + postMessage (not chunked relay; same isolation pattern as keeping Reddit page out of privileged decode paths)
+- **CSP / sandbox:** MV3 forbids `unsafe-eval` on extension_pages. Vosk runs in `public/vosk-sandbox.html` (esbuild bundle, not WXT HMR — dev sandbox null-origin cannot load localhost Vite). See `docs/transcription-architecture.md`.
 
 **Harness:** `chrome-extension://<id>/transcribe-harness.html`

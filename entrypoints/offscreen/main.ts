@@ -238,7 +238,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 /** eloquent-0 — transcription harness hooks (eloquent-1 wires MSG_TRANSCRIBE_* here). */
 (globalThis as Record<string, unknown>).__rvnTranscribeHarness = {
-  note: 'Use transcribe-harness.html on extension origin for eloquent-0 spike',
+  note: 'Vosk runs in vosk-sandbox.html iframe — see docs/transcription-architecture.md',
 };
 
 console.log('[Reddit Voice Notes] Offscreen FFmpeg worker ready');

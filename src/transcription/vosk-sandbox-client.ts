@@ -28,16 +28,23 @@ function ensureIframe(): HTMLIFrameElement {
   return iframe;
 }
 
+function isFromSandboxFrame(event: MessageEvent, frame: HTMLIFrameElement): boolean {
+  return event.source === frame.contentWindow;
+}
+
 function waitForSandboxReady(frame: HTMLIFrameElement): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(() => {
       window.removeEventListener('message', onMessage);
-      reject(new Error('Vosk sandbox failed to become ready'));
+      reject(
+        new Error(
+          'Vosk sandbox failed to become ready. Run npm run build:vosk-sandbox and reload the extension.',
+        ),
+      );
     }, SANDBOX_READY_TIMEOUT_MS);
 
     const onMessage = (event: MessageEvent): void => {
-      if (event.source !== frame.contentWindow) return;
-      if (event.origin !== location.origin) return;
+      if (!isFromSandboxFrame(event, frame)) return;
       if (!isVoskSandboxClientMessage(event.data)) return;
       if (event.data.type !== VOSK_SANDBOX_READY) return;
 
@@ -75,8 +82,7 @@ export async function transcribePcmInSandbox(
 
   return new Promise<TranscriptResult>((resolve, reject) => {
     const onMessage = (event: MessageEvent): void => {
-      if (event.source !== target) return;
-      if (event.origin !== location.origin) return;
+      if (!isFromSandboxFrame(event, frame)) return;
       if (!isVoskSandboxClientMessage(event.data)) return;
       if ('id' in event.data && event.data.id !== id) return;
 
@@ -97,6 +103,8 @@ export async function transcribePcmInSandbox(
 
     window.addEventListener('message', onMessage);
 
+    // BUG FIX: manifest sandbox iframe has opaque/null origin — cannot use location.origin as targetOrigin.
+    // Fix: postMessage with '*' + validate event.source === iframe.contentWindow.
     target.postMessage(
       {
         type: VOSK_SANDBOX_TRANSCRIBE,
@@ -106,7 +114,7 @@ export async function transcribePcmInSandbox(
         sampleRate,
         language,
       },
-      location.origin,
+      '*',
       [outbound.buffer],
     );
   });
@@ -114,7 +122,7 @@ export async function transcribePcmInSandbox(
 
 export async function disposeVoskSandbox(): Promise<void> {
   if (iframe?.contentWindow) {
-    iframe.contentWindow.postMessage({ type: VOSK_SANDBOX_DISPOSE }, location.origin);
+    iframe.contentWindow.postMessage({ type: VOSK_SANDBOX_DISPOSE }, '*');
   }
 
   readyPromise = null;

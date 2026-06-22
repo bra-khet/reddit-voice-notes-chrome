@@ -3,8 +3,8 @@ export const VOSK_TARGET_SAMPLE_RATE = 16_000;
 
 export const VOSK_MODEL_PATH = 'vosk/model.tar.gz';
 
-/** WXT sandbox entry (entrypoints/vosk.sandbox → vosk.html) — CSP allows Vosk eval. */
-export const VOSK_SANDBOX_PATH = 'vosk.html';
+/** Manifest sandbox page (public/vosk-sandbox.html + esbuild bundle). */
+export const VOSK_SANDBOX_PATH = 'vosk-sandbox.html';
 
 export const TRANSCRIBE_CHUNK_SAMPLES = 4096;
 

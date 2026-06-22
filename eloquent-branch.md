@@ -238,13 +238,22 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 | `src/transcription/transcribe-queue.ts` | Serialized transcription jobs (isolated from FFmpeg queue) |
 | `src/transcription/srt-builder.ts` | `buildSrtFromSegments()` for eloquent-3 |
 | `scripts/fetch-vosk-model.mjs` | Postinstall download → `public/vosk/model.tar.gz` (skip via `SKIP_VOSK_MODEL=1`) |
+| `public/vosk-sandbox.html` + `public/vosk-sandbox.js` | Manifest sandbox host (esbuild bundle, **not** WXT HMR entry) |
+| `scripts/build-vosk-sandbox.mjs` | Builds vosk-sandbox.js — required for dev and prod |
+| `docs/transcription-architecture.md` | CSP / sandbox / postMessage audit |
 | `entrypoints/transcribe-harness/` | Manual QA — `transcribe-harness.html` |
 
-**Harness:** `npm run dev` → `chrome-extension://<id>/transcribe-harness.html` → load Reddit WebM → Transcribe.
+**Harness:** `npm install` → `npm run dev` → `transcribe-harness.html` → WebM → Transcribe. After editing sandbox host: `npm run build:vosk-sandbox` + reload extension.
 
-**Dependency:** `vosk-browser@0.0.8` (embedded WASM worker; model bundled separately ~40 MB).
+**Dependency:** `vosk-browser@0.0.8` (embedded WASM worker; model ~40 MB in `public/vosk/`).
 
-**CSP / sandbox:** Chrome MV3 **forbids** `'unsafe-eval'` on `extension_pages` (WXT dev CSP never applies it). Vosk Emscripten uses `new Function()` in its worker. Inference runs in **`vosk.sandbox.html`** (manifest `sandbox.pages` — default sandbox CSP allows eval). Harness/offscreen decode WebM → PCM, then `postMessage` PCM to sandbox iframe (same-origin bridge; analogous to isolating heavy work off the Reddit page).
+**CSP / sandbox (2026 MV3 audit):**
+
+1. **extension_pages** — `wasm-unsafe-eval` only; **`unsafe-eval` forbidden** by Chrome (adding it to manifest has no effect in dev).
+2. **Vosk Emscripten** — requires `new Function()` → must run in **manifest `sandbox.pages`**.
+3. **WXT `entrypoints/vosk.sandbox`** — breaks in dev: sandbox iframe has **opaque/null origin**, cannot load `localhost:3000` Vite HMR scripts (CORS). Replaced by static `public/vosk-sandbox.*` + esbuild.
+4. **postMessage** — sandbox opaque origin → use `targetOrigin: '*'` + validate `event.source` (not `event.origin`).
+5. **Not image-relay** — personal backgrounds needed chunked base64 for Reddit page CSP + MV3 size; transcription needs sandbox for extension eval CSP.
 
 #### eloquent-0 — target handoff diagram
 

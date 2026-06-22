@@ -1,5 +1,5 @@
 /**
- * Vosk inference host — import ONLY from entrypoints/vosk.sandbox (CSP sandbox allows eval).
+ * Vosk inference host — bundled to public/vosk-sandbox.js (manifest sandbox page only).
  */
 import { createModel, type Model } from 'vosk-browser';
 import { TRANSCRIBE_CHUNK_SAMPLES } from './constants';
@@ -61,7 +61,13 @@ async function disposeModel(): Promise<void> {
 }
 
 function postToParent(message: Record<string, unknown>): void {
-  window.parent.postMessage(message, location.origin);
+  // BUG FIX: sandbox page opaque origin cannot target extension origin reliably.
+  // Fix: use '*' — parent validates event.source === iframe.contentWindow.
+  window.parent.postMessage(message, '*');
+}
+
+function isFromParent(event: MessageEvent): boolean {
+  return event.source === window.parent;
 }
 
 function runVoskOnPcm(
@@ -135,7 +141,9 @@ function isHostMessage(data: unknown): data is VoskSandboxHostMessage {
   return type === VOSK_SANDBOX_TRANSCRIBE || type === VOSK_SANDBOX_DISPOSE;
 }
 
-async function handleTranscribe(message: VoskSandboxHostMessage & { type: typeof VOSK_SANDBOX_TRANSCRIBE }): Promise<void> {
+async function handleTranscribe(
+  message: VoskSandboxHostMessage & { type: typeof VOSK_SANDBOX_TRANSCRIBE },
+): Promise<void> {
   const { id, modelUrl, samples, sampleRate, language } = message;
 
   try {
@@ -153,8 +161,7 @@ async function handleTranscribe(message: VoskSandboxHostMessage & { type: typeof
 
 export function startVoskSandboxHost(): void {
   window.addEventListener('message', (event) => {
-    if (event.source !== window.parent) return;
-    if (event.origin !== location.origin) return;
+    if (!isFromParent(event)) return;
     if (!isHostMessage(event.data)) return;
 
     if (event.data.type === VOSK_SANDBOX_DISPOSE) {

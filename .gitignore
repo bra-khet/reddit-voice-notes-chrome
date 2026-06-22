@@ -21,6 +21,8 @@ web-ext.config.ts
 _wxt-temp
 public/ffmpeg/
 public/vosk/
+public/vosk-sandbox.js
+public/vosk-sandbox.js.map
 
 # Editor directories and files
 .vscode/*
