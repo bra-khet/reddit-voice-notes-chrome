@@ -71,6 +71,7 @@ Before changing record → transcode → transcribe → studio → export flow:
 - [ ] Use **semantic** progress only for stall/timeout (heartbeats never reset timers). See `docs/engineering-principles.md`.
 - [ ] Cancel/Abort + `sessionEpoch` supersede pattern must reach both queues.
 - [ ] `base.mp4` contract remains unchanged when subtitles/voice are disabled or fail.
+- [ ] **Offscreen relay registry (BUG-032):** any change to `background.ts` relay paths must keep `rememberRelayTab` on register, `forgetRelayTab` on COMPLETE, never delete maps before `relay*Failure`, and offscreen-only broadcast filter for transcode/transcribe. See `src/messaging/relay-registry.ts`.
 
 ## After the Work (Even on Branch)
 

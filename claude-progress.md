@@ -413,6 +413,12 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 False **Update profile** highlight on Design Studio open — subtitle draft synced after profile dirty check; see `docs/bug-archive.md` BUG-027.
 
+### v3.5.2 — BUG-032 transcribe relay registry (2026-06-22) — handoff hardening
+
+- **Symptom:** `No tab registered for transcribe relay` after SW/HMR reload or dispatch failure.
+- **Fix:** `relay-registry.ts` (session `jobId→tabId`); no map delete before `relay*Failure`; offscreen-only relay filter for transcode/transcribe.
+- **Docs:** `docs/bug-archive.md` BUG-032, `docs/eloquent-4-handoff.md`, `docs/code-review.md` checklist.
+
 ### v3.5.1 — BUG-031 drawtext textfile + transcript delivery UX (2026-06-22)
 
 - **Burn-in:** cue text via `textfile=` per segment (fixes apostrophe/comma filter parse failures).

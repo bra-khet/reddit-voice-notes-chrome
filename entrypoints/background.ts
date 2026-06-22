@@ -16,6 +16,12 @@ import {
   type GetBackgroundBlobRequest,
 } from '@/src/messaging/background-blob';
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
+import {
+  forgetRelayTab,
+  lookupRelayTab,
+  rememberRelayTab,
+  resolveActiveRedditTabId,
+} from '@/src/messaging/relay-registry';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import { saveLastRecording } from '@/src/storage/last-recording-db';
 import { saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
@@ -94,8 +100,6 @@ const OFFSCREEN_READY_RETRIES = 30;
 const OFFSCREEN_READY_DELAY_MS = 100;
 const KEEP_ALIVE_INTERVAL_MS = 5_000;
 
-const REDDIT_TAB_URLS = ['https://www.reddit.com/*', 'https://reddit.com/*'] as const;
-
 type ChromeOffscreenApi = {
   hasDocument?: () => Promise<boolean>;
   closeDocument?: () => Promise<void>;
@@ -149,25 +153,53 @@ function stopRelayKeepAlive(): void {
   }
 }
 
+async function resolveRelayTabId(
+  jobId: string,
+  memoryMap: Map<string, number>,
+  pipeline: string,
+): Promise<number | undefined> {
+  let tabId = memoryMap.get(jobId);
+  if (tabId !== undefined) return tabId;
+
+  tabId = await lookupRelayTab(jobId);
+  if (tabId !== undefined) {
+    memoryMap.set(jobId, tabId);
+    return tabId;
+  }
+
+  tabId = await resolveActiveRedditTabId();
+  if (tabId !== undefined) {
+    memoryMap.set(jobId, tabId);
+    await rememberRelayTab(jobId, tabId);
+    console.warn(
+      `[Reddit Voice Notes] Late-bound ${pipeline} relay tab`,
+      { jobId, tabId },
+    );
+    return tabId;
+  }
+
+  console.warn(`[Reddit Voice Notes] No tab registered for ${pipeline} relay`, jobId);
+  return undefined;
+}
+
 function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
-  const tabId = transcodeTabByJobId.get(message.jobId);
-  if (tabId === undefined) {
-    console.warn('[Reddit Voice Notes] No tab registered for transcode relay', message.jobId);
-    return;
-  }
+  void (async () => {
+    const tabId = await resolveRelayTabId(message.jobId, transcodeTabByJobId, 'transcode');
+    if (tabId === undefined) return;
 
-  void browser.tabs.sendMessage(tabId, message).catch((error) => {
-    console.warn('[Reddit Voice Notes] Tab relay failed:', error);
-  });
+    void browser.tabs.sendMessage(tabId, message).catch((error) => {
+      console.warn('[Reddit Voice Notes] Tab relay failed:', error);
+    });
 
-  if (message.type === MSG_TRANSCODE_COMPLETE) {
-    const tabId = transcodeTabByJobId.get(message.jobId);
-    if (tabId !== undefined && activeTranscodeJobByTabId.get(tabId) === message.jobId) {
-      activeTranscodeJobByTabId.delete(tabId);
+    if (message.type === MSG_TRANSCODE_COMPLETE) {
+      if (activeTranscodeJobByTabId.get(tabId) === message.jobId) {
+        activeTranscodeJobByTabId.delete(tabId);
+      }
+      transcodeTabByJobId.delete(message.jobId);
+      await forgetRelayTab(message.jobId);
+      stopRelayKeepAlive();
     }
-    transcodeTabByJobId.delete(message.jobId);
-    stopRelayKeepAlive();
-  }
+  })();
 }
 
 function isExtensionPageTabUrl(url: string | undefined): boolean {
@@ -179,46 +211,47 @@ function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMes
   const skipTabRelay = burnInSkipTabRelayByJobId.get(jobId) === true;
 
   if (!skipTabRelay) {
-    const tabId = burnInTabByJobId.get(jobId);
-    if (tabId === undefined) {
-      console.warn('[Reddit Voice Notes] No tab registered for burn-in relay', jobId);
-    } else {
+    void (async () => {
+      const tabId = await resolveRelayTabId(jobId, burnInTabByJobId, 'burn-in');
+      if (tabId === undefined) return;
       void browser.tabs.sendMessage(tabId, message).catch((error) => {
         console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
       });
-    }
+    })();
   }
 
   if (message.type === MSG_BURNIN_COMPLETE) {
-    const tabId = burnInTabByJobId.get(jobId);
-    if (tabId !== undefined && activeBurnInJobByTabId.get(tabId) === jobId) {
-      activeBurnInJobByTabId.delete(tabId);
-    }
-    burnInTabByJobId.delete(jobId);
-    burnInSkipTabRelayByJobId.delete(jobId);
-    stopRelayKeepAlive();
+    void (async () => {
+      const tabId = burnInTabByJobId.get(jobId);
+      if (tabId !== undefined && activeBurnInJobByTabId.get(tabId) === jobId) {
+        activeBurnInJobByTabId.delete(tabId);
+      }
+      burnInTabByJobId.delete(jobId);
+      burnInSkipTabRelayByJobId.delete(jobId);
+      await forgetRelayTab(jobId);
+      stopRelayKeepAlive();
+    })();
   }
 }
 
 function relayTranscribeBroadcast(message: TranscribeProgressMessage | TranscribeCompleteMessage): void {
-  const tabId = transcribeTabByJobId.get(message.jobId);
-  if (tabId === undefined) {
-    console.warn('[Reddit Voice Notes] No tab registered for transcribe relay', message.jobId);
-    return;
-  }
+  void (async () => {
+    const tabId = await resolveRelayTabId(message.jobId, transcribeTabByJobId, 'transcribe');
+    if (tabId === undefined) return;
 
-  void browser.tabs.sendMessage(tabId, message).catch((error) => {
-    console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
-  });
+    void browser.tabs.sendMessage(tabId, message).catch((error) => {
+      console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
+    });
 
-  if (message.type === MSG_TRANSCRIBE_COMPLETE) {
-    const tabId = transcribeTabByJobId.get(message.jobId);
-    if (tabId !== undefined && activeTranscribeJobByTabId.get(tabId) === message.jobId) {
-      activeTranscribeJobByTabId.delete(tabId);
+    if (message.type === MSG_TRANSCRIBE_COMPLETE) {
+      if (activeTranscribeJobByTabId.get(tabId) === message.jobId) {
+        activeTranscribeJobByTabId.delete(tabId);
+      }
+      transcribeTabByJobId.delete(message.jobId);
+      await forgetRelayTab(message.jobId);
+      stopRelayKeepAlive();
     }
-    transcribeTabByJobId.delete(message.jobId);
-    stopRelayKeepAlive();
-  }
+  })();
 }
 
 async function cancelOffscreenJob(jobId: string): Promise<void> {
@@ -259,17 +292,19 @@ async function registerTranscodeTab(jobId: string, senderTabId: number | undefin
         jobId,
       });
       transcodeTabByJobId.delete(previousJobId);
+      void forgetRelayTab(previousJobId);
       void cancelOffscreenJob(previousJobId);
     }
     activeTranscodeJobByTabId.set(senderTabId, jobId);
     transcodeTabByJobId.set(jobId, senderTabId);
+    await rememberRelayTab(jobId, senderTabId);
     return;
   }
 
-  const tabs = await browser.tabs.query({ url: [...REDDIT_TAB_URLS] });
-  const target = tabs.find((tab) => tab.active) ?? tabs[0];
-  if (target?.id !== undefined) {
-    transcodeTabByJobId.set(jobId, target.id);
+  const tabId = await resolveActiveRedditTabId();
+  if (tabId !== undefined) {
+    transcodeTabByJobId.set(jobId, tabId);
+    await rememberRelayTab(jobId, tabId);
     return;
   }
 
@@ -304,17 +339,19 @@ async function registerBurnInTab(
       });
       burnInTabByJobId.delete(previousJobId);
       burnInSkipTabRelayByJobId.delete(previousJobId);
+      void forgetRelayTab(previousJobId);
       void cancelOffscreenJob(previousJobId);
     }
     activeBurnInJobByTabId.set(senderTabId, jobId);
     burnInTabByJobId.set(jobId, senderTabId);
+    if (!skipTabRelay) await rememberRelayTab(jobId, senderTabId);
     return;
   }
 
-  const tabs = await browser.tabs.query({ url: [...REDDIT_TAB_URLS] });
-  const target = tabs.find((tab) => tab.active) ?? tabs[0];
-  if (target?.id !== undefined) {
-    burnInTabByJobId.set(jobId, target.id);
+  const tabId = await resolveActiveRedditTabId();
+  if (tabId !== undefined) {
+    burnInTabByJobId.set(jobId, tabId);
+    if (!skipTabRelay) await rememberRelayTab(jobId, tabId);
     return;
   }
 
@@ -331,17 +368,19 @@ async function registerTranscribeTab(jobId: string, senderTabId: number | undefi
         jobId,
       });
       transcribeTabByJobId.delete(previousJobId);
+      void forgetRelayTab(previousJobId);
       void cancelOffscreenTranscribeJob(previousJobId);
     }
     activeTranscribeJobByTabId.set(senderTabId, jobId);
     transcribeTabByJobId.set(jobId, senderTabId);
+    await rememberRelayTab(jobId, senderTabId);
     return;
   }
 
-  const tabs = await browser.tabs.query({ url: [...REDDIT_TAB_URLS] });
-  const target = tabs.find((tab) => tab.active) ?? tabs[0];
-  if (target?.id !== undefined) {
-    transcribeTabByJobId.set(jobId, target.id);
+  const tabId = await resolveActiveRedditTabId();
+  if (tabId !== undefined) {
+    transcribeTabByJobId.set(jobId, tabId);
+    await rememberRelayTab(jobId, tabId);
     return;
   }
 
@@ -899,15 +938,20 @@ export default defineBackground(() => {
         return;
       }
       if (type === MSG_TRANSCODE_PROGRESS || type === MSG_TRANSCODE_COMPLETE) {
-        relayTranscodeBroadcast(
-          message as TranscodeProgressMessage | TranscodeCompleteMessage,
-        );
+        if (sender.url?.includes('offscreen.html')) {
+          relayTranscodeBroadcast(
+            message as TranscodeProgressMessage | TranscodeCompleteMessage,
+          );
+        }
         return;
       }
       if (type === MSG_TRANSCRIBE_PROGRESS || type === MSG_TRANSCRIBE_COMPLETE) {
-        relayTranscribeBroadcast(
-          message as TranscribeProgressMessage | TranscribeCompleteMessage,
-        );
+        // Content scripts cannot rely on offscreen runtime broadcasts — relay from offscreen only.
+        if (sender.url?.includes('offscreen.html')) {
+          relayTranscribeBroadcast(
+            message as TranscribeProgressMessage | TranscribeCompleteMessage,
+          );
+        }
         return;
       }
       if (type === MSG_BURNIN_PROGRESS || type === MSG_BURNIN_COMPLETE) {
@@ -968,8 +1012,8 @@ export default defineBackground(() => {
             };
             sendResponse(failAck);
           } else {
-            transcribeTabByJobId.delete(transcribeRequest.jobId);
-            stopRelayKeepAlive();
+            // BUG FIX: transcribe relay dropped on dispatch failure (BUG-032)
+            // Fix: do not delete tab map before relayTranscribeFailure — relay needs jobId→tabId.
             relayTranscribeFailure(transcribeRequest.jobId, error);
           }
         }
@@ -1028,8 +1072,6 @@ export default defineBackground(() => {
             };
             sendResponse(failAck);
           } else {
-            burnInTabByJobId.delete(burnInRequest.jobId);
-            stopRelayKeepAlive();
             relayBurnInFailure(burnInRequest.jobId, error);
           }
         }
@@ -1086,8 +1128,6 @@ export default defineBackground(() => {
           };
           sendResponse(failAck);
         } else {
-          transcodeTabByJobId.delete(request.jobId);
-          stopRelayKeepAlive();
           relayTranscodeFailure(request.jobId, error);
         }
       }

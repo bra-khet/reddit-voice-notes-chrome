@@ -77,6 +77,16 @@ Design Studio
 
 ---
 
+## Offscreen → content relay (BUG-032)
+
+Transcode/transcribe progress and failures reach the Reddit content script via `tabs.sendMessage` (offscreen `runtime.sendMessage` does not reliably reach content scripts — see BUG-003).
+
+**Registry:** `src/messaging/relay-registry.ts` persists `jobId → tabId` in `chrome.storage.session` so MV3 service worker restarts (WXT HMR) do not drop relays.
+
+**Do not regress:** never `transcribeTabByJobId.delete(jobId)` before `relayTranscribeFailure`; register with `rememberRelayTab`; relay only offscreen-originated `MSG_*_PROGRESS|COMPLETE`.
+
+---
+
 ## QA verified
 
 | Step | Status |

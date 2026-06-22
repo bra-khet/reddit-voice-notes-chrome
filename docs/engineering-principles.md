@@ -28,6 +28,7 @@ Health and progress signals must reflect **actual work-state**, not merely that 
 ### Reference implementation
 
 - `src/ffmpeg/transcoder.ts` — `isMeaningfulProgress()`; heartbeats excluded from stall reset (BUG-006).
+- `src/messaging/relay-registry.ts` + `entrypoints/background.ts` — offscreen→content tab relay survives MV3 SW restart; never delete relay maps before failure broadcast (BUG-032).
 - `entrypoints/offscreen/main.ts` — heartbeats tagged `*-heartbeat`; wall-clock job timeout independent of heartbeat traffic.
 - `src/ffmpeg/transcode-cancel.ts` — cancel reaches FFmpeg dispose.
 

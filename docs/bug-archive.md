@@ -858,6 +858,44 @@ Bake fails with FFmpeg errors such as `No such filter: 'this is just my normal v
 
 ---
 
+## BUG-032 (2026-06): “No tab registered for transcribe relay”
+
+### Symptom
+
+After record stop (often during WXT dev reload), background logs:
+
+`No tab registered for transcribe relay <jobId>` via `relayTranscribeFailure` → `relayTranscribeBroadcast`.
+
+Transcode may still proceed; transcribe fork may miss `MSG_TRANSCRIBE_COMPLETE` on the Reddit tab.
+
+### Root cause
+
+1. **Premature map delete** — on offscreen dispatch failure after ACK, handlers deleted `transcribeTabByJobId` (and transcode/burn-in maps) **before** calling `relay*Failure`, so failure could not reach the content script.
+2. **MV3 service worker restart** — in-memory `transcribeTabByJobId` cleared on HMR/SW recycle while offscreen jobs continue; relay had no fallback.
+3. **Related origin** — tab relay pattern added for BUG-003 (transcode progress stuck at 0%); transcribe relay added in eloquent-1 without session persistence.
+
+### Fix
+
+- `src/messaging/relay-registry.ts` — `browser.storage.session` jobId→tabId registry (`rememberRelayTab` / `lookupRelayTab` / `forgetRelayTab`).
+- `resolveRelayTabId()` — memory → session → active Reddit tab late-bind.
+- **Never** delete relay maps before `relay*Failure`.
+- Offscreen-originated progress/complete only (`sender.url` includes `offscreen.html`) for transcode/transcribe/burn-in.
+
+### Hardening — do not regress
+
+| Rule | Why |
+|------|-----|
+| Register tab with `rememberRelayTab` in every `register*Tab` | Survives SW restart |
+| `relay*Failure` before map cleanup | Content script must hear dispatch errors |
+| No `transcribeTabByJobId.delete` in catch blocks | Cleanup belongs in `relay*Broadcast` on COMPLETE |
+| Filter relays to offscreen sender | Avoid duplicate/spurious relays |
+
+### Related files
+
+- `entrypoints/background.ts`, `src/messaging/relay-registry.ts`, `src/transcription/transcribe-client.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.
