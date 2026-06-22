@@ -622,14 +622,17 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       entryAppearance = structuredClone(prefs.appearance);
     }
     syncSelectControls(prefs);
-    syncProfileActions(prefs);
-    syncStyleButton(prefs);
-    syncStyleControlsFromPrefs(prefs, true);
 
     void personalBackground.sync(prefs);
     backgroundLayout.sync(prefs);
     voiceControls.syncFromPreferences(prefs);
     subtitleControls.syncFromPreferences(prefs);
+
+    // BUG FIX: false Update profile highlight on Studio open (BUG-027)
+    // Fix: profile dirty uses subtitle draft — sync draft before syncProfileActions.
+    syncProfileActions(prefs);
+    syncStyleButton(prefs);
+    syncStyleControlsFromPrefs(prefs, true);
     syncSectionSummaries();
     stopPreviewLoop();
     void refreshPreview();

@@ -558,6 +558,9 @@ export function mountSubtitleControls(
     syncEnabledUi();
     syncStyleControls();
     void loadTranscriptSource();
+    // BUG FIX: false Update profile highlight on Studio open (BUG-027)
+    // Fix: async subtitle prefs load must refresh profile dirty after draft aligns.
+    notifySettingsChange();
   });
 
   return {

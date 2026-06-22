@@ -7,8 +7,8 @@
 |-----|--------|---------|
 | `v3.2.0` | `707709d` | Verified subtitle **burn-in** (BUG-025 drawtext-font) |
 | `eloquent-4a-subtitle-mgmt` | `6c43775` | Edit-before-bake Studio UI (initial) |
-| `v3.3.0` | `fc50797`+ | **Release:** eloquent-4a verified — edit → bake → attach with edited SRT |
-| `v3.3.1` | *(after v3.3.0)* | BUG-027 false **Update profile** highlight on Studio open |
+| `v3.3.0` | `73e78f6` | **Release:** eloquent-4a verified — edit → bake → attach with edited SRT |
+| `v3.3.1` | `4ea3896` | BUG-027 false **Update profile** highlight on Studio open |
 
 **Prior profile baseline:** `eloquent-profile-nominal` (`8834d4e`) — still valid for prefs/profile race rules.
 
@@ -18,7 +18,7 @@
 
 eloquent-4 **phase A** shifts subtitle workflow from “auto-burn on record stop” to **review → edit → confirm → bake** in Design Studio. The Vosk `TranscriptResult.segments` JSON is the source of truth; users edit cues in a YouTube-style UI before a second FFmpeg pass burns hard subs.
 
-**User-verified (2026-06-22):** Studio transcript preview, segment editor, Confirm & save, and bake complete with message *“Subtitles baked. Switch to your Reddit tab…”*. **BUG-026** blocked verifying attach on Reddit because the legacy recorder popup could remain stuck at processing ~80%.
+**User-verified (2026-06-22):** Studio transcript preview, segment editor, Confirm & save, and bake complete with message *“Subtitles baked. Switch to your Reddit tab…”*. Full happy path verified: recorder reaches **stopped**, attach on Reddit works, and **edited SRT burns correctly**. Tagged **`v3.3.0`**. BUG-027 false **Update profile** highlight fixed in **`v3.3.1`**.
 
 ---
 

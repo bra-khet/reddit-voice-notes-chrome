@@ -765,6 +765,30 @@ After record stop (subtitles enabled), Reddit composer popup stays in **processi
 
 ---
 
+## BUG-027 (2026-06): false **Update profile** highlight on Design Studio open
+
+### Symptom
+
+Opening Design Studio with a saved profile selected, **Update profile** appears active (not muted) even though nothing was edited. Clicking it does nothing visible (early return because dirty is false). Expanding the **Subtitles** panel sometimes clears the highlight or makes save appear to work without any subtitle dirty state.
+
+### Root cause
+
+`applyPrefs()` called `syncProfileActions()` → `isProfileDirty()` → `subtitleControls.getProfileSnapshotConfig()` **before** `subtitleControls.syncFromPreferences()`. On boot the subtitle draft was still default / `readSubtitlesEnabledLocal()` state, so transcript style/toggle mismatched the profile snapshot and spuriously marked the profile dirty. The button state was not re-synced after the draft caught up.
+
+A second race: `mountSubtitleControls` async `loadUserPreferences()` updated the draft without `notifySettingsChange()`, so the profile bar could stay stale until another subtitle event (e.g. opening the panel).
+
+### Fix (`v3.3.1`)
+
+- Reorder `applyPrefs`: sync voice + subtitle drafts, **then** `syncProfileActions`.
+- After async subtitle prefs hydration, call `notifySettingsChange()` so profile buttons refresh.
+
+### Related files
+
+- `src/ui/design-studio/mount-clip-studio.ts` (`applyPrefs`)
+- `src/ui/design-studio/subtitle-controls.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.
