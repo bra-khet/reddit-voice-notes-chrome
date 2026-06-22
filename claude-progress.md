@@ -307,7 +307,8 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 | **eloquent-0** | **Done** — harness QA verified (JSON + SRT); tag **`eloquent-0-vosk-spike`** |
 | **eloquent-1** | **Done** — parallel `MSG_TRANSCRIBE_*` wire from `stopRecording()`; session transcript store |
 | **eloquent-2** | **Done** — Design Studio Subtitles panel + canvas preview overlay |
-| eloquent-3 … eloquent-5 | Pending |
+| **eloquent-3** | **Done** — FFmpeg subtitle burn-in (`base.mp4` → burned `final.mp4` when subtitles enabled) |
+| eloquent-4 … eloquent-5 | Pending |
 
 ### eloquent-0 — what shipped
 
@@ -388,9 +389,18 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 **QA:** Record on Reddit → wait for `Transcribe complete` in console → Design Studio → enable Subtitles → edit text → preview updates live.
 
-### Next: eloquent-3
+### eloquent-3 — burn-in export (2026-06-21)
 
-FFmpeg subtitle burn-in pass on `base.mp4` → `final.mp4`.
+- **Pipeline:** `stopRecording()` → transcode (`0–55%`) → await transcribe when subtitles enabled (`56–80%`) → second FFmpeg pass via `MSG_BURNIN_*` (`82–100%`)
+- **Strategies:** `subtitles` filter + SRT (`buildSrtFromSegments`) → `drawtext` chain fallback
+- **Fallback:** Subtitles off, transcribe fail, or burn-in fail → `base.mp4` unchanged semantics; toast on burn-in fallback
+- **Files:** `subtitle-burnin.ts`, `burnin-client.ts`, `ffmpeg-runner.ts` (`runSubtitleBurnIn`), `voice-recorder.ts`, `background.ts`, `offscreen/main.ts`
+
+**QA:** Enable Subtitles in Design Studio → record on Reddit → wait through Transcribing + Burning subtitles → attach MP4 → verify hard subs in player.
+
+### Next: eloquent-4
+
+Per-segment editor, segment-aware canvas preview, profile subtitle snapshot UX polish.
 
 ## HANDOFF — eloquent profile nominal (2026-06-21)
 

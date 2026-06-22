@@ -40,6 +40,18 @@ import {
   MSG_TRANSCRIBE_OFFSCREEN,
   MSG_TRANSCRIBE_PROGRESS,
   MSG_TRANSCRIBE_START,
+  MSG_BURNIN_ACK,
+  MSG_BURNIN_CANCEL,
+  MSG_BURNIN_COMPLETE,
+  MSG_BURNIN_OFFSCREEN,
+  MSG_BURNIN_PROGRESS,
+  MSG_BURNIN_START,
+  type BurnInAckResponse,
+  type BurnInCancelRequest,
+  type BurnInCompleteMessage,
+  type BurnInOffscreenRequest,
+  type BurnInProgressMessage,
+  type BurnInStartRequest,
   type OffscreenPingRequest,
   type OffscreenPongResponse,
   type SaveLastRecordingRequest,
@@ -90,6 +102,8 @@ const transcodeTabByJobId = new Map<string, number>();
 const activeTranscodeJobByTabId = new Map<number, string>();
 const transcribeTabByJobId = new Map<string, number>();
 const activeTranscribeJobByTabId = new Map<number, string>();
+const burnInTabByJobId = new Map<string, number>();
+const activeBurnInJobByTabId = new Map<number, string>();
 
 let activeRelayJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -132,6 +146,27 @@ function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCo
       activeTranscodeJobByTabId.delete(tabId);
     }
     transcodeTabByJobId.delete(message.jobId);
+    stopRelayKeepAlive();
+  }
+}
+
+function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMessage): void {
+  const tabId = burnInTabByJobId.get(message.jobId);
+  if (tabId === undefined) {
+    console.warn('[Reddit Voice Notes] No tab registered for burn-in relay', message.jobId);
+    return;
+  }
+
+  void browser.tabs.sendMessage(tabId, message).catch((error) => {
+    console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
+  });
+
+  if (message.type === MSG_BURNIN_COMPLETE) {
+    const tabId = burnInTabByJobId.get(message.jobId);
+    if (tabId !== undefined && activeBurnInJobByTabId.get(tabId) === message.jobId) {
+      activeBurnInJobByTabId.delete(tabId);
+    }
+    burnInTabByJobId.delete(message.jobId);
     stopRelayKeepAlive();
   }
 }
@@ -221,6 +256,33 @@ function isOffscreenTarget(message: unknown): boolean {
   );
 }
 
+async function registerBurnInTab(jobId: string, senderTabId: number | undefined): Promise<void> {
+  if (senderTabId !== undefined) {
+    const previousJobId = activeBurnInJobByTabId.get(senderTabId);
+    if (previousJobId && previousJobId !== jobId) {
+      console.warn('[Reddit Voice Notes] Superseding in-flight burn-in', {
+        tabId: senderTabId,
+        previousJobId,
+        jobId,
+      });
+      burnInTabByJobId.delete(previousJobId);
+      void cancelOffscreenJob(previousJobId);
+    }
+    activeBurnInJobByTabId.set(senderTabId, jobId);
+    burnInTabByJobId.set(jobId, senderTabId);
+    return;
+  }
+
+  const tabs = await browser.tabs.query({ url: [...REDDIT_TAB_URLS] });
+  const target = tabs.find((tab) => tab.active) ?? tabs[0];
+  if (target?.id !== undefined) {
+    burnInTabByJobId.set(jobId, target.id);
+    return;
+  }
+
+  console.warn('[Reddit Voice Notes] Could not resolve Reddit tab for burn-in relay', jobId);
+}
+
 async function registerTranscribeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
   if (senderTabId !== undefined) {
     const previousJobId = activeTranscribeJobByTabId.get(senderTabId);
@@ -260,6 +322,28 @@ function validateTranscodeStartRequest(request: TranscodeStartRequest): void {
   if (Math.abs(request.webmBase64.length - expectedChars) > 4) {
     throw new Error(
       `WebM base64 length mismatch at relay (bytes=${request.webmByteLength}, chars=${request.webmBase64.length}, expected≈${expectedChars}).`,
+    );
+  }
+}
+
+function validateBurnInStartRequest(request: BurnInStartRequest): void {
+  if (!request.jobId) {
+    throw new Error('Burn-in request missing jobId.');
+  }
+  if (!request.mp4Base64 || request.mp4ByteLength <= 0) {
+    throw new Error(`MP4 payload missing at burn-in relay (bytes=${request.mp4ByteLength}).`);
+  }
+  if (!request.segmentsJson?.trim()) {
+    throw new Error('Subtitle segments JSON missing at burn-in relay.');
+  }
+  if (!request.styleJson?.trim()) {
+    throw new Error('Subtitle style JSON missing at burn-in relay.');
+  }
+
+  const expectedChars = expectedBase64CharLength(request.mp4ByteLength);
+  if (Math.abs(request.mp4Base64.length - expectedChars) > 4) {
+    throw new Error(
+      `MP4 base64 length mismatch at burn-in relay (bytes=${request.mp4ByteLength}, chars=${request.mp4Base64.length}, expected≈${expectedChars}).`,
     );
   }
 }
@@ -332,7 +416,7 @@ async function waitForOffscreenReady(): Promise<void> {
 }
 
 async function dispatchToOffscreen(
-  request: TranscodeOffscreenRequest | TranscribeOffscreenRequest,
+  request: TranscodeOffscreenRequest | TranscribeOffscreenRequest | BurnInOffscreenRequest,
 ): Promise<void> {
   await ensureOffscreenDocument();
   await waitForOffscreenReady();
@@ -351,6 +435,16 @@ function relayTranscodeFailure(jobId: string, error: unknown): void {
     error: error instanceof Error ? error.message : String(error),
   };
   relayTranscodeBroadcast(completeMsg);
+}
+
+function relayBurnInFailure(jobId: string, error: unknown): void {
+  const completeMsg: BurnInCompleteMessage = {
+    type: MSG_BURNIN_COMPLETE,
+    jobId,
+    ok: false,
+    error: error instanceof Error ? error.message : String(error),
+  };
+  relayBurnInBroadcast(completeMsg);
 }
 
 function relayTranscribeFailure(jobId: string, error: unknown): void {
@@ -592,6 +686,11 @@ export default defineBackground(() => {
         if (jobId) void cancelOffscreenTranscribeJob(jobId);
         return;
       }
+      if (type === MSG_BURNIN_CANCEL) {
+        const jobId = (message as BurnInCancelRequest).jobId;
+        if (jobId) void cancelOffscreenJob(jobId);
+        return;
+      }
       if (type === MSG_TRANSCODE_PROGRESS || type === MSG_TRANSCODE_COMPLETE) {
         relayTranscodeBroadcast(
           message as TranscodeProgressMessage | TranscodeCompleteMessage,
@@ -602,6 +701,10 @@ export default defineBackground(() => {
         relayTranscribeBroadcast(
           message as TranscribeProgressMessage | TranscribeCompleteMessage,
         );
+        return;
+      }
+      if (type === MSG_BURNIN_PROGRESS || type === MSG_BURNIN_COMPLETE) {
+        relayBurnInBroadcast(message as BurnInProgressMessage | BurnInCompleteMessage);
         return;
       }
     }
@@ -658,6 +761,64 @@ export default defineBackground(() => {
             transcribeTabByJobId.delete(transcribeRequest.jobId);
             stopRelayKeepAlive();
             relayTranscribeFailure(transcribeRequest.jobId, error);
+          }
+        }
+      })();
+
+      return true;
+    }
+
+    const burnInRequest = message as BurnInStartRequest;
+    if (burnInRequest?.type === MSG_BURNIN_START) {
+      void (async () => {
+        let ackSent = false;
+
+        try {
+          validateBurnInStartRequest(burnInRequest);
+          await registerBurnInTab(burnInRequest.jobId, sender.tab?.id);
+          startRelayKeepAlive();
+
+          const ack: BurnInAckResponse = {
+            type: MSG_BURNIN_ACK,
+            jobId: burnInRequest.jobId,
+            ok: true,
+          };
+          sendResponse(ack);
+          ackSent = true;
+
+          console.log('[Reddit Voice Notes] Relaying MP4 to offscreen burn-in', {
+            jobId: burnInRequest.jobId,
+            bytes: burnInRequest.mp4ByteLength,
+            base64Chars: burnInRequest.mp4Base64.length,
+            tabId: burnInTabByJobId.get(burnInRequest.jobId),
+          });
+
+          const offscreenRequest: BurnInOffscreenRequest = {
+            type: MSG_BURNIN_OFFSCREEN,
+            target: 'offscreen',
+            jobId: burnInRequest.jobId,
+            mp4Base64: burnInRequest.mp4Base64,
+            mp4ByteLength: burnInRequest.mp4ByteLength,
+            segmentsJson: burnInRequest.segmentsJson,
+            styleJson: burnInRequest.styleJson,
+          };
+
+          await dispatchToOffscreen(offscreenRequest);
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+
+          if (!ackSent) {
+            const failAck: BurnInAckResponse = {
+              type: MSG_BURNIN_ACK,
+              jobId: burnInRequest.jobId,
+              ok: false,
+              error: errMsg,
+            };
+            sendResponse(failAck);
+          } else {
+            burnInTabByJobId.delete(burnInRequest.jobId);
+            stopRelayKeepAlive();
+            relayBurnInFailure(burnInRequest.jobId, error);
           }
         }
       })();

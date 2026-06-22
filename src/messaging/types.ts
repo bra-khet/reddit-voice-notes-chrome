@@ -1,3 +1,4 @@
+import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
 import type { VoiceEffectConfig } from '@/src/voice/types';
 
 export const MSG_TRANSCODE_START = 'rvn/transcode-start' as const;
@@ -18,6 +19,14 @@ export const MSG_TRANSCRIBE_OFFSCREEN = 'rvn/transcribe-offscreen' as const;
 export const MSG_TRANSCRIBE_PROGRESS = 'rvn/transcribe-progress' as const;
 export const MSG_TRANSCRIBE_COMPLETE = 'rvn/transcribe-complete' as const;
 export const MSG_TRANSCRIBE_CANCEL = 'rvn/transcribe-cancel' as const;
+
+/** eloquent-3 — second FFmpeg pass: burn subtitles onto base.mp4. */
+export const MSG_BURNIN_START = 'rvn/burnin-start' as const;
+export const MSG_BURNIN_ACK = 'rvn/burnin-ack' as const;
+export const MSG_BURNIN_OFFSCREEN = 'rvn/burnin-offscreen' as const;
+export const MSG_BURNIN_PROGRESS = 'rvn/burnin-progress' as const;
+export const MSG_BURNIN_COMPLETE = 'rvn/burnin-complete' as const;
+export const MSG_BURNIN_CANCEL = 'rvn/burnin-cancel' as const;
 
 /** @deprecated Use MSG_TRANSCODE_START — kept for grep compatibility */
 export const MSG_TRANSCODE = MSG_TRANSCODE_START;
@@ -169,3 +178,68 @@ export type TranscribeBroadcast =
   | TranscribeAckResponse
   | TranscribeProgressMessage
   | TranscribeCompleteMessage;
+
+export interface BurnInStartRequest {
+  type: typeof MSG_BURNIN_START;
+  jobId: string;
+  mp4Base64: string;
+  mp4ByteLength: number;
+  segmentsJson: string;
+  styleJson: string;
+}
+
+export interface BurnInAckResponse {
+  type: typeof MSG_BURNIN_ACK;
+  jobId: string;
+  ok: boolean;
+  error?: string;
+}
+
+export interface BurnInOffscreenRequest {
+  type: typeof MSG_BURNIN_OFFSCREEN;
+  target: 'offscreen';
+  jobId: string;
+  mp4Base64: string;
+  mp4ByteLength: number;
+  segmentsJson: string;
+  styleJson: string;
+}
+
+export interface BurnInCancelRequest {
+  type: typeof MSG_BURNIN_CANCEL;
+  jobId: string;
+  target?: 'offscreen';
+}
+
+export interface BurnInProgressMessage {
+  type: typeof MSG_BURNIN_PROGRESS;
+  jobId: string;
+  progress: number;
+  stage?: string;
+}
+
+export interface BurnInCompleteMessage {
+  type: typeof MSG_BURNIN_COMPLETE;
+  jobId: string;
+  ok: boolean;
+  mp4Base64?: string;
+  mp4ByteLength?: number;
+  error?: string;
+}
+
+export type BurnInBroadcast = BurnInAckResponse | BurnInProgressMessage | BurnInCompleteMessage;
+
+export function parseBurnInSegmentsJson(json: string): TranscriptSegment[] {
+  const parsed = JSON.parse(json) as TranscriptSegment[];
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (segment) =>
+      typeof segment?.text === 'string' &&
+      typeof segment?.start === 'number' &&
+      typeof segment?.end === 'number',
+  );
+}
+
+export function parseBurnInStyleJson(json: string): SubtitleStyleConfig {
+  return JSON.parse(json) as SubtitleStyleConfig;
+}

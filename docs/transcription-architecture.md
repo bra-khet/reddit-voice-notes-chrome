@@ -156,6 +156,6 @@ Open `transcribe-harness.html` → load WebM from recorder → Transcribe.
 | eloquent-0 | Spike, types, harness, sandbox architecture | **Done** |
 | eloquent-1 | Parallel wire from `stopRecording()` | Pending |
 | eloquent-2 | Design Studio editor | Pending |
-| eloquent-3 | FFmpeg subtitle burn-in | Pending |
+| eloquent-3 | FFmpeg subtitle burn-in (`MSG_BURNIN_*`, SRT + drawtext fallback) | **Done** |
 
 See `eloquent-branch.md` for full phase plan.

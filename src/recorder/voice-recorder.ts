@@ -5,7 +5,7 @@ import {
 } from '@/src/utils/constants';
 import { friendlyRecorderError, type RecorderErrorCode } from '@/src/utils/errors';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
-import { transcodeWebmToMp4 } from '@/src/ffmpeg';
+import { burnInSubtitlesToMp4, transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
 import { resolveAppearanceTheme, userBackgroundLayoutFromAppearance } from '@/src/theme';
@@ -16,6 +16,7 @@ import {
 } from '@/src/settings/user-preferences';
 import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
 import { forkTranscribeWebm } from '@/src/transcription/transcribe-client';
+import type { SubtitleStyleConfig } from '@/src/transcription/types';
 import { relaySaveSessionTranscript } from '@/src/storage/session-transcript-relay';
 import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
@@ -49,6 +50,8 @@ export interface RecorderState {
   stoppedAtCap: boolean;
   /** dulcet-3: voice -af failed; MP4 exported with raw audio. */
   voiceEffectFallback?: boolean;
+  /** eloquent-3: subtitle burn-in failed; MP4 delivered without hard subs. */
+  subtitleBurnInFallback?: boolean;
   errorCode?: RecorderErrorCode;
   errorMessage?: string;
   webmBlob?: Blob;
@@ -100,6 +103,7 @@ export class VoiceRecorderSession {
   private criticalLimit = false;
   private stoppedAtCap = false;
   private voiceEffectFallback = false;
+  private subtitleBurnInFallback = false;
   private phase: RecorderPhase = 'idle';
   private errorCode?: RecorderErrorCode;
   private errorMessage?: string;
@@ -112,6 +116,7 @@ export class VoiceRecorderSession {
   private transcribeGeneration = 0;
   private transcodeAbort: AbortController | null = null;
   private transcribeAbort: AbortController | null = null;
+  private processingAbort: AbortController | null = null;
   private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stopInFlight = false;
   private prefsUnsubscribe: (() => void) | null = null;
@@ -135,6 +140,7 @@ export class VoiceRecorderSession {
       criticalLimit: this.criticalLimit,
       stoppedAtCap: this.stoppedAtCap,
       voiceEffectFallback: this.voiceEffectFallback,
+      subtitleBurnInFallback: this.subtitleBurnInFallback,
       errorCode: this.errorCode,
       errorMessage: this.errorMessage,
       webmBlob: this.webmBlob,
@@ -159,6 +165,9 @@ export class VoiceRecorderSession {
     if (extra?.stoppedAtCap !== undefined) this.stoppedAtCap = extra.stoppedAtCap;
     if (extra?.voiceEffectFallback !== undefined) {
       this.voiceEffectFallback = extra.voiceEffectFallback;
+    }
+    if (extra?.subtitleBurnInFallback !== undefined) {
+      this.subtitleBurnInFallback = extra.subtitleBurnInFallback;
     }
 
     for (const listener of this.listeners) {
@@ -187,6 +196,7 @@ export class VoiceRecorderSession {
         criticalLimit: false,
         stoppedAtCap: false,
         voiceEffectFallback: false,
+        subtitleBurnInFallback: false,
         errorCode: undefined,
         errorMessage: undefined,
         webmBlob: undefined,
@@ -365,12 +375,33 @@ export class VoiceRecorderSession {
         await validateWebmRecording(this.webmBlob);
         if (this.isSuperseded(stopEpoch)) return;
 
-        // CHANGED: parallel non-blocking transcription fork on raw WebM clone (eloquent-1).
-        // WHY: STT must not block or fail FFmpeg export; separate MSG_TRANSCRIBE_* relay.
-        const webmClone = this.webmBlob.slice(0, this.webmBlob.size, this.webmBlob.type);
-        void this.forkTranscribe(webmClone, stopEpoch);
+        const prefs = await loadUserPreferences();
+        const subtitlesEnabled = prefs.transcriptConfig.transcriptionEnabled;
 
-        await this.transcodeToMp4(stopEpoch);
+        // CHANGED: parallel transcription fork; await when burn-in needed (eloquent-3).
+        // WHY: STT must not block base export when subtitles off; burn-in needs segment JSON.
+        const webmClone = this.webmBlob.slice(0, this.webmBlob.size, this.webmBlob.type);
+        const transcribePromise = this.forkTranscribe(webmClone, stopEpoch, subtitlesEnabled);
+
+        const transcodeOutcome = await this.transcodeToMp4(stopEpoch);
+        if (this.isSuperseded(stopEpoch) || this.phase === 'error') return;
+
+        let subtitleBurnInFallback = false;
+        if (subtitlesEnabled) {
+          subtitleBurnInFallback = await this.burnInSubtitlesIfReady(
+            stopEpoch,
+            transcribePromise,
+            prefs.transcriptConfig.style,
+          );
+        }
+
+        this.setPhase('stopped', {
+          processingProgress: 100,
+          stoppedAtCap: this.stoppedAtCap,
+          voiceEffectFallback: transcodeOutcome.voiceEffectFallback === true,
+          subtitleBurnInFallback,
+        });
+        this.processingAbort = null;
       } catch (error) {
         if (this.isSuperseded(stopEpoch)) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -381,59 +412,115 @@ export class VoiceRecorderSession {
     }
   }
 
-  private async forkTranscribe(webm: Blob, stopEpoch: number): Promise<void> {
+  private forkTranscribe(
+    webm: Blob,
+    stopEpoch: number,
+    reportProgress: boolean,
+  ): Promise<Awaited<ReturnType<typeof forkTranscribeWebm>>> {
     const generation = this.transcribeGeneration;
     this.abortTranscribe();
     const controller = new AbortController();
     this.transcribeAbort = controller;
 
+    return forkTranscribeWebm(webm, {
+      signal: controller.signal,
+      onProgress: (ratio, stage) => {
+        if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
+        if (reportProgress) {
+          const pct = 56 + Math.round(ratio * 24);
+          this.setPhase('processing', { processingProgress: Math.min(80, pct) });
+        }
+        console.log(`${EXTENSION_LOG_PREFIX} Transcribe progress`, {
+          ratio: Math.round(ratio * 100),
+          stage,
+        });
+      },
+    })
+      .then((outcome) => {
+        if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return null;
+        if (!outcome) return null;
+
+        if (outcome.applied) {
+          setSessionTranscript(outcome.result, outcome.jobId);
+          void relaySaveSessionTranscript(outcome.result, outcome.jobId);
+        }
+
+        console.log(`${EXTENSION_LOG_PREFIX} Transcribe complete`, {
+          jobId: outcome.jobId,
+          segments: outcome.result.segments.length,
+          chars: outcome.result.text.length,
+          applied: outcome.applied,
+          fallback: outcome.fallback,
+          stage: outcome.stage,
+          elapsedMs: outcome.elapsedMs,
+        });
+        return outcome;
+      })
+      .catch((error: unknown) => {
+        if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return null;
+        if (error instanceof DOMException && error.name === 'AbortError') return null;
+        console.warn(`${EXTENSION_LOG_PREFIX} Transcribe fork failed (non-blocking):`, error);
+        return null;
+      })
+      .finally(() => {
+        if (this.transcribeAbort === controller) {
+          this.transcribeAbort = null;
+        }
+      });
+  }
+
+  private async burnInSubtitlesIfReady(
+    stopEpoch: number,
+    transcribePromise: Promise<Awaited<ReturnType<typeof forkTranscribeWebm>>>,
+    style: SubtitleStyleConfig,
+  ): Promise<boolean> {
+    const outcome = await transcribePromise;
+    if (this.isSuperseded(stopEpoch) || !this.mp4Blob) return false;
+
+    const segments = outcome?.result?.segments?.filter((segment) => segment.text.trim()) ?? [];
+    if (!outcome?.applied || segments.length === 0) {
+      console.warn(`${EXTENSION_LOG_PREFIX} Subtitle burn-in skipped — no transcript segments.`);
+      return true;
+    }
+
+    const signal = this.processingAbort?.signal;
+    let lastProgress = 82;
+
     try {
-      const outcome = await forkTranscribeWebm(webm, {
-        signal: controller.signal,
-        onProgress: (ratio, stage) => {
-          if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
-          console.log(`${EXTENSION_LOG_PREFIX} Transcribe progress`, {
-            ratio: Math.round(ratio * 100),
-            stage,
-          });
+      const burned = await burnInSubtitlesToMp4(this.mp4Blob, {
+        segments,
+        style,
+        signal,
+        onProgress: (ratio) => {
+          if (this.isSuperseded(stopEpoch)) return;
+          const pct = 82 + Math.round(ratio * 18);
+          lastProgress = Math.max(lastProgress, pct);
+          this.setPhase('processing', { processingProgress: Math.min(100, lastProgress) });
         },
       });
 
-      if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
-      if (!outcome) return;
-
-      if (outcome.applied) {
-        setSessionTranscript(outcome.result, outcome.jobId);
-        void relaySaveSessionTranscript(outcome.result, outcome.jobId);
-      }
-
-      console.log(`${EXTENSION_LOG_PREFIX} Transcribe complete`, {
-        jobId: outcome.jobId,
-        segments: outcome.result.segments.length,
-        chars: outcome.result.text.length,
-        applied: outcome.applied,
-        fallback: outcome.fallback,
-        stage: outcome.stage,
-        elapsedMs: outcome.elapsedMs,
-      });
+      if (this.isSuperseded(stopEpoch)) return false;
+      this.mp4Blob = burned;
+      return false;
     } catch (error) {
-      if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      console.warn(`${EXTENSION_LOG_PREFIX} Transcribe fork failed (non-blocking):`, error);
-    } finally {
-      if (this.transcribeAbort === controller) {
-        this.transcribeAbort = null;
-      }
+      if (this.isSuperseded(stopEpoch)) return false;
+      if (error instanceof DOMException && error.name === 'AbortError') throw error;
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(`${EXTENSION_LOG_PREFIX} Subtitle burn-in failed — delivering base MP4`, detail);
+      return true;
     }
   }
 
-  private async transcodeToMp4(stopEpoch: number): Promise<void> {
-    if (!this.webmBlob || this.isSuperseded(stopEpoch)) return;
+  private async transcodeToMp4(stopEpoch: number): Promise<{ voiceEffectFallback?: boolean }> {
+    if (!this.webmBlob || this.isSuperseded(stopEpoch)) {
+      return {};
+    }
 
     const generation = this.transcodeGeneration;
     this.abortTranscode();
     const controller = new AbortController();
     this.transcodeAbort = controller;
+    this.processingAbort = controller;
 
     let lastProgress = 0;
 
@@ -443,7 +530,7 @@ export class VoiceRecorderSession {
         this.webmBlob,
         (ratio) => {
           if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
-          const pct = Math.max(lastProgress, Math.round(ratio * 100));
+          const pct = Math.max(lastProgress, Math.round(ratio * 55));
           lastProgress = pct;
           this.setPhase('processing', { processingProgress: pct });
         },
@@ -451,18 +538,19 @@ export class VoiceRecorderSession {
         prefs.voiceEffect,
       );
 
-      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) {
+        return {};
+      }
 
       this.mp4Blob = transcodeResult.mp4;
-      this.setPhase('stopped', {
-        processingProgress: 100,
-        stoppedAtCap: this.stoppedAtCap,
-        voiceEffectFallback: transcodeResult.voiceEffectFallback === true,
-      });
+      return { voiceEffectFallback: transcodeResult.voiceEffectFallback };
     } catch (error) {
-      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
-      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) {
+        return {};
+      }
+      if (error instanceof DOMException && error.name === 'AbortError') throw error;
       this.setError(error);
+      return {};
     } finally {
       if (this.transcodeAbort === controller) {
         this.transcodeAbort = null;
@@ -497,11 +585,13 @@ export class VoiceRecorderSession {
       criticalLimit: false,
       stoppedAtCap: false,
       voiceEffectFallback: false,
+      subtitleBurnInFallback: false,
       webmBlob: undefined,
       mp4Blob: undefined,
       errorCode: undefined,
       errorMessage: undefined,
     });
+    this.processingAbort = null;
   }
 
   dispose(): void {

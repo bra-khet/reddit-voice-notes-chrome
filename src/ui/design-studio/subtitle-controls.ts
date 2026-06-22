@@ -64,7 +64,7 @@ export function renderSubtitleControlFields(): string {
         <span class="popup__toggle-copy">
           <span class="popup__toggle-label">Subtitles</span>
           <p class="popup__field-desc">
-            Preview captions on the canvas. Burn-in export arrives in a later update.
+            Preview captions on the canvas. Enabled subtitles burn into your MP4 on export.
           </p>
         </span>
         <input

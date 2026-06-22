@@ -555,10 +555,15 @@ export class RecorderPanel {
         this.secondaryBtn.textContent = 'Discard';
         break;
       case 'processing':
-        this.statusEl.textContent =
-          state.processingProgress <= 5
-            ? `Loading FFmpeg WASM… ${state.processingProgress}%`
-            : `Converting to MP4… ${state.processingProgress}%`;
+        if (state.processingProgress <= 5) {
+          this.statusEl.textContent = `Loading FFmpeg WASM… ${state.processingProgress}%`;
+        } else if (state.processingProgress <= 55) {
+          this.statusEl.textContent = `Converting to MP4… ${state.processingProgress}%`;
+        } else if (state.processingProgress <= 80) {
+          this.statusEl.textContent = `Transcribing audio… ${state.processingProgress}%`;
+        } else {
+          this.statusEl.textContent = `Burning subtitles… ${state.processingProgress}%`;
+        }
         this.primaryBtn.textContent = 'Processing…';
         this.primaryBtn.disabled = true;
         this.secondaryBtn.textContent = 'Cancel';
@@ -583,6 +588,13 @@ export class RecorderPanel {
           if (state.voiceEffectFallback) {
             showToast(
               'Voice effect could not be applied — your clip used the original audio.',
+              'info',
+              6000,
+            );
+          }
+          if (state.subtitleBurnInFallback) {
+            showToast(
+              'Subtitles could not be burned in — your clip exported without captions.',
               'info',
               6000,
             );

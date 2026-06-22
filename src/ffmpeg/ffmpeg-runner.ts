@@ -1,4 +1,10 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import {
+  BURNIN_INPUT_MP4,
+  BURNIN_OUTPUT_MP4,
+  buildBurnInStrategies,
+  type SubtitleBurnInInput,
+} from '@/src/ffmpeg/subtitle-burnin';
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
 import { buildFfmpegAudioFilter } from '@/src/voice/filter-graphs';
 import { voiceEffectIsActive } from '@/src/voice/resolve-config';
@@ -495,6 +501,110 @@ export async function runWebmToMp4(
   } catch (error) {
     // BUG FIX: Poisoned FFmpeg singleton after hung/failed transcode
     // Fix: Terminate WASM worker so the next job starts from a clean virtual FS.
+    disposeFfmpeg();
+    throw error;
+  }
+}
+
+async function writeBurnInExtras(
+  ffmpeg: FFmpeg,
+  extraFiles: Record<string, string> | undefined,
+): Promise<void> {
+  if (!extraFiles) return;
+  for (const [path, contents] of Object.entries(extraFiles)) {
+    await safeDeleteFile(ffmpeg, path);
+    await ffmpeg.writeFile(path, new TextEncoder().encode(contents));
+  }
+}
+
+async function burnInWithStrategies(
+  inputBytes: Uint8Array,
+  burnIn: SubtitleBurnInInput,
+  onProgress?: FfmpegProgressCallback,
+): Promise<Uint8Array> {
+  const strategies = buildBurnInStrategies(burnIn);
+  const attempts: string[] = [];
+
+  for (const strategy of strategies) {
+    const ffmpeg = await loadFfmpeg(onProgress);
+    await safeDeleteFile(ffmpeg, BURNIN_INPUT_MP4);
+    await safeDeleteFile(ffmpeg, BURNIN_OUTPUT_MP4);
+    await ffmpeg.writeFile(BURNIN_INPUT_MP4, inputBytes.slice());
+    await writeBurnInExtras(ffmpeg, strategy.extraFiles);
+
+    const stageName = `burnin-${strategy.name}`;
+    onProgress?.(0.2, stageName);
+
+    const { lines, detach } = attachLogCollector(ffmpeg);
+    let result: ExecResult = { exitCode: 1, timedOut: false };
+
+    const progressHandler = ({ progress }: { progress: number }) => {
+      onProgress?.(0.2 + progress * 0.75, stageName);
+    };
+    ffmpeg.on('progress', progressHandler);
+
+    try {
+      result = await execWithTimeout(ffmpeg, strategy.args, STRATEGY_EXEC_TIMEOUT_MS);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      attempts.push(`${strategy.name}: ${detail}`);
+      disposeFfmpeg();
+      await wasmSettle();
+    } finally {
+      ffmpeg.off('progress', progressHandler);
+      detach();
+    }
+
+    if (result.timedOut) {
+      attempts.push(`${strategy.name}: timed out`);
+      await wasmSettle();
+      continue;
+    }
+
+    if (result.exitCode === 0) {
+      console.log(`${EXTENSION_LOG_PREFIX} Subtitle burn-in succeeded (${strategy.name})`);
+      const output = (await ffmpeg.readFile(BURNIN_OUTPUT_MP4)) as Uint8Array;
+      await safeDeleteFile(ffmpeg, BURNIN_INPUT_MP4);
+      await safeDeleteFile(ffmpeg, BURNIN_OUTPUT_MP4);
+      if (strategy.extraFiles) {
+        for (const path of Object.keys(strategy.extraFiles)) {
+          await safeDeleteFile(ffmpeg, path);
+        }
+      }
+      return output;
+    }
+
+    const summary = summarizeFfmpegLogs(lines);
+    attempts.push(`${strategy.name}: exit ${result.exitCode}${summary ? ` — ${summary}` : ''}`);
+    console.warn(`${EXTENSION_LOG_PREFIX} Burn-in attempt failed (${strategy.name})`, summary);
+    disposeFfmpeg();
+    await wasmSettle();
+  }
+
+  disposeFfmpeg();
+  throw new Error(
+    `Subtitle burn-in failed after ${strategies.length} attempts. ${attempts.join(' || ')}`,
+  );
+}
+
+/** Second FFmpeg pass: hard-burn subtitles onto base.mp4 (eloquent-3). */
+export async function runSubtitleBurnIn(
+  mp4: Uint8Array | ArrayBuffer,
+  burnIn: SubtitleBurnInInput,
+  onProgress?: FfmpegProgressCallback,
+): Promise<Uint8Array> {
+  const raw = mp4 instanceof Uint8Array ? mp4 : new Uint8Array(mp4);
+  const inputBytes = raw.slice();
+  if (inputBytes.byteLength < 256) {
+    throw new Error('Base MP4 is empty or too small for subtitle burn-in.');
+  }
+
+  try {
+    onProgress?.(0.05, 'burnin-start');
+    const output = await burnInWithStrategies(inputBytes, burnIn, onProgress);
+    onProgress?.(1, 'burnin-done');
+    return output;
+  } catch (error) {
     disposeFfmpeg();
     throw error;
   }
