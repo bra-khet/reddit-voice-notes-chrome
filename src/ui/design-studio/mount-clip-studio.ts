@@ -88,6 +88,7 @@ import {
   promptNameForFork,
 } from '@/src/ui/design-studio/studio-save-pathways';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
+import type { TranscriptConfig } from '@/src/transcription/types';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
   { value: 'top', label: 'Top' },
@@ -334,13 +335,20 @@ export function mountClipStudio(root: HTMLElement): () => void {
     return id && activePrefs ? getCustomStyleById(activePrefs, id) : undefined;
   }
 
+  function liveTranscriptForProfileMatch(): TranscriptConfig | undefined {
+    if (typeof subtitleControls?.getProfileSnapshotConfig === 'function') {
+      return subtitleControls.getProfileSnapshotConfig();
+    }
+    return activePrefs?.transcriptConfig;
+  }
+
   function isProfileDirty(): boolean {
     const profile = activeProfile();
     if (!profile || !activePrefs) return false;
     return !clipProfileMatchesLiveState(
       activePrefs.appearance,
       activePrefs.voiceEffect,
-      subtitleControls.getProfileSnapshotConfig(),
+      liveTranscriptForProfileMatch(),
       profile,
     );
   }
@@ -470,7 +478,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
   }
 
   function syncSelectControls(prefs: UserPreferencesV1): void {
-    populateProfileSelect(profileSelect, prefs);
+    populateProfileSelect(profileSelect, prefs, liveTranscriptForProfileMatch());
     populateDesignStudioStyleSelect(themeSelect, prefs);
     activeAlignment = prefs.appearance.barAlignment ?? 'center';
     alignmentSelect.value = activeAlignment;
@@ -642,10 +650,17 @@ export function mountClipStudio(root: HTMLElement): () => void {
     syncSectionSummaries();
   });
 
-  subtitleControls = mountSubtitleControls(root, () => {
-    syncSectionSummaries();
-    stopPreviewLoop();
-    void refreshPreview();
+  subtitleControls = mountSubtitleControls(root, {
+    onSettingsChange: () => {
+      syncSectionSummaries();
+      if (activePrefs) {
+        syncProfileActions(activePrefs);
+      }
+    },
+    onPreviewChange: () => {
+      stopPreviewLoop();
+      void refreshPreview();
+    },
   });
 
   profileSelect.addEventListener('change', () => {
@@ -707,7 +722,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
         );
       }
 
-      void studioPersist(() => updateActiveClipProfileWithStyleOption(saveStyleFirst))
+      void subtitleControls.flushPersist().then(() =>
+        studioPersist(() =>
+          updateActiveClipProfileWithStyleOption(
+            saveStyleFirst,
+            subtitleControls.getProfileSnapshotConfig(),
+          ),
+        ),
+      )
         .then((prefs) => {
           if (prefs) resetStyleUpdateConfirm();
         })
@@ -721,7 +743,11 @@ export function mountClipStudio(root: HTMLElement): () => void {
     const name = window.prompt('Name this profile (style, alignment, and background):');
     if (name === null) return;
     invalidateInFlightSaves();
-    void studioPersist(() => saveCurrentAsClipProfile(name)).catch((error: unknown) => {
+    void subtitleControls.flushPersist().then(() =>
+      studioPersist(() =>
+        saveCurrentAsClipProfile(name, undefined, subtitleControls.getProfileSnapshotConfig()),
+      ),
+    ).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Could not save profile.';
       window.alert(message);
     });
@@ -730,7 +756,9 @@ export function mountClipStudio(root: HTMLElement): () => void {
   saveProfileNewBtn.addEventListener('click', () => {
     if (!activePrefs || !canForkActiveProfile(activePrefs)) return;
     const dirty = isProfileDirty();
-    void flushPendingDesignPersist().then(async () => {
+    void flushPendingDesignPersist()
+      .then(() => subtitleControls.flushPersist())
+      .then(async () => {
       resetProfileUpdateConfirm();
       resetStyleUpdateConfirm();
       invalidateInFlightSaves();

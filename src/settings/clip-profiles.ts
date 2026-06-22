@@ -14,8 +14,8 @@ import { designOverridesMatch, normalizeDesignOverrides } from '@/src/theme/desi
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
 import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/user-preferences';
 import {
-  DEFAULT_TRANSCRIPT_CONFIG,
   normalizeTranscriptConfig,
+  transcriptConfigForProfileStorage,
   transcriptSettingsEqual,
   type TranscriptConfig,
 } from '@/src/transcription/types';
@@ -150,7 +150,7 @@ export function voiceEffectMatchesProfile(
   return voiceEffectConfigsEqual(liveNorm, snapshotNorm);
 }
 
-/** Legacy saved profiles without transcriptConfig compare as subtitles-off. */
+/** Compare subtitle settings (not session transcript text) against a profile snapshot. */
 export function transcriptConfigMatchesProfile(
   live: TranscriptConfig | undefined,
   profile: ClipProfile,
@@ -159,12 +159,17 @@ export function transcriptConfigMatchesProfile(
     return true;
   }
 
-  const liveNorm = normalizeTranscriptConfig(live);
-  const snapshotNorm =
-    profile.transcriptConfig != null
-      ? normalizeTranscriptConfig(profile.transcriptConfig)
-      : normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
-  return transcriptSettingsEqual(liveNorm, snapshotNorm);
+  // BUG FIX: profile UI stuck dirty / fork buttons no-op (BUG-021)
+  // Fix: legacy profiles without a transcript snapshot do not participate in dirty match —
+  // use Update profile once to embed subtitle settings, then comparisons apply.
+  if (profile.transcriptConfig == null) {
+    return true;
+  }
+
+  return transcriptSettingsEqual(
+    transcriptConfigForProfileStorage(live),
+    transcriptConfigForProfileStorage(profile.transcriptConfig),
+  );
 }
 
 export function clipProfileMatchesLiveState(

@@ -147,9 +147,16 @@ export function renderSubtitleControlFields(): string {
   `;
 }
 
+export interface SubtitleControlHandlers {
+  /** Style / enabled edits — may affect profile dirty state. */
+  onSettingsChange?: () => void;
+  /** Transcript text merge — preview only. */
+  onPreviewChange?: () => void;
+}
+
 export function mountSubtitleControls(
   root: HTMLElement,
-  onDraftChange?: () => void,
+  handlers?: SubtitleControlHandlers,
 ): SubtitleControlsHandle {
   const panel = root.querySelector<HTMLElement>('[data-subtitle-controls]')!;
   const sourceEl = panel.querySelector<HTMLElement>('[data-subtitle-source]')!;
@@ -181,8 +188,17 @@ export function mountSubtitleControls(
     positionSelect.append(el);
   }
 
+  function notifySettingsChange(): void {
+    handlers?.onSettingsChange?.();
+  }
+
+  function notifyPreviewChange(): void {
+    handlers?.onPreviewChange?.();
+  }
+
   function notifyDraftChange(): void {
-    onDraftChange?.();
+    notifySettingsChange();
+    notifyPreviewChange();
   }
 
   function schedulePersist(): void {
@@ -235,7 +251,7 @@ export function mountSubtitleControls(
     applyResultToDraft(draftConfig.result ?? null);
     syncStyleControls();
     syncing = false;
-    notifyDraftChange();
+    notifyPreviewChange();
   }
 
   function previewText(): string {

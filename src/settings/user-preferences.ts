@@ -430,7 +430,11 @@ export type SaveClipProfileOptions = {
 export async function saveCurrentAsClipProfile(
   name: string,
   options?: SaveClipProfileOptions,
+  transcriptDraft?: TranscriptConfig,
 ): Promise<UserPreferencesV1> {
+  if (transcriptDraft) {
+    await saveTranscriptPreferences(transcriptDraft);
+  }
   const trimmed = name.trim();
   if (!trimmed) {
     throw new Error('Enter a profile name.');
@@ -479,7 +483,12 @@ export async function saveCurrentAsClipProfile(
   });
 }
 
-export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
+export async function updateActiveClipProfile(
+  transcriptDraft?: TranscriptConfig,
+): Promise<UserPreferencesV1> {
+  if (transcriptDraft) {
+    await saveTranscriptPreferences(transcriptDraft);
+  }
   const current = await loadUserPreferences();
   const profileId = current.appearance.activeProfileId;
   if (!profileId) {

@@ -8,8 +8,13 @@ import {
 } from '@/src/settings/clip-profiles';
 import { presetProfileId } from '@/src/settings/preset-profiles';
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
+import { transcriptConfigForProfileStorage } from '@/src/transcription/types';
 
-export function populateProfileSelect(select: HTMLSelectElement, prefs: UserPreferencesV1): void {
+export function populateProfileSelect(
+  select: HTMLSelectElement,
+  prefs: UserPreferencesV1,
+  liveTranscriptConfig?: UserPreferencesV1['transcriptConfig'],
+): void {
   const profiles = prefs.appearance.savedProfiles ?? [];
   const activeId = prefs.appearance.activeProfileId;
   select.replaceChildren();
@@ -27,7 +32,7 @@ export function populateProfileSelect(select: HTMLSelectElement, prefs: UserPref
       !clipProfileMatchesLiveState(
         prefs.appearance,
         prefs.voiceEffect,
-        prefs.transcriptConfig,
+        transcriptConfigForProfileStorage(liveTranscriptConfig ?? prefs.transcriptConfig),
         profile,
       );
     option.textContent = dirty ? `${profile.name} · unsaved` : profile.name;
