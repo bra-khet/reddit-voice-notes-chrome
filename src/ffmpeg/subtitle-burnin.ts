@@ -1,3 +1,8 @@
+import {
+  buildGlowLayerSpecs,
+  ffmpegDrawtextColor,
+  resolveSubtitleEffectPalette,
+} from '@/src/transcription/subtitle-effects';
 import { buildSrtFromSegments } from '@/src/transcription/srt-builder';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
 
@@ -6,6 +11,8 @@ export interface SubtitleBurnInInput {
   style: SubtitleStyleConfig;
   /** Clip duration — used to spread segments when Vosk word timings are missing. */
   videoDurationSeconds?: number;
+  /** Active theme bar color — resolves theme-hue glow at bake time. */
+  themeBarColor?: string;
 }
 
 export const BURNIN_FONT_FS_PATH = 'burnin-font.ttf';
@@ -14,6 +21,8 @@ export const BURNIN_FONT_ASSET = 'assets/fonts/DejaVuSans.ttf';
 const INPUT_MP4 = 'base.mp4';
 const OUTPUT_MP4 = 'final.mp4';
 const SRT_FILE = 'subs.srt';
+
+const DEFAULT_THEME_BAR = '#00e5ff';
 
 function usableSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   return segments.filter((segment) => segment.text.trim().length > 0);
@@ -72,11 +81,12 @@ export function buildSubtitleForceStyle(style: SubtitleStyleConfig): string {
   const borderStyle = style.backdrop?.enabled === false ? 1 : 4;
   const outline = style.outline?.enabled === true ? (style.outline.width ?? 1) : 0;
   const shadow = style.shadow?.enabled === false ? 0 : 1;
+  const primaryColour = style.textColor === 'black' ? '&H00000000&' : '&H00FFFFFF&';
 
   return [
     'FontName=DejaVu Sans',
     `FontSize=${fontSize}`,
-    'PrimaryColour=&H00FFFFFF&',
+    `PrimaryColour=${primaryColour}`,
     `BackColour=${backColour}`,
     `BorderStyle=${borderStyle}`,
     `Outline=${outline}`,
@@ -102,30 +112,115 @@ function drawtextY(position: SubtitleStyleConfig['position'], fontSize: number):
   return `h-text_h-${margin}`;
 }
 
+function drawtextX(offsetX: number): string {
+  if (offsetX === 0) return '(w-text_w)/2';
+  const sign = offsetX > 0 ? '+' : '-';
+  return `(w-text_w)/2${sign}${Math.abs(offsetX)}`;
+}
+
+function drawtextYWithOffset(y: string, offsetY: number): string {
+  if (offsetY === 0) return y;
+  const sign = offsetY > 0 ? '+' : '-';
+  return `${y}${sign}${Math.abs(offsetY)}`;
+}
+
+interface DrawtextLayer {
+  text: string;
+  start: number;
+  end: number;
+  fontSize: number;
+  fontColor: string;
+  x: string;
+  y: string;
+  box?: string;
+}
+
+function buildDrawtextLayer(layer: DrawtextLayer, fontFile: string): string {
+  const start = Math.max(0, layer.start);
+  const end = Math.max(start + 0.35, layer.end);
+  return (
+    `drawtext=fontfile=${fontFile}:fontcolor=${layer.fontColor}:fontsize=${layer.fontSize}` +
+    `:x=${layer.x}:y=${layer.y}${layer.box ?? ''}` +
+    `:text='${escapeDrawtext(layer.text)}':enable='between(t,${start},${end})'`
+  );
+}
+
+function buildSegmentLayers(
+  segment: TranscriptSegment,
+  style: SubtitleStyleConfig,
+  fontFile: string,
+  themeBarColor: string,
+): string[] {
+  const text = segment.text.trim();
+  if (!text) return [];
+
+  const fontSize = style.fontSize ?? 22;
+  const yBase = drawtextY(style.position, fontSize);
+  const start = Math.max(0, segment.start);
+  const end = Math.max(start + 0.35, segment.end);
+  const palette = resolveSubtitleEffectPalette(style, themeBarColor);
+  const layers: DrawtextLayer[] = [];
+
+  const glow = style.glow ?? { enabled: false };
+  if (glow.enabled === true) {
+    for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
+      layers.push({
+        text,
+        start,
+        end,
+        fontSize: spec.fontSize,
+        fontColor: ffmpegDrawtextColor(palette.glowHex, spec.opacity),
+        x: drawtextX(spec.offsetX),
+        y: drawtextYWithOffset(yBase, spec.offsetY),
+      });
+    }
+  }
+
+  const shadow = style.shadow;
+  if (shadow?.enabled !== false) {
+    const shadowOpacity = shadow?.opacity ?? 0.85;
+    const shadowX = shadow?.offsetX ?? 2;
+    const shadowY = shadow?.offsetY ?? 2;
+    layers.push({
+      text,
+      start,
+      end,
+      fontSize,
+      fontColor: ffmpegDrawtextColor(palette.shadowHex, shadowOpacity),
+      x: drawtextX(shadowX),
+      y: drawtextYWithOffset(yBase, shadowY),
+    });
+  }
+
+  const backdropOn = style.backdrop?.enabled !== false;
+  const backdropOpacity = style.backdrop?.opacity ?? 0.72;
+  const box = backdropOn
+    ? `:box=1:boxcolor=black@${backdropOpacity.toFixed(2)}:boxborderw=12`
+    : '';
+
+  layers.push({
+    text,
+    start,
+    end,
+    fontSize,
+    fontColor: ffmpegDrawtextColor(palette.textHex, 1),
+    x: drawtextX(0),
+    y: yBase,
+    box,
+  });
+
+  return layers.map((layer) => buildDrawtextLayer(layer, fontFile));
+}
+
 function buildDrawtextFilter(
   segments: TranscriptSegment[],
   style: SubtitleStyleConfig,
   fontFile: string,
+  themeBarColor: string,
 ): string {
-  const fontSize = style.fontSize ?? 22;
-  const y = drawtextY(style.position, fontSize);
-  const backdropOn = style.backdrop?.enabled !== false;
-  const opacity = style.backdrop?.opacity ?? 0.72;
-  const box = backdropOn ? `:box=1:boxcolor=black@${opacity.toFixed(2)}:boxborderw=12` : '';
-  const shadowOn = style.shadow?.enabled !== false;
-  const shadow = shadowOn ? ':shadowcolor=black@0.85:shadowx=1:shadowy=1' : '';
-
-  const parts = segments.map((segment) => {
-    const text = escapeDrawtext(segment.text.trim());
-    const start = Math.max(0, segment.start);
-    const end = Math.max(start + 0.35, segment.end);
-    return (
-      `drawtext=fontfile=${fontFile}:fontcolor=white:fontsize=${fontSize}` +
-      `:x=(w-text_w)/2:y=${y}${box}${shadow}` +
-      `:text='${text}':enable='between(t,${start},${end})'`
-    );
-  });
-
+  const parts = segments.flatMap((segment) =>
+    buildSegmentLayers(segment, style, fontFile, themeBarColor),
+  );
   return parts.join(',');
 }
 
@@ -163,9 +258,10 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
     throw new Error('No subtitle segments to burn in.');
   }
 
+  const themeBarColor = input.themeBarColor ?? DEFAULT_THEME_BAR;
   const srt = buildSrtFromSegments(segments);
   const forceStyle = buildSubtitleForceStyle(input.style);
-  const drawtextFilter = buildDrawtextFilter(segments, input.style, BURNIN_FONT_FS_PATH);
+  const drawtextFilter = buildDrawtextFilter(segments, input.style, BURNIN_FONT_FS_PATH, themeBarColor);
 
   // BUG FIX: silent burn-in success with no visible subs (BUG-025)
   // Fix: drawtext + bundled DejaVu TTF first; subtitles filter is fallback only (no libass/fonts in wasm).

@@ -697,6 +697,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         syncSectionSummaries();
       }
     },
+    getThemeBarColor: () => resolvedTheme().colors.bar,
   });
 
   profileSelect.addEventListener('change', () => {

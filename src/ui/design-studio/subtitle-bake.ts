@@ -1,8 +1,12 @@
 import { burnInSubtitlesToMp4 } from '@/src/ffmpeg/burnin-client';
+import {
+  BAKED_MP4_READY_KEY,
+  loadUserPreferences,
+} from '@/src/settings/user-preferences';
 import { saveLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
+import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
 import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
-import { BAKED_MP4_READY_KEY } from '@/src/settings/user-preferences';
 
 export interface SubtitleBakeProgress {
   ratio: number;
@@ -37,10 +41,14 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
 
   report({ ratio: 0.08, stage: 'burning', message: 'Burning subtitles…' });
 
+  const prefs = await loadUserPreferences();
+  const themeBarColor = resolveAppearanceTheme(prefs.appearance).colors.bar;
+
   const burned = await burnInSubtitlesToMp4(base.blob, {
     segments,
     style: options.style,
     videoDurationSeconds: options.videoDurationSeconds ?? base.meta.durationSeconds,
+    themeBarColor,
     signal: options.signal,
     onProgress: (ratio) => {
       report({

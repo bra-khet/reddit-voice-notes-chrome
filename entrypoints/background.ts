@@ -930,6 +930,7 @@ export default defineBackground(() => {
             segmentsJson: burnInRequest.segmentsJson,
             styleJson: burnInRequest.styleJson,
             videoDurationSeconds: burnInRequest.videoDurationSeconds,
+            themeBarColor: burnInRequest.themeBarColor,
           };
 
           await dispatchToOffscreen(offscreenRequest);

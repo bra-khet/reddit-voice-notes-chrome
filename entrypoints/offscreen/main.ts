@@ -367,6 +367,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 segments,
                 style,
                 videoDurationSeconds: burnInRequest.videoDurationSeconds,
+                themeBarColor: burnInRequest.themeBarColor,
               },
               (ratio, stage) => {
                 assertTranscodeNotCancelled(burnInRequest.jobId);

@@ -580,6 +580,12 @@ body {
   margin-bottom: 10px;
 }
 
+.studio__subtitle-effects {
+  margin: 0 0 10px;
+  padding: 8px 0 2px 10px;
+  border-left: 2px solid #343536;
+}
+
 .studio__transcript {
   margin-bottom: 12px;
 }

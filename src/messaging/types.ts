@@ -208,6 +208,8 @@ export interface BurnInStartRequest {
   styleJson: string;
   /** Clip duration for segment timing normalization when word timestamps are missing. */
   videoDurationSeconds?: number;
+  /** Active theme bar color — resolves theme-hue glow at bake time. */
+  themeBarColor?: string;
 }
 
 export interface BurnInAckResponse {
@@ -226,6 +228,7 @@ export interface BurnInOffscreenRequest {
   segmentsJson: string;
   styleJson: string;
   videoDurationSeconds?: number;
+  themeBarColor?: string;
 }
 
 export interface BurnInCancelRequest {

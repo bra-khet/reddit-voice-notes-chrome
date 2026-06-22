@@ -1,12 +1,19 @@
+import {
+  buildGlowLayerSpecs,
+  resolveSubtitleEffectPalette,
+} from '@/src/transcription/subtitle-effects';
 import type { SubtitleStyleConfig } from './types';
 
 export interface SubtitlePreviewOptions {
   enabled: boolean;
   text: string;
   style: SubtitleStyleConfig;
+  /** Active theme bar color — resolves theme-hue glow in preview. */
+  themeBarColor?: string;
 }
 
 const PREVIEW_PLACEHOLDER = 'Your caption here';
+const DEFAULT_THEME_BAR = '#00e5ff';
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
@@ -41,6 +48,22 @@ function verticalAnchor(
   return canvasHeight - blockHeight - margin;
 }
 
+function drawTextLines(
+  ctx: CanvasRenderingContext2D,
+  lines: string[],
+  textX: number,
+  startY: number,
+  lineHeight: number,
+  offsetX = 0,
+  offsetY = 0,
+): void {
+  let textY = startY + offsetY;
+  for (const line of lines) {
+    ctx.fillText(line, textX + offsetX, textY);
+    textY += lineHeight;
+  }
+}
+
 /** Preview-only subtitle overlay — topmost layer over bars (eloquent-2; not encoded path). */
 export function drawSubtitlePreview(
   ctx: CanvasRenderingContext2D,
@@ -57,6 +80,8 @@ export function drawSubtitlePreview(
   const maxWidth = Math.round(canvas.width * 0.88);
   const paddingX = 14;
   const paddingY = 10;
+  const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
+  const palette = resolveSubtitleEffectPalette(style, themeBarColor);
 
   ctx.save();
   ctx.font = `600 ${fontSize}px ${fontFamily}`;
@@ -86,28 +111,39 @@ export function drawSubtitlePreview(
   }
 
   const textX = canvas.width / 2;
-  let textY = blockY + paddingY;
+  const textY = blockY + paddingY;
+  const glow = style.glow;
+
+  if (glow?.enabled === true) {
+    for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
+      ctx.font = `600 ${spec.fontSize}px ${fontFamily}`;
+      ctx.fillStyle = hexToRgba(palette.glowHex, spec.opacity);
+      drawTextLines(ctx, lines, textX, textY, lineHeight, spec.offsetX, spec.offsetY);
+    }
+    ctx.font = `600 ${fontSize}px ${fontFamily}`;
+  }
 
   const shadow = style.shadow;
   if (shadow?.enabled !== false) {
-    const offsetX = shadow?.offsetX ?? 1;
-    const offsetY = shadow?.offsetY ?? 1;
+    const offsetX = shadow?.offsetX ?? 2;
+    const offsetY = shadow?.offsetY ?? 2;
     const shadowOpacity = shadow?.opacity ?? 0.85;
     ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
-    for (const line of lines) {
-      ctx.fillText(line, textX + offsetX, textY + offsetY);
-      textY += lineHeight;
-    }
-    textY = blockY + paddingY;
+    drawTextLines(ctx, lines, textX, textY, lineHeight, offsetX, offsetY);
   }
 
-  ctx.fillStyle = '#ffffff';
-  for (const line of lines) {
-    ctx.fillText(line, textX, textY);
-    textY += lineHeight;
-  }
+  ctx.fillStyle = palette.textHex;
+  drawTextLines(ctx, lines, textX, textY, lineHeight);
 
   ctx.restore();
+}
+
+function hexToRgba(hex: string, opacity: number): string {
+  const normalized = hex.startsWith('#') ? hex.slice(1) : hex;
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
 function fillRoundedRect(

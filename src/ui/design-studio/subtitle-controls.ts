@@ -19,7 +19,10 @@ import {
   normalizeSubtitleStyle,
   normalizeTranscriptConfig,
   transcriptConfigForProfileStorage,
+  type SubtitleGlowColorSource,
+  type SubtitleGlowMode,
   type SubtitleStyleConfig,
+  type SubtitleTextColor,
   type TranscriptConfig,
   type TranscriptResult,
 } from '@/src/transcription/types';
@@ -131,6 +134,72 @@ export function renderSubtitleControlFields(): string {
             aria-label="Subtitle backdrop opacity"
           />
         </label>
+        <label class="popup__field studio__field--compact">
+          <span class="popup__field-label">Text color</span>
+          <select class="popup__select" data-subtitle-text-color aria-label="Subtitle text color">
+            <option value="white">White</option>
+            <option value="black">Black</option>
+          </select>
+        </label>
+        <label class="popup__toggle-row studio__subtitles-toggle">
+          <span class="popup__toggle-copy">
+            <span class="popup__toggle-label">Drop shadow</span>
+            <p class="popup__field-desc">Dark offset copy behind text for contrast on bright bars.</p>
+          </span>
+          <input
+            class="popup__toggle-input"
+            type="checkbox"
+            data-subtitle-shadow
+            aria-label="Subtitle drop shadow"
+            checked
+          />
+        </label>
+        <label class="popup__toggle-row studio__subtitles-toggle">
+          <span class="popup__toggle-copy">
+            <span class="popup__toggle-label">Theme glow</span>
+            <p class="popup__field-desc">
+              Colored halo or offset glow from your bar hue — stacks with backdrop and shadow.
+            </p>
+          </span>
+          <input
+            class="popup__toggle-input"
+            type="checkbox"
+            data-subtitle-glow
+            aria-label="Subtitle theme glow"
+          />
+        </label>
+        <div class="studio__subtitle-effects" data-subtitle-glow-options hidden>
+          <label class="popup__field studio__field--compact">
+            <span class="popup__field-label">Glow style</span>
+            <select class="popup__select" data-subtitle-glow-mode aria-label="Subtitle glow style">
+              <option value="halo">Halo (soft)</option>
+              <option value="offset">Offset</option>
+            </select>
+          </label>
+          <label class="popup__field studio__field--compact">
+            <span class="popup__field-label">Glow color</span>
+            <select class="popup__select" data-subtitle-glow-color aria-label="Subtitle glow color">
+              <option value="theme">Theme hue</option>
+              <option value="black">Black</option>
+              <option value="white">White</option>
+            </select>
+          </label>
+          <label class="popup__field studio__field--compact">
+            <span class="popup__field-label">
+              Glow strength <span data-subtitle-glow-opacity-value>55%</span>
+            </span>
+            <input
+              class="popup__range"
+              type="range"
+              min="20"
+              max="90"
+              step="1"
+              value="55"
+              data-subtitle-glow-opacity
+              aria-label="Subtitle glow strength"
+            />
+          </label>
+        </div>
         <div class="studio__subtitles-bake" data-subtitle-bake-block>
           <button
             type="button"
@@ -161,6 +230,7 @@ export function renderSubtitleControlFields(): string {
 export interface SubtitleControlHandlers {
   onSettingsChange?: () => void;
   onPreviewChange?: () => void;
+  getThemeBarColor?: () => string;
 }
 
 export function mountSubtitleControls(
@@ -179,6 +249,14 @@ export function mountSubtitleControls(
   const backdropOpacityValueEl = panel.querySelector<HTMLElement>(
     '[data-subtitle-backdrop-opacity-value]',
   )!;
+  const textColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-text-color]')!;
+  const shadowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-shadow]')!;
+  const glowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow]')!;
+  const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
+  const glowModeSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-mode]')!;
+  const glowColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-color]')!;
+  const glowOpacityInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow-opacity]')!;
+  const glowOpacityValueEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-opacity-value]')!;
   const resetBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-reset]')!;
   const bakeBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-bake]')!;
   const bakeStatusEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-status]')!;
@@ -358,6 +436,14 @@ export function mountSubtitleControls(
     return edited?.text?.trim() ?? '';
   }
 
+  function syncGlowOptionsUi(): void {
+    const glowOn = glowInput.checked;
+    glowOptionsEl.hidden = !glowOn;
+    glowModeSelect.disabled = !glowOn;
+    glowColorSelect.disabled = !glowOn;
+    glowOpacityInput.disabled = !glowOn;
+  }
+
   function syncStyleControls(): void {
     syncing = true;
     const style = draftConfig.style;
@@ -370,6 +456,15 @@ export function mountSubtitleControls(
     backdropOpacityInput.value = String(opacityPct);
     backdropOpacityValueEl.textContent = `${opacityPct}%`;
     backdropOpacityInput.disabled = !backdropInput.checked;
+    textColorSelect.value = style.textColor ?? 'white';
+    shadowInput.checked = style.shadow?.enabled !== false;
+    glowInput.checked = style.glow?.enabled === true;
+    glowModeSelect.value = style.glow?.mode ?? 'halo';
+    glowColorSelect.value = style.glow?.colorSource ?? 'theme';
+    const glowOpacityPct = Math.round((style.glow?.opacity ?? 0.55) * 100);
+    glowOpacityInput.value = String(glowOpacityPct);
+    glowOpacityValueEl.textContent = `${glowOpacityPct}%`;
+    syncGlowOptionsUi();
     syncing = false;
   }
 
@@ -395,15 +490,28 @@ export function mountSubtitleControls(
 
   function mergeStyleFromControls(): SubtitleStyleConfig {
     const opacity = Number(backdropOpacityInput.value) / 100;
+    const glowOpacity = Number(glowOpacityInput.value) / 100;
     return normalizeSubtitleStyle({
       ...draftConfig.style,
       enabled: draftConfig.transcriptionEnabled,
       position: positionSelect.value as SubtitleStyleConfig['position'],
       fontSize: Number(fontSizeInput.value),
+      textColor: textColorSelect.value as SubtitleTextColor,
       backdrop: {
         ...draftConfig.style.backdrop,
         enabled: backdropInput.checked,
         opacity,
+      },
+      shadow: {
+        ...draftConfig.style.shadow,
+        enabled: shadowInput.checked,
+      },
+      glow: {
+        ...draftConfig.style.glow,
+        enabled: glowInput.checked,
+        mode: glowModeSelect.value as SubtitleGlowMode,
+        colorSource: glowColorSelect.value as SubtitleGlowColorSource,
+        opacity: glowOpacity,
       },
     });
   }
@@ -517,6 +625,50 @@ export function mountSubtitleControls(
     notifyDraftChange();
   });
 
+  textColorSelect.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  shadowInput.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  glowInput.addEventListener('change', () => {
+    if (syncing) return;
+    syncGlowOptionsUi();
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  glowModeSelect.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  glowColorSelect.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  glowOpacityInput.addEventListener('input', () => {
+    if (syncing) return;
+    glowOpacityValueEl.textContent = `${glowOpacityInput.value}%`;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
   const onVisibility = (): void => {
     if (document.visibilityState !== 'visible') return;
     void loadTranscriptSource();
@@ -604,6 +756,7 @@ export function mountSubtitleControls(
         enabled: true,
         text: previewText(),
         style: config.style,
+        themeBarColor: handlers?.getThemeBarColor?.(),
       };
     },
   };

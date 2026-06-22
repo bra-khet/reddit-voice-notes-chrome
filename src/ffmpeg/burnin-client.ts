@@ -59,6 +59,7 @@ export interface BurnInClientOptions {
   segments: TranscriptSegment[];
   style: SubtitleStyleConfig;
   videoDurationSeconds?: number;
+  themeBarColor?: string;
   signal?: AbortSignal;
   onProgress?: (ratio: number) => void;
 }
@@ -237,6 +238,7 @@ async function burnInSubtitlesToMp4Inner(
       segmentsJson: JSON.stringify(segments),
       styleJson: JSON.stringify(normalizeSubtitleStyle(options.style)),
       videoDurationSeconds: options.videoDurationSeconds,
+      themeBarColor: options.themeBarColor,
     };
 
     if (options.signal?.aborted) {

@@ -37,12 +37,31 @@ export interface SubtitleOutlineConfig {
   width?: number;
 }
 
+export type SubtitleTextColor = 'white' | 'black';
+
+export type SubtitleGlowColorSource = 'theme' | 'black' | 'white';
+
+export type SubtitleGlowMode = 'halo' | 'offset';
+
+export interface SubtitleGlowConfig {
+  enabled: boolean;
+  mode?: SubtitleGlowMode;
+  colorSource?: SubtitleGlowColorSource;
+  opacity?: number;
+  /** Halo softness — 1–3 ring steps (drawtext has no real blur). */
+  blurRadius?: number;
+  offsetX?: number;
+  offsetY?: number;
+}
+
 export interface SubtitleStyleConfig {
   enabled: boolean;
   fontFamily?: string;
   fontSize?: number;
   position?: 'bottom' | 'top' | 'center';
+  textColor?: SubtitleTextColor;
   backdrop?: SubtitleBackdropConfig;
+  glow?: SubtitleGlowConfig;
   shadow?: SubtitleShadowConfig;
   outline?: SubtitleOutlineConfig;
 }
@@ -61,8 +80,18 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
   fontFamily: 'system-ui, sans-serif',
   fontSize: 22,
   position: 'bottom',
+  textColor: 'white',
   backdrop: { enabled: true, opacity: 0.72, borderRadius: 8, fullWidth: false },
-  shadow: { enabled: true, offsetX: 1, offsetY: 1, opacity: 0.85 },
+  glow: {
+    enabled: false,
+    mode: 'halo',
+    colorSource: 'theme',
+    opacity: 0.55,
+    blurRadius: 2,
+    offsetX: 2,
+    offsetY: 2,
+  },
+  shadow: { enabled: true, offsetX: 2, offsetY: 2, opacity: 0.85 },
   outline: { enabled: false, width: 1 },
 };
 
@@ -90,8 +119,22 @@ export interface TranscribeAudioResult {
   elapsedMs: number;
 }
 
+function normalizeGlowColorSource(raw: string | undefined): SubtitleGlowColorSource {
+  if (raw === 'black' || raw === 'white') return raw;
+  return 'theme';
+}
+
+function normalizeGlowMode(raw: string | undefined): SubtitleGlowMode {
+  return raw === 'offset' ? 'offset' : 'halo';
+}
+
+function normalizeTextColor(raw: string | undefined): SubtitleTextColor {
+  return raw === 'black' ? 'black' : 'white';
+}
+
 export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null | undefined): SubtitleStyleConfig {
   const backdrop: Partial<SubtitleBackdropConfig> = raw?.backdrop ?? {};
+  const glow: Partial<SubtitleGlowConfig> = raw?.glow ?? {};
   const shadow: Partial<SubtitleShadowConfig> = raw?.shadow ?? {};
   const outline: Partial<SubtitleOutlineConfig> = raw?.outline ?? {};
 
@@ -100,6 +143,7 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
     fontFamily: raw?.fontFamily ?? DEFAULT_SUBTITLE_STYLE.fontFamily,
     fontSize: typeof raw?.fontSize === 'number' ? raw.fontSize : DEFAULT_SUBTITLE_STYLE.fontSize,
     position: raw?.position ?? DEFAULT_SUBTITLE_STYLE.position,
+    textColor: normalizeTextColor(raw?.textColor),
     backdrop: {
       enabled: backdrop.enabled !== false,
       opacity: typeof backdrop.opacity === 'number' ? backdrop.opacity : DEFAULT_SUBTITLE_STYLE.backdrop!.opacity,
@@ -108,6 +152,16 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
           ? backdrop.borderRadius
           : DEFAULT_SUBTITLE_STYLE.backdrop!.borderRadius,
       fullWidth: backdrop.fullWidth === true,
+    },
+    glow: {
+      enabled: glow.enabled === true,
+      mode: normalizeGlowMode(glow.mode),
+      colorSource: normalizeGlowColorSource(glow.colorSource),
+      opacity: typeof glow.opacity === 'number' ? glow.opacity : DEFAULT_SUBTITLE_STYLE.glow!.opacity,
+      blurRadius:
+        typeof glow.blurRadius === 'number' ? glow.blurRadius : DEFAULT_SUBTITLE_STYLE.glow!.blurRadius,
+      offsetX: typeof glow.offsetX === 'number' ? glow.offsetX : DEFAULT_SUBTITLE_STYLE.glow!.offsetX,
+      offsetY: typeof glow.offsetY === 'number' ? glow.offsetY : DEFAULT_SUBTITLE_STYLE.glow!.offsetY,
     },
     shadow: {
       enabled: shadow.enabled !== false,
