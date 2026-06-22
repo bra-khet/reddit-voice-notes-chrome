@@ -3,7 +3,6 @@ import {
   loadSessionTranscript,
   revertSessionTranscriptEdits,
   saveSessionTranscriptEdits,
-  sessionTranscriptIsDirty,
   type SessionTranscriptSnapshot,
 } from '@/src/storage/session-transcript-db';
 import {
@@ -189,7 +188,6 @@ export function mountSubtitleControls(
   let dismissedSnapshotCapturedAt = 0;
   let syncing = false;
   let saveTimer = 0;
-  let transcriptConfirmed = false;
   let baking = false;
   let bakeAbort: AbortController | null = null;
 
@@ -201,7 +199,7 @@ export function mountSubtitleControls(
     },
     async onSaveEdits(edited) {
       await saveSessionTranscriptEdits(edited, { confirmed: true });
-      transcriptConfirmed = true;
+      lastSnapshot = await loadSessionTranscript();
       syncDraftFromEditor();
       syncBakeButton();
       updateSourceCopy();
@@ -211,8 +209,9 @@ export function mountSubtitleControls(
       const snapshot = await loadSessionTranscript();
       if (snapshot) {
         lastSnapshot = snapshot;
-        segmentEditor.setTranscript(snapshot.originalResult, snapshot.editedResult);
-        transcriptConfirmed = !sessionTranscriptIsDirty(snapshot);
+        segmentEditor.setTranscript(snapshot.originalResult, snapshot.editedResult, {
+          savedBaseline: snapshot.editedResult,
+        });
       }
       syncDraftFromEditor();
       syncBakeButton();
@@ -243,13 +242,29 @@ export function mountSubtitleControls(
   function buildDraftConfig(): TranscriptConfig {
     const enabled = draftConfig.transcriptionEnabled;
     return normalizeTranscriptConfig({
-      ...draftConfig,
       transcriptionEnabled: enabled,
       style: normalizeSubtitleStyle({
         ...mergeStyleFromControls(),
         enabled,
       }),
+      result: segmentEditor.getEditedResult(),
+      resultCapturedAt: draftConfig.resultCapturedAt,
     });
+  }
+
+  /** Profile dirty checks — style/toggle only; session transcript text is IDB-scoped. */
+  function buildProfileStyleConfig(): TranscriptConfig {
+    const enabled = draftConfig.transcriptionEnabled;
+    return transcriptConfigForProfileStorage(
+      normalizeTranscriptConfig({
+        transcriptionEnabled: enabled,
+        style: normalizeSubtitleStyle({
+          ...mergeStyleFromControls(),
+          enabled,
+        }),
+        result: null,
+      }),
+    );
   }
 
   function schedulePersist(): void {
@@ -286,8 +301,8 @@ export function mountSubtitleControls(
   function syncBakeButton(): void {
     const edited = segmentEditor.getEditedResult();
     const hasSegments = (edited?.segments?.length ?? 0) > 0;
-    const dirty = segmentEditor.getState().dirty;
-    const canBake = hasSegments && transcriptConfirmed && !dirty && !baking;
+    const { dirty, confirmed } = segmentEditor.getState();
+    const canBake = hasSegments && confirmed && !dirty && !baking;
     bakeBtn.disabled = !canBake;
   }
 
@@ -302,16 +317,15 @@ export function mountSubtitleControls(
       resultCapturedAt: undefined,
     };
     segmentEditor.setTranscript(null);
-    transcriptConfirmed = false;
     syncBakeButton();
     notifyDraftChange();
   }
 
   function applySnapshotToUi(snapshot: SessionTranscriptSnapshot): void {
     lastSnapshot = snapshot;
-    segmentEditor.setTranscript(snapshot.originalResult, snapshot.editedResult);
-    transcriptConfirmed =
-      typeof snapshot.confirmedAt === 'number' || !sessionTranscriptIsDirty(snapshot);
+    segmentEditor.setTranscript(snapshot.originalResult, snapshot.editedResult, {
+      savedBaseline: snapshot.editedResult,
+    });
     draftConfig = {
       ...draftConfig,
       result: snapshot.editedResult,
@@ -325,6 +339,9 @@ export function mountSubtitleControls(
   function mergeIdbTranscriptIfNewer(): void {
     if (!lastSnapshot) return;
     if (lastSnapshot.capturedAt <= dismissedSnapshotCapturedAt) return;
+    // BUG FIX: IDB poll stomps unsaved transcript edits (eloquent-4a)
+    // Fix: skip merge while the segment editor has local unsaved changes.
+    if (segmentEditor.getState().dirty) return;
     if (lastSnapshot.capturedAt <= (draftConfig.resultCapturedAt ?? 0)) return;
 
     syncing = true;
@@ -371,7 +388,7 @@ export function mountSubtitleControls(
 
     const chars = lastSnapshot.editedResult.text.length;
     const segments = lastSnapshot.editedResult.segments.length;
-    const dirty = sessionTranscriptIsDirty(lastSnapshot);
+    const dirty = segmentEditor.getState().dirty;
     const dirtyLabel = dirty ? ' · unsaved edits' : '';
     sourceEl.textContent = `Last transcript: ${segments} segment(s) · ${chars} chars · ${formatSavedAt(lastSnapshot.capturedAt)}${dirtyLabel}`;
   }
@@ -433,7 +450,13 @@ export function mountSubtitleControls(
   bakeBtn.addEventListener('click', () => {
     void (async () => {
       const edited = segmentEditor.getEditedResult();
-      if (!edited || baking) return;
+      const { dirty, confirmed } = segmentEditor.getState();
+      if (!edited || baking || dirty || !confirmed) {
+        bakeStatusEl.textContent = dirty
+          ? 'Confirm & save your transcript edits before baking.'
+          : 'Transcript not ready for bake yet.';
+        return;
+      }
 
       baking = true;
       bakeAbort = new AbortController();
@@ -566,7 +589,7 @@ export function mountSubtitleControls(
     },
     getDraftConfig: buildDraftConfig,
     getProfileSnapshotConfig(): TranscriptConfig {
-      return transcriptConfigForProfileStorage(buildDraftConfig());
+      return buildProfileStyleConfig();
     },
     getPreviewOptions(): SubtitlePreviewOptions | undefined {
       const config = normalizeTranscriptConfig({

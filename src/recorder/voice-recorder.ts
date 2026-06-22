@@ -388,7 +388,11 @@ export class VoiceRecorderSession {
         if (this.isSuperseded(stopEpoch) || this.phase === 'error') return;
 
         if (this.mp4Blob) {
-          void relaySaveLastBaseMp4(this.mp4Blob, this.elapsedSeconds);
+          try {
+            await relaySaveLastBaseMp4(this.mp4Blob, this.elapsedSeconds);
+          } catch (error) {
+            console.warn(`${EXTENSION_LOG_PREFIX} Base MP4 relay for subtitle bake failed`, error);
+          }
         }
 
         this.setPhase('stopped', {
@@ -422,6 +426,9 @@ export class VoiceRecorderSession {
       signal: controller.signal,
       onProgress: (ratio, stage) => {
         if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
+        // BUG FIX: recorder stuck at "Transcribing… 80%" after MP4 ready (eloquent-4a)
+        // Fix: late transcribe progress must not regress phase from stopped → processing.
+        if (this.phase !== 'processing') return;
         if (reportProgress) {
           const pct = 56 + Math.round(ratio * 24);
           this.setPhase('processing', { processingProgress: Math.min(80, pct) });

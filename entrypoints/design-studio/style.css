@@ -605,6 +605,11 @@ body {
   color: #ffb74d;
 }
 
+.studio__transcript-badge--saved {
+  background: rgba(76, 175, 80, 0.18);
+  color: #81c784;
+}
+
 .studio__transcript-hint {
   margin: 0 0 8px;
 }

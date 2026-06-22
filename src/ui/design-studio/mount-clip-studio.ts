@@ -688,6 +688,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     onPreviewChange: () => {
       stopPreviewLoop();
       void refreshPreview();
+      // CHANGED: transcript text edits refresh preview only — not profile dirty state.
+      // WHY: session transcript is IDB-scoped; profile tracks style/toggle fields only.
+      if (activePrefs) {
+        syncSectionSummaries();
+      }
     },
   });
 

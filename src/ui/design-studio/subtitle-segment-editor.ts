@@ -7,7 +7,10 @@ import {
 import type { TranscriptResult, TranscriptSegment } from '@/src/transcription/types';
 
 export interface SegmentEditorState {
-  original: TranscriptResult | null;
+  /** Immutable Vosk output — discard restores this. */
+  voskOriginal: TranscriptResult | null;
+  /** Last confirmed save — dirty compares edited against this. */
+  savedBaseline: TranscriptResult | null;
   edited: TranscriptResult | null;
   dirty: boolean;
   confirmed: boolean;
@@ -16,15 +19,19 @@ export interface SegmentEditorState {
 export interface SegmentEditorHandle {
   dispose(): void;
   getState(): SegmentEditorState;
-  setTranscript(original: TranscriptResult | null, edited?: TranscriptResult | null): void;
+  setTranscript(
+    voskOriginal: TranscriptResult | null,
+    edited?: TranscriptResult | null,
+    options?: { savedBaseline?: TranscriptResult | null },
+  ): void;
   getEditedResult(): TranscriptResult | null;
+  /** After IDB persist — align baseline so dirty UI clears. */
+  markConfirmedSaved(): void;
 }
 
 export interface SegmentEditorHandlers {
   onStateChange?: (state: SegmentEditorState) => void;
-  /** User clicked Save edits — parent should persist to IDB. */
   onSaveEdits?: (edited: TranscriptResult) => void | Promise<void>;
-  /** User clicked Discard edits — parent should revert IDB baseline. */
   onDiscardEdits?: () => void | Promise<void>;
 }
 
@@ -41,7 +48,8 @@ export function renderSubtitleSegmentEditorFields(): string {
     <div class="studio__transcript" data-transcript-editor>
       <div class="studio__transcript-header">
         <span class="studio__transcript-label">Generated transcript</span>
-        <span class="studio__transcript-badge" data-transcript-dirty-badge hidden>Edited</span>
+        <span class="studio__transcript-badge" data-transcript-dirty-badge hidden>Unsaved</span>
+        <span class="studio__transcript-badge studio__transcript-badge--saved" data-transcript-saved-badge hidden>Saved</span>
       </div>
       <p class="studio__transcript-hint popup__field-desc">
         Review what Vosk produced. Open the editor to fix wording or timing before baking.
@@ -79,12 +87,12 @@ export function renderSubtitleSegmentEditorFields(): string {
             </button>
           </header>
           <p class="studio__transcript-dialog-copy popup__field-desc">
-            Adjust each cue’s text and timing. Changes stay in your session until you save.
+            Adjust each cue’s text and timing. Confirm &amp; save in the main panel when you are done.
           </p>
           <div class="studio__transcript-segments" data-transcript-segments></div>
           <div class="studio__transcript-dialog-actions">
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-transcript-modal-save>
-              Save &amp; close
+              Apply to preview
             </button>
             <button type="button" class="popup__button popup__button--secondary" data-transcript-modal-cancel>
               Cancel
@@ -103,6 +111,7 @@ export function mountSubtitleSegmentEditor(
   const panel = root.querySelector<HTMLElement>('[data-transcript-editor]')!;
   const previewEl = panel.querySelector<HTMLElement>('[data-transcript-preview]')!;
   const dirtyBadge = panel.querySelector<HTMLElement>('[data-transcript-dirty-badge]')!;
+  const savedBadge = panel.querySelector<HTMLElement>('[data-transcript-saved-badge]')!;
   const editOpenBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')!;
   const saveBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-save]')!;
   const discardBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-discard]')!;
@@ -112,17 +121,24 @@ export function mountSubtitleSegmentEditor(
   const modalCancelBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-modal-cancel]')!;
   const modalCloseBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-close]')!;
 
-  let original: TranscriptResult | null = null;
+  let voskOriginal: TranscriptResult | null = null;
+  let savedBaseline: TranscriptResult | null = null;
   let edited: TranscriptResult | null = null;
-  let confirmed = false;
   let modalDraft: TranscriptSegment[] = [];
 
+  function computeDirty(): boolean {
+    if (!edited || !savedBaseline) return false;
+    return isTranscriptDirty(savedBaseline, edited);
+  }
+
   function notify(): void {
+    const dirty = computeDirty();
     handlers?.onStateChange?.({
-      original,
+      voskOriginal,
+      savedBaseline,
       edited,
-      dirty: isTranscriptDirty(original, edited),
-      confirmed,
+      dirty,
+      confirmed: !dirty && Boolean(edited),
     });
   }
 
@@ -153,8 +169,10 @@ export function mountSubtitleSegmentEditor(
   }
 
   function syncActionButtons(): void {
-    const dirty = isTranscriptDirty(original, edited);
+    const dirty = computeDirty();
+    const hasTranscript = Boolean(edited?.segments?.length);
     dirtyBadge.hidden = !dirty;
+    savedBadge.hidden = dirty || !hasTranscript;
     saveBtn.hidden = !dirty;
     discardBtn.hidden = !dirty;
   }
@@ -226,7 +244,6 @@ export function mountSubtitleSegmentEditor(
     if (!edited) return;
     const segments = readModalDraft();
     edited = normalizeEditedTranscriptResult(edited, segments);
-    confirmed = false;
     renderPreview();
     syncActionButtons();
     notify();
@@ -243,48 +260,72 @@ export function mountSubtitleSegmentEditor(
   });
 
   saveBtn.addEventListener('click', () => {
-    if (!edited) return;
-    confirmed = true;
-    void Promise.resolve(handlers?.onSaveEdits?.(cloneTranscriptResult(edited))).then(() => {
-      syncActionButtons();
-      notify();
-    });
+    if (!edited || !computeDirty()) return;
+    saveBtn.disabled = true;
+    void Promise.resolve(handlers?.onSaveEdits?.(cloneTranscriptResult(edited)))
+      .then(() => {
+        markConfirmedSaved();
+      })
+      .catch((error: unknown) => {
+        console.warn('[Reddit Voice Notes] Transcript confirm save failed', error);
+      })
+      .finally(() => {
+        saveBtn.disabled = false;
+      });
   });
 
   discardBtn.addEventListener('click', () => {
     void Promise.resolve(handlers?.onDiscardEdits?.()).then(() => {
-      if (!original) {
+      if (!voskOriginal) {
         edited = null;
+        savedBaseline = null;
       } else {
-        edited = cloneTranscriptResult(original);
+        edited = cloneTranscriptResult(voskOriginal);
+        savedBaseline = cloneTranscriptResult(voskOriginal);
       }
-      confirmed = false;
       renderPreview();
       syncActionButtons();
       notify();
     });
   });
 
+  function markConfirmedSaved(): void {
+    if (!edited) return;
+    savedBaseline = cloneTranscriptResult(edited);
+    syncActionButtons();
+    notify();
+  }
+
   return {
     dispose(): void {
       closeModal();
     },
     getState(): SegmentEditorState {
+      const dirty = computeDirty();
       return {
-        original,
+        voskOriginal,
+        savedBaseline,
         edited,
-        dirty: isTranscriptDirty(original, edited),
-        confirmed,
+        dirty,
+        confirmed: !dirty && Boolean(edited),
       };
     },
-    setTranscript(nextOriginal: TranscriptResult | null, nextEdited?: TranscriptResult | null): void {
-      original = nextOriginal ? cloneTranscriptResult(nextOriginal) : null;
+    setTranscript(
+      nextVosk: TranscriptResult | null,
+      nextEdited?: TranscriptResult | null,
+      options?: { savedBaseline?: TranscriptResult | null },
+    ): void {
+      voskOriginal = nextVosk ? cloneTranscriptResult(nextVosk) : null;
       edited = nextEdited
         ? cloneTranscriptResult(nextEdited)
-        : original
-          ? cloneTranscriptResult(original)
+        : voskOriginal
+          ? cloneTranscriptResult(voskOriginal)
           : null;
-      confirmed = false;
+      savedBaseline = options?.savedBaseline
+        ? cloneTranscriptResult(options.savedBaseline)
+        : edited
+          ? cloneTranscriptResult(edited)
+          : null;
       renderPreview();
       syncActionButtons();
       notify();
@@ -292,5 +333,6 @@ export function mountSubtitleSegmentEditor(
     getEditedResult(): TranscriptResult | null {
       return edited ? cloneTranscriptResult(edited) : null;
     },
+    markConfirmedSaved,
   };
 }
