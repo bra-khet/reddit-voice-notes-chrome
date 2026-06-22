@@ -13,16 +13,33 @@ mkdirSync(dirname(outfile), { recursive: true });
 // Fix: extract Emscripten worker to public/vosk-emscripten-worker.js; patch Model to spawn 'self' worker.
 await import('./extract-vosk-worker.mjs');
 
-const voskWorkerPatchPlugin = {
-  name: 'vosk-packaged-worker',
+function voskBrowserToEsm(contents) {
+  // BUG FIX: vosk-browser is UMD-only — esbuild ESM named imports become undefined (BUG-012).
+  const unwrapped = contents.replace(
+    /\(function \(global, factory\) \{[\s\S]*?\}\)\(this, \(function \(exports\) \{/,
+    'const __voskExports = {};\n(function (exports) {',
+  );
+  if (unwrapped === contents) {
+    throw new Error('vosk-browser UMD wrapper not recognized — update voskBrowserToEsm()');
+  }
+
+  return unwrapped
+    .replace(
+      'this.worker = new WorkerFactory();',
+      // BUG-011: chrome-extension:// worker origin gets IndexedDB; blob:null workers do not.
+      'this.worker = new Worker(new URL("vosk-emscripten-worker.js", import.meta.url), { type: "classic" });',
+    )
+    .replace(
+      /\}\)\);\s*$/,
+      '})(__voskExports);\nexport const Model = __voskExports.Model;\nexport const createModel = __voskExports.createModel;\n',
+    );
+}
+
+const voskBrowserPlugin = {
+  name: 'vosk-browser-esm',
   setup(build) {
     build.onLoad({ filter: /vosk-browser[/\\]dist[/\\]vosk\.js$/ }, async (args) => {
-      let contents = readFileSync(args.path, 'utf8');
-      contents = contents.replace(
-        'this.worker = new WorkerFactory();',
-        // WHY: chrome-extension:// worker origin gets IndexedDB; blob:null workers do not (manifest sandbox).
-        'this.worker = new Worker(new URL("vosk-emscripten-worker.js", import.meta.url), { type: "classic" });',
-      );
+      const contents = voskBrowserToEsm(readFileSync(args.path, 'utf8'));
       return { contents, loader: 'js' };
     });
   },
@@ -37,7 +54,7 @@ const buildOptions = {
   target: 'chrome120',
   sourcemap: true,
   logLevel: 'info',
-  plugins: [voskWorkerPatchPlugin],
+  plugins: [voskBrowserPlugin],
   // CHANGED: self-contained sandbox bundle — must not depend on WXT/Vite dev server (null-origin CORS).
   // WHY: manifest sandbox pages cannot load localhost HMR scripts in npm run dev.
 };

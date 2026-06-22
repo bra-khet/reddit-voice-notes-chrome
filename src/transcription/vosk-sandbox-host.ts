@@ -2,7 +2,7 @@
  * Vosk inference host — bundled to public/vosk-sandbox.js (manifest sandbox page only).
  * Worker patched at build time to public/vosk-emscripten-worker.js (BUG-011 — IDBFS needs extension origin).
  */
-import { createModel, type Model } from 'vosk-browser';
+import { Model } from 'vosk-browser';
 import { TRANSCRIBE_CHUNK_SAMPLES } from './constants';
 import type { TranscriptResult, TranscriptSegment } from './types';
 import {
@@ -36,6 +36,21 @@ function segmentFromVoskWords(text: string, words: VoskWordToken[]): TranscriptS
   };
 }
 
+function waitForVoskModel(model: Model): Promise<Model> {
+  return new Promise((resolve, reject) => {
+    model.on('load', (message) => {
+      if (message.result) {
+        resolve(model);
+        return;
+      }
+      reject(new Error('Vosk model failed to load'));
+    });
+    model.on('error', (message) => {
+      reject(new Error(message.error || 'Vosk model error'));
+    });
+  });
+}
+
 async function loadModel(modelUrl: string): Promise<Model> {
   if (modelPromise && loadedModelUrl === modelUrl) {
     return modelPromise;
@@ -49,7 +64,10 @@ async function loadModel(modelUrl: string): Promise<Model> {
   }
 
   loadedModelUrl = modelUrl;
-  modelPromise = createModel(modelUrl);
+  // BUG FIX: vosk-browser createModel broken under esbuild + rejects after resolve upstream.
+  // Fix: construct Model directly after UMD→ESM unwrap in build-vosk-sandbox.mjs (BUG-012).
+  const model = new Model(modelUrl);
+  modelPromise = waitForVoskModel(model);
   return modelPromise;
 }
 

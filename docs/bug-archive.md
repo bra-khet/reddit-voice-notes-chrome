@@ -409,3 +409,31 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - `public/vosk-emscripten-worker.js` (generated, gitignored)
 - `src/transcription/constants.ts` — `VOSK_WORKER_PATH`
 - `docs/transcription-architecture.md`
+
+---
+
+## BUG-012 — vosk-browser UMD import undefined under esbuild (2026-06)
+
+### Symptoms
+
+- Transcribe harness reaches decode (~10%) then fails in ~500ms with `(void 0) is not a function`.
+- Sandbox posts `VOSK_SANDBOX_RESULT` with `ok: false`; harness shows fallback empty JSON (`text: ""`, `segments: []`).
+- Built `public/vosk-sandbox.js` contains `modelPromise = (void 0)(modelUrl)` instead of `createModel(modelUrl)`.
+- esbuild warning: `Import "createModel" will always be undefined because the file "vosk-browser/dist/vosk.js" has no exports`.
+
+### Root cause (confirmed)
+
+1. **vosk-browser ships UMD only** — no real ESM `export`; esbuild bundles the IIFE but does not wire named imports to the UMD `exports` object.
+2. **`import { createModel } from 'vosk-browser'` compiles to `undefined(modelUrl)`** — classic CJS/ESM interop failure (compare BUG-008 circular imports: different failure mode, same “module init/export” class).
+3. **Upstream `createModel()` is also buggy** — always calls `reject()` after `resolve()` on load success; we avoid it and use `new Model()` + explicit load wait.
+
+### Fix (2026-06, `eloquent`)
+
+- `scripts/build-vosk-sandbox.mjs` — `voskBrowserToEsm()` unwraps UMD to `export const Model` / `createModel`.
+- `vosk-sandbox-host.ts` — `new Model(modelUrl)` + `waitForVoskModel()` instead of `createModel()`.
+
+### Related files
+
+- `scripts/build-vosk-sandbox.mjs`
+- `src/transcription/vosk-sandbox-host.ts`
+- `public/vosk-sandbox.js` (generated)
