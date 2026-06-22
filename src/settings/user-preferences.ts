@@ -33,6 +33,7 @@ import { DEFAULT_THEME_ID, normalizeThemeId } from '@/src/theme/presets';
 import {
   DEFAULT_TRANSCRIPT_CONFIG,
   normalizeTranscriptConfig,
+  transcriptConfigForProfileStorage,
   type TranscriptConfig,
 } from '@/src/transcription/types';
 import {
@@ -314,7 +315,7 @@ export async function saveVoiceEffectPreferences(
 export async function saveTranscriptPreferences(
   config: TranscriptConfig,
 ): Promise<UserPreferencesV1> {
-  const normalized = normalizeTranscriptConfig(config);
+  const normalized = transcriptConfigForProfileStorage(normalizeTranscriptConfig(config));
   await setSubtitlesEnabled(normalized.transcriptionEnabled);
   const current = await loadUserPreferences();
   const next: UserPreferencesV1 = {
@@ -469,7 +470,7 @@ export async function saveCurrentAsClipProfile(
     customStyleId,
     designOverrides,
     voiceEffectConfig: normalizeVoiceEffectConfig(current.voiceEffect),
-    transcriptConfig: normalizeTranscriptConfig(current.transcriptConfig),
+    transcriptConfig: transcriptConfigForProfileStorage(current.transcriptConfig),
   };
 
   return saveAppearancePreferences({
@@ -502,7 +503,7 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
         ? null
         : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null),
       voiceEffectConfig: normalizeVoiceEffectConfig(current.voiceEffect),
-      transcriptConfig: normalizeTranscriptConfig(current.transcriptConfig),
+      transcriptConfig: transcriptConfigForProfileStorage(current.transcriptConfig),
     };
   });
 

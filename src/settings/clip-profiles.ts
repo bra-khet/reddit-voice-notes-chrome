@@ -16,7 +16,7 @@ import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/us
 import {
   DEFAULT_TRANSCRIPT_CONFIG,
   normalizeTranscriptConfig,
-  transcriptConfigsEqual,
+  transcriptSettingsEqual,
   type TranscriptConfig,
 } from '@/src/transcription/types';
 import { voiceEffectConfigsEqual } from '@/src/voice/resolve-config';
@@ -164,7 +164,7 @@ export function transcriptConfigMatchesProfile(
     profile.transcriptConfig != null
       ? normalizeTranscriptConfig(profile.transcriptConfig)
       : normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
-  return transcriptConfigsEqual(liveNorm, snapshotNorm);
+  return transcriptSettingsEqual(liveNorm, snapshotNorm);
 }
 
 export function clipProfileMatchesLiveState(

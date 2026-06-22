@@ -140,6 +140,31 @@ function subtitleStylesEqual(a: SubtitleStyleConfig, b: SubtitleStyleConfig): bo
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+/** Profile / prefs storage — session transcript text lives in IDB, not profile snapshots. */
+export function transcriptConfigForProfileStorage(
+  config: TranscriptConfig | null | undefined,
+): TranscriptConfig {
+  const normalized = normalizeTranscriptConfig(config ?? undefined);
+  return normalizeTranscriptConfig({
+    transcriptionEnabled: normalized.transcriptionEnabled,
+    style: normalized.style,
+    result: null,
+    resultCapturedAt: undefined,
+  });
+}
+
+export function transcriptSettingsEqual(
+  a: TranscriptConfig | null | undefined,
+  b: TranscriptConfig | null | undefined,
+): boolean {
+  const left = transcriptConfigForProfileStorage(a);
+  const right = transcriptConfigForProfileStorage(b);
+  return (
+    left.transcriptionEnabled === right.transcriptionEnabled &&
+    subtitleStylesEqual(left.style, right.style)
+  );
+}
+
 export function transcriptConfigsEqual(
   a: TranscriptConfig | null | undefined,
   b: TranscriptConfig | null | undefined,
@@ -147,9 +172,8 @@ export function transcriptConfigsEqual(
   const left = normalizeTranscriptConfig(a ?? undefined);
   const right = normalizeTranscriptConfig(b ?? undefined);
   return (
-    left.transcriptionEnabled === right.transcriptionEnabled &&
-    transcriptResultsEqual(left.result, right.result) &&
-    subtitleStylesEqual(left.style, right.style)
+    transcriptSettingsEqual(left, right) &&
+    transcriptResultsEqual(left.result, right.result)
   );
 }
 

@@ -340,7 +340,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     return !clipProfileMatchesLiveState(
       activePrefs.appearance,
       activePrefs.voiceEffect,
-      subtitleControls.getDraftConfig(),
+      subtitleControls.getProfileSnapshotConfig(),
       profile,
     );
   }

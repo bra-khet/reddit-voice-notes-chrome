@@ -1,4 +1,8 @@
-import { loadSessionTranscript, type SessionTranscriptSnapshot } from '@/src/storage/session-transcript-db';
+import {
+  clearSessionTranscriptStore,
+  loadSessionTranscript,
+  type SessionTranscriptSnapshot,
+} from '@/src/storage/session-transcript-db';
 import {
   loadUserPreferences,
   readSubtitlesEnabledLocal,
@@ -12,6 +16,7 @@ import {
   DEFAULT_TRANSCRIPT_CONFIG,
   normalizeSubtitleStyle,
   normalizeTranscriptConfig,
+  transcriptConfigForProfileStorage,
   type SubtitleStyleConfig,
   type TranscriptConfig,
   type TranscriptResult,
@@ -22,6 +27,7 @@ export interface SubtitleControlsHandle {
   dispose(): void;
   flushPersist(): Promise<void>;
   getDraftConfig(): TranscriptConfig;
+  getProfileSnapshotConfig(): TranscriptConfig;
   getPreviewOptions(): SubtitlePreviewOptions | undefined;
   syncFromPreferences(prefs: UserPreferencesV1): void;
 }
@@ -80,6 +86,15 @@ export function renderSubtitleControlFields(): string {
           ></textarea>
         </label>
         <p class="studio__subtitles-meta popup__field-desc" data-subtitle-meta hidden></p>
+        <div class="popup__profile-actions studio__inline-actions">
+          <button
+            type="button"
+            class="popup__profile-btn popup__profile-btn--delete"
+            data-subtitle-reset
+          >
+            Clear transcript
+          </button>
+        </div>
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Position</span>
           <select class="popup__select" data-subtitle-position aria-label="Subtitle position"></select>
@@ -150,9 +165,12 @@ export function mountSubtitleControls(
   const backdropOpacityValueEl = panel.querySelector<HTMLElement>(
     '[data-subtitle-backdrop-opacity-value]',
   )!;
+  const resetBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-reset]')!;
 
   let draftConfig: TranscriptConfig = normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
   let lastSnapshot: SessionTranscriptSnapshot | null = null;
+  /** IDB snapshots at or before this ms are ignored (user clear / re-enable / reset). */
+  let dismissedSnapshotCapturedAt = 0;
   let syncing = false;
   let saveTimer = 0;
 
@@ -189,22 +207,35 @@ export function mountSubtitleControls(
     }
   }
 
+  function dismissCurrentSessionTranscript(): void {
+    dismissedSnapshotCapturedAt = Math.max(
+      dismissedSnapshotCapturedAt,
+      lastSnapshot?.capturedAt ?? Date.now(),
+    );
+    draftConfig = {
+      ...draftConfig,
+      result: null,
+      resultCapturedAt: undefined,
+    };
+    applyResultToDraft(null);
+    notifyDraftChange();
+  }
+
   function mergeIdbTranscriptIfNewer(): void {
     if (!lastSnapshot) return;
-
-    const shouldApply =
-      !draftConfig.result?.text?.trim() ||
-      lastSnapshot.capturedAt > (draftConfig.resultCapturedAt ?? 0);
-
-    if (!shouldApply) return;
+    if (lastSnapshot.capturedAt <= dismissedSnapshotCapturedAt) return;
+    if (lastSnapshot.capturedAt <= (draftConfig.resultCapturedAt ?? 0)) return;
 
     draftConfig = normalizeTranscriptConfig({
       ...draftConfig,
       result: lastSnapshot.result,
       resultCapturedAt: lastSnapshot.capturedAt,
     });
-    syncControlsFromDraft();
-    schedulePersist();
+    syncing = true;
+    applyResultToDraft(draftConfig.result ?? null);
+    syncStyleControls();
+    syncing = false;
+    notifyDraftChange();
   }
 
   function previewText(): string {
@@ -305,8 +336,13 @@ export function mountSubtitleControls(
       }),
     };
     syncEnabledUi();
-    // BUG FIX: subtitle toggle reverts on studio exit (BUG-019)
-    // Fix: sync localStorage + atomic chrome.storage key before rvnUserPrefs merge races.
+    // CHANGED: re-enabling subtitles waits for a new recording transcript.
+    // WHY: IDB poll was resurrecting cleared / stale session text (BUG-020).
+    if (enabled) {
+      void loadTranscriptSource().then(() => {
+        dismissCurrentSessionTranscript();
+      });
+    }
     writeSubtitlesEnabledLocal(enabled);
     void setSubtitlesEnabled(enabled).then(() => persistNow());
     notifyDraftChange();
@@ -315,6 +351,11 @@ export function mountSubtitleControls(
   textArea.addEventListener('input', () => {
     if (syncing) return;
     const text = textArea.value;
+    if (!text.trim()) {
+      dismissCurrentSessionTranscript();
+      schedulePersist();
+      return;
+    }
     const base = draftConfig.result ?? {
       text: '',
       segments: [],
@@ -327,9 +368,21 @@ export function mountSubtitleControls(
         text,
         source: 'manual',
       },
+      resultCapturedAt: Date.now(),
     };
     schedulePersist();
     notifyDraftChange();
+  });
+
+  resetBtn.addEventListener('click', () => {
+    void (async () => {
+      await clearSessionTranscriptStore();
+      lastSnapshot = null;
+      dismissedSnapshotCapturedAt = Date.now();
+      dismissCurrentSessionTranscript();
+      updateSourceCopy();
+      await persistNow();
+    })();
   });
 
   positionSelect.addEventListener('change', () => {
@@ -393,16 +446,30 @@ export function mountSubtitleControls(
   }
 
   void loadUserPreferences().then((prefs) => {
-    draftConfig = normalizeTranscriptConfig(prefs.transcriptConfig);
-    syncControlsFromDraft();
+    const settings = normalizeTranscriptConfig(prefs.transcriptConfig);
+    draftConfig = {
+      ...draftConfig,
+      transcriptionEnabled: settings.transcriptionEnabled,
+      style: settings.style,
+      result: null,
+      resultCapturedAt: undefined,
+    };
+    syncEnabledUi();
+    syncStyleControls();
     void loadTranscriptSource();
   });
 
   return {
     syncFromPreferences(prefs: UserPreferencesV1): void {
       syncing = true;
-      draftConfig = normalizeTranscriptConfig(prefs.transcriptConfig);
-      syncControlsFromDraft();
+      const settings = normalizeTranscriptConfig(prefs.transcriptConfig);
+      draftConfig = {
+        ...draftConfig,
+        transcriptionEnabled: settings.transcriptionEnabled,
+        style: settings.style,
+      };
+      syncEnabledUi();
+      syncStyleControls();
       syncing = false;
       void loadTranscriptSource();
     },
@@ -427,6 +494,9 @@ export function mountSubtitleControls(
           enabled,
         }),
       });
+    },
+    getProfileSnapshotConfig(): TranscriptConfig {
+      return transcriptConfigForProfileStorage(getDraftConfig());
     },
     getPreviewOptions(): SubtitlePreviewOptions | undefined {
       const config = normalizeTranscriptConfig({
