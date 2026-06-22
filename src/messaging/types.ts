@@ -186,6 +186,8 @@ export interface BurnInStartRequest {
   mp4ByteLength: number;
   segmentsJson: string;
   styleJson: string;
+  /** Clip duration for segment timing normalization when word timestamps are missing. */
+  videoDurationSeconds?: number;
 }
 
 export interface BurnInAckResponse {
@@ -203,6 +205,7 @@ export interface BurnInOffscreenRequest {
   mp4ByteLength: number;
   segmentsJson: string;
   styleJson: string;
+  videoDurationSeconds?: number;
 }
 
 export interface BurnInCancelRequest {

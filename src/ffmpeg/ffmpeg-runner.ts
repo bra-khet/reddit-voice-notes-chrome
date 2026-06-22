@@ -1,7 +1,10 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import {
+  BURNIN_FONT_ASSET,
+  BURNIN_FONT_FS_PATH,
   BURNIN_INPUT_MP4,
   BURNIN_OUTPUT_MP4,
+  burnInLogIndicatesFailure,
   buildBurnInStrategies,
   type SubtitleBurnInInput,
 } from '@/src/ffmpeg/subtitle-burnin';
@@ -506,14 +509,29 @@ export async function runWebmToMp4(
   }
 }
 
+async function writeBurnInFont(ffmpeg: FFmpeg): Promise<void> {
+  await safeDeleteFile(ffmpeg, BURNIN_FONT_FS_PATH);
+  const url = browser.runtime.getURL(BURNIN_FONT_ASSET as never);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Burn-in font not reachable (${response.status}): ${url}`);
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  await ffmpeg.writeFile(BURNIN_FONT_FS_PATH, bytes);
+}
+
 async function writeBurnInExtras(
   ffmpeg: FFmpeg,
-  extraFiles: Record<string, string> | undefined,
+  extraFiles: Record<string, string | Uint8Array> | undefined,
 ): Promise<void> {
   if (!extraFiles) return;
   for (const [path, contents] of Object.entries(extraFiles)) {
     await safeDeleteFile(ffmpeg, path);
-    await ffmpeg.writeFile(path, new TextEncoder().encode(contents));
+    if (typeof contents === 'string') {
+      await ffmpeg.writeFile(path, new TextEncoder().encode(contents));
+      continue;
+    }
+    await ffmpeg.writeFile(path, contents);
   }
 }
 
@@ -530,6 +548,9 @@ async function burnInWithStrategies(
     await safeDeleteFile(ffmpeg, BURNIN_INPUT_MP4);
     await safeDeleteFile(ffmpeg, BURNIN_OUTPUT_MP4);
     await ffmpeg.writeFile(BURNIN_INPUT_MP4, inputBytes.slice());
+    if (strategy.requiresFont) {
+      await writeBurnInFont(ffmpeg);
+    }
     await writeBurnInExtras(ffmpeg, strategy.extraFiles);
 
     const stageName = `burnin-${strategy.name}`;
@@ -562,10 +583,33 @@ async function burnInWithStrategies(
     }
 
     if (result.exitCode === 0) {
-      console.log(`${EXTENSION_LOG_PREFIX} Subtitle burn-in succeeded (${strategy.name})`);
+      const logFailure = burnInLogIndicatesFailure(lines);
+      if (logFailure) {
+        attempts.push(`${strategy.name}: ffmpeg log indicates failure (${logFailure})`);
+        console.warn(
+          `${EXTENSION_LOG_PREFIX} Burn-in attempt rejected from logs (${strategy.name})`,
+          logFailure,
+        );
+        disposeFfmpeg();
+        await wasmSettle();
+        continue;
+      }
+
       const output = (await ffmpeg.readFile(BURNIN_OUTPUT_MP4)) as Uint8Array;
+      if (!output || output.byteLength < 256) {
+        attempts.push(`${strategy.name}: empty output`);
+        disposeFfmpeg();
+        await wasmSettle();
+        continue;
+      }
+
+      console.log(`${EXTENSION_LOG_PREFIX} Subtitle burn-in succeeded (${strategy.name})`, {
+        inputBytes: inputBytes.byteLength,
+        outputBytes: output.byteLength,
+      });
       await safeDeleteFile(ffmpeg, BURNIN_INPUT_MP4);
       await safeDeleteFile(ffmpeg, BURNIN_OUTPUT_MP4);
+      await safeDeleteFile(ffmpeg, BURNIN_FONT_FS_PATH);
       if (strategy.extraFiles) {
         for (const path of Object.keys(strategy.extraFiles)) {
           await safeDeleteFile(ffmpeg, path);

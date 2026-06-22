@@ -58,6 +58,7 @@ function isExtensionContextValid(): boolean {
 export interface BurnInClientOptions {
   segments: TranscriptSegment[];
   style: SubtitleStyleConfig;
+  videoDurationSeconds?: number;
   signal?: AbortSignal;
   onProgress?: (ratio: number) => void;
 }
@@ -106,6 +107,10 @@ async function burnInSubtitlesToMp4Inner(
     jobId,
     bytes: mp4Packed.byteLength,
     segments: segments.length,
+    firstCue: segments[0]
+      ? { start: segments[0].start, end: segments[0].end, text: segments[0].text.slice(0, 40) }
+      : null,
+    videoDurationSeconds: options.videoDurationSeconds,
   });
 
   return new Promise<Blob>((resolve, reject) => {
@@ -231,6 +236,7 @@ async function burnInSubtitlesToMp4Inner(
       mp4ByteLength: mp4Packed.byteLength,
       segmentsJson: JSON.stringify(segments),
       styleJson: JSON.stringify(normalizeSubtitleStyle(options.style)),
+      videoDurationSeconds: options.videoDurationSeconds,
     };
 
     if (options.signal?.aborted) {

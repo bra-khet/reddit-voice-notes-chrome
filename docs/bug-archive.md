@@ -716,6 +716,32 @@ In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yield
 
 ---
 
+## BUG-025 (2026-06): burn-in reports success but no visible subs
+
+### Symptom
+
+Recorder/offscreen logs show `Subtitle burn-in succeeded (subtitles-srt)` and full pipeline completes, but attached MP4 has no readable captions.
+
+### Root cause
+
+1. **ffmpeg.wasm has no system fonts / libass** — `subtitles` filter can exit 0 while rendering nothing; was tried first.
+2. **`drawtext` without `fontfile`** — same silent no-op in offscreen WASM.
+3. **Wrong `enable` escaping** — `between(t\,start\,end)` breaks timed cues in drawtext fallback.
+4. **Zero-length Vosk word timings** — segments with `start=end=0` only flash at t≈0.
+
+### Fix
+
+- Primary strategy: **`drawtext` + bundled `DejaVuSans.ttf`** in extension package (`public/assets/fonts/`).
+- Reject exit-0 attempts when FFmpeg logs indicate filter/font failure (`burnInLogIndicatesFailure`).
+- Normalize segment timings across clip duration when word timestamps missing.
+- `subtitles`+SRT retained as secondary fallback only.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/ffmpeg/ffmpeg-runner.ts`, `wxt.config.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.

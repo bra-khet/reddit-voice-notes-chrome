@@ -345,6 +345,10 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         console.log('[Reddit Voice Notes] Burn-in job started', burnInRequest.jobId, {
           mp4Bytes: mp4Bytes.byteLength,
           segments: segments.length,
+          videoDurationSeconds: burnInRequest.videoDurationSeconds,
+          firstCue: segments[0]
+            ? { start: segments[0].start, end: segments[0].end, text: segments[0].text.slice(0, 40) }
+            : null,
         });
 
         let lastRatio = 0.01;
@@ -359,7 +363,11 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           burnedBytes = await withJobWallClock(burnInRequest.jobId, () =>
             runSubtitleBurnIn(
               mp4Bytes,
-              { segments, style },
+              {
+                segments,
+                style,
+                videoDurationSeconds: burnInRequest.videoDurationSeconds,
+              },
               (ratio, stage) => {
                 assertTranscodeNotCancelled(burnInRequest.jobId);
                 lastRatio = Math.max(lastRatio, ratio);

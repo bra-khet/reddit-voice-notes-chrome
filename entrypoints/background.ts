@@ -801,6 +801,7 @@ export default defineBackground(() => {
             mp4ByteLength: burnInRequest.mp4ByteLength,
             segmentsJson: burnInRequest.segmentsJson,
             styleJson: burnInRequest.styleJson,
+            videoDurationSeconds: burnInRequest.videoDurationSeconds,
           };
 
           await dispatchToOffscreen(offscreenRequest);

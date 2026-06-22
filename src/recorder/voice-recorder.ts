@@ -490,6 +490,7 @@ export class VoiceRecorderSession {
       const burned = await burnInSubtitlesToMp4(this.mp4Blob, {
         segments,
         style,
+        videoDurationSeconds: this.elapsedSeconds,
         signal,
         onProgress: (ratio) => {
           if (this.isSuperseded(stopEpoch)) return;
