@@ -10,7 +10,7 @@
 | `v3.3.0` | `73e78f6` | **Release:** eloquent-4a verified — edit → bake → attach with edited SRT |
 | `v3.3.1` | `ea636d3` | BUG-027 false **Update profile** highlight on Studio open |
 | `v3.5.0` | `9df9e7a` | eloquent-4b subtitle editor polish + recorder Design Studio CTA |
-| `v3.6.0` | `494c16a` | **Stable:** full edit→bake→attach loop + burn-in hardening (BUG-028…032) + pending transcript UX — user-verified multi-run |
+| `v3.6.0` | `41e5818` | **Stable:** full edit→bake→attach loop + burn-in hardening (BUG-028…032) + pending transcript UX — user-verified multi-run |
 
 **Prior profile baseline:** `eloquent-profile-nominal` (`8834d4e`) — still valid for prefs/profile race rules.
 
