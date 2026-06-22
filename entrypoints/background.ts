@@ -120,6 +120,12 @@ const transcribeTabByJobId = new Map<string, number>();
 const activeTranscribeJobByTabId = new Map<number, string>();
 const burnInTabByJobId = new Map<string, number>();
 const activeBurnInJobByTabId = new Map<number, string>();
+/** Design Studio uses runtime.onMessage — skip tabs.sendMessage relay (no content script). */
+const burnInSkipTabRelayByJobId = new Map<string, boolean>();
+
+/** Bump when offscreen burn-in/transcode code changes — forces worker recycle after reload (BUG-030). */
+const OFFSCREEN_CODE_EPOCH = 2;
+const OFFSCREEN_EPOCH_KEY = 'rvnOffscreenCodeEpoch';
 
 let activeRelayJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -171,26 +177,27 @@ function isExtensionPageTabUrl(url: string | undefined): boolean {
 }
 
 function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMessage): void {
-  const tabId = burnInTabByJobId.get(message.jobId);
-  if (tabId === undefined) {
-    console.warn('[Reddit Voice Notes] No tab registered for burn-in relay', message.jobId);
-    return;
+  const jobId = message.jobId;
+  const skipTabRelay = burnInSkipTabRelayByJobId.get(jobId) === true;
+
+  if (!skipTabRelay) {
+    const tabId = burnInTabByJobId.get(jobId);
+    if (tabId === undefined) {
+      console.warn('[Reddit Voice Notes] No tab registered for burn-in relay', jobId);
+    } else {
+      void browser.tabs.sendMessage(tabId, message).catch((error) => {
+        console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
+      });
+    }
   }
 
-  // Design Studio extension pages receive offscreen runtime broadcasts directly (no content script).
-  void browser.tabs.get(tabId).then((tab) => {
-    if (isExtensionPageTabUrl(tab.url)) return;
-    void browser.tabs.sendMessage(tabId, message).catch((error) => {
-      console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
-    });
-  });
-
   if (message.type === MSG_BURNIN_COMPLETE) {
-    const tabId = burnInTabByJobId.get(message.jobId);
-    if (tabId !== undefined && activeBurnInJobByTabId.get(tabId) === message.jobId) {
+    const tabId = burnInTabByJobId.get(jobId);
+    if (tabId !== undefined && activeBurnInJobByTabId.get(tabId) === jobId) {
       activeBurnInJobByTabId.delete(tabId);
     }
-    burnInTabByJobId.delete(message.jobId);
+    burnInTabByJobId.delete(jobId);
+    burnInSkipTabRelayByJobId.delete(jobId);
     stopRelayKeepAlive();
   }
 }
@@ -280,7 +287,15 @@ function isOffscreenTarget(message: unknown): boolean {
   );
 }
 
-async function registerBurnInTab(jobId: string, senderTabId: number | undefined): Promise<void> {
+async function registerBurnInTab(
+  jobId: string,
+  sender: Browser.runtime.MessageSender,
+): Promise<void> {
+  const senderTabId = sender.tab?.id;
+  const skipTabRelay =
+    isExtensionPageTabUrl(sender.url) || isExtensionPageTabUrl(sender.tab?.url);
+  burnInSkipTabRelayByJobId.set(jobId, skipTabRelay);
+
   if (senderTabId !== undefined) {
     const previousJobId = activeBurnInJobByTabId.get(senderTabId);
     if (previousJobId && previousJobId !== jobId) {
@@ -290,6 +305,7 @@ async function registerBurnInTab(jobId: string, senderTabId: number | undefined)
         jobId,
       });
       burnInTabByJobId.delete(previousJobId);
+      burnInSkipTabRelayByJobId.delete(previousJobId);
       void cancelOffscreenJob(previousJobId);
     }
     activeBurnInJobByTabId.set(senderTabId, jobId);
@@ -394,7 +410,28 @@ async function hasOffscreenDocument(): Promise<boolean> {
   return offscreen.hasDocument();
 }
 
+async function closeOffscreenDocumentIfPresent(): Promise<void> {
+  const offscreen = getChromeOffscreen();
+  if (!offscreen?.closeDocument || !(await hasOffscreenDocument())) return;
+  try {
+    await offscreen.closeDocument();
+  } catch {
+    // Offscreen may already be closing.
+  }
+}
+
+async function ensureFreshOffscreenWorker(): Promise<void> {
+  const stored = await browser.storage.local.get(OFFSCREEN_EPOCH_KEY);
+  const epoch =
+    typeof stored[OFFSCREEN_EPOCH_KEY] === 'number' ? stored[OFFSCREEN_EPOCH_KEY] : 0;
+  if (epoch === OFFSCREEN_CODE_EPOCH) return;
+
+  await closeOffscreenDocumentIfPresent();
+  await browser.storage.local.set({ [OFFSCREEN_EPOCH_KEY]: OFFSCREEN_CODE_EPOCH });
+}
+
 async function ensureOffscreenDocument(): Promise<void> {
+  await ensureFreshOffscreenWorker();
   if (await hasOffscreenDocument()) return;
   if (creatingOffscreen) {
     await creatingOffscreen;
@@ -840,7 +877,10 @@ export default defineBackground(() => {
         return;
       }
       if (type === MSG_BURNIN_PROGRESS || type === MSG_BURNIN_COMPLETE) {
-        relayBurnInBroadcast(message as BurnInProgressMessage | BurnInCompleteMessage);
+        // Offscreen broadcasts reach Design Studio via runtime; tab relay is Reddit-only.
+        if (sender.url?.includes('offscreen.html')) {
+          relayBurnInBroadcast(message as BurnInProgressMessage | BurnInCompleteMessage);
+        }
         return;
       }
     }
@@ -911,7 +951,7 @@ export default defineBackground(() => {
 
         try {
           validateBurnInStartRequest(burnInRequest);
-          await registerBurnInTab(burnInRequest.jobId, sender.tab?.id);
+          await registerBurnInTab(burnInRequest.jobId, sender);
           startRelayKeepAlive();
 
           const ack: BurnInAckResponse = {
