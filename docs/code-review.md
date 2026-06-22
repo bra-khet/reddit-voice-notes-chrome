@@ -41,6 +41,7 @@ If the current working tree is dirty or on a long-lived branch, consider a fresh
 - [ ] `npm run build` passes.
 - [ ] `npm run zip` produces a sane artifact (size, no obvious breakage).
 - [ ] If touching FFmpeg or Vosk: manual smoke via harnesses (`transcribe-harness.html`, `voice-harness.html`) + one full record → Design Studio → export cycle on Reddit.
+- [ ] If touching Design Studio UI or section behavior: read `docs/design-studio.md` first; confirm dirty-layer and boot-order rules in §3 still hold.
 - [ ] If touching `src/settings/` (profiles, transcriptConfig, appearance): re-verify the Race Rules (see below).
 - [ ] Risk/effort note written (1–2 sentences): what can break, how fallback mitigates.
 

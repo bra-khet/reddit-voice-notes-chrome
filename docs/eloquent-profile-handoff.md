@@ -2,6 +2,7 @@
 
 **Branch:** `eloquent`  
 **Stable tag:** `eloquent-profile-nominal` (`8834d4e`) — Design Studio profiles, styles, backgrounds, Save/Update/Clone **user-verified working**  
+**Studio semantics (full):** `docs/design-studio.md` — shell layout, four sections, dirty-state taxonomy, storage map.
 **Prior tags:** `eloquent-prefs-hydrated` (`7c11796`, BUG-024 open) · `eloquent-semi-fixed` (`4ba8530`, pre-race-fix)
 
 ---

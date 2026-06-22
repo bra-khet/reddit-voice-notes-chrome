@@ -204,6 +204,7 @@ npm run dev
 
 ## Related docs
 
+- **`docs/design-studio.md`** — **canonical** Design Studio semantic framework (four sections, storage, dirty state, UI refresh guardrails)
 - `eloquent-branch.md` — phase plan
 - `docs/eloquent-profile-handoff.md` — profile race rules (still apply)
 - `docs/bug-archive.md` — BUG-025, BUG-026

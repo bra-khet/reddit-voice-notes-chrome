@@ -115,6 +115,8 @@ Named user entities (profiles, custom styles, and future ImageDB-backed assets) 
 
 ### Canvas personalization (pretty-8 design studio)
 
+**Canonical Studio reference:** `docs/design-studio.md` — four sections (Bar style, Background, Voice, Subtitles), dirty-state taxonomy, storage map, and UI refresh guardrails.
+
 - **Theme = data driving draw calls** — user overrides merge onto a base preset; do not fork parallel recorders.
 - **Layout constants stay fixed** in the studio v1 scope (no bar count/spacing/width sliders) — reduces risk to `waveform.ts` aggregation and preview=WYSIWYG guarantees.
 - **Cheap per-frame flairs only** — bokeh, sparkle/twinkle presets reuse existing background draw patterns; profile at 24 fps before merge.

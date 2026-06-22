@@ -429,6 +429,8 @@ False **Update profile** highlight on Design Studio open — subtitle draft sync
 
 **QA verified (user, 2026-06-22):** Repeat recordings seamless; edits optional; pending badges accurate; no transcribe relay console warnings after reload.
 
+**Design Studio reference:** `docs/design-studio.md` — canonical semantic framework for the four sections (Bar style, Background, Voice, Subtitles), dirty-state taxonomy, storage map, and UI refresh guardrails.
+
 **Restore:**
 ```bash
 git checkout v3.6.0 && npm install && npm run dev

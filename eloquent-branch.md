@@ -2,7 +2,7 @@
 
 **Status:** eloquent-0…4a + burn-in hardening complete on **`eloquent`** (2026-06-22). **Stable tag:** `v3.6.0`. Baseline: **`main` v3.1.0`.  
 **Target release:** v4.0.0 on `main` after eloquent-5 merge.  
-**Handoff:** `docs/eloquent-4-handoff.md` · **Restore:** `git checkout v3.6.0 && npm install && npm run dev`
+**Handoff:** `docs/eloquent-4-handoff.md` · **Studio reference:** `docs/design-studio.md` · **Restore:** `git checkout v3.6.0 && npm install && npm run dev`
 
 **Related docs:** `.ignore/transcript-design-notes.txt`, `docs/engineering-principles.md`, `dulcet-branch.md`, `claude-progress.md`
 

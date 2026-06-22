@@ -2,7 +2,7 @@
 
 **Goal:** Make v4 (automated subtitles + profile polish) development predictable and resilient after the profile bug cluster of mid-2026.
 
-**Primary sources synthesized here:** `eloquent-branch.md`, `dulcet-branch.md`, `pretty-branch.md`, `docs/engineering-principles.md`, `docs/transcription-architecture.md`, `claude-progress.md`, `docs/eloquent-profile-handoff.md`, bug history (BUG-001…024), and observed pipeline patterns.
+**Primary sources synthesized here:** `docs/design-studio.md` (Design Studio suite semantics), `eloquent-branch.md`, `dulcet-branch.md`, `pretty-branch.md`, `docs/engineering-principles.md`, `docs/transcription-architecture.md`, `claude-progress.md`, `docs/eloquent-profile-handoff.md`, bug history (BUG-001…024), and observed pipeline patterns.
 
 ## 1. Branch & Release Model (Do Not Change Lightly)
 

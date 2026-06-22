@@ -8,7 +8,7 @@ All recording, visualization, transcoding, and voice effects happen **client-sid
 
 **Stable `main` v3.1.0** (2026-06) — Design Studio UX polish on v3 voice effects: collapsible Bar style / Background / Voice panels, corner background alignment, preset usage tips, single live preview.
 
-**Development `eloquent` v3.6.0** (2026-06-22) — optional automated subtitles: Vosk STT, YouTube-style segment editor, edit-before-bake in Design Studio, hard-burned captions. User-verified multi-run. Handoff: `docs/eloquent-4-handoff.md`. Target: merge to `main` as **v4.0.0** after eloquent-5.
+**Development `eloquent` v3.6.0** (2026-06-22) — optional automated subtitles: Vosk STT, YouTube-style segment editor, edit-before-bake in Design Studio, hard-burned captions. User-verified multi-run. Studio reference: `docs/design-studio.md`. Subtitle handoff: `docs/eloquent-4-handoff.md`. Target: merge to `main` as **v4.0.0** after eloquent-5.
 
 Previous stable: **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3), `eloquent-branch.md` (v4 subtitles).
 
