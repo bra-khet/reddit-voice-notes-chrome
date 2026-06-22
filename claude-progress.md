@@ -398,9 +398,20 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 **QA:** Enable Subtitles in Design Studio → record on Reddit → wait through Transcribing + Burning subtitles → attach MP4 → verify hard subs in player.
 
-### Next: eloquent-4
+### eloquent-4a — edit before bake (2026-06-22)
 
-Per-segment editor, segment-aware canvas preview, profile subtitle snapshot UX polish.
+**Handoff:** `docs/eloquent-4-handoff.md` · **Tags:** `v3.2.0` (burn-in) · commits `6c43775` / `c68d4d6`
+
+- Studio: YouTube-style cue preview + segment editor + Confirm & save + Bake button
+- Record stop delivers **base.mp4** only; burn-in deferred to user-confirmed Studio bake
+- Session transcript: `originalResult` / `editedResult` in `rvnSessionTranscript` IDB
+- **BUG-026:** recorder popup stuck at processing ~80% — fixed: stopped before base-MP4 relay; transcribe off progress bar
+
+**QA verified:** bake completes in Studio; attach after BUG-026 fix + reload.
+
+### Next: eloquent-4b
+
+Segment-aware canvas preview, fonts, optional chunked base-MP4 relay.
 
 ## HANDOFF — eloquent profile nominal (2026-06-21)
 

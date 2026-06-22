@@ -374,7 +374,9 @@ export class RecorderPanel {
   }
 
   private async tryApplyBakedMp4(): Promise<void> {
-    if (!this.session || this.currentState.phase !== 'stopped') return;
+    if (!this.session) return;
+    const phase = this.currentState.phase;
+    if (phase !== 'stopped' && phase !== 'processing') return;
     const blob = await fetchBakedMp4FromExtension();
     if (!blob) return;
     this.session.applyBakedMp4(blob);
@@ -579,10 +581,8 @@ export class RecorderPanel {
       case 'processing':
         if (state.processingProgress <= 5) {
           this.statusEl.textContent = `Loading FFmpeg WASM… ${state.processingProgress}%`;
-        } else if (state.processingProgress <= 55) {
-          this.statusEl.textContent = `Converting to MP4… ${state.processingProgress}%`;
         } else {
-          this.statusEl.textContent = `Transcribing audio… ${state.processingProgress}%`;
+          this.statusEl.textContent = `Converting to MP4… ${state.processingProgress}%`;
         }
         this.primaryBtn.textContent = 'Processing…';
         this.primaryBtn.disabled = true;

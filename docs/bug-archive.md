@@ -742,6 +742,29 @@ Recorder/offscreen logs show `Subtitle burn-in succeeded (subtitles-srt)` and fu
 
 ---
 
+## BUG-026 (2026-06): recorder panel stuck at “Transcribing… 80%”
+
+### Symptom
+
+After record stop (subtitles enabled), Reddit composer popup stays in **processing** at ~80% even though transcode finished and Design Studio bake can succeed. Attach/Download unavailable.
+
+### Root cause
+
+1. **Transcribe progress mapped to recorder bar (56–80%)** while transcode had already finished — UI showed STT stage though export was done.
+2. **`await relaySaveLastBaseMp4()` before `setPhase('stopped')`** — multi-MB base64 `sendMessage` relay blocked the stopped transition; bar froze at last transcribe %.
+
+### Fix
+
+- Transcribe fork runs **without** recorder progress updates (background for Studio only).
+- **`setPhase('stopped')` before** async base-MP4 relay.
+- `applyBakedMp4` / `tryApplyBakedMp4` can recover **processing → stopped** when base MP4 exists and baked relay lands.
+
+### Related files
+
+- `src/recorder/voice-recorder.ts`, `src/ui/recorder-panel.ts`, `src/storage/last-base-mp4-relay.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.

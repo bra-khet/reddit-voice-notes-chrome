@@ -382,18 +382,14 @@ export class VoiceRecorderSession {
         // CHANGED: parallel transcription only — burn-in deferred to Design Studio (eloquent-4).
         // WHY: users review and edit segment JSON before confirming subtitle bake.
         const webmClone = this.webmBlob.slice(0, this.webmBlob.size, this.webmBlob.type);
-        void this.forkTranscribe(webmClone, stopEpoch, subtitlesEnabled);
+        if (subtitlesEnabled) {
+          // CHANGED: transcribe is background-only for Studio — no recorder progress bar (eloquent-4).
+          // WHY: STT can outlast transcode; mapping it to 56–80% left the panel stuck at 80%.
+          void this.forkTranscribe(webmClone, stopEpoch, false);
+        }
 
         const transcodeOutcome = await this.transcodeToMp4(stopEpoch);
         if (this.isSuperseded(stopEpoch) || this.phase === 'error') return;
-
-        if (this.mp4Blob) {
-          try {
-            await relaySaveLastBaseMp4(this.mp4Blob, this.elapsedSeconds);
-          } catch (error) {
-            console.warn(`${EXTENSION_LOG_PREFIX} Base MP4 relay for subtitle bake failed`, error);
-          }
-        }
 
         this.setPhase('stopped', {
           processingProgress: 100,
@@ -402,6 +398,14 @@ export class VoiceRecorderSession {
           subtitleBurnInFallback: false,
         });
         this.processingAbort = null;
+
+        // BUG FIX: recorder stuck at processing 80% (BUG-026)
+        // Fix: reach stopped before async base-MP4 relay — large single-message relay must not gate UI.
+        if (this.mp4Blob) {
+          void relaySaveLastBaseMp4(this.mp4Blob, this.elapsedSeconds).catch((error: unknown) => {
+            console.warn(`${EXTENSION_LOG_PREFIX} Base MP4 relay for subtitle bake failed`, error);
+          });
+        }
       } catch (error) {
         if (this.isSuperseded(stopEpoch)) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -474,9 +478,13 @@ export class VoiceRecorderSession {
 
   /** Apply MP4 with burned subtitles after Design Studio bake (eloquent-4). */
   applyBakedMp4(blob: Blob): void {
-    if (this.disposed || this.phase !== 'stopped') return;
+    if (this.disposed) return;
+    const canApply =
+      this.phase === 'stopped' || (this.phase === 'processing' && Boolean(this.mp4Blob));
+    if (!canApply) return;
     this.mp4Blob = blob;
     this.setPhase('stopped', {
+      processingProgress: 100,
       subtitleBurnInFallback: false,
     });
   }
