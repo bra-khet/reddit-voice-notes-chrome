@@ -89,6 +89,8 @@ Design Studio
 | Baked MP4 relay to recorder + attach | ✅ (after BUG-026 fix) |
 | Profile dirty on transcript edit only | ✅ isolated (style/toggle only) |
 | False **Update profile** highlight on Studio open | ✅ fixed in **v3.3.1** (BUG-027) |
+| Per-cue audio preview in segment editor | ✅ user-verified |
+| OOB badge (`⚠ OOB`) when cue end past clip | ✅ (recorder timer; hidden when in-bounds) |
 
 ---
 

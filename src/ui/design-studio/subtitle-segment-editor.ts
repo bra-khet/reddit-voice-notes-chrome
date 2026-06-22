@@ -8,6 +8,7 @@ import {
 import {
   isSegmentEndOutOfBounds,
   normalizeSegmentSeconds,
+  resolveClipDurationForOobCheck,
   resolveClipDurationSeconds,
   segmentHasOutOfBoundsEnd,
 } from '@/src/transcription/segment-timing';
@@ -45,7 +46,7 @@ export interface SegmentEditorHandlers {
 }
 
 const RECORDING_POLL_MS = 2000;
-const OOB_LABEL = '⚠️ Out-of-Bounds';
+const OOB_LABEL = '⚠ OOB';
 
 function escapeHtml(text: string): string {
   return text
@@ -148,7 +149,14 @@ export function mountSubtitleSegmentEditor(
     return isTranscriptDirty(savedBaseline, edited);
   }
 
-  function clipDurationSeconds(): number | null {
+  function clipDurationForOob(): number | null {
+    return resolveClipDurationForOobCheck(
+      lastRecording?.meta.durationSeconds,
+      cuePlayer.getDecodedDuration(),
+    );
+  }
+
+  function clipDurationForPlayback(): number | null {
     return resolveClipDurationSeconds(
       lastRecording?.meta.durationSeconds,
       cuePlayer.getDecodedDuration(),
@@ -168,7 +176,7 @@ export function mountSubtitleSegmentEditor(
 
   function renderPreview(): void {
     const segments = edited?.segments ?? [];
-    const clipDuration = clipDurationSeconds();
+    const clipDuration = clipDurationForOob();
 
     if (!edited || segments.length === 0) {
       previewEl.innerHTML =
@@ -184,12 +192,12 @@ export function mountSubtitleSegmentEditor(
         const text = escapeHtml(segment.text.trim() || '(empty)');
         const oob =
           clipDuration !== null && segmentHasOutOfBoundsEnd(segment, clipDuration)
-            ? `<span class="studio__transcript-oob-badge">${OOB_LABEL}</span>`
+            ? `<span class="studio__transcript-oob-badge" title="Cue end exceeds recording length">${OOB_LABEL}</span>`
             : '';
         return `
           <div class="studio__transcript-cue">
-            <span class="studio__transcript-cue-time">${time}${oob}</span>
-            <span class="studio__transcript-cue-text">${text}</span>
+            <span class="studio__transcript-cue-time">${time}</span>
+            <span class="studio__transcript-cue-text">${text}${oob}</span>
           </div>
         `;
       })
@@ -220,7 +228,7 @@ export function mountSubtitleSegmentEditor(
     const badge = row.querySelector<HTMLElement>('[data-segment-oob]');
     if (!badge) return;
 
-    const clipDuration = clipDurationSeconds();
+    const clipDuration = clipDurationForOob();
     const { end } = readRowTiming(row);
     const show = clipDuration !== null && isSegmentEndOutOfBounds(end, clipDuration);
     badge.hidden = !show;
@@ -232,7 +240,7 @@ export function mountSubtitleSegmentEditor(
 
     const hasSource = cuePlayer.hasSource();
     const { start, end } = readRowTiming(row);
-    const clipDuration = clipDurationSeconds();
+    const clipDuration = clipDurationForPlayback();
     const startPastClip =
       clipDuration !== null && start >= clipDuration - 0.05;
     const invalidRange = end <= start;
@@ -249,7 +257,7 @@ export function mountSubtitleSegmentEditor(
 
   function renderModalSegments(): void {
     segmentsEl.innerHTML = '';
-    const clipDuration = clipDurationSeconds();
+    const clipDuration = clipDurationForOob();
 
     for (let index = 0; index < modalDraft.length; index += 1) {
       const segment = modalDraft[index];
@@ -269,7 +277,12 @@ export function mountSubtitleSegmentEditor(
               aria-label="Play cue audio"
               ${cuePlayer.hasSource() ? '' : 'disabled'}
             >▶</button>
-            <span class="studio__transcript-oob-badge" data-segment-oob ${showOob ? '' : 'hidden'}>${OOB_LABEL}</span>
+            <span
+              class="studio__transcript-oob-badge"
+              data-segment-oob
+              title="Cue end exceeds recording length"
+              ${showOob ? '' : 'hidden'}
+            >${OOB_LABEL}</span>
           </span>
         </div>
         <div class="studio__transcript-segment-times">
@@ -391,7 +404,7 @@ export function mountSubtitleSegmentEditor(
     if (!cuePlayer.hasSource()) return;
 
     const { start, end } = readRowTiming(row);
-    const clipDuration = clipDurationSeconds();
+    const clipDuration = clipDurationForPlayback();
 
     cuePlayer.stop();
     playingSegmentIndex = index;

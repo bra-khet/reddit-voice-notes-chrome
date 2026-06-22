@@ -5,10 +5,13 @@ export function normalizeSegmentSeconds(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
+/** Small slack for recorder timer vs Vosk cue rounding. */
+const OOB_TOLERANCE_SECONDS = 0.25;
+
 /** True when a cue end extends past the known clip length (burn-in will clip it). */
 export function isSegmentEndOutOfBounds(end: number, clipDurationSeconds: number): boolean {
   if (!Number.isFinite(clipDurationSeconds) || clipDurationSeconds <= 0) return false;
-  return normalizeSegmentSeconds(end) > clipDurationSeconds + 0.05;
+  return normalizeSegmentSeconds(end) > clipDurationSeconds + OOB_TOLERANCE_SECONDS;
 }
 
 export function segmentHasOutOfBoundsEnd(
@@ -60,7 +63,27 @@ export function resolveSegmentPlaybackWindow(
   };
 }
 
-/** Best-known clip length — prefer decoded audio, fall back to recording meta. */
+/** Session recording length for OOB checks — recorder timer, not decode quirks. */
+export function resolveClipDurationForOobCheck(
+  metaDurationSeconds: number | null | undefined,
+  decodedDurationSeconds?: number | null | undefined,
+): number | null {
+  const meta =
+    typeof metaDurationSeconds === 'number' && Number.isFinite(metaDurationSeconds) && metaDurationSeconds > 0
+      ? metaDurationSeconds
+      : null;
+  if (meta !== null) return meta;
+
+  const decoded =
+    typeof decodedDurationSeconds === 'number' &&
+    Number.isFinite(decodedDurationSeconds) &&
+    decodedDurationSeconds > 0
+      ? decodedDurationSeconds
+      : null;
+  return decoded;
+}
+
+/** Best-known clip length for playback clamp — meta + decoded whichever is longer. */
 export function resolveClipDurationSeconds(
   metaDurationSeconds: number | null | undefined,
   decodedDurationSeconds: number | null | undefined,
