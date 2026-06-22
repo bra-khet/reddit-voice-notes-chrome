@@ -661,21 +661,26 @@ In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yield
 
 ---
 
-## BUG-023 — Profile action bar stuck on Save as profile (2026-06) — OPEN
+## BUG-023 — Design Studio UI stale while rvnUserPrefs correct (2026-06)
 
 ### Symptoms
 
-- Clone / Save to new button hidden; Update profile / Sure? never shown; behaves like Custom (unsaved) despite working profile dropdown and style apply.
+- `rvnUserPrefs` in Extension Storage has `activeProfileId`, `customBackgroundId`, custom styles — but studio stuck on default Neon Glow.
+- Profile names in dropdown; selecting profiles/presets does nothing; Save as profile (no Clone); backgrounds not drawn.
+- `rvnImageDb` + `rvnLastRecording` still work (direct IDB reads).
 
-### Likely cause (investigate next)
+### Root cause
 
-- `activeProfileId` null or preset at `syncProfileButton` time while UI otherwise reflects profile content.
+- Concurrent read-modify-write: `saveTranscriptPreferences` / `setSubtitlesEnabled` could overwrite in-flight `applyClipProfile` writes.
+- Boot race: `mountClipStudio` and `reconcileBackgroundPreferences` loaded prefs in parallel; `onUserPreferencesChanged` could `applyPrefs` before hydration with stale in-memory state; `entryAppearance` captured on first listener pass.
 
-### Checkpoint
+### Fix (`eloquent`)
 
-- Tag **`eloquent-semi-fixed`** — do not attempt broad subtitle/profile refactor until this is isolated.
+- Serialized prefs queue (`enqueuePrefsOp`) with atomic read+commit for `applyClipProfile`, `saveAppearancePreferences`, `saveTranscriptPreferences`.
+- Design Studio boot: load → reconcile → mount with `initialPrefs`; `prefsHydrated` gate on storage listener.
+- `runStudioPersist` surfaces errors on profile/style/alignment changes.
 
 ### Related files
 
-- `docs/eloquent-profile-checkpoint.md` (full audit)
-- `src/ui/design-studio/mount-clip-studio.ts` — `syncProfileButton`
+- `src/settings/user-preferences.ts`, `entrypoints/design-studio/main.ts`, `src/ui/design-studio/mount-clip-studio.ts`
+- `docs/eloquent-profile-checkpoint.md`

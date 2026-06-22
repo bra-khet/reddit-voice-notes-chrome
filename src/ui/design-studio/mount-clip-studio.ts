@@ -97,7 +97,12 @@ const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
 
 const COLOR_SAVE_DEBOUNCE_MS = 200;
 
-export function mountClipStudio(root: HTMLElement): () => void {
+export type MountClipStudioOptions = {
+  /** Reconciled prefs from boot — avoids racing storage listeners before first paint (BUG-023). */
+  initialPrefs?: UserPreferencesV1;
+};
+
+export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOptions): () => void {
   root.innerHTML = `
     <main class="studio">
       <header class="studio__header">
@@ -271,6 +276,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
   let colorSaveTimer = 0;
   let entryAppearance: AppearancePreferences | null = null;
   let allowStudioExit = false;
+  let prefsHydrated = false;
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
   const PREVIEW_ANIM_FPS = 12;
@@ -285,6 +291,17 @@ export function mountClipStudio(root: HTMLElement): () => void {
   function invalidateInFlightSaves(): void {
     studioSaveGeneration += 1;
     cancelPendingColorSave();
+  }
+
+  function runStudioPersist(
+    label: string,
+    saveFn: () => Promise<UserPreferencesV1>,
+  ): void {
+    void studioPersist(saveFn).catch((error: unknown) => {
+      console.error(`[Reddit Voice Notes] ${label}`, error);
+      const message = error instanceof Error ? error.message : 'Could not save changes.';
+      window.alert(message);
+    });
   }
 
   async function studioPersist(
@@ -597,9 +614,11 @@ export function mountClipStudio(root: HTMLElement): () => void {
     });
   }
 
-  function applyPrefs(prefs: UserPreferencesV1): void {
+  function applyPrefs(prefs: UserPreferencesV1, opts?: { captureEntry?: boolean }): void {
     activePrefs = prefs;
-    if (!entryAppearance) {
+    // BUG FIX: profile UI stale while rvnUserPrefs correct (BUG-023)
+    // Fix: capture exit baseline only after reconciled boot prefs — not a racing first listener pass.
+    if (!entryAppearance || opts?.captureEntry) {
       entryAppearance = structuredClone(prefs.appearance);
     }
     syncSelectControls(prefs);
@@ -678,10 +697,10 @@ export function mountClipStudio(root: HTMLElement): () => void {
     resetStyleUpdateConfirm();
     const value = profileSelect.value;
     if (value === PROFILE_SELECT_CUSTOM) {
-      void studioPersist(() => saveAppearancePreferences({ activeProfileId: null }));
+      runStudioPersist('Profile custom mode', () => saveAppearancePreferences({ activeProfileId: null }));
       return;
     }
-    void studioPersist(() => applyClipProfile(value));
+    runStudioPersist('Apply profile', () => applyClipProfile(value));
   });
 
   themeSelect.addEventListener('change', () => {
@@ -690,21 +709,21 @@ export function mountClipStudio(root: HTMLElement): () => void {
     resetStyleUpdateConfirm();
     const parsed = parseStyleSelectValue(themeSelect.value);
     if (parsed.kind === 'custom') {
-      void studioPersist(() => enterCustomStyleMode());
+      runStudioPersist('Enter custom style', () => enterCustomStyleMode());
       return;
     }
     if (parsed.kind === 'saved') {
-      void studioPersist(() => applyCustomClipStyle(parsed.styleId));
+      runStudioPersist('Apply custom style', () => applyCustomClipStyle(parsed.styleId));
       return;
     }
-    void studioPersist(() => applyPresetClipStyle(parsed.themeId));
+    runStudioPersist('Apply clip preset', () => applyPresetClipStyle(parsed.themeId));
   });
 
   alignmentSelect.addEventListener('change', () => {
     invalidateInFlightSaves();
     resetProfileUpdateConfirm();
     const alignment = alignmentSelect.value as BarAlignment;
-    void studioPersist(() =>
+    runStudioPersist('Bar alignment', () =>
       saveAppearancePreferences({
         barAlignment: alignment,
       }),
@@ -888,10 +907,19 @@ export function mountClipStudio(root: HTMLElement): () => void {
   window.addEventListener('beforeunload', beforeUnloadHandler);
   window.addEventListener('pagehide', pageHideHandler);
 
-  void loadUserPreferences().then(applyPrefs);
+  async function hydratePrefs(prefs: UserPreferencesV1): Promise<void> {
+    applyPrefs(prefs, { captureEntry: true });
+    prefsHydrated = true;
+  }
+
+  if (options?.initialPrefs) {
+    void hydratePrefs(options.initialPrefs);
+  } else {
+    void loadUserPreferences().then((prefs) => hydratePrefs(prefs));
+  }
 
   const unsubscribe = onUserPreferencesChanged((prefs) => {
-    if (ignoreStoragePrefs) return;
+    if (!prefsHydrated || ignoreStoragePrefs) return;
     resetProfileUpdateConfirm();
     resetStyleUpdateConfirm();
     applyPrefs(mergePendingColorState(prefs));

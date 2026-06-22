@@ -268,37 +268,59 @@ function mergePreferences(raw: Partial<UserPreferencesV1> | undefined): UserPref
   };
 }
 
-/** One-time migration: legacy `rvnActiveThemeId` → versioned prefs blob. */
-async function migrateLegacyThemeKey(prefs: UserPreferencesV1): Promise<UserPreferencesV1> {
-  const legacy = await browser.storage.local.get(THEME_STORAGE_KEY);
-  const legacyId = legacy[THEME_STORAGE_KEY] as string | undefined;
-  if (!legacyId) return prefs;
+// BUG FIX: profile UI stale while rvnUserPrefs correct (BUG-023)
+// Fix: serialize read-modify-write so subtitle saves cannot overwrite profile applies.
+let prefsOpChain: Promise<unknown> = Promise.resolve();
 
-  const migrated: UserPreferencesV1 = {
-    ...prefs,
-    appearance: {
-      ...prefs.appearance,
-      activeThemeId: normalizeThemeId(legacyId),
-    },
-  };
-
-  return writeUserPreferences(migrated);
+function enqueuePrefsOp<T>(op: () => Promise<T>): Promise<T> {
+  const task = prefsOpChain.then(op, op);
+  prefsOpChain = task.then(
+    () => undefined,
+    () => undefined,
+  );
+  return task;
 }
 
-export async function loadUserPreferences(): Promise<UserPreferencesV1> {
+async function commitUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
+  const merged = await mergeSubtitlesEnabledIntoPrefs(next);
+  await browser.storage.local.set({
+    [USER_PREFS_STORAGE_KEY]: merged,
+    [THEME_STORAGE_KEY]: merged.appearance.activeThemeId,
+  });
+  return merged;
+}
+
+/** Read + merge rvnUserPrefs. Call only while holding enqueuePrefsOp. */
+async function readUserPreferencesBlob(): Promise<UserPreferencesV1> {
   const stored = await browser.storage.local.get(USER_PREFS_STORAGE_KEY);
   const raw = stored[USER_PREFS_STORAGE_KEY] as Partial<UserPreferencesV1> | undefined;
 
   if (!raw || raw.version !== USER_PREFS_VERSION) {
-    return migrateLegacyThemeKey(DEFAULT_USER_PREFERENCES);
+    const legacy = await browser.storage.local.get(THEME_STORAGE_KEY);
+    const legacyId = legacy[THEME_STORAGE_KEY] as string | undefined;
+    const base = mergePreferences(undefined);
+    if (!legacyId) {
+      return mergeSubtitlesEnabledIntoPrefs(base);
+    }
+    const migrated: UserPreferencesV1 = {
+      ...base,
+      appearance: {
+        ...base.appearance,
+        activeThemeId: normalizeThemeId(legacyId),
+      },
+    };
+    return commitUserPreferences(migrated);
   }
 
   const merged = await mergeSubtitlesEnabledIntoPrefs(mergePreferences(raw));
   if (merged.appearance.activeThemeId !== raw.appearance?.activeThemeId) {
-    await writeUserPreferences(merged);
+    return commitUserPreferences(merged);
   }
-
   return merged;
+}
+
+export async function loadUserPreferences(): Promise<UserPreferencesV1> {
+  return enqueuePrefsOp(() => readUserPreferencesBlob());
 }
 
 export async function saveVoiceEffectPreferences(
@@ -318,13 +340,13 @@ export async function saveTranscriptPreferences(
 ): Promise<UserPreferencesV1> {
   const normalized = transcriptConfigForProfileStorage(normalizeTranscriptConfig(config));
   await setSubtitlesEnabled(normalized.transcriptionEnabled);
-  const current = await loadUserPreferences();
-  const next: UserPreferencesV1 = {
-    ...current,
-    transcriptConfig: normalized,
-  };
-
-  return writeUserPreferences(next);
+  return enqueuePrefsOp(async () => {
+    const current = await readUserPreferencesBlob();
+    return commitUserPreferences({
+      ...current,
+      transcriptConfig: normalized,
+    });
+  });
 }
 
 export async function saveAudioPreferences(
@@ -345,18 +367,19 @@ export async function saveAudioPreferences(
 export async function saveAppearancePreferences(
   patch: Partial<AppearancePreferences>,
 ): Promise<UserPreferencesV1> {
-  const current = await loadUserPreferences();
-  const next: UserPreferencesV1 = {
-    ...current,
-    appearance: mergeAppearancePreferences({
-      ...current.appearance,
-      ...patch,
-      activeThemeId: normalizeThemeId(patch.activeThemeId ?? current.appearance.activeThemeId),
-      barAlignment: normalizeBarAlignment(patch.barAlignment ?? current.appearance.barAlignment),
-    }),
-  };
-
-  return writeUserPreferences(next);
+  return enqueuePrefsOp(async () => {
+    const current = await readUserPreferencesBlob();
+    const next: UserPreferencesV1 = {
+      ...current,
+      appearance: mergeAppearancePreferences({
+        ...current.appearance,
+        ...patch,
+        activeThemeId: normalizeThemeId(patch.activeThemeId ?? current.appearance.activeThemeId),
+        barAlignment: normalizeBarAlignment(patch.barAlignment ?? current.appearance.barAlignment),
+      }),
+    };
+    return commitUserPreferences(next);
+  });
 }
 
 function voiceEffectFromProfile(profile: ClipProfile): VoiceEffectConfig | null {
@@ -380,46 +403,42 @@ function transcriptConfigFromProfile(profile: ClipProfile): TranscriptConfig | n
 }
 
 async function writeUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
-  const merged = await mergeSubtitlesEnabledIntoPrefs(next);
-  await browser.storage.local.set({
-    [USER_PREFS_STORAGE_KEY]: merged,
-    [THEME_STORAGE_KEY]: merged.appearance.activeThemeId,
-  });
-  return merged;
-}
-
-async function persistUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
-  return writeUserPreferences(next);
+  return enqueuePrefsOp(() => commitUserPreferences(next));
 }
 
 export async function applyClipProfile(profileId: string): Promise<UserPreferencesV1> {
-  const current = await loadUserPreferences();
-  const profile = getClipProfileById(current, profileId);
-  if (!profile) return current;
+  return enqueuePrefsOp(async () => {
+    const current = await readUserPreferencesBlob();
+    const profile = getClipProfileById(current, profileId);
+    if (!profile) {
+      console.warn('[Reddit Voice Notes] applyClipProfile: unknown profile id', profileId);
+      return current;
+    }
 
-  const styleState = resolveProfileStyleApplyState(
-    profile,
-    current.appearance.savedCustomStyles,
-  );
+    const styleState = resolveProfileStyleApplyState(
+      profile,
+      current.appearance.savedCustomStyles,
+    );
 
-  const next: UserPreferencesV1 = {
-    ...current,
-    appearance: mergeAppearancePreferences({
-      ...current.appearance,
-      activeThemeId: styleState.activeThemeId,
-      barAlignment: profile.barAlignment,
-      customBackgroundId: profile.customBackgroundId ?? null,
-      backgroundScaleMode: profile.backgroundScaleMode,
-      backgroundPosition: profile.backgroundPosition,
-      activeCustomStyleId: styleState.activeCustomStyleId,
-      designOverrides: styleState.designOverrides,
-      activeProfileId: profile.id,
-    }),
-    voiceEffect: voiceEffectFromProfile(profile) ?? current.voiceEffect,
-    transcriptConfig: transcriptConfigFromProfile(profile) ?? current.transcriptConfig,
-  };
+    const next: UserPreferencesV1 = {
+      ...current,
+      appearance: mergeAppearancePreferences({
+        ...current.appearance,
+        activeThemeId: styleState.activeThemeId,
+        barAlignment: profile.barAlignment,
+        customBackgroundId: profile.customBackgroundId ?? null,
+        backgroundScaleMode: profile.backgroundScaleMode,
+        backgroundPosition: profile.backgroundPosition,
+        activeCustomStyleId: styleState.activeCustomStyleId,
+        designOverrides: styleState.designOverrides,
+        activeProfileId: profile.id,
+      }),
+      voiceEffect: voiceEffectFromProfile(profile) ?? current.voiceEffect,
+      transcriptConfig: transcriptConfigFromProfile(profile) ?? current.transcriptConfig,
+    };
 
-  return persistUserPreferences(next);
+    return commitUserPreferences(next);
+  });
 }
 
 export type SaveClipProfileOptions = {
