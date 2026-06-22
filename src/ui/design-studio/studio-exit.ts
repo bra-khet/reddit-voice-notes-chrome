@@ -3,7 +3,7 @@ import {
   clipProfileMatchesLiveStateForStudioExit,
   getClipProfileById,
 } from '@/src/settings/clip-profiles';
-import { normalizeTranscriptConfig, type TranscriptConfig } from '@/src/transcription/types';
+import { normalizeTranscriptConfig } from '@/src/transcription/types';
 import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import { isCustomStyleDirty } from '@/src/settings/custom-styles';
 import {
@@ -87,7 +87,6 @@ export function shouldPromptStyleSaveWithProfileUpdate(prefs: UserPreferencesV1)
 /** Save style edits first when requested — profile snapshots reference saved style colors. */
 export async function updateActiveClipProfileWithStyleOption(
   saveStyleFirst: boolean,
-  transcriptDraft?: TranscriptConfig,
 ): Promise<UserPreferencesV1> {
   if (saveStyleFirst) {
     const current = await loadUserPreferences();
@@ -98,7 +97,7 @@ export async function updateActiveClipProfileWithStyleOption(
       await updateActiveCustomStyle();
     }
   }
-  return updateActiveClipProfile(transcriptDraft);
+  return updateActiveClipProfile();
 }
 
 /** Persist dirty profile and/or custom style before closing studio. */

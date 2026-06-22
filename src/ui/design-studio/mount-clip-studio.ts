@@ -88,7 +88,6 @@ import {
   promptNameForFork,
 } from '@/src/ui/design-studio/studio-save-pathways';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
-import type { TranscriptConfig } from '@/src/transcription/types';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
   { value: 'top', label: 'Top' },
@@ -335,20 +334,17 @@ export function mountClipStudio(root: HTMLElement): () => void {
     return id && activePrefs ? getCustomStyleById(activePrefs, id) : undefined;
   }
 
-  function liveTranscriptForProfileMatch(): TranscriptConfig | undefined {
-    if (typeof subtitleControls?.getProfileSnapshotConfig === 'function') {
-      return subtitleControls.getProfileSnapshotConfig();
-    }
-    return activePrefs?.transcriptConfig;
-  }
-
   function isProfileDirty(): boolean {
     const profile = activeProfile();
     if (!profile || !activePrefs) return false;
+    const transcriptForMatch =
+      typeof subtitleControls?.getProfileSnapshotConfig === 'function'
+        ? subtitleControls.getProfileSnapshotConfig()
+        : activePrefs.transcriptConfig;
     return !clipProfileMatchesLiveState(
       activePrefs.appearance,
       activePrefs.voiceEffect,
-      liveTranscriptForProfileMatch(),
+      transcriptForMatch,
       profile,
     );
   }
@@ -478,7 +474,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
   }
 
   function syncSelectControls(prefs: UserPreferencesV1): void {
-    populateProfileSelect(profileSelect, prefs, liveTranscriptForProfileMatch());
+    populateProfileSelect(profileSelect, prefs);
     populateDesignStudioStyleSelect(themeSelect, prefs);
     activeAlignment = prefs.appearance.barAlignment ?? 'center';
     alignmentSelect.value = activeAlignment;
@@ -490,6 +486,13 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   function mergePendingColorState(prefs: UserPreferencesV1): UserPreferencesV1 {
     if (!activePrefs || !hasPendingColorEdit()) return prefs;
+    // BUG FIX: profile switch showed wrong / missing custom colors (BUG-022)
+    // Fix: never keep a color draft when storage already points at a different profile.
+    if (prefs.appearance.activeProfileId !== activePrefs.appearance.activeProfileId) {
+      cancelPendingColorSave();
+      colorPicker.endInteraction();
+      return prefs;
+    }
     return {
       ...prefs,
       appearance: {
@@ -499,6 +502,18 @@ export function mountClipStudio(root: HTMLElement): () => void {
         designOverrides: activePrefs.appearance.designOverrides,
       },
     };
+  }
+
+  function syncStyleControlsFromPrefs(prefs: UserPreferencesV1, forceColorSync = false): void {
+    backgroundFlairControls.sync(prefs.appearance.designOverrides);
+
+    if (!isStylePanelVisible(prefs)) return;
+
+    if (forceColorSync || !colorPicker.isUserAdjusting()) {
+      colorPicker.endInteraction();
+      colorPicker.sync(prefs.appearance.designOverrides);
+      barGlowControl.sync(prefs.appearance.designOverrides);
+    }
   }
 
   function applyLocalDesignOverrides(overrides: DesignOverrides): void {
@@ -590,13 +605,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     syncSelectControls(prefs);
     syncProfileActions(prefs);
     syncStyleButton(prefs);
-
-    backgroundFlairControls.sync(prefs.appearance.designOverrides);
-
-    if (isStylePanelVisible(prefs) && !colorPicker.isUserAdjusting()) {
-      colorPicker.sync(prefs.appearance.designOverrides);
-      barGlowControl.sync(prefs.appearance.designOverrides);
-    }
+    syncStyleControlsFromPrefs(prefs, true);
 
     void personalBackground.sync(prefs);
     backgroundLayout.sync(prefs);
@@ -722,14 +731,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
         );
       }
 
-      void subtitleControls.flushPersist().then(() =>
-        studioPersist(() =>
-          updateActiveClipProfileWithStyleOption(
-            saveStyleFirst,
-            subtitleControls.getProfileSnapshotConfig(),
-          ),
-        ),
-      )
+      void studioPersist(() => updateActiveClipProfileWithStyleOption(saveStyleFirst))
         .then((prefs) => {
           if (prefs) resetStyleUpdateConfirm();
         })
@@ -743,11 +745,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     const name = window.prompt('Name this profile (style, alignment, and background):');
     if (name === null) return;
     invalidateInFlightSaves();
-    void subtitleControls.flushPersist().then(() =>
-      studioPersist(() =>
-        saveCurrentAsClipProfile(name, undefined, subtitleControls.getProfileSnapshotConfig()),
-      ),
-    ).catch((error: unknown) => {
+    void studioPersist(() => saveCurrentAsClipProfile(name)).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Could not save profile.';
       window.alert(message);
     });
@@ -756,9 +754,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
   saveProfileNewBtn.addEventListener('click', () => {
     if (!activePrefs || !canForkActiveProfile(activePrefs)) return;
     const dirty = isProfileDirty();
-    void flushPendingDesignPersist()
-      .then(() => subtitleControls.flushPersist())
-      .then(async () => {
+    void flushPendingDesignPersist().then(async () => {
       resetProfileUpdateConfirm();
       resetStyleUpdateConfirm();
       invalidateInFlightSaves();

@@ -458,7 +458,11 @@ export function mountSubtitleControls(
       transcriptionEnabled: localEnabled,
       style: { ...draftConfig.style, enabled: localEnabled },
     });
-    syncControlsFromDraft();
+    // CHANGED: init from localStorage syncs UI only — not profile dirty state (BUG-021 revert).
+    // WHY: syncControlsFromDraft() fired onSettingsChange before prefs loaded, racing profile bar.
+    syncEnabledUi();
+    syncStyleControls();
+    notifyPreviewChange();
   }
 
   void loadUserPreferences().then((prefs) => {

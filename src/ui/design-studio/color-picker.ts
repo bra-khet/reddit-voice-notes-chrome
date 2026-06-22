@@ -12,6 +12,8 @@ import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
 export interface ColorPickerControls {
   sync(overrides: DesignOverrides | null | undefined): void;
   isUserAdjusting(): boolean;
+  /** Drop in-progress knob / wheel interaction so external prefs can sync. */
+  endInteraction(): void;
 }
 
 const HUE_WHEEL_SIZE = 132;
@@ -262,6 +264,10 @@ export function mountColorPickerControls(
     },
     isUserAdjusting() {
       return userAdjusting || hueDragging;
+    },
+    endInteraction() {
+      hueDragging = false;
+      setUserAdjusting(false);
     },
   };
 }

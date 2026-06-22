@@ -526,3 +526,156 @@ In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yield
 - `scripts/build-vosk-sandbox.mjs`
 - `src/transcription/vosk-sandbox-host.ts`
 - `public/vosk-sandbox.js` (generated)
+
+---
+
+## BUG-016 — Subtitle prefs lost between Design Studio sessions (2026-06)
+
+### Symptoms
+
+- Subtitles toggle reverts to Off after closing and reopening Design Studio.
+
+### Fix (`eloquent`, `3bf833d`)
+
+- Persist `transcriptConfig` through normal prefs save paths on studio mount/unmount.
+
+### Related files
+
+- `src/ui/design-studio/subtitle-controls.ts`, `src/settings/user-preferences.ts`
+
+---
+
+## BUG-017 — Subtitle toggle reverts on studio exit / discard (2026-06)
+
+### Symptoms
+
+- Enabling subtitles, clicking Done or Discard, reopening studio → toggle Off.
+
+### Root cause
+
+- Exit modal discard reapplied profile snapshot including default `transcriptConfig`; async `chrome.storage.local.set` on tab close lost in-flight writes.
+
+### Fix (`eloquent`, `22fc616` + `c997fa4` + `eaeba08`)
+
+- `clipProfileMatchesLiveStateForStudioExit` excludes transcript from dirty match.
+- `discardStudioUnsavedChanges` preserves live transcript prefs.
+- Atomic `rvnSubtitlesEnabled` + localStorage mirror; `pagehide` flush.
+
+### Related files
+
+- `src/ui/design-studio/studio-exit.ts`, `src/settings/user-preferences.ts`, `src/ui/design-studio/subtitle-controls.ts`
+
+---
+
+## BUG-018 — Transcribe 120s timeout / empty segments (2026-06)
+
+### Symptoms
+
+- `timeout-120s`, 0 segments; transcode finishes first (expected).
+
+### Root cause
+
+- Offscreen called `transcribeWebmBlob` (harness wrapper) which re-enqueued on the same queue → deadlock.
+
+### Fix (`eloquent`, `a61f3f1`)
+
+- Offscreen uses `runTranscribeWebmBlob` (core) only.
+
+### Related files
+
+- `entrypoints/offscreen/main.ts`, `src/transcription/transcribe-audio.ts`
+
+---
+
+## BUG-019 — Subtitle flag lost in rvnUserPrefs read-modify-write races (2026-06)
+
+### Symptoms
+
+- Toggle flips Off when other prefs writes race (studio close, profile apply).
+
+### Fix (`eloquent`, `c997fa4`)
+
+- `rvnSubtitlesEnabled` atomic key; `mergeSubtitlesEnabledIntoPrefs` on every `writeUserPreferences`.
+
+### Related files
+
+- `src/settings/user-preferences.ts`
+
+---
+
+## BUG-020 — Stale session transcript respawns / profile always dirty (2026-06)
+
+### Symptoms
+
+- Cleared transcript refills from IDB; profile permanently “unsaved”; old text in editor.
+
+### Fix (`eloquent`, `eaeba08`)
+
+- Session transcript in extension IDB only; `transcriptConfigForProfileStorage` strips `result` from profile blobs; Clear transcript + dismissal watermark.
+
+### Related files
+
+- `src/storage/session-transcript-db.ts`, `src/ui/design-studio/subtitle-controls.ts`, `src/transcription/types.ts`
+
+---
+
+## BUG-021 — Profile UI regression after dirty-match fix (2026-06)
+
+### Symptoms
+
+- Saved profiles disappear from dropdown; UI stuck on Custom (unsaved); Clone hidden; HSV missing; Save as profile no-op.
+
+### Root cause (confirmed partial)
+
+- `flushPersist()` before profile saves fired storage listeners outside `ignoreStoragePrefs`.
+- Subtitle init + coupled profile dirty refresh raced before prefs loaded.
+- Legacy transcript compare always dirty (addressed in same commit but bundled with risky changes).
+
+### Fix status
+
+- **Reverted in BUG-022** except legacy `transcriptConfig: null` dirty skip.
+
+### Related files
+
+- `3dcd917` — commit to avoid re-applying wholesale
+
+---
+
+## BUG-022 — Profile style not applied on select (2026-06)
+
+### Symptoms
+
+- Profile names visible but bar style / HSV / clip style select wrong after selecting profile.
+
+### Root cause
+
+- `applyClipProfile` used `profile.themeId` instead of linked style `baseThemeId`; color picker skipped sync during interaction; `mergePendingColorState` stomped profile appearance.
+
+### Fix (`eloquent`, checkpoint `eloquent-semi-fixed`)
+
+- `resolveProfileStyleApplyState()`; `syncStyleControlsFromPrefs(force)`; `colorPicker.endInteraction()`; profile-id guard in `mergePendingColorState`.
+
+### Related files
+
+- `src/settings/clip-profiles.ts`, `src/settings/user-preferences.ts`, `src/ui/design-studio/mount-clip-studio.ts`, `src/ui/design-studio/color-picker.ts`
+
+---
+
+## BUG-023 — Profile action bar stuck on Save as profile (2026-06) — OPEN
+
+### Symptoms
+
+- Clone / Save to new button hidden; Update profile / Sure? never shown; behaves like Custom (unsaved) despite working profile dropdown and style apply.
+
+### Likely cause (investigate next)
+
+- `activeProfileId` null or preset at `syncProfileButton` time while UI otherwise reflects profile content.
+
+### Checkpoint
+
+- Tag **`eloquent-semi-fixed`** — do not attempt broad subtitle/profile refactor until this is isolated.
+
+### Related files
+
+- `docs/eloquent-profile-checkpoint.md` (full audit)
+- `src/ui/design-studio/mount-clip-studio.ts` — `syncProfileButton`

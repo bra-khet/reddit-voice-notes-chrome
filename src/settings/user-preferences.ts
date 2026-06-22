@@ -10,6 +10,7 @@ import {
   MAX_CLIP_PROFILES,
   normalizeActiveProfileId,
   normalizeClipProfiles,
+  resolveProfileStyleApplyState,
   type ClipProfile,
 } from '@/src/settings/clip-profiles';
 import { getPresetClipProfile, isPresetProfileId } from '@/src/settings/preset-profiles';
@@ -396,23 +397,22 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
   const profile = getClipProfileById(current, profileId);
   if (!profile) return current;
 
-  const linkedStyle = profile.customStyleId
-    ? current.appearance.savedCustomStyles?.find((style) => style.id === profile.customStyleId)
-    : undefined;
+  const styleState = resolveProfileStyleApplyState(
+    profile,
+    current.appearance.savedCustomStyles,
+  );
 
   const next: UserPreferencesV1 = {
     ...current,
     appearance: mergeAppearancePreferences({
       ...current.appearance,
-      activeThemeId: profile.themeId,
+      activeThemeId: styleState.activeThemeId,
       barAlignment: profile.barAlignment,
       customBackgroundId: profile.customBackgroundId ?? null,
       backgroundScaleMode: profile.backgroundScaleMode,
       backgroundPosition: profile.backgroundPosition,
-      activeCustomStyleId: profile.customStyleId ?? null,
-      designOverrides: linkedStyle
-        ? { ...linkedStyle.designOverrides }
-        : (normalizeDesignOverrides(profile.designOverrides) ?? null),
+      activeCustomStyleId: styleState.activeCustomStyleId,
+      designOverrides: styleState.designOverrides,
       activeProfileId: profile.id,
     }),
     voiceEffect: voiceEffectFromProfile(profile) ?? current.voiceEffect,
@@ -430,11 +430,7 @@ export type SaveClipProfileOptions = {
 export async function saveCurrentAsClipProfile(
   name: string,
   options?: SaveClipProfileOptions,
-  transcriptDraft?: TranscriptConfig,
 ): Promise<UserPreferencesV1> {
-  if (transcriptDraft) {
-    await saveTranscriptPreferences(transcriptDraft);
-  }
   const trimmed = name.trim();
   if (!trimmed) {
     throw new Error('Enter a profile name.');
@@ -483,12 +479,7 @@ export async function saveCurrentAsClipProfile(
   });
 }
 
-export async function updateActiveClipProfile(
-  transcriptDraft?: TranscriptConfig,
-): Promise<UserPreferencesV1> {
-  if (transcriptDraft) {
-    await saveTranscriptPreferences(transcriptDraft);
-  }
+export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
   const current = await loadUserPreferences();
   const profileId = current.appearance.activeProfileId;
   if (!profileId) {

@@ -10,7 +10,12 @@ import {
 } from '@/src/theme/background-layout';
 import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
-import { designOverridesMatch, normalizeDesignOverrides } from '@/src/theme/design-overrides';
+import {
+  designOverridesMatch,
+  normalizeDesignOverrides,
+  type DesignOverrides,
+} from '@/src/theme/design-overrides';
+import type { CustomClipStyle } from '@/src/settings/custom-styles';
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
 import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/user-preferences';
 import {
@@ -121,6 +126,36 @@ export function normalizeActiveProfileId(
     return isKnownThemeId(themeId) ? activeId : null;
   }
   return profiles.some((profile) => profile.id === activeId) ? activeId : null;
+}
+
+/** Live appearance fields to apply when selecting a saved profile. */
+export function resolveProfileStyleApplyState(
+  profile: ClipProfile,
+  savedCustomStyles: CustomClipStyle[] | undefined,
+): {
+  activeThemeId: string;
+  activeCustomStyleId: string | null;
+  designOverrides: DesignOverrides | null;
+} {
+  const linkedStyle = profile.customStyleId
+    ? savedCustomStyles?.find((style) => style.id === profile.customStyleId)
+    : undefined;
+
+  // CHANGED: linked styles apply baseThemeId + saved colors (mirror applyCustomClipStyle).
+  // WHY: profile.themeId alone left clip-style select / HSV panel out of sync (BUG-022).
+  if (linkedStyle) {
+    return {
+      activeThemeId: linkedStyle.baseThemeId,
+      activeCustomStyleId: linkedStyle.id,
+      designOverrides: { ...linkedStyle.designOverrides },
+    };
+  }
+
+  return {
+    activeThemeId: profile.themeId,
+    activeCustomStyleId: null,
+    designOverrides: normalizeDesignOverrides(profile.designOverrides),
+  };
 }
 
 export function getClipProfileById(

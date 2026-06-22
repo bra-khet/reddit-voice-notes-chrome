@@ -391,3 +391,36 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 ### Next: eloquent-3
 
 FFmpeg subtitle burn-in pass on `base.mp4` → `final.mp4`.
+
+## eloquent profile checkpoint — semi-fixed (2026-06-21)
+
+**Tag:** `eloquent-semi-fixed` (annotated WIP checkpoint — not a release)  
+**Full audit:** `docs/eloquent-profile-checkpoint.md`  
+**Open bug:** BUG-023 — profile Save/Update/Clone action bar
+
+### Working at checkpoint
+
+| Area | Status |
+|------|--------|
+| Transcription pipeline | ✅ BUG-018 fix holds (`runTranscribeWebmBlob`) |
+| Subtitles toggle persist | ✅ BUG-017/019/020 |
+| Profile dropdown + names | ✅ |
+| Bar styles / HSV / clip style on profile select | ✅ BUG-022 |
+| Backgrounds + previews | ✅ |
+| Design Studio panels / summaries | ✅ |
+
+### Broken at checkpoint
+
+| Area | Status |
+|------|--------|
+| **Clone / Save to new** button | ❌ hidden |
+| **Update profile / Sure?** | ❌ stuck on **Save as profile** |
+| Root UI condition | `activeProfileId` null or preset at `syncProfileButton` time (BUG-023) |
+
+### Commit arc (do not re-apply BUG-021 wholesale)
+
+`3bf833d` BUG-016 → `22fc616` BUG-017 → `a61f3f1` BUG-018 → `c997fa4` BUG-019 → `eaeba08` BUG-020 → `3dcd917` BUG-021 (**regression**) → checkpoint BUG-022 revert+style fix
+
+### Next sprint (proposed)
+
+Fix **BUG-023 only** — verify `activeProfileId` persistence on profile `<select>` change before any new subtitle/profile dirty logic.
