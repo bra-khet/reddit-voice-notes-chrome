@@ -35,8 +35,10 @@ import {
 } from '@/src/settings/user-preferences';
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
 import type { TranscriptResult } from '@/src/transcription/types';
+import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-studio';
 import {
   MSG_OFFSCREEN_PING,
+  MSG_OPEN_DESIGN_STUDIO,
   MSG_SAVE_LAST_RECORDING,
   MSG_SAVE_LAST_BASE_MP4,
   MSG_SAVE_SESSION_TRANSCRIPT,
@@ -627,6 +629,14 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
+
+      if (type === MSG_OPEN_DESIGN_STUDIO) {
+        void browser.tabs
+          .create({ url: designStudioExtensionUrl(), active: true })
+          .then(() => sendResponse({ ok: true }))
+          .catch(() => sendResponse({ ok: false }));
+        return true;
+      }
 
       if (type === MSG_GET_BACKGROUND_BLOB_META) {
         void (async () => {

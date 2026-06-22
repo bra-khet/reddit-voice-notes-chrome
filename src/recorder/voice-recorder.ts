@@ -53,6 +53,8 @@ export interface RecorderState {
   voiceEffectFallback?: boolean;
   /** eloquent-3: subtitle burn-in failed; MP4 delivered without hard subs. */
   subtitleBurnInFallback?: boolean;
+  /** eloquent-4: subtitles on this take — recorder shows Design Studio CTA until bake. */
+  subtitleStudioPending?: boolean;
   errorCode?: RecorderErrorCode;
   errorMessage?: string;
   webmBlob?: Blob;
@@ -105,6 +107,7 @@ export class VoiceRecorderSession {
   private stoppedAtCap = false;
   private voiceEffectFallback = false;
   private subtitleBurnInFallback = false;
+  private subtitleStudioPending = false;
   private phase: RecorderPhase = 'idle';
   private errorCode?: RecorderErrorCode;
   private errorMessage?: string;
@@ -142,6 +145,7 @@ export class VoiceRecorderSession {
       stoppedAtCap: this.stoppedAtCap,
       voiceEffectFallback: this.voiceEffectFallback,
       subtitleBurnInFallback: this.subtitleBurnInFallback,
+      subtitleStudioPending: this.subtitleStudioPending,
       errorCode: this.errorCode,
       errorMessage: this.errorMessage,
       webmBlob: this.webmBlob,
@@ -169,6 +173,9 @@ export class VoiceRecorderSession {
     }
     if (extra?.subtitleBurnInFallback !== undefined) {
       this.subtitleBurnInFallback = extra.subtitleBurnInFallback;
+    }
+    if (extra?.subtitleStudioPending !== undefined) {
+      this.subtitleStudioPending = extra.subtitleStudioPending;
     }
 
     for (const listener of this.listeners) {
@@ -198,6 +205,7 @@ export class VoiceRecorderSession {
         stoppedAtCap: false,
         voiceEffectFallback: false,
         subtitleBurnInFallback: false,
+        subtitleStudioPending: false,
         errorCode: undefined,
         errorMessage: undefined,
         webmBlob: undefined,
@@ -396,6 +404,7 @@ export class VoiceRecorderSession {
           stoppedAtCap: this.stoppedAtCap,
           voiceEffectFallback: transcodeOutcome.voiceEffectFallback === true,
           subtitleBurnInFallback: false,
+          subtitleStudioPending: subtitlesEnabled,
         });
         this.processingAbort = null;
 
@@ -486,6 +495,7 @@ export class VoiceRecorderSession {
     this.setPhase('stopped', {
       processingProgress: 100,
       subtitleBurnInFallback: false,
+      subtitleStudioPending: false,
     });
   }
 
@@ -564,6 +574,7 @@ export class VoiceRecorderSession {
       stoppedAtCap: false,
       voiceEffectFallback: false,
       subtitleBurnInFallback: false,
+      subtitleStudioPending: false,
       webmBlob: undefined,
       mp4Blob: undefined,
       errorCode: undefined,

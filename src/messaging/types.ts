@@ -10,6 +10,11 @@ export const MSG_TRANSCODE_CANCEL = 'rvn/transcode-cancel' as const;
 export const MSG_OFFSCREEN_PING = 'rvn/offscreen-ping' as const;
 export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
+export const MSG_OPEN_DESIGN_STUDIO = 'rvn/open-design-studio' as const;
+
+export interface OpenDesignStudioRequest {
+  type: typeof MSG_OPEN_DESIGN_STUDIO;
+}
 export const MSG_SAVE_LAST_RECORDING = 'rvn/save-last-recording' as const;
 
 /** eloquent-1 — parallel transcription fork message contracts. */

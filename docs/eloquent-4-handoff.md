@@ -9,6 +9,7 @@
 | `eloquent-4a-subtitle-mgmt` | `6c43775` | Edit-before-bake Studio UI (initial) |
 | `v3.3.0` | `73e78f6` | **Release:** eloquent-4a verified — edit → bake → attach with edited SRT |
 | `v3.3.1` | `ea636d3` | BUG-027 false **Update profile** highlight on Studio open |
+| `v3.5.0` | *(this release)* | eloquent-4b subtitle editor polish + recorder Design Studio CTA |
 
 **Prior profile baseline:** `eloquent-profile-nominal` (`8834d4e`) — still valid for prefs/profile race rules.
 
@@ -91,6 +92,8 @@ Design Studio
 | False **Update profile** highlight on Studio open | ✅ fixed in **v3.3.1** (BUG-027) |
 | Per-cue audio preview in segment editor | ✅ user-verified |
 | OOB badge (`⚠ OOB`) when cue end past clip | ✅ (recorder timer; hidden when in-bounds) |
+| Add cue in segment editor | ✅ user-verified |
+| Recorder **Open Design Studio** CTA (subtitles on) | ✅ `v3.5.0` — `tabs.create` relay, no new permissions |
 
 ---
 
