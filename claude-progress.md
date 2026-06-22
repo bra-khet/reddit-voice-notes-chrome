@@ -304,7 +304,7 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 
 | Phase | Status |
 |-------|--------|
-| **eloquent-0** | **Spike complete** — sandbox pipeline works end-to-end; harness QA after BUG-015 fix |
+| **eloquent-0** | **Done** — harness QA verified (JSON + SRT); tag **`eloquent-0-vosk-spike`** |
 | eloquent-1 … eloquent-5 | Pending |
 
 ### eloquent-0 — what shipped
@@ -364,7 +364,7 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 ### Commit chain (eloquent, CSP + inference)
 
-`6f4b390` plan · `1898277` eloquent-0 spike · `915ce96` sandbox attempt · `f58996a` static sandbox · `f96248b` BUG-010 · `2e786ce` BUG-011 · `1413376` BUG-012 · `179f345` BUG-013 · `bf34b59` BUG-014 · (pending) BUG-015 PCM + inference pacing
+`6f4b390` plan · `1898277` eloquent-0 spike · `915ce96` sandbox attempt · `f58996a` static sandbox · `f96248b` BUG-010 · `2e786ce` BUG-011 · `1413376` BUG-012 · `179f345` BUG-013 · `bf34b59` BUG-014 · `84862f9` BUG-015 PCM + inference pacing · tag **`eloquent-0-vosk-spike`**
 
 ### Next: eloquent-1
 
