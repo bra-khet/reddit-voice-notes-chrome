@@ -556,6 +556,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   async function attemptStudioExit(): Promise<void> {
     await flushPendingDesignPersist();
+    await subtitleControls.flushPersist();
     if (!activePrefs || !hasStudioUnsavedChanges(activePrefs)) {
       allowStudioExit = true;
       window.close();

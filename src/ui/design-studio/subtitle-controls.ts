@@ -16,12 +16,14 @@ import type { SubtitlePreviewOptions } from '@/src/transcription/subtitle-previe
 
 export interface SubtitleControlsHandle {
   dispose(): void;
+  flushPersist(): Promise<void>;
   getDraftConfig(): TranscriptConfig;
   getPreviewOptions(): SubtitlePreviewOptions | undefined;
   syncFromPreferences(prefs: UserPreferencesV1): void;
 }
 
 const TRANSCRIPT_SAVE_DEBOUNCE_MS = 250;
+const TRANSCRIPT_POLL_MS = 2000;
 
 const POSITION_OPTIONS: { value: SubtitleStyleConfig['position']; label: string }[] = [
   { value: 'bottom', label: 'Bottom' },
@@ -171,14 +173,16 @@ export function mountSubtitleControls(
     }, TRANSCRIPT_SAVE_DEBOUNCE_MS);
   }
 
-  function persistNow(): void {
+  async function persistNow(): Promise<void> {
     if (saveTimer) {
       window.clearTimeout(saveTimer);
       saveTimer = 0;
     }
-    void saveTranscriptPreferences(getDraftConfig()).catch((error: unknown) => {
+    try {
+      await saveTranscriptPreferences(getDraftConfig());
+    } catch (error: unknown) {
       console.warn('[Reddit Voice Notes] Transcript prefs save failed', error);
-    });
+    }
   }
 
   function mergeIdbTranscriptIfNewer(): void {
@@ -358,6 +362,12 @@ export function mountSubtitleControls(
 
   document.addEventListener('visibilitychange', onVisibility);
 
+  // CHANGED: poll extension IDB while studio is open.
+  // WHY: transcription completes on Reddit; studio does not receive tab-scoped progress relays.
+  const pollTimer = window.setInterval(() => {
+    void loadTranscriptSource();
+  }, TRANSCRIPT_POLL_MS);
+
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeTranscriptConfig(prefs.transcriptConfig);
     syncControlsFromDraft();
@@ -372,10 +382,14 @@ export function mountSubtitleControls(
       syncing = false;
       void loadTranscriptSource();
     },
+    async flushPersist(): Promise<void> {
+      await persistNow();
+    },
     dispose(): void {
       document.removeEventListener('visibilitychange', onVisibility);
+      window.clearInterval(pollTimer);
       if (saveTimer) window.clearTimeout(saveTimer);
-      persistNow();
+      void persistNow();
     },
     getDraftConfig(): TranscriptConfig {
       return normalizeTranscriptConfig({

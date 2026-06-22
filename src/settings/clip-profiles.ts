@@ -180,6 +180,20 @@ export function clipProfileMatchesLiveState(
   );
 }
 
+/**
+ * Studio exit / discard — subtitle prefs persist globally until Update profile (BUG-017).
+ */
+export function clipProfileMatchesLiveStateForStudioExit(
+  appearance: AppearancePreferences,
+  voiceEffect: VoiceEffectConfig | undefined,
+  profile: ClipProfile,
+): boolean {
+  return (
+    appearanceMatchesProfile(appearance, profile) &&
+    voiceEffectMatchesProfile(voiceEffect, profile)
+  );
+}
+
 export function appearanceMatchesProfile(
   appearance: AppearancePreferences,
   profile: ClipProfile,
