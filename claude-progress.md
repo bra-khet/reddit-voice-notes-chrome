@@ -398,16 +398,20 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 **QA:** Enable Subtitles in Design Studio → record on Reddit → wait through Transcribing + Burning subtitles → attach MP4 → verify hard subs in player.
 
-### eloquent-4a — edit before bake (2026-06-22)
+### eloquent-4a — edit before bake (2026-06-22) — **v3.3.0**
 
-**Handoff:** `docs/eloquent-4-handoff.md` · **Tags:** `v3.2.0` (burn-in) · commits `6c43775` / `c68d4d6`
+**Handoff:** `docs/eloquent-4-handoff.md` · **Tag:** `v3.3.0` (`fc50797`+)
 
 - Studio: YouTube-style cue preview + segment editor + Confirm & save + Bake button
 - Record stop delivers **base.mp4** only; burn-in deferred to user-confirmed Studio bake
 - Session transcript: `originalResult` / `editedResult` in `rvnSessionTranscript` IDB
 - **BUG-026:** recorder popup stuck at processing ~80% — fixed: stopped before base-MP4 relay; transcribe off progress bar
 
-**QA verified:** bake completes in Studio; attach after BUG-026 fix + reload.
+**QA verified (user):** edit → confirm → bake → recorder **stopped** → attach on Reddit; **edited SRT burns correctly**.
+
+### v3.3.1 — BUG-027 UI fix
+
+False **Update profile** highlight on Design Studio open — subtitle draft synced after profile dirty check; see `docs/bug-archive.md` BUG-027.
 
 ### Next: eloquent-4b
 

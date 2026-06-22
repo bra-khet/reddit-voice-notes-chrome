@@ -7,7 +7,8 @@
 |-----|--------|---------|
 | `v3.2.0` | `707709d` | Verified subtitle **burn-in** (BUG-025 drawtext-font) |
 | `eloquent-4a-subtitle-mgmt` | `6c43775` | Edit-before-bake Studio UI (initial) |
-| *(current)* | `c68d4d6`+ | BUG-026 recorder UI fix + handoff |
+| `v3.3.0` | `fc50797`+ | **Release:** eloquent-4a verified — edit → bake → attach with edited SRT |
+| `v3.3.1` | *(after v3.3.0)* | BUG-027 false **Update profile** highlight on Studio open |
 
 **Prior profile baseline:** `eloquent-profile-nominal` (`8834d4e`) — still valid for prefs/profile race rules.
 
@@ -84,8 +85,10 @@ Design Studio
 | Edit modal → Apply to preview | ✅ |
 | Confirm & save clears unsaved UI | ✅ (after `c68d4d6` baseline fix) |
 | Bake completes in Studio | ✅ |
-| Baked MP4 relay to recorder | ⚠️ blocked by BUG-026 until reload/fix |
+| Edited SRT burns into attached MP4 | ✅ |
+| Baked MP4 relay to recorder + attach | ✅ (after BUG-026 fix) |
 | Profile dirty on transcript edit only | ✅ isolated (style/toggle only) |
+| False **Update profile** highlight on Studio open | ✅ fixed in **v3.3.1** (BUG-027) |
 
 ---
 
@@ -98,8 +101,9 @@ Design Studio
 | **eloquent-4a** | Bake disabled / appeared to hang | Dirty gate + status copy |
 | **eloquent-4a** | Profile Update lit on transcript edit | `buildProfileStyleConfig()` — no `result` in profile match |
 | **BUG-026** | Recorder stuck processing ~80% | Stopped before base-MP4 relay; transcribe off progress bar |
+| **BUG-027** | **Update profile** highlighted on open, click no-op | Sync subtitle draft before profile dirty check (`v3.3.1`) |
 
-See `docs/bug-archive.md` for full BUG-025/026 write-ups.
+See `docs/bug-archive.md` for full BUG-025/026/027 write-ups.
 
 ---
 
