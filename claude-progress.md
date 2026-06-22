@@ -392,23 +392,31 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 FFmpeg subtitle burn-in pass on `base.mp4` → `final.mp4`.
 
-## eloquent profile checkpoint — prefs hydrated (2026-06-21)
+## HANDOFF — eloquent profile nominal (2026-06-21)
 
-**Tag:** `eloquent-prefs-hydrated` (`7c11796`) — BUG-023 race fix; profiles + canvas bg work; BUG-024 throw at tag  
-**Full audit:** `docs/eloquent-profile-checkpoint-hydrated.md` (vs `eloquent-semi-fixed` diff table)  
-**Prior tag:** `eloquent-semi-fixed` (`4ba8530`) — see `docs/eloquent-profile-checkpoint.md`
+**Tag:** `eloquent-profile-nominal` (`8834d4e`) — **user-verified:** profiles, backgrounds, Save/Update/Clone working  
+**Handoff doc:** `docs/eloquent-profile-handoff.md` (root cause, what changed vs failed attempts, race rules, open subtitle issues)
 
-### Working after BUG-023 (`7c11796`+)
+### Why it works (one paragraph)
 
-| Area | Status |
-|------|--------|
-| Profile select → theme / colors / canvas bg | ✅ |
-| `rvnUserPrefs` hydration (serialized writes + boot order) | ✅ |
-| BUG-024 `getDraftConfig` throw | ✅ fixed post-tag |
+`rvnUserPrefs` was always correct in Extension Storage; Design Studio `activePrefs` was stale due to **concurrent subtitle/appearance RMW writes**, **parallel boot loads**, and a **subtitle `getDraftConfig` throw** that aborted `applyPrefs` before background/button sync. Fixed with `enqueuePrefsOp`, `load→reconcile→mount(initialPrefs)`, `prefsHydrated` gate, and `buildDraftConfig()` closure.
 
-### Race rules (do not regress)
+### Verified working
 
-See `docs/eloquent-profile-checkpoint-hydrated.md` § Race rules — serialized prefs queue, boot `initialPrefs`, `prefsHydrated` gate, no throw in `applyPrefs` mid-sync.
+Profiles, HSV/styles, canvas + library backgrounds, Save/Update/Clone, voice preview, transcription, global subtitle toggle.
+
+### Open (subtitle edits — not blocking profile UI)
+
+Legacy profiles lack `transcriptConfig` snapshot until **Update profile** once; session transcript text stays in IDB not profile blobs; profile dirty labels don't use live subtitle draft (BUG-021 reverted). See handoff doc § Open / unfixed.
+
+### Do not regress
+
+Serialized prefs queue, studio boot order, `prefsHydrated`, no `flushPersist` before profile saves (BUG-021). Tags: `eloquent-profile-nominal` → `eloquent-prefs-hydrated` → `eloquent-semi-fixed`.
+
+## eloquent profile checkpoint — prefs hydrated (2026-06-21) [intermediate]
+
+**Tag:** `eloquent-prefs-hydrated` (`7c11796`) — BUG-023 only; BUG-024 still open at tag  
+**Doc:** `docs/eloquent-profile-checkpoint-hydrated.md`
 
 ## eloquent profile checkpoint — semi-fixed (2026-06-21) [superseded]
 

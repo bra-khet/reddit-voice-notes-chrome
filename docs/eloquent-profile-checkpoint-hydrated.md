@@ -2,7 +2,8 @@
 
 **Branch:** `eloquent`  
 **Tag:** `eloquent-prefs-hydrated` (annotated — WIP checkpoint after BUG-023, before subtitle `getDraftConfig` fix)  
-**Commit:** `7c11796` — `Sprint: fix Design Studio prefs hydration and write races (BUG-023)`
+**Commit:** `7c11796` — `Sprint: fix Design Studio prefs hydration and write races (BUG-023)`  
+**Superseded by:** `eloquent-profile-nominal` (`8834d4e`) — see `docs/eloquent-profile-handoff.md`
 
 **Purpose:** Preserve the first state where profile **switching** and **canvas personal backgrounds** work again, while documenting exactly what changed vs `eloquent-semi-fixed` and which race rules must not regress.
 

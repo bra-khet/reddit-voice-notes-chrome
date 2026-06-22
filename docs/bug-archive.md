@@ -702,10 +702,29 @@ In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yield
 
 - `getProfileSnapshotConfig` called bare `getDraftConfig()` inside returned object literal; only a sibling **method** existed, not a closure.
 
-### Fix (`eloquent`)
+### Fix (`eloquent`, `8834d4e`)
 
 - Local `buildDraftConfig()` inside `mountSubtitleControls`; shared by persist paths and returned handle.
+
+### Checkpoint tag
+
+- **`eloquent-profile-nominal`** (`8834d4e`) — includes BUG-024 fix; user-verified profile UI.
 
 ### Related files
 
 - `src/ui/design-studio/subtitle-controls.ts`
+
+---
+
+## Open — subtitle edits vs profiles (2026-06) — not fixed
+
+Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.
+
+| Gap | Notes |
+|-----|-------|
+| Legacy `transcriptConfig: null` on profiles | Subtitle dirty match skipped until **Update profile** embeds settings once |
+| Session transcript text | Extension IDB only; not stored in profile blobs |
+| Live subtitle draft vs profile dirty label | BUG-021 live-draft coupling **reverted** |
+| eloquent-4 | Subtitle snapshot UX polish |
+
+**Do not** re-add BUG-021 `flushPersist` before profile saves or `transcriptDraft` params without queue + hydration review.
