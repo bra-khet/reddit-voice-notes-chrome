@@ -421,6 +421,10 @@ FFmpeg subtitle burn-in pass on `base.mp4` → `final.mp4`.
 
 `3bf833d` BUG-016 → `22fc616` BUG-017 → `a61f3f1` BUG-018 → `c997fa4` BUG-019 → `eaeba08` BUG-020 → `3dcd917` BUG-021 (**regression**) → checkpoint BUG-022 revert+style fix
 
+### Storage audit (2026-06-21)
+
+No profile migration from Local Storage → Extension Storage ever happened. Profiles in `rvnUserPrefs` (`chrome.storage.local`) since pretty-6 (`6541575`). DevTools **Extension Storage → Reddit Voice Notes** is normal manifest labeling. Only `localStorage` key: `rvn.subtitles.enabled` (BUG-019). Blobs: `rvnImageDb` IDB; session transcript: `rvnSessionTranscript` IDB. Full table: `docs/eloquent-profile-checkpoint.md` § Storage architecture audit.
+
 ### Next sprint (proposed)
 
 Fix **BUG-023 only** — verify `activeProfileId` persistence on profile `<select>` change before any new subtitle/profile dirty logic.

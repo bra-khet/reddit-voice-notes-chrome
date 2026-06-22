@@ -198,6 +198,61 @@ git checkout eaeba08   # last commit before BUG-021 regression attempt
 
 ---
 
+## Storage architecture audit (2026-06-21)
+
+**Conclusion:** There was **no** failed migration of profiles (or themes) from page **Local Storage** into **Extension Storage**. Profiles have lived in `chrome.storage.local` since **pretty-6** (`6541575`, 2026-06-20). The DevTools folder labeled **Reddit Voice Notes** under **Extension Storage** is normal Chrome UI — it groups `chrome.storage.local` keys by the manifest `name`, not a new scaffolded directory.
+
+### Where to look in DevTools (Application tab)
+
+| Panel | What lives there | Keys / DB names |
+|-------|------------------|-----------------|
+| **Extension Storage → Reddit Voice Notes** | Primary prefs blob + mirrors | `rvnUserPrefs`, `rvnActiveThemeId`, `rvnSubtitlesEnabled`, `rvnSessionTranscriptReadyAt` |
+| **IndexedDB** | Large binaries (by design) | `rvnImageDb` (personal background blobs), `rvnSessionTranscript` (session transcript text) |
+| **Extension Storage → Sync** | Keyboard shortcut only | `rvnSettings` (via `chrome.storage.sync`) |
+| **Local Storage** (chrome-extension://…/design-studio) | Subtitle toggle cache **only** | `rvn.subtitles.enabled` — added BUG-019; **not** profiles |
+
+**Common confusion:** Page **Local Storage** under `https://www.reddit.com` or an empty Local Storage panel on the studio page does **not** mean data is missing. Profiles are in **Extension Storage → `rvnUserPrefs`**.
+
+Inspect `rvnUserPrefs` JSON:
+
+- `appearance.savedProfiles[]` — saved profile list (names + snapshots)
+- `appearance.activeProfileId` — drives Update/Clone buttons (BUG-023 when null despite dropdown showing names)
+- `appearance.customBackgroundId` — `bg-…` ref; blob is in `rvnImageDb` IndexedDB
+
+### Git timeline — storage changes (not a profile migration)
+
+| When | Commit | What changed |
+|------|--------|--------------|
+| Early pretty | `197cf4f` | Theme id in `chrome.storage.local` key `rvnActiveThemeId` |
+| pretty scaffold | `e24793f` | Versioned blob `rvnUserPrefs` in `chrome.storage.local`; one-time merge of legacy `rvnActiveThemeId` only |
+| pretty-6 | `6541575` | `savedProfiles` + `activeProfileId` added **inside** `rvnUserPrefs` (same storage area) |
+| pretty-7a | `10c2790` | **IndexedDB** `rvnImageDb` for background **blobs**; prefs keep `bg-` refs only |
+| BUG-019 | `c997fa4` | **First and only** `localStorage` write: `rvn.subtitles.enabled` + atomic `rvnSubtitlesEnabled` in extension storage |
+| BUG-020 | `eaeba08` | Session transcript text → extension **IndexedDB** `rvnSessionTranscript`; settings stay in `rvnUserPrefs` |
+| BUG-021 | `3dcd917` | Profile dirty / subtitle coupling — **logic regression**, not storage migration |
+| BUG-022 | `4ba8530` | Partial BUG-021 revert + style apply fixes — checkpoint |
+
+`git log -S "localStorage.setItem"` across all `.ts` files returns **one** commit: `c997fa4` (subtitle toggle only).
+
+### What likely broke (not migration)
+
+1. **BUG-021** (`3dcd917`) — `flushPersist()` before profile saves fired `onUserPreferencesChanged` outside studio guards → races that cleared or never persisted `activeProfileId`.
+2. **BUG-023** (open) — UI reads `activeProfileId` for Save/Clone; dropdown can list `savedProfiles` while `activeProfileId` is null → old button UX.
+3. **Extension reload / dev ID** — WXT dev loads `.output/chrome-mv3-dev`; a different unpacked path or stale build can show an empty Extension Storage tree under a **different** extension id while the old id still holds data.
+4. **Checkpoint commit changed code** — `4ba8530` was not docs-only; it modified `mount-clip-studio.ts`, `user-preferences.ts`, etc. If behavior shifted after “documentation wrap-up,” compare against tag `eloquent-semi-fixed` (same commit).
+
+### Verification commands
+
+```bash
+git checkout eloquent-semi-fixed
+# Confirm single localStorage introduction:
+git log --oneline -S "localStorage.setItem" -- "*.ts"
+# Profile storage introduction:
+git show 6541575 --stat
+```
+
+---
+
 ## Related docs
 
 - `claude-progress.md` — session handoff (updated for this checkpoint)
