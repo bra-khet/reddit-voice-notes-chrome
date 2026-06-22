@@ -55,6 +55,14 @@ export type { DesignOverrides } from '@/src/theme/design-overrides';
 export const USER_PREFS_STORAGE_KEY = 'rvnUserPrefs' as const;
 export const USER_PREFS_VERSION = 1 as const;
 
+/** Atomic subtitle on/off — immune to rvnUserPrefs read-modify-write races (BUG-019). */
+export const SUBTITLES_ENABLED_STORAGE_KEY = 'rvnSubtitlesEnabled' as const;
+
+const SUBTITLES_ENABLED_LOCAL_KEY = 'rvn.subtitles.enabled' as const;
+
+/** Ms timestamp written when background saves a session transcript (studio refresh signal). */
+export const SESSION_TRANSCRIPT_READY_KEY = 'rvnSessionTranscriptReadyAt' as const;
+
 export interface AppearancePreferences {
   activeThemeId: string;
   /** Center-mirrored (default), bottom, or top bar anchoring. */
@@ -132,6 +140,66 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
   transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
 };
+
+/** Synchronous cache on extension pages — survives design-studio tab close (BUG-019). */
+export function readSubtitlesEnabledLocal(): boolean | null {
+  try {
+    const value = localStorage.getItem(SUBTITLES_ENABLED_LOCAL_KEY);
+    if (value === '1') return true;
+    if (value === '0') return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSubtitlesEnabledLocal(enabled: boolean): void {
+  try {
+    localStorage.setItem(SUBTITLES_ENABLED_LOCAL_KEY, enabled ? '1' : '0');
+  } catch {
+    // localStorage may be unavailable in rare extension contexts.
+  }
+}
+
+function applySubtitlesEnabledToConfig(
+  config: TranscriptConfig | undefined,
+  enabled: boolean,
+): TranscriptConfig {
+  const normalized = normalizeTranscriptConfig(config);
+  return normalizeTranscriptConfig({
+    ...normalized,
+    transcriptionEnabled: enabled,
+    style: {
+      ...normalized.style,
+      enabled,
+    },
+  });
+}
+
+async function readSubtitlesEnabledFlag(fallbackConfig?: TranscriptConfig): Promise<boolean> {
+  const local = readSubtitlesEnabledLocal();
+  if (local !== null) return local;
+
+  const stored = await browser.storage.local.get(SUBTITLES_ENABLED_STORAGE_KEY);
+  const chromeFlag = stored[SUBTITLES_ENABLED_STORAGE_KEY];
+  if (typeof chromeFlag === 'boolean') return chromeFlag;
+
+  return normalizeTranscriptConfig(fallbackConfig).transcriptionEnabled;
+}
+
+/** Persist subtitle on/off atomically before any rvnUserPrefs merge. */
+export async function setSubtitlesEnabled(enabled: boolean): Promise<void> {
+  writeSubtitlesEnabledLocal(enabled);
+  await browser.storage.local.set({ [SUBTITLES_ENABLED_STORAGE_KEY]: enabled });
+}
+
+async function mergeSubtitlesEnabledIntoPrefs(next: UserPreferencesV1): Promise<UserPreferencesV1> {
+  const enabled = await readSubtitlesEnabledFlag(next.transcriptConfig);
+  return {
+    ...next,
+    transcriptConfig: applySubtitlesEnabledToConfig(next.transcriptConfig, enabled),
+  };
+}
 
 const VALID_BAR_ALIGNMENTS: readonly BarAlignment[] = ['center', 'bottom', 'top'];
 
@@ -212,12 +280,7 @@ async function migrateLegacyThemeKey(prefs: UserPreferencesV1): Promise<UserPref
     },
   };
 
-  await browser.storage.local.set({
-    [USER_PREFS_STORAGE_KEY]: migrated,
-    [THEME_STORAGE_KEY]: migrated.appearance.activeThemeId,
-  });
-
-  return migrated;
+  return writeUserPreferences(migrated);
 }
 
 export async function loadUserPreferences(): Promise<UserPreferencesV1> {
@@ -228,12 +291,9 @@ export async function loadUserPreferences(): Promise<UserPreferencesV1> {
     return migrateLegacyThemeKey(DEFAULT_USER_PREFERENCES);
   }
 
-  const merged = mergePreferences(raw);
+  const merged = await mergeSubtitlesEnabledIntoPrefs(mergePreferences(raw));
   if (merged.appearance.activeThemeId !== raw.appearance?.activeThemeId) {
-    await browser.storage.local.set({
-      [USER_PREFS_STORAGE_KEY]: merged,
-      [THEME_STORAGE_KEY]: merged.appearance.activeThemeId,
-    });
+    await writeUserPreferences(merged);
   }
 
   return merged;
@@ -248,21 +308,21 @@ export async function saveVoiceEffectPreferences(
     voiceEffect: normalizeVoiceEffectConfig(config),
   };
 
-  await browser.storage.local.set({ [USER_PREFS_STORAGE_KEY]: next });
-  return next;
+  return writeUserPreferences(next);
 }
 
 export async function saveTranscriptPreferences(
   config: TranscriptConfig,
 ): Promise<UserPreferencesV1> {
+  const normalized = normalizeTranscriptConfig(config);
+  await setSubtitlesEnabled(normalized.transcriptionEnabled);
   const current = await loadUserPreferences();
   const next: UserPreferencesV1 = {
     ...current,
-    transcriptConfig: normalizeTranscriptConfig(config),
+    transcriptConfig: normalized,
   };
 
-  await browser.storage.local.set({ [USER_PREFS_STORAGE_KEY]: next });
-  return next;
+  return writeUserPreferences(next);
 }
 
 export async function saveAudioPreferences(
@@ -277,8 +337,7 @@ export async function saveAudioPreferences(
     }),
   };
 
-  await browser.storage.local.set({ [USER_PREFS_STORAGE_KEY]: next });
-  return next;
+  return writeUserPreferences(next);
 }
 
 export async function saveAppearancePreferences(
@@ -295,12 +354,7 @@ export async function saveAppearancePreferences(
     }),
   };
 
-  await browser.storage.local.set({
-    [USER_PREFS_STORAGE_KEY]: next,
-    [THEME_STORAGE_KEY]: next.appearance.activeThemeId,
-  });
-
-  return next;
+  return writeUserPreferences(next);
 }
 
 function voiceEffectFromProfile(profile: ClipProfile): VoiceEffectConfig | null {
@@ -323,12 +377,17 @@ function transcriptConfigFromProfile(profile: ClipProfile): TranscriptConfig | n
   return null;
 }
 
-async function persistUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
+async function writeUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
+  const merged = await mergeSubtitlesEnabledIntoPrefs(next);
   await browser.storage.local.set({
-    [USER_PREFS_STORAGE_KEY]: next,
-    [THEME_STORAGE_KEY]: next.appearance.activeThemeId,
+    [USER_PREFS_STORAGE_KEY]: merged,
+    [THEME_STORAGE_KEY]: merged.appearance.activeThemeId,
   });
-  return next;
+  return merged;
+}
+
+async function persistUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
+  return writeUserPreferences(next);
 }
 
 export async function applyClipProfile(profileId: string): Promise<UserPreferencesV1> {
@@ -636,7 +695,13 @@ export function onUserPreferencesChanged(
     area: string,
   ) => {
     if (area !== 'local') return;
-    if (!(USER_PREFS_STORAGE_KEY in changes) && !(THEME_STORAGE_KEY in changes)) return;
+    if (
+      !(USER_PREFS_STORAGE_KEY in changes) &&
+      !(THEME_STORAGE_KEY in changes) &&
+      !(SUBTITLES_ENABLED_STORAGE_KEY in changes)
+    ) {
+      return;
+    }
     void loadUserPreferences().then(listener);
   };
 

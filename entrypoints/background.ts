@@ -18,6 +18,7 @@ import {
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import { saveLastRecording } from '@/src/storage/last-recording-db';
+import { SESSION_TRANSCRIPT_READY_KEY } from '@/src/settings/user-preferences';
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
 import type { TranscriptResult } from '@/src/transcription/types';
 import {
@@ -531,6 +532,7 @@ export default defineBackground(() => {
               return;
             }
             await saveSessionTranscript(parsed, request.jobId);
+            await browser.storage.local.set({ [SESSION_TRANSCRIPT_READY_KEY]: Date.now() });
             response.ok = true;
             sendResponse(response);
           } catch (error) {

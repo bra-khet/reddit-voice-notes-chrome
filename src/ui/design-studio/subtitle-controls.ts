@@ -1,7 +1,11 @@
 import { loadSessionTranscript, type SessionTranscriptSnapshot } from '@/src/storage/session-transcript-db';
 import {
   loadUserPreferences,
+  readSubtitlesEnabledLocal,
+  SESSION_TRANSCRIPT_READY_KEY,
   saveTranscriptPreferences,
+  setSubtitlesEnabled,
+  writeSubtitlesEnabledLocal,
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import {
@@ -291,18 +295,20 @@ export function mountSubtitleControls(
 
   enabledInput.addEventListener('change', () => {
     if (syncing) return;
+    const enabled = enabledInput.checked;
     draftConfig = {
       ...draftConfig,
-      transcriptionEnabled: enabledInput.checked,
+      transcriptionEnabled: enabled,
       style: normalizeSubtitleStyle({
         ...draftConfig.style,
-        enabled: enabledInput.checked,
+        enabled,
       }),
     };
     syncEnabledUi();
-    // CHANGED: persist subtitle on/off immediately (no debounce).
-    // WHY: window close can kill debounced chrome.storage writes before they land (BUG-017).
-    void persistNow();
+    // BUG FIX: subtitle toggle reverts on studio exit (BUG-019)
+    // Fix: sync localStorage + atomic chrome.storage key before rvnUserPrefs merge races.
+    writeSubtitlesEnabledLocal(enabled);
+    void setSubtitlesEnabled(enabled).then(() => persistNow());
     notifyDraftChange();
   });
 
@@ -370,6 +376,22 @@ export function mountSubtitleControls(
     void loadTranscriptSource();
   }, TRANSCRIPT_POLL_MS);
 
+  const onTranscriptReady = (changes: Record<string, unknown>, area: string): void => {
+    if (area !== 'local' || !(SESSION_TRANSCRIPT_READY_KEY in changes)) return;
+    void loadTranscriptSource();
+  };
+  browser.storage.onChanged.addListener(onTranscriptReady);
+
+  const localEnabled = readSubtitlesEnabledLocal();
+  if (localEnabled !== null) {
+    draftConfig = normalizeTranscriptConfig({
+      ...draftConfig,
+      transcriptionEnabled: localEnabled,
+      style: { ...draftConfig.style, enabled: localEnabled },
+    });
+    syncControlsFromDraft();
+  }
+
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeTranscriptConfig(prefs.transcriptConfig);
     syncControlsFromDraft();
@@ -389,9 +411,11 @@ export function mountSubtitleControls(
     },
     dispose(): void {
       document.removeEventListener('visibilitychange', onVisibility);
+      browser.storage.onChanged.removeListener(onTranscriptReady);
       window.clearInterval(pollTimer);
       if (saveTimer) window.clearTimeout(saveTimer);
-      void persistNow();
+      writeSubtitlesEnabledLocal(draftConfig.transcriptionEnabled);
+      void setSubtitlesEnabled(draftConfig.transcriptionEnabled).then(() => persistNow());
     },
     getDraftConfig(): TranscriptConfig {
       const enabled = draftConfig.transcriptionEnabled;
