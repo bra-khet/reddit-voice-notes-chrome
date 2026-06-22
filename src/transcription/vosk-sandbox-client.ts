@@ -1,4 +1,5 @@
 import { normalizeAbsoluteExtensionUrl, VOSK_SANDBOX_PATH } from './constants';
+import { assertPcmUsable } from './pcm-stats';
 import type { TranscriptResult } from './types';
 import {
   isVoskSandboxClientMessage,
@@ -78,6 +79,7 @@ export async function transcribePcmInSandbox(
   if (!target) throw new Error('Vosk sandbox frame is not accessible');
 
   const id = crypto.randomUUID();
+  assertPcmUsable(samples, sampleRate);
   const outbound = new Float32Array(samples);
   const absoluteModelUrl = normalizeAbsoluteExtensionUrl(modelUrl);
 

@@ -4,6 +4,7 @@
  */
 import { Model } from 'vosk-browser';
 import { TRANSCRIBE_CHUNK_SAMPLES } from './constants';
+import { assertPcmUsable, coerceFloat32Samples, formatPcmStats } from './pcm-stats';
 import type { TranscriptResult, TranscriptSegment } from './types';
 import {
   VOSK_SANDBOX_DISPOSE,
@@ -23,6 +24,12 @@ interface VoskWordToken {
 
 let modelPromise: Promise<Model> | null = null;
 let loadedModelUrl: string | null = null;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 function segmentFromVoskWords(text: string, words: VoskWordToken[]): TranscriptSegment {
   const trimmed = text.trim();
@@ -64,8 +71,6 @@ async function loadModel(modelUrl: string): Promise<Model> {
   }
 
   loadedModelUrl = modelUrl;
-  // BUG FIX: vosk-browser createModel broken under esbuild + rejects after resolve upstream.
-  // Fix: construct Model directly after UMD→ESM unwrap in build-vosk-sandbox.mjs (BUG-012).
   const model = new Model(modelUrl);
   modelPromise = waitForVoskModel(model);
   return modelPromise;
@@ -80,8 +85,6 @@ async function disposeModel(): Promise<void> {
 }
 
 function postToParent(message: Record<string, unknown>): void {
-  // BUG FIX: sandbox page opaque origin cannot target extension origin reliably.
-  // Fix: use '*' — parent validates event.source === iframe.contentWindow.
   window.parent.postMessage(message, '*');
 }
 
@@ -95,6 +98,7 @@ function runVoskOnPcm(
   sampleRate: number,
   language: string | undefined,
   jobId: string,
+  pcmSummary: string,
 ): Promise<TranscriptResult> {
   const recognizer = new model.KaldiRecognizer(sampleRate);
   const segments: TranscriptSegment[] = [];
@@ -129,28 +133,64 @@ function runVoskOnPcm(
       fail(new Error(message.error || 'Vosk recognizer error'));
     });
 
-    try {
-      recognizer.setWords(true);
-      postToParent({ type: VOSK_SANDBOX_PROGRESS, id: jobId, ratio: 0.15, stage: 'inference' });
+    void (async () => {
+      try {
+        recognizer.setWords(true);
+        const total = samples.length;
+        const audioMs = (total / sampleRate) * 1000;
 
-      const total = samples.length;
-      for (let offset = 0; offset < total; offset += TRANSCRIBE_CHUNK_SAMPLES) {
-        const chunk = samples.subarray(offset, Math.min(offset + TRANSCRIBE_CHUNK_SAMPLES, total));
-        recognizer.acceptWaveformFloat(chunk, sampleRate);
-        const ratio = 0.15 + (offset / Math.max(total, 1)) * 0.75;
-        postToParent({ type: VOSK_SANDBOX_PROGRESS, id: jobId, ratio, stage: 'inference' });
-      }
+        postToParent({
+          type: VOSK_SANDBOX_PROGRESS,
+          id: jobId,
+          ratio: 0.15,
+          stage: `inference:${pcmSummary}`,
+        });
 
-      recognizer.retrieveFinalResult();
-      postToParent({ type: VOSK_SANDBOX_PROGRESS, id: jobId, ratio: 0.95, stage: 'finalizing' });
+        // BUG FIX: acceptWaveformFloat posts async to worker — tight loop + immediate retrieveFinalResult races (BUG-015).
+        // Fix: yield between chunks; drain worker before final; wait for result events after retrieveFinalResult.
+        for (let offset = 0; offset < total; offset += TRANSCRIBE_CHUNK_SAMPLES) {
+          const chunk = samples.subarray(offset, Math.min(offset + TRANSCRIBE_CHUNK_SAMPLES, total));
+          recognizer.acceptWaveformFloat(chunk, sampleRate);
+          const ratio = 0.15 + (offset / Math.max(total, 1)) * 0.55;
+          postToParent({ type: VOSK_SANDBOX_PROGRESS, id: jobId, ratio, stage: 'inference' });
+          await delay(0);
+        }
 
-      window.setTimeout(() => {
+        const drainMs = Math.min(Math.max(300, audioMs * 0.35), 45_000);
+        postToParent({
+          type: VOSK_SANDBOX_PROGRESS,
+          id: jobId,
+          ratio: 0.78,
+          stage: `inference-drain:${Math.round(drainMs)}ms`,
+        });
+        await delay(drainMs);
+
+        const segmentsBeforeFinal = segments.length;
+        postToParent({ type: VOSK_SANDBOX_PROGRESS, id: jobId, ratio: 0.88, stage: 'finalizing' });
+        recognizer.retrieveFinalResult();
+
+        const finalWaitMs = Math.max(2_000, audioMs * 0.6 + 1_500);
+        const deadline = performance.now() + finalWaitMs;
+        while (performance.now() < deadline && segments.length === segmentsBeforeFinal) {
+          await delay(50);
+        }
+        await delay(150);
+
         const text = segments.map((segment) => segment.text).join(' ').trim();
+        if (!text) {
+          fail(
+            new Error(
+              `Vosk returned no speech after ${Math.round(audioMs)}ms audio (${pcmSummary}). Check PCM decode and worker pacing.`,
+            ),
+          );
+          return;
+        }
+
         finish({ text, segments, language, source: 'vosk' });
-      }, 300);
-    } catch (error) {
-      fail(error instanceof Error ? error : new Error(String(error)));
-    }
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
+    })();
   });
 }
 
@@ -163,14 +203,20 @@ function isHostMessage(data: unknown): data is VoskSandboxHostMessage {
 async function handleTranscribe(
   message: VoskSandboxHostMessage & { type: typeof VOSK_SANDBOX_TRANSCRIBE },
 ): Promise<void> {
-  const { id, modelUrl, samples, sampleRate, language } = message;
+  const { id, modelUrl, samples: rawSamples, sampleRate, language } = message;
 
   try {
+    const samples = coerceFloat32Samples(rawSamples);
+    const pcmStats = assertPcmUsable(samples, sampleRate);
+    const pcmSummary = formatPcmStats(pcmStats);
+
+    postToParent({ type: VOSK_SANDBOX_PROGRESS, id, ratio: 0.11, stage: `pcm-received:${pcmSummary}` });
+
     postToParent({ type: VOSK_SANDBOX_PROGRESS, id, ratio: 0.12, stage: 'loading-model' });
     const model = await loadModel(modelUrl);
     postToParent({ type: VOSK_SANDBOX_PROGRESS, id, ratio: 0.14, stage: 'model-ready' });
 
-    const result = await runVoskOnPcm(model, samples, sampleRate, language, id);
+    const result = await runVoskOnPcm(model, samples, sampleRate, language, id, pcmSummary);
     postToParent({ type: VOSK_SANDBOX_RESULT, id, ok: true, result });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

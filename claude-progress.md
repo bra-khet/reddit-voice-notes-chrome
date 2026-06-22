@@ -298,22 +298,74 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 
 **Next:** eloquent-1 — parallel transcribe wire from `stopRecording()` (see `eloquent-branch.md`).
 
-## eloquent branch — v4 transcription (2026-06)
+## eloquent branch — v4 transcription (2026-06) — compaction handoff
 
-**Branch:** `eloquent` from `main` v3.1.0 · **Plan:** `eloquent-branch.md`
+**Branch:** `eloquent` from `main` v3.1.0 · **Plan:** `eloquent-branch.md` · **Architecture:** `docs/transcription-architecture.md` · **Bugs:** `docs/bug-archive.md` BUG-010…015
 
 | Phase | Status |
 |-------|--------|
-| **eloquent-0** | **Done** — Vosk spike, frozen types, transcribe harness |
+| **eloquent-0** | **Spike complete** — sandbox pipeline works end-to-end; harness QA after BUG-015 fix |
 | eloquent-1 … eloquent-5 | Pending |
 
-### eloquent-0 deliverables
+### eloquent-0 — what shipped
 
-- `src/transcription/` — types, WebM decode, Vosk loader, `transcribeWebmBlob()`, SRT builder, separate `enqueueTranscribeJob` queue
-- `MSG_TRANSCRIBE_*` message contracts frozen in `messaging/types.ts` (wired in eloquent-1)
-- `entrypoints/transcribe-harness/` — manual QA page
-- `scripts/fetch-vosk-model.mjs` — downloads `vosk-model-small-en-us-0.15.tar.gz` to `public/vosk/` on postinstall
-- **Worker decision:** extend existing offscreen + separate transcription queue; avoid concurrent FFmpeg + Vosk until profiled
-- **CSP / sandbox:** MV3 forbids `unsafe-eval` on extension_pages. Vosk runs in `public/vosk-sandbox.html` (esbuild bundle, not WXT HMR). Sandbox needs `worker-src blob:` (BUG-010); blob worker + non-fatal IDBFS sync — packaged extension workers blocked from null origin (BUG-013). See `docs/transcription-architecture.md`.
+| Area | Files / notes |
+|------|----------------|
+| Types | `src/transcription/types.ts` — frozen `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig` |
+| Decode | `decode-webm-audio.ts` — WebM → mono 16 kHz; copy + `assertPcmUsable` (BUG-015) |
+| PCM QA | `pcm-stats.ts` — frame count, duration, peak, rms; relay coerce |
+| API | `transcribe-audio.ts` — `transcribeWebmBlob()` + `enqueueTranscribeJob` |
+| Sandbox bridge | `vosk-sandbox-client.ts` / `vosk-sandbox-host.ts` / `vosk-sandbox-protocol.ts` |
+| Sandbox bundle | `public/vosk-sandbox.html` + `scripts/build-vosk-sandbox.mjs` → `public/vosk-sandbox.js` |
+| Model | `scripts/fetch-vosk-model.mjs` → `public/vosk/model.tar.gz` (~40 MB, gitignored) |
+| Harness | `entrypoints/transcribe-harness/` |
+| SRT | `srt-builder.ts` |
+| Messages | `MSG_TRANSCRIBE_*` frozen in `messaging/types.ts` (wire in eloquent-1) |
 
-**Harness:** `chrome-extension://<id>/transcribe-harness.html`
+### Sandbox / CSP stack (each layer separate — do not regress)
+
+| Bug | Problem | Fix |
+|-----|---------|-----|
+| BUG-010 | blob worker blocked by `child-src 'self'` | `worker-src blob: 'self'` in `wxt.config.ts` sandbox CSP |
+| BUG-011 | IDBFS denied in blob:null worker | Non-fatal `syncFilesystem` patch in embedded worker |
+| BUG-012 | vosk UMD → `createModel` undefined | UMD→ESM unwrap; `new Model()` + load wait |
+| BUG-013 | `chrome-extension://` worker spawn blocked from null sandbox | Revert to blob worker (BUG-011 patch retained) |
+| BUG-014 | `new URL(modelUrl, "null/uuid")` invalid | Absolute model URL from parent; worker URL patch |
+| BUG-015 | Empty transcript — worker race + no PCM validate | Pace chunks, drain, wait for final; PCM asserts |
+
+**Working architecture:**
+
+```
+transcribe-harness (extension origin)
+  → decodeWebmToMonoPcm (Web Audio, owned Float32Array)
+  → hidden iframe vosk-sandbox.html (manifest sandbox, null origin)
+  → postMessage(transferable PCM + chrome-extension:// model URL)
+  → vosk-sandbox.js → blob worker → Vosk WASM
+  ← postMessage(TranscriptResult)
+```
+
+### Dev workflow (transcription QA)
+
+```bash
+npm install                    # model + vosk-sandbox.js
+npm run build:vosk-sandbox     # after host/build script changes
+npm run dev                    # load .output/chrome-mv3-dev at chrome://extensions
+# transcribe-harness.html — WebM from recorder (not MP4)
+```
+
+Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats>` → `loading-model` → `inference-drain:<ms>` → `finalizing` → transcript JSON.
+
+### Known limitations (eloquent-0)
+
+- No IDBFS model cache in sandbox — re-download/unpack ~40 MB per cold session (MEMFS).
+- Inference pacing is heuristic (~35% realtime drain) — may need tuning for long clips.
+- Do not run FFmpeg + Vosk concurrently until memory profiled (separate queues exist).
+- Popup/settings must not import `@/src/transcription` barrel (pulls Vosk).
+
+### Commit chain (eloquent, CSP + inference)
+
+`6f4b390` plan · `1898277` eloquent-0 spike · `915ce96` sandbox attempt · `f58996a` static sandbox · `f96248b` BUG-010 · `2e786ce` BUG-011 · `1413376` BUG-012 · `179f345` BUG-013 · `bf34b59` BUG-014 · (pending) BUG-015 PCM + inference pacing
+
+### Next: eloquent-1
+
+Wire parallel `transcribeWebmBlob(webmClone)` from `stopRecording()` after validated WebM retained; background/offscreen `MSG_TRANSCRIBE_*` relay; no Studio UI yet.

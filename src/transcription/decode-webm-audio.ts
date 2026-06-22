@@ -1,4 +1,5 @@
 import { VOSK_TARGET_SAMPLE_RATE } from './constants';
+import { assertPcmUsable } from './pcm-stats';
 
 /**
  * Decode muxed WebM (Reddit voice-note capture) to mono PCM at 16 kHz for Vosk.
@@ -7,7 +8,11 @@ import { VOSK_TARGET_SAMPLE_RATE } from './constants';
  */
 export async function decodeWebmToMonoPcm(blob: Blob): Promise<{ samples: Float32Array; sampleRate: number }> {
   const buffer = await decodeWebmToAudioBuffer(blob);
-  return audioBufferToMono16k(buffer);
+  const decoded = await audioBufferToMono16k(buffer);
+  // CHANGED: copy PCM + validate before relay — views on AudioBuffer can detach; zero frames must fail early.
+  const samples = new Float32Array(decoded.samples);
+  assertPcmUsable(samples, decoded.sampleRate);
+  return { samples, sampleRate: decoded.sampleRate };
 }
 
 async function decodeWebmToAudioBuffer(blob: Blob): Promise<AudioBuffer> {

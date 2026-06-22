@@ -1,6 +1,7 @@
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import { TRANSCRIBE_TIMEOUT_MS } from './constants';
 import { decodeWebmToMonoPcm } from './decode-webm-audio';
+import { formatPcmStats, analyzePcm } from './pcm-stats';
 import type { TranscribeAudioOptions, TranscribeAudioResult } from './types';
 import { enqueueTranscribeJob } from './transcribe-queue';
 import { disposeVoskSandbox, transcribePcmInSandbox } from './vosk-sandbox-client';
@@ -14,7 +15,7 @@ async function transcribeWebmBlobInner(
 
   onProgress?.(0.02, 'decode-audio');
   const { samples, sampleRate } = await decodeWebmToMonoPcm(blob);
-  onProgress?.(0.1, 'decode-done');
+  onProgress?.(0.1, `decode-done:${formatPcmStats(analyzePcm(samples, sampleRate))}`);
 
   const result = await transcribePcmInSandbox(
     samples,

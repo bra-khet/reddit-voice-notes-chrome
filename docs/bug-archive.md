@@ -471,6 +471,36 @@ In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yield
 
 ---
 
+## BUG-015 — Empty Vosk transcript despite successful model load (2026-06)
+
+### Symptoms
+
+- Harness: model extracts/loads (verbose VoskAPI logs), then `Done — 0 segment(s), 0 chars` in ~2–3s.
+- `applied: true` path with empty `text` / `segments` — pipeline “succeeds” with no speech.
+- Inference stage completes faster than audio duration suggests.
+
+### Root causes (confirmed)
+
+1. **Worker pacing race** — `acceptWaveformFloat()` only `postMessage`s chunks to the blob worker; eloquent-0 loop fed all chunks synchronously then immediately called `retrieveFinalResult()`. Final request could run **before** worker consumed audio → no `result` events.
+2. **Fixed 300ms finalize timeout** — collected `segments` from streaming `result` events only; if final text arrived after timeout, transcript stayed empty.
+3. **Silent success on empty text** — no error when Vosk returned zero speech; harness showed “Done” instead of failure.
+4. **Possible PCM relay edge cases** — `postMessage` transfer + `AudioBuffer` views without copy; zero/silent PCM not validated before inference.
+
+### Fix (2026-06, `eloquent`)
+
+- `src/transcription/pcm-stats.ts` — `analyzePcm`, `assertPcmUsable`, `coerceFloat32Samples`, `formatPcmStats`.
+- `decode-webm-audio.ts` — copy PCM to owned `Float32Array`; assert after decode.
+- `vosk-sandbox-client.ts` — assert before transfer.
+- `vosk-sandbox-host.ts` — coerce relayed samples; yield between chunks; drain worker (~35% realtime, capped); wait for post-`retrieveFinalResult` results; **fail** if still empty (include PCM summary in error).
+- Progress stages now include PCM stats: `decode-done:…`, `pcm-received:…`, `inference-drain:…ms`.
+
+### Related files
+
+- `src/transcription/pcm-stats.ts`, `decode-webm-audio.ts`, `vosk-sandbox-host.ts`, `transcribe-audio.ts`
+- `entrypoints/transcribe-harness/main.ts`
+
+---
+
 ## BUG-012 — vosk-browser UMD import undefined under esbuild (2026-06)
 
 ### Symptoms

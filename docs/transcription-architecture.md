@@ -37,7 +37,8 @@ Each hop has **different** rules — fixes for one layer do not transfer.
 | Worker IDBFS | blob:null worker | no IndexedDB | Non-fatal sync; MEMFS per session | BUG-011, BUG-013 |
 | Model URL | worker fetch | blob:null base invalid | Parent passes **absolute** `chrome-extension://…/vosk/model.tar.gz` | BUG-014 |
 | Model bytes | worker XHR/fetch | WAR | `vosk/*` in `web_accessible_resources` | wxt.config |
-| Inference | worker WASM | sandbox CSP | Serialized `enqueueTranscribeJob` | eloquent-1 |
+| Inference | worker WASM | sandbox CSP | Pace `acceptWaveformFloat` chunks; drain before `retrieveFinalResult`; wait for final `result` | BUG-015 |
+| PCM validate | decode + relay | — | `assertPcmUsable` at decode, client send, sandbox receive | BUG-015 |
 
 **Viability (eloquent-0):** Yes, with the patched sandbox + blob-worker path above. It is **not** drop-in vosk-browser; each null-origin sharp edge needs an explicit build-time or protocol patch. Long-term, extension-origin offscreen + different Vosk packaging may be cleaner if IDBFS caching or worker ergonomics become requirements.
 

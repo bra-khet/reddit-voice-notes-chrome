@@ -232,9 +232,10 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 | Artifact | Role |
 |----------|------|
 | `src/transcription/types.ts` | Frozen `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig` + normalizers |
-| `src/transcription/decode-webm-audio.ts` | Muxed WebM → mono 16 kHz PCM (`decodeAudioData` + OfflineAudioContext fallback) |
-| `src/transcription/vosk-loader.ts` | Singleton `createModel()` lifecycle |
-| `src/transcription/transcribe-audio.ts` | `transcribeWebmBlob()` — chunked `acceptWaveformFloat`, graceful fallback |
+| `src/transcription/decode-webm-audio.ts` | Muxed WebM → mono 16 kHz PCM; owned copy + `assertPcmUsable` |
+| `src/transcription/pcm-stats.ts` | PCM frame/duration/peak/rms; relay coerce (BUG-015) |
+| `src/transcription/vosk-sandbox-*.ts` | iframe bridge + sandbox host inference pacing |
+| `src/transcription/transcribe-audio.ts` | `transcribeWebmBlob()` — decode → sandbox → result |
 | `src/transcription/transcribe-queue.ts` | Serialized transcription jobs (isolated from FFmpeg queue) |
 | `src/transcription/srt-builder.ts` | `buildSrtFromSegments()` for eloquent-3 |
 | `scripts/fetch-vosk-model.mjs` | Postinstall download → `public/vosk/model.tar.gz` (skip via `SKIP_VOSK_MODEL=1`) |
@@ -256,6 +257,7 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 4. **WXT `entrypoints/vosk.sandbox`** — breaks in dev: sandbox iframe has **opaque/null origin**, cannot load `localhost:3000` Vite HMR scripts (CORS). Replaced by static `public/vosk-sandbox.*` + esbuild.
 5. **postMessage** — sandbox opaque origin → use `targetOrigin: '*'` + validate `event.source` (not `event.origin`).
 6. **Not image-relay** — personal backgrounds needed chunked base64 for Reddit page CSP + MV3 size; transcription needs sandbox for extension eval CSP.
+7. **Inference pacing (BUG-015)** — pace `acceptWaveformFloat` + drain worker before `retrieveFinalResult`; PCM stats in progress stages; fail if empty transcript.
 
 #### eloquent-0 — target handoff diagram
 
