@@ -314,6 +314,6 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 - `entrypoints/transcribe-harness/` — manual QA page
 - `scripts/fetch-vosk-model.mjs` — downloads `vosk-model-small-en-us-0.15.tar.gz` to `public/vosk/` on postinstall
 - **Worker decision:** extend existing offscreen + separate transcription queue; avoid concurrent FFmpeg + Vosk until profiled
-- **CSP / sandbox:** MV3 forbids `unsafe-eval` on extension_pages. Vosk runs in `public/vosk-sandbox.html` (esbuild bundle, not WXT HMR — dev sandbox null-origin cannot load localhost Vite). Sandbox CSP also needs `worker-src blob:` for vosk-browser Emscripten workers (BUG-010). See `docs/transcription-architecture.md`.
+- **CSP / sandbox:** MV3 forbids `unsafe-eval` on extension_pages. Vosk runs in `public/vosk-sandbox.html` (esbuild bundle, not WXT HMR — dev sandbox null-origin cannot load localhost Vite). Sandbox CSP needs `worker-src blob:` (BUG-010) plus packaged `vosk-emscripten-worker.js` instead of blob:null worker for IDBFS (BUG-011). See `docs/transcription-architecture.md`.
 
 **Harness:** `chrome-extension://<id>/transcribe-harness.html`

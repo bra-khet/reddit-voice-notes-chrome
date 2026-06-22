@@ -88,6 +88,7 @@ public/
   ffmpeg/                # WASM core (copied on postinstall)
   vosk/                  # Vosk model tar.gz (fetched on postinstall, gitignored)
   vosk-sandbox.html/js   # Manifest sandbox STT host (esbuild on postinstall)
+  vosk-emscripten-worker.js  # Packaged Vosk worker (IDBFS; not blob:null)
 docs/
   transcription-architecture.md  # MV3 CSP / sandbox design audit (eloquent)
 src/

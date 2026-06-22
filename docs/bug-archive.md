@@ -370,3 +370,42 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - `public/vosk-sandbox.html`, `public/vosk-sandbox.js` — sandbox host
 - `src/transcription/vosk-sandbox-client.ts`, `vosk-sandbox-host.ts`
 - `docs/transcription-architecture.md`
+
+---
+
+## BUG-011 — Vosk IDBFS blocked in blob:null workers (2026-06)
+
+### Symptoms
+
+- After BUG-010 (`worker-src blob:`), console shows:
+  `Failed to sync file system: SecurityError: Failed to execute 'open' on 'IDBFactory': access to the Indexed Database API is denied in this context.`
+- Error originates in `blob:null/<uuid>` worker (vosk Emscripten `syncFilesystem` / IDBFS).
+- Model load stalls or fails after decode progress (~10–12%).
+
+### Root cause (confirmed)
+
+1. **vosk-browser ships worker code as a blob URL** — `createBase64WorkerFactory()` → `blob:null/…` worker origin.
+2. **Emscripten IDBFS caches unpacked models in IndexedDB** — `syncFilesystem()` calls `FS.syncfs()` against IDB on load/save.
+3. **Blob-origin workers cannot open IndexedDB** in Chrome extension contexts (manifest sandbox and extension pages). This is separate from BUG-010 (CSP allowed creating the worker; storage is still denied by origin).
+4. **Manifest sandbox parent also lacks durable storage** — even main-thread IDB in opaque sandbox is unreliable; worker must run as packaged `'self'` script (`chrome-extension://…`) for IDBFS.
+
+### Fix (2026-06, `eloquent`)
+
+- `scripts/extract-vosk-worker.mjs` — extract embedded worker to `public/vosk-emscripten-worker.js` (~4 MB).
+- `scripts/build-vosk-sandbox.mjs` — esbuild plugin patches `Model` to use `new Worker(new URL('vosk-emscripten-worker.js', import.meta.url))` instead of `WorkerFactory()` blob worker.
+- Keep manifest sandbox for main-thread `'unsafe-eval'`; worker uses `worker-src 'self'` (packaged script, extension origin, IDB allowed).
+
+### Design lesson
+
+| Approach | eval (main) | Worker origin | IndexedDB |
+|----------|-------------|---------------|-----------|
+| extension_pages (offscreen) | **Blocked** | blob:null | **Denied** |
+| manifest sandbox + blob worker | Allowed | blob:null | **Denied** |
+| manifest sandbox + packaged worker | Allowed | chrome-extension:// | **Allowed** |
+
+### Related files
+
+- `scripts/extract-vosk-worker.mjs`, `scripts/build-vosk-sandbox.mjs`
+- `public/vosk-emscripten-worker.js` (generated, gitignored)
+- `src/transcription/constants.ts` — `VOSK_WORKER_PATH`
+- `docs/transcription-architecture.md`
