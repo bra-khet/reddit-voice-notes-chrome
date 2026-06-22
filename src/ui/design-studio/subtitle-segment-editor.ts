@@ -117,7 +117,35 @@ export function renderSubtitleSegmentEditorFields(): string {
           >
             + Add cue
           </button>
-          <div class="studio__transcript-dialog-actions">
+          <div class="studio__bake-unsaved studio__transcript-modal-unsaved" data-transcript-modal-unsaved hidden>
+            <p class="popup__field-desc studio__bake-unsaved-copy">
+              You have unsaved cue edits. Apply them to the preview, discard, or keep editing.
+            </p>
+            <div class="popup__profile-actions studio__inline-actions">
+              <button
+                type="button"
+                class="popup__profile-btn popup__profile-btn--save"
+                data-transcript-modal-unsaved-apply
+              >
+                Apply to preview
+              </button>
+              <button
+                type="button"
+                class="popup__profile-btn popup__profile-btn--delete"
+                data-transcript-modal-unsaved-discard
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                class="popup__button popup__button--secondary"
+                data-transcript-modal-unsaved-cancel
+              >
+                Keep editing
+              </button>
+            </div>
+          </div>
+          <div class="studio__transcript-dialog-actions" data-transcript-modal-actions>
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-transcript-modal-save>
               Apply to preview
             </button>
@@ -149,12 +177,25 @@ export function mountSubtitleSegmentEditor(
   const modalSaveBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-modal-save]')!;
   const modalCancelBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-modal-cancel]')!;
   const modalCloseBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-close]')!;
+  const modalActionsEl = panel.querySelector<HTMLElement>('[data-transcript-modal-actions]')!;
+  const modalUnsavedEl = panel.querySelector<HTMLElement>('[data-transcript-modal-unsaved]')!;
+  const modalUnsavedApplyBtn = panel.querySelector<HTMLButtonElement>(
+    '[data-transcript-modal-unsaved-apply]',
+  )!;
+  const modalUnsavedDiscardBtn = panel.querySelector<HTMLButtonElement>(
+    '[data-transcript-modal-unsaved-discard]',
+  )!;
+  const modalUnsavedCancelBtn = panel.querySelector<HTMLButtonElement>(
+    '[data-transcript-modal-unsaved-cancel]',
+  )!;
   const addSegmentBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-add-segment]')!;
 
   let voskOriginal: TranscriptResult | null = null;
   let savedBaseline: TranscriptResult | null = null;
   let edited: TranscriptResult | null = null;
   let modalDraft: TranscriptSegment[] = [];
+  /** Snapshot when the modal opens — close/dismiss compares live DOM against this. */
+  let modalOpenBaseline: TranscriptSegment[] = [];
   let lastRecording: LastRecordingSnapshot | null = null;
   let loadedSavedAt = 0;
   let deliveryStatus: TranscriptDeliveryStatus = 'idle';
@@ -165,6 +206,45 @@ export function mountSubtitleSegmentEditor(
   function computeDirty(): boolean {
     if (!edited || !savedBaseline) return false;
     return isTranscriptDirty(savedBaseline, edited);
+  }
+
+  function segmentsDraftEqual(a: TranscriptSegment[], b: TranscriptSegment[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let index = 0; index < a.length; index += 1) {
+      const left = a[index];
+      const right = b[index];
+      if (
+        normalizeSegmentSeconds(left.start) !== normalizeSegmentSeconds(right.start) ||
+        normalizeSegmentSeconds(left.end) !== normalizeSegmentSeconds(right.end) ||
+        left.text !== right.text
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function isModalDirty(): boolean {
+    if (modalEl.hidden) return false;
+    return !segmentsDraftEqual(readModalDraft(), modalOpenBaseline);
+  }
+
+  function hideModalUnsavedPrompt(): void {
+    modalUnsavedEl.hidden = true;
+    modalActionsEl.hidden = false;
+  }
+
+  function showModalUnsavedPrompt(): void {
+    modalUnsavedEl.hidden = false;
+    modalActionsEl.hidden = true;
+  }
+
+  function requestCloseModal(): void {
+    if (!isModalDirty()) {
+      closeModal();
+      return;
+    }
+    showModalUnsavedPrompt();
   }
 
   function clipDurationForOob(): number | null {
@@ -417,17 +497,21 @@ export function mountSubtitleSegmentEditor(
 
   function openModal(): void {
     if (!edited) return;
+    hideModalUnsavedPrompt();
     modalDraft = edited.segments.map((segment) => ({ ...segment }));
+    modalOpenBaseline = modalDraft.map((segment) => ({ ...segment }));
     renderModalSegments();
     modalEl.hidden = false;
     void loadRecordingSource();
   }
 
   function closeModal(): void {
+    hideModalUnsavedPrompt();
     cuePlayer.stop();
     playingSegmentIndex = null;
     modalEl.hidden = true;
     modalDraft = [];
+    modalOpenBaseline = [];
   }
 
   function applyModalDraft(): void {
@@ -490,13 +574,32 @@ export function mountSubtitleSegmentEditor(
 
   editOpenBtn.addEventListener('click', openModal);
   addSegmentBtn.addEventListener('click', addSegment);
-  modalCloseBtn.addEventListener('click', closeModal);
-  modalCancelBtn.addEventListener('click', closeModal);
+  modalCloseBtn.addEventListener('click', requestCloseModal);
+  modalCancelBtn.addEventListener('click', requestCloseModal);
   modalSaveBtn.addEventListener('click', applyModalDraft);
+  modalUnsavedApplyBtn.addEventListener('click', applyModalDraft);
+  modalUnsavedDiscardBtn.addEventListener('click', closeModal);
+  modalUnsavedCancelBtn.addEventListener('click', hideModalUnsavedPrompt);
 
   modalEl.addEventListener('click', (event) => {
-    if (event.target === modalEl) closeModal();
+    if (event.target !== modalEl) return;
+    if (!modalUnsavedEl.hidden) {
+      hideModalUnsavedPrompt();
+      return;
+    }
+    requestCloseModal();
   });
+
+  const onModalKeydown = (event: KeyboardEvent): void => {
+    if (modalEl.hidden || event.key !== 'Escape') return;
+    event.preventDefault();
+    if (!modalUnsavedEl.hidden) {
+      hideModalUnsavedPrompt();
+      return;
+    }
+    requestCloseModal();
+  };
+  document.addEventListener('keydown', onModalKeydown);
 
   saveBtn.addEventListener('click', () => {
     if (!edited || !computeDirty()) return;
@@ -565,6 +668,7 @@ export function mountSubtitleSegmentEditor(
   return {
     dispose(): void {
       closeModal();
+      document.removeEventListener('keydown', onModalKeydown);
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onRecordingReady);
       window.clearInterval(pollTimer);

@@ -901,10 +901,18 @@ body {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.studio__transcript-modal-unsaved {
+  margin-bottom: 10px;
+}
+
 .studio__transcript-dialog-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.studio__transcript-dialog-actions[hidden] {
+  display: none;
 }
 
 .studio__subtitles-bake {
