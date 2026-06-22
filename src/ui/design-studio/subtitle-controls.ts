@@ -201,11 +201,23 @@ export function mountSubtitleControls(
     notifyPreviewChange();
   }
 
+  function buildDraftConfig(): TranscriptConfig {
+    const enabled = draftConfig.transcriptionEnabled;
+    return normalizeTranscriptConfig({
+      ...draftConfig,
+      transcriptionEnabled: enabled,
+      style: normalizeSubtitleStyle({
+        ...mergeStyleFromControls(),
+        enabled,
+      }),
+    });
+  }
+
   function schedulePersist(): void {
     if (saveTimer) window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
       saveTimer = 0;
-      void saveTranscriptPreferences(getDraftConfig()).catch((error: unknown) => {
+      void saveTranscriptPreferences(buildDraftConfig()).catch((error: unknown) => {
         console.warn('[Reddit Voice Notes] Transcript prefs save failed', error);
       });
     }, TRANSCRIPT_SAVE_DEBOUNCE_MS);
@@ -217,7 +229,7 @@ export function mountSubtitleControls(
       saveTimer = 0;
     }
     try {
-      await saveTranscriptPreferences(getDraftConfig());
+      await saveTranscriptPreferences(buildDraftConfig());
     } catch (error: unknown) {
       console.warn('[Reddit Voice Notes] Transcript prefs save failed', error);
     }
@@ -504,19 +516,11 @@ export function mountSubtitleControls(
       writeSubtitlesEnabledLocal(draftConfig.transcriptionEnabled);
       void setSubtitlesEnabled(draftConfig.transcriptionEnabled).then(() => persistNow());
     },
-    getDraftConfig(): TranscriptConfig {
-      const enabled = draftConfig.transcriptionEnabled;
-      return normalizeTranscriptConfig({
-        ...draftConfig,
-        transcriptionEnabled: enabled,
-        style: normalizeSubtitleStyle({
-          ...mergeStyleFromControls(),
-          enabled,
-        }),
-      });
-    },
+    getDraftConfig: buildDraftConfig,
     getProfileSnapshotConfig(): TranscriptConfig {
-      return transcriptConfigForProfileStorage(getDraftConfig());
+      // BUG FIX: getDraftConfig is not defined (BUG-024)
+      // Fix: use closure buildDraftConfig — method body cannot call sibling method by bare name.
+      return transcriptConfigForProfileStorage(buildDraftConfig());
     },
     getPreviewOptions(): SubtitlePreviewOptions | undefined {
       const config = normalizeTranscriptConfig({

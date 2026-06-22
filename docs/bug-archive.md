@@ -684,3 +684,28 @@ In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yield
 
 - `src/settings/user-preferences.ts`, `entrypoints/design-studio/main.ts`, `src/ui/design-studio/mount-clip-studio.ts`
 - `docs/eloquent-profile-checkpoint.md`
+
+### Checkpoint tag
+
+- **`eloquent-prefs-hydrated`** (`7c11796`) — profiles switch; canvas bg works; BUG-024 throw still open. See `docs/eloquent-profile-checkpoint-hydrated.md`.
+
+---
+
+## BUG-024 — getDraftConfig ReferenceError aborts applyPrefs (2026-06)
+
+### Symptoms
+
+- Profile select alert: `getDraftConfig is not defined`; console stack through `getProfileSnapshotConfig` → `isProfileDirty` → `syncProfileActions` → `applyPrefs`.
+- Canvas may partially update (prefs write succeeds) but **background library dropdown** empty — `personalBackground.sync` never runs after throw.
+
+### Root cause
+
+- `getProfileSnapshotConfig` called bare `getDraftConfig()` inside returned object literal; only a sibling **method** existed, not a closure.
+
+### Fix (`eloquent`)
+
+- Local `buildDraftConfig()` inside `mountSubtitleControls`; shared by persist paths and returned handle.
+
+### Related files
+
+- `src/ui/design-studio/subtitle-controls.ts`

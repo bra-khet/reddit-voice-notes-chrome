@@ -392,11 +392,29 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 FFmpeg subtitle burn-in pass on `base.mp4` → `final.mp4`.
 
-## eloquent profile checkpoint — semi-fixed (2026-06-21)
+## eloquent profile checkpoint — prefs hydrated (2026-06-21)
+
+**Tag:** `eloquent-prefs-hydrated` (`7c11796`) — BUG-023 race fix; profiles + canvas bg work; BUG-024 throw at tag  
+**Full audit:** `docs/eloquent-profile-checkpoint-hydrated.md` (vs `eloquent-semi-fixed` diff table)  
+**Prior tag:** `eloquent-semi-fixed` (`4ba8530`) — see `docs/eloquent-profile-checkpoint.md`
+
+### Working after BUG-023 (`7c11796`+)
+
+| Area | Status |
+|------|--------|
+| Profile select → theme / colors / canvas bg | ✅ |
+| `rvnUserPrefs` hydration (serialized writes + boot order) | ✅ |
+| BUG-024 `getDraftConfig` throw | ✅ fixed post-tag |
+
+### Race rules (do not regress)
+
+See `docs/eloquent-profile-checkpoint-hydrated.md` § Race rules — serialized prefs queue, boot `initialPrefs`, `prefsHydrated` gate, no throw in `applyPrefs` mid-sync.
+
+## eloquent profile checkpoint — semi-fixed (2026-06-21) [superseded]
 
 **Tag:** `eloquent-semi-fixed` (annotated WIP checkpoint — not a release)  
 **Full audit:** `docs/eloquent-profile-checkpoint.md`  
-**Open bug:** BUG-023 — profile Save/Update/Clone action bar
+**Superseded by:** `eloquent-prefs-hydrated` for profile apply behavior
 
 ### Working at checkpoint
 
