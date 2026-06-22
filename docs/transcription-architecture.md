@@ -80,7 +80,7 @@ stopRecording()
 |-----------|-------------------|
 | FFmpeg | `enqueueTranscodeJob` — single offscreen worker |
 | Vosk | `enqueueTranscribeJob` — separate serialized queue |
-| Vosk WASM worker | `public/vosk-emscripten-worker.js` (packaged `'self'` script — not blob:null; IDBFS needs extension origin) |
+| Vosk WASM worker | vosk-browser blob worker inside sandbox (`worker-src blob:`); IDBFS sync non-fatal — MEMFS per session (BUG-013) |
 
 Model load is **opt-in** (eloquent-4 UI); not at extension startup.
 
@@ -92,7 +92,6 @@ WXT dev mode injects Vite HMR scripts (`http://localhost:*/@vite/client`) into H
 
 - `public/vosk-sandbox.html` — listed in `manifest.sandbox.pages`
 - `public/vosk-sandbox.js` — esbuild bundle via `npm run build:vosk-sandbox`
-- `public/vosk-emscripten-worker.js` — extracted vosk Emscripten worker (BUG-011; avoids blob:null IDB denial)
 - Rebuild after changing `vosk-sandbox-host.ts` or upgrading `vosk-browser`; reload extension
 
 ## postMessage security model

@@ -1,6 +1,6 @@
 /**
  * Vosk inference host — bundled to public/vosk-sandbox.js (manifest sandbox page only).
- * Worker patched at build time to public/vosk-emscripten-worker.js (BUG-011 — IDBFS needs extension origin).
+ * Worker stays vosk-browser blob worker (sandbox null-origin); IDBFS sync patched non-fatal at build (BUG-013).
  */
 import { Model } from 'vosk-browser';
 import { TRANSCRIBE_CHUNK_SAMPLES } from './constants';

@@ -9,30 +9,43 @@ const watch = process.argv.includes('--watch');
 
 mkdirSync(dirname(outfile), { recursive: true });
 
-// BUG FIX: vosk blob workers cannot use IndexedDB (BUG-011).
-// Fix: extract Emscripten worker to public/vosk-emscripten-worker.js; patch Model to spawn 'self' worker.
-await import('./extract-vosk-worker.mjs');
+const IDBFS_SYNC_REJECT =
+  'if(err){reject("Failed to sync file system: "+err);}';
+const IDBFS_SYNC_SKIP =
+  'if(err){log("File system sync skipped: "+err,1);resolve();}';
+
+/** BUG-013: null-origin sandbox cannot spawn chrome-extension:// workers — keep blob worker + skip IDBFS fatal sync. */
+function patchVoskEmbeddedWorker(contents) {
+  const match = contents.match(/createBase64WorkerFactory\('([^']+)'/);
+  if (!match) {
+    throw new Error('Could not find vosk-browser embedded worker payload');
+  }
+
+  const decoded = Buffer.from(match[1], 'base64').toString('utf8');
+  if (!decoded.includes(IDBFS_SYNC_REJECT)) {
+    throw new Error('vosk-browser IDBFS syncFilesystem patch target missing — update patchVoskEmbeddedWorker()');
+  }
+
+  const patched = decoded.replace(IDBFS_SYNC_REJECT, IDBFS_SYNC_SKIP);
+  const reb64 = Buffer.from(patched, 'utf8').toString('base64');
+  return contents.replace(match[1], reb64);
+}
 
 function voskBrowserToEsm(contents) {
   // BUG FIX: vosk-browser is UMD-only — esbuild ESM named imports become undefined (BUG-012).
-  const unwrapped = contents.replace(
+  let next = patchVoskEmbeddedWorker(contents);
+  const unwrapped = next.replace(
     /\(function \(global, factory\) \{[\s\S]*?\}\)\(this, \(function \(exports\) \{/,
     'const __voskExports = {};\n(function (exports) {',
   );
-  if (unwrapped === contents) {
+  if (unwrapped === next) {
     throw new Error('vosk-browser UMD wrapper not recognized — update voskBrowserToEsm()');
   }
 
-  return unwrapped
-    .replace(
-      'this.worker = new WorkerFactory();',
-      // BUG-011: chrome-extension:// worker origin gets IndexedDB; blob:null workers do not.
-      'this.worker = new Worker(new URL("vosk-emscripten-worker.js", import.meta.url), { type: "classic" });',
-    )
-    .replace(
-      /\}\)\);\s*$/,
-      '})(__voskExports);\nexport const Model = __voskExports.Model;\nexport const createModel = __voskExports.createModel;\n',
-    );
+  return unwrapped.replace(
+    /\}\)\);\s*$/,
+    '})(__voskExports);\nexport const Model = __voskExports.Model;\nexport const createModel = __voskExports.createModel;\n',
+  );
 }
 
 const voskBrowserPlugin = {

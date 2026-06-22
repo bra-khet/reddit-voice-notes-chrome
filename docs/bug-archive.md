@@ -389,25 +389,53 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 3. **Blob-origin workers cannot open IndexedDB** in Chrome extension contexts (manifest sandbox and extension pages). This is separate from BUG-010 (CSP allowed creating the worker; storage is still denied by origin).
 4. **Manifest sandbox parent also lacks durable storage** — even main-thread IDB in opaque sandbox is unreliable; worker must run as packaged `'self'` script (`chrome-extension://…`) for IDBFS.
 
-### Fix (2026-06, `eloquent`)
+### Fix (2026-06, `eloquent`) — superseded by BUG-013
 
-- `scripts/extract-vosk-worker.mjs` — extract embedded worker to `public/vosk-emscripten-worker.js` (~4 MB).
-- `scripts/build-vosk-sandbox.mjs` — esbuild plugin patches `Model` to use `new Worker(new URL('vosk-emscripten-worker.js', import.meta.url))` instead of `WorkerFactory()` blob worker.
-- Keep manifest sandbox for main-thread `'unsafe-eval'`; worker uses `worker-src 'self'` (packaged script, extension origin, IDB allowed).
+Packaged `chrome-extension://` workers **cannot be constructed from null-origin manifest sandbox** (see BUG-013). Extraction script removed; blob worker retained with non-fatal IDBFS sync.
 
 ### Design lesson
 
-| Approach | eval (main) | Worker origin | IndexedDB |
-|----------|-------------|---------------|-----------|
-| extension_pages (offscreen) | **Blocked** | blob:null | **Denied** |
-| manifest sandbox + blob worker | Allowed | blob:null | **Denied** |
-| manifest sandbox + packaged worker | Allowed | chrome-extension:// | **Allowed** |
+| Approach | eval (main) | Worker spawn from sandbox | IndexedDB cache |
+|----------|-------------|---------------------------|-----------------|
+| extension_pages (offscreen) | **Blocked** | N/A | N/A |
+| sandbox + blob worker | Allowed | **Yes** (`worker-src blob:`) | **No** — sync skipped |
+| sandbox + packaged worker | Allowed | **No** — origin null blocks `chrome-extension://` worker URL | Would work if spawn worked |
 
 ### Related files
 
-- `scripts/extract-vosk-worker.mjs`, `scripts/build-vosk-sandbox.mjs`
-- `public/vosk-emscripten-worker.js` (generated, gitignored)
-- `src/transcription/constants.ts` — `VOSK_WORKER_PATH`
+- `scripts/build-vosk-sandbox.mjs` — `patchVoskEmbeddedWorker()`
+- `docs/transcription-architecture.md`
+
+---
+
+## BUG-013 — Sandbox null-origin cannot spawn chrome-extension:// workers (2026-06)
+
+### Symptoms
+
+- After BUG-011 packaged-worker fix: `(void 0) is not a function` resolved, then:
+  `Failed to construct 'Worker': Script at 'chrome-extension://…/vosk-emscripten-worker.js' cannot be accessed from origin 'null'.`
+- Fails in ~500ms at model construction (same fallback empty transcript path as BUG-012).
+
+### Root cause (confirmed)
+
+Manifest **sandbox iframe = opaque/null origin**. It may load `chrome-extension://` scripts as **documents**, but **cannot construct `Worker(chrome-extension://…)`** from that context — cross-origin worker script access is blocked.
+
+BUG-011 traded BUG-010 blob CSP for extension-origin IDBFS, but packaged workers are unreachable from sandbox. **No single worker URL satisfies both sandbox eval and extension IDB.**
+
+### Fix (2026-06, `eloquent`)
+
+- **Revert to vosk-browser `WorkerFactory()` blob workers** (requires BUG-010 `worker-src blob:`).
+- **`patchVoskEmbeddedWorker()`** in `build-vosk-sandbox.mjs` — patch embedded worker so `syncFilesystem()` **logs and resolves** on IDBFS error instead of rejecting (model loads via `downloadAndExtract` into MEMFS each session; no persistent IDB cache in sandbox).
+- Removed `public/vosk-emscripten-worker.js` extraction.
+
+### Accepted tradeoff (eloquent-0 spike)
+
+- First model load re-downloads/unpacks ~40 MB tar.gz per session (slower, more memory) until a future architecture moves inference to extension-origin offscreen with a different Vosk packaging strategy.
+
+### Related files
+
+- `scripts/build-vosk-sandbox.mjs`
+- `wxt.config.ts` — sandbox `worker-src blob: 'self'`
 - `docs/transcription-architecture.md`
 
 ---

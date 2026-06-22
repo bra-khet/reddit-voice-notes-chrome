@@ -6,8 +6,7 @@ export const VOSK_MODEL_PATH = 'vosk/model.tar.gz';
 /** Manifest sandbox page (public/vosk-sandbox.html + esbuild bundle). */
 export const VOSK_SANDBOX_PATH = 'vosk-sandbox.html';
 
-/** Packaged Emscripten worker — must not use vosk-browser blob:null worker (IDBFS needs extension origin). */
-export const VOSK_WORKER_PATH = 'vosk-emscripten-worker.js';
+
 
 export const TRANSCRIBE_CHUNK_SAMPLES = 4096;
 

@@ -23,7 +23,7 @@ public/ffmpeg/
 public/vosk/
 public/vosk-sandbox.js
 public/vosk-sandbox.js.map
-public/vosk-emscripten-worker.js
+
 
 # Editor directories and files
 .vscode/*
