@@ -251,9 +251,10 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 
 1. **extension_pages** — `wasm-unsafe-eval` only; **`unsafe-eval` forbidden** by Chrome (adding it to manifest has no effect in dev).
 2. **Vosk Emscripten** — requires `new Function()` → must run in **manifest `sandbox.pages`**.
-3. **WXT `entrypoints/vosk.sandbox`** — breaks in dev: sandbox iframe has **opaque/null origin**, cannot load `localhost:3000` Vite HMR scripts (CORS). Replaced by static `public/vosk-sandbox.*` + esbuild.
-4. **postMessage** — sandbox opaque origin → use `targetOrigin: '*'` + validate `event.source` (not `event.origin`).
-5. **Not image-relay** — personal backgrounds needed chunked base64 for Reddit page CSP + MV3 size; transcription needs sandbox for extension eval CSP.
+3. **Vosk blob workers (BUG-010)** — vosk-browser spawns `new Worker(blob:null/…)`; sandbox CSP needs `worker-src blob: 'self'` (default `child-src 'self'` blocks them).
+4. **WXT `entrypoints/vosk.sandbox`** — breaks in dev: sandbox iframe has **opaque/null origin**, cannot load `localhost:3000` Vite HMR scripts (CORS). Replaced by static `public/vosk-sandbox.*` + esbuild.
+5. **postMessage** — sandbox opaque origin → use `targetOrigin: '*'` + validate `event.source` (not `event.origin`).
+6. **Not image-relay** — personal backgrounds needed chunked base64 for Reddit page CSP + MV3 size; transcription needs sandbox for extension eval CSP.
 
 #### eloquent-0 — target handoff diagram
 

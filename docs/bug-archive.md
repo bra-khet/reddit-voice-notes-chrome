@@ -332,3 +332,41 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - `src/voice/resolve-config.ts`
 - `src/ui/design-studio/voice-controls.ts`
 - `src/voice/filter-graphs.ts`, `src/voice/preview-chain.ts`
+
+---
+
+## BUG-010 — Vosk sandbox blob worker blocked by CSP (2026-06)
+
+### Symptoms
+
+- Transcribe harness reaches decode (~10%) then fails; console shows repeated:
+  `Creating a worker from 'blob:null/…' violates the following Content Security Policy directive: "child-src 'self'". Note that 'worker-src' was not explicitly set, so 'child-src' is used as a fallback.`
+- `transcribe-audio.ts`: `Vosk sandbox failed to become ready` or model load never completes.
+- Error originates in bundled `vosk.js` `WorkerFactory` (vosk-browser).
+
+### Root cause (confirmed)
+
+1. **vosk-browser spawns Emscripten workers from blob URLs** — `createBase64WorkerFactory()` decodes embedded worker code into a `Blob`, calls `URL.createObjectURL(blob)`, then `new Worker(blobUrl)`. In a manifest sandbox iframe (opaque/null origin), the URL is `blob:null/<uuid>`.
+2. **Default sandbox CSP only allows `child-src 'self'`** — Chrome falls back to `child-src` when `worker-src` is omitted. Blob workers are **not** `'self'` extension scripts; they are blocked even though `'unsafe-eval'` is present for the main thread.
+3. **Distinct from prior eloquent-0 CSP failures** — BUG-010 is the *third* layer after (a) extension_pages `unsafe-eval` forbidden → manifest sandbox, and (b) WXT dev HMR localhost CORS on null-origin sandbox → static `public/vosk-sandbox.*`. Each layer must be solved independently; see `docs/transcription-architecture.md`.
+
+### Fix (2026-06, `eloquent`)
+
+- `wxt.config.ts` sandbox CSP: add `worker-src blob: 'self'` and `child-src blob: 'self'`.
+- Sandbox pages **can** relax CSP beyond extension_pages minimum; blob workers stay confined to the sandbox iframe (no `chrome.*` APIs).
+
+### Design lesson (compare BUG-001–009)
+
+| Prior bug class | What it taught | Transcription parallel |
+|-----------------|----------------|------------------------|
+| BUG-001/002 — base64 + buffer transfer | MV3 messaging and WASM buffer lifetime are sharp edges | PCM uses `postMessage` transferables (~8 MB for 2:00 mono), not base64 |
+| BUG-003/006 — heartbeats vs semantic progress | Stall detection must track real work | Vosk progress stages: loading-model → inference → finalizing |
+| Personal-bg relay — Reddit **page** CSP | `createImageBitmap` / blob URLs on reddit.com | **Extension** CSP eval — needs manifest sandbox, not content-script relay |
+| FFmpeg worker (BUG-002 adj.) | Dedicated worker + dispose on failure | Vosk internal worker inside sandbox only; separate `enqueueTranscribeJob` queue |
+
+### Related files
+
+- `wxt.config.ts` — `content_security_policy.sandbox`
+- `public/vosk-sandbox.html`, `public/vosk-sandbox.js` — sandbox host
+- `src/transcription/vosk-sandbox-client.ts`, `vosk-sandbox-host.ts`
+- `docs/transcription-architecture.md`

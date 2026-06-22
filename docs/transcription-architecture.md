@@ -15,11 +15,11 @@ record → canvas WebM → FFmpeg transcode → attach/download MP4
 | Surface | CSP | `unsafe-eval` | `chrome.*` APIs | Typical origin |
 |---------|-----|---------------|-----------------|----------------|
 | **extension_pages** (popup, harness, offscreen, design-studio) | `script-src 'self' 'wasm-unsafe-eval'` | **Forbidden** | Yes | `chrome-extension://<id>` |
-| **manifest sandbox** (`sandbox.pages`) | sandbox CSP with `'unsafe-eval'` | **Allowed** | **No** | Opaque / `null` in iframe |
+| **manifest sandbox** (`sandbox.pages`) | sandbox CSP with `'unsafe-eval'` + `worker-src blob:` | **Allowed** | **No** | Opaque / `null` in iframe |
 | **content scripts** (reddit.com) | Page CSP + isolated world | N/A | Limited | `https://www.reddit.com` |
 | **service worker** (background) | extension_pages equivalent | **Forbidden** | Yes | extension |
 
-**Implication:** Vosk-browser (Emscripten `new Function()`) cannot run on extension_pages or in the main harness bundle. It must run inside a **manifest sandbox page**.
+**Implication:** Vosk-browser (Emscripten `new Function()` + **blob Web Workers**) cannot run on extension_pages or in the main harness bundle. It must run inside a **manifest sandbox page** with both `'unsafe-eval'` and `worker-src blob:` (see BUG-010).
 
 **Not the same as personal-background relay:** Image relay solved Reddit **page** CSP and MV3 **message size** limits via chunked base64 + `createImageBitmap`. Transcription solves **extension** CSP eval limits via sandbox isolation + `postMessage`.
 
