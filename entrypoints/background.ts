@@ -18,7 +18,10 @@ import {
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import { saveLastRecording } from '@/src/storage/last-recording-db';
-import { SESSION_TRANSCRIPT_READY_KEY } from '@/src/settings/user-preferences';
+import {
+  LAST_RECORDING_READY_KEY,
+  SESSION_TRANSCRIPT_READY_KEY,
+} from '@/src/settings/user-preferences';
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
 import type { TranscriptResult } from '@/src/transcription/types';
 import {
@@ -556,6 +559,9 @@ export default defineBackground(() => {
             const bytes = unpackBinary(request.webmBase64, request.webmByteLength);
             const blob = new Blob([Uint8Array.from(bytes)], { type: 'video/webm' });
             await saveLastRecording(blob, request.durationSeconds);
+            // CHANGED: signal Design Studio to reload voice preview without tab visibility flip.
+            // WHY: recording completes on Reddit while studio may stay open (eloquent-2 UX).
+            await browser.storage.local.set({ [LAST_RECORDING_READY_KEY]: Date.now() });
             response.ok = true;
             sendResponse(response);
           } catch (error) {

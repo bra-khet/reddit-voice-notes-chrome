@@ -725,6 +725,8 @@ Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.
 | Legacy `transcriptConfig: null` on profiles | Subtitle dirty match skipped until **Update profile** embeds settings once |
 | Session transcript text | Extension IDB only; not stored in profile blobs |
 | Live subtitle draft vs profile dirty label | BUG-021 live-draft coupling **reverted** |
-| eloquent-4 | Subtitle snapshot UX polish |
+| eloquent-4 | Subtitle snapshot UX polish; per-segment editor; segment-aware canvas preview |
+| Canvas subtitle preview | `drawSubtitlePreview()` uses flat `previewText()` — segments detected in meta/IDB but not rendered as timed cues | eloquent-4 |
+| Voice preview stale while studio open | Only `visibilitychange` reload — fixed via `LAST_RECORDING_READY_KEY` + IDB poll (post `eloquent-profile-nominal`) | Fixed |
 
 **Do not** re-add BUG-021 `flushPersist` before profile saves or `transcriptDraft` params without queue + hydration review.

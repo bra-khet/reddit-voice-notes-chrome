@@ -94,7 +94,7 @@ Supporting: `11ce710` storage architecture audit (no migration).
 | Profile select → canvas personal background | ✅ |
 | Background library dropdown lists `rvnImageDb` | ✅ (after BUG-024) |
 | Save as profile / Update profile / Clone | ✅ |
-| Voice preview (`rvnLastRecording`) | ✅ |
+| Voice preview (`rvnLastRecording`) | ✅ — auto-refreshes while studio open (`LAST_RECORDING_READY_KEY` + IDB poll) |
 | Transcription pipeline | ✅ (BUG-018) |
 | Subtitle toggle persist (global) | ✅ (BUG-017/019) |
 
@@ -112,6 +112,9 @@ These are **known limitations**, not regressions from the profile fix. Do not �
 | **Subtitle style edits + profile dirty** | `onSettingsChange` refreshes profile buttons; legacy profiles may not show subtitle-driven dirty until snapshot exists. | QA gap |
 | **Update profile + subtitles** | Embedding subtitle **settings** on update works via `transcriptConfigForProfileStorage`; full UX for “subtitle edits pending on profile” not polished. | eloquent-4 |
 | **Do not re-add** | `flushPersist()` before profile save/update/fork; `transcriptDraft` param on profile save paths; live transcript in `populateProfileSelect` dirty arg | Caused BUG-021 regression |
+| **Canvas subtitle preview** | Vosk segments land correctly in IDB/textarea meta, but `drawSubtitlePreview()` renders **flat full-text** (`previewText()`), not timed per-segment cues. | eloquent-4 segment editor + preview polish |
+| **Subtitle panel placement** | Subtitles collapsible is below Voice; canvas preview is top — gap between style controls and live preview is a known UX issue. | eloquent-4 (optional mini preview near canvas) |
+| **Segment timing editor** | No YouTube-style per-segment text + nudge UI yet; burn-in should read `TranscriptResult.segments` JSON via `srt-builder.ts` without this UI. | **eloquent-3** burn-in first; editor in **eloquent-4** |
 
 ---
 
@@ -148,6 +151,14 @@ npm run dev
 
 ## Suggested next sprint
 
-1. **eloquent-3** — FFmpeg subtitle burn-in (do not touch prefs queue without tests).
-2. **eloquent-4** — Subtitle settings in profile snapshots UX; legacy profile one-time Update flow; optional live-draft dirty labels (careful).
-3. Regression gate before merge: profile QA matrix above + subtitle toggle + one record/transcribe cycle.
+1. **eloquent-3** — FFmpeg subtitle burn-in from `TranscriptResult.segments` → `.srt` → `final.mp4`. UI preview gaps are **non-blocking** if JSON segments are correct.
+2. **eloquent-4** — Per-segment subtitle editor (text + timing nudge), canvas preview that respects segments, profile snapshot UX, optional live-draft dirty labels (careful).
+3. Regression gate before merge: profile QA matrix above + subtitle toggle + one record/transcribe cycle + voice preview auto-refresh while studio open.
+
+## Voice preview auto-refresh (post-nominal)
+
+**Problem:** Voice section only reloaded `rvnLastRecording` on `visibilitychange`. If Design Studio stayed open while the user recorded on Reddit, Play preview still pointed at the prior take.
+
+**Fix:** Mirror subtitle-controls pattern — background sets `rvnLastRecordingReadyAt` after `MSG_SAVE_LAST_RECORDING`; studio polls IDB every 2s and listens to `chrome.storage.onChanged`. Reload skips when `savedAt` unchanged; stops active preview before swapping source.
+
+**Files:** `user-preferences.ts` (`LAST_RECORDING_READY_KEY`), `background.ts`, `voice-controls.ts`.

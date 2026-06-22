@@ -1,6 +1,7 @@
 import { formatRecordingCapClock } from '@/src/utils/constants';
 import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
 import {
+  LAST_RECORDING_READY_KEY,
   loadUserPreferences,
   saveVoiceEffectPreferences,
   type UserPreferencesV1,
@@ -28,6 +29,8 @@ export interface VoiceControlsHandle {
 }
 
 const VOICE_SAVE_DEBOUNCE_MS = 250;
+/** Poll extension IDB while studio is open — mirrors subtitle-controls transcript poll. */
+const RECORDING_POLL_MS = 2000;
 
 // V4 NOTE: Voice section may become its own panel/tab when Studio sections are segmented.
 
@@ -139,6 +142,7 @@ export function mountVoiceControls(
 
   let draftConfig: VoiceEffectConfig = normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
   let lastRecording: LastRecordingSnapshot | null = null;
+  let loadedSavedAt = 0;
   let syncing = false;
   let saveTimer = 0;
 
@@ -286,7 +290,20 @@ export function mountVoiceControls(
   }
 
   async function loadRecordingSource(): Promise<void> {
-    lastRecording = await loadLastRecording();
+    const snapshot = await loadLastRecording();
+    const savedAt = snapshot?.meta.savedAt ?? 0;
+    if (snapshot && savedAt <= loadedSavedAt && lastRecording) {
+      return;
+    }
+
+    if (preview.isPlaying()) {
+      preview.stop();
+      refreshPlayStopUi();
+    }
+
+    lastRecording = snapshot;
+    loadedSavedAt = savedAt;
+
     if (lastRecording) {
       try {
         await preview.setSource(lastRecording.blob);
@@ -296,6 +313,7 @@ export function mountVoiceControls(
         setStatus(`Could not load last recording: ${detail}`);
       }
     } else {
+      loadedSavedAt = 0;
       setStatus('');
     }
     updateSourceCopy();
@@ -390,6 +408,18 @@ export function mountVoiceControls(
 
   document.addEventListener('visibilitychange', onVisibility);
 
+  // CHANGED: poll + storage signal while studio stays open after a Reddit recording.
+  // WHY: last WebM lands via background relay; visibilitychange alone missed in-tab updates.
+  const pollTimer = window.setInterval(() => {
+    void loadRecordingSource();
+  }, RECORDING_POLL_MS);
+
+  const onRecordingReady = (changes: Record<string, unknown>, area: string): void => {
+    if (area !== 'local' || !(LAST_RECORDING_READY_KEY in changes)) return;
+    void loadRecordingSource();
+  };
+  browser.storage.onChanged.addListener(onRecordingReady);
+
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
     syncControlsFromDraft();
@@ -413,7 +443,9 @@ export function mountVoiceControls(
     },
     dispose() {
       window.clearInterval(playPoll);
+      window.clearInterval(pollTimer);
       document.removeEventListener('visibilitychange', onVisibility);
+      browser.storage.onChanged.removeListener(onRecordingReady);
       if (saveTimer) window.clearTimeout(saveTimer);
       persistNow();
       preview.dispose();

@@ -215,7 +215,7 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 | **eloquent-1** | Parallel wire | `stopRecording()` clones WebM; fire `TRANSCODE_*` + `TRANSCRIBE_*` in parallel; log/store result; no Studio UI yet | **Done** |
 | **eloquent-2** | Studio editor | Subtitles panel in Design Studio; editable transcript; style + backdrop preview on master canvas; collapsed summary chips | **Done** |
 | **eloquent-3** | Burn-in export | `.srt` generation; second FFmpeg pass `base.mp4` → `final.mp4`; full E2E when user confirms subs | Pending |
-| **eloquent-4** | Profiles & polish | `transcriptConfig` on `ClipProfile`; Update/Clone/Save to new + exit guard; opt-in toggle copy; progress indicators; timing nudge | Pending |
+| **eloquent-4** | Profiles & polish | Per-segment subtitle editor (YouTube-style text + timing nudge); segment-aware canvas preview; `transcriptConfig` profile UX; Update/Clone/Save; opt-in toggle copy; progress indicators | Pending |
 | **eloquent-5** | Harden & release | Memory/perf budget, error surfaces, Reddit upload QA, docs, prod zip, merge `eloquent` → `main`, tag **v4.0.0** | Pending |
 
 ### eloquent-0 — audit checklist
@@ -294,7 +294,9 @@ User confirms subtitles → export runs burn-in pass → final MP4 contains read
 
 ### eloquent-4 — definition of done
 
-Subtitle settings persist on named clip profiles with same branching save behavior as visual/voice fields. Opt-in toggle prevents model load until enabled. Non-blocking status for transcription in progress / failed.
+Subtitle settings persist on named clip profiles with same branching save behavior as visual/voice fields. Per-segment editor shows Vosk cues with editable text and fine timing adjustment (not just a flat textarea). Canvas preview reflects active segment or full timed overlay. Opt-in toggle prevents model load until enabled. Non-blocking status for transcription in progress / failed.
+
+**Deferred from eloquent-3:** Burn-in only needs correct `TranscriptResult.segments` JSON — preview/editor polish can ship after `final.mp4` works.
 
 ### eloquent-5 — definition of done
 
