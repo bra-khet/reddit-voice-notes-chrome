@@ -813,6 +813,29 @@ After composable glow/shadow work (`8619bac`), Design Studio bake reports succes
 
 ---
 
+## BUG-030 (2026-06): backdrop plate fix regressed burn-in (BUG-029 → BUG-025 loop)
+
+### Symptom
+
+After BUG-029 (separate backdrop drawtext layer), bake reports success but MP4 has no captions again. Console shows `Burn-in tab relay failed: Could not establish connection` from Design Studio (red herring).
+
+### Root cause
+
+1. **Backdrop plate used `fontcolor=black@0.00`** — same invalid drawtext color family as BUG-028 (`0xFFFFFF@1.00`). Entire `-vf` chain failed; runner fell through to **`subtitles-srt`** (wasm silent no-op).
+2. **Tab relay noise** — `relayBurnInBroadcast` called `tabs.sendMessage` on the Design Studio extension tab (no content script). Offscreen `runtime.sendMessage` already reaches Studio listeners; relay failure was unrelated to encode.
+
+### Fix
+
+- Backdrop plate fontcolor → **`0x00000000`** (`DRAWTEXT_BACKDROP_PLATE_FONT_COLOR`).
+- **Removed `subtitles-srt` fallback** — drawtext-font only; failed burns surface as errors instead of fake success.
+- Skip `tabs.sendMessage` relay for `chrome-extension://` tabs.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/transcription/subtitle-effects.ts`, `entrypoints/background.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.

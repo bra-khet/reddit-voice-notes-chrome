@@ -1,11 +1,11 @@
 import {
   buildGlowLayerSpecs,
   drawtextMainFontColor,
+  DRAWTEXT_BACKDROP_PLATE_FONT_COLOR,
   ffmpegDrawtextColor,
   resolveSubtitleEffectPalette,
   subtitleStyleNeedsGlowLayers,
 } from '@/src/transcription/subtitle-effects';
-import { buildSrtFromSegments } from '@/src/transcription/srt-builder';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
 
 export interface SubtitleBurnInInput {
@@ -22,7 +22,6 @@ export const BURNIN_FONT_ASSET = 'assets/fonts/DejaVuSans.ttf';
 
 const INPUT_MP4 = 'base.mp4';
 const OUTPUT_MP4 = 'final.mp4';
-const SRT_FILE = 'subs.srt';
 
 const DEFAULT_THEME_BAR = '#00e5ff';
 
@@ -135,7 +134,7 @@ function segmentTiming(segment: TranscriptSegment): { start: number; end: number
 
 // BUG FIX: backdrop plate covers glow and caption at high opacity (BUG-029)
 // Fix: render box on a transparent first drawtext layer; caption/glow layers stack above.
-const BACKDROP_PLATE_FONT_COLOR = 'black@0.00';
+// Sync: DRAWTEXT_BACKDROP_PLATE_FONT_COLOR in subtitle-effects.ts (never black@0.00 — breaks -vf, BUG-030)
 
 function buildBackdropBoxOpt(style: SubtitleStyleConfig): string {
   if (style.backdrop?.enabled === false) return '';
@@ -158,7 +157,7 @@ function buildBackdropPlateLayer(
     start,
     end,
     fontSize,
-    fontColor: BACKDROP_PLATE_FONT_COLOR,
+    fontColor: DRAWTEXT_BACKDROP_PLATE_FONT_COLOR,
     x: drawtextX(0),
     y,
     box,
@@ -335,12 +334,10 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
   }
 
   const themeBarColor = input.themeBarColor ?? DEFAULT_THEME_BAR;
-  const srt = buildSrtFromSegments(segments);
-  const forceStyle = buildSubtitleForceStyle(input.style);
   const drawtextFilter = buildDrawtextFilter(segments, input.style, BURNIN_FONT_FS_PATH, themeBarColor);
 
-  // BUG FIX: silent burn-in success with no visible subs (BUG-025)
-  // Fix: drawtext + bundled DejaVu TTF first; subtitles filter is fallback only (no libass/fonts in wasm).
+  // BUG FIX: silent burn-in success with no visible subs (BUG-025 / BUG-030)
+  // Fix: drawtext + bundled DejaVu TTF only — subtitles/libass fallback removed (wasm exit-0 no-op).
   // Sync: ffmpeg-runner.ts burnInLogIndicatesFailure, public/assets/fonts/DejaVuSans.ttf
   return [
     {
@@ -351,27 +348,6 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
         INPUT_MP4,
         '-vf',
         drawtextFilter,
-        '-c:v',
-        'libx264',
-        '-preset',
-        'ultrafast',
-        '-pix_fmt',
-        'yuv420p',
-        '-c:a',
-        'copy',
-        '-movflags',
-        '+faststart',
-        OUTPUT_MP4,
-      ],
-    },
-    {
-      name: 'subtitles-srt',
-      extraFiles: { [SRT_FILE]: srt },
-      args: [
-        '-i',
-        INPUT_MP4,
-        '-vf',
-        `subtitles=filename=${SRT_FILE}:force_style='${forceStyle}'`,
         '-c:v',
         'libx264',
         '-preset',

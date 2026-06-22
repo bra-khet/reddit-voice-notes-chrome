@@ -166,6 +166,10 @@ function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCo
   }
 }
 
+function isExtensionPageTabUrl(url: string | undefined): boolean {
+  return Boolean(url?.startsWith('chrome-extension://') || url?.startsWith('moz-extension://'));
+}
+
 function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMessage): void {
   const tabId = burnInTabByJobId.get(message.jobId);
   if (tabId === undefined) {
@@ -173,8 +177,12 @@ function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMes
     return;
   }
 
-  void browser.tabs.sendMessage(tabId, message).catch((error) => {
-    console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
+  // Design Studio extension pages receive offscreen runtime broadcasts directly (no content script).
+  void browser.tabs.get(tabId).then((tab) => {
+    if (isExtensionPageTabUrl(tab.url)) return;
+    void browser.tabs.sendMessage(tabId, message).catch((error) => {
+      console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
+    });
   });
 
   if (message.type === MSG_BURNIN_COMPLETE) {

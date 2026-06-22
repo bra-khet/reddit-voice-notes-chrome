@@ -32,6 +32,9 @@ export function drawtextMainFontColor(style: SubtitleStyleConfig): string {
   return style.textColor === 'black' ? 'black' : 'white';
 }
 
+/** Sizes the backdrop box without painting glyphs — 0xRRGGBBAA, not black@0.00 (BUG-029 regression). */
+export const DRAWTEXT_BACKDROP_PLATE_FONT_COLOR = '0x00000000';
+
 /**
  * FFmpeg drawtext color for glow/shadow duplicate layers.
  * BUG FIX: invalid fontcolor breaks entire -vf chain (BUG-028)
