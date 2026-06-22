@@ -36,7 +36,7 @@ import {
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
 import type { TranscriptResult } from '@/src/transcription/types';
 import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-studio';
-import { OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
+import { BURNIN_PIPELINE_STAMP, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
 import {
   MSG_OFFSCREEN_PING,
   MSG_OPEN_DESIGN_STUDIO,
@@ -428,8 +428,12 @@ async function pingOffscreenWorker(): Promise<OffscreenPongResponse | null> {
   }
 }
 
+function expectedOffscreenCodeStamp(): string {
+  return `${OFFSCREEN_WORKER_STAMP}|${BURNIN_PIPELINE_STAMP}`;
+}
+
 function offscreenStampMatches(response: OffscreenPongResponse | null): boolean {
-  return response?.codeStamp === OFFSCREEN_WORKER_STAMP;
+  return response?.codeStamp === expectedOffscreenCodeStamp();
 }
 
 // BUG FIX: stale offscreen bundle after extension reload (BUG-030 loop)
@@ -438,7 +442,17 @@ async function ensureFreshOffscreenWorker(): Promise<void> {
   if (!(await hasOffscreenDocument())) return;
   const pong = await pingOffscreenWorker();
   if (offscreenStampMatches(pong)) return;
+  await recycleOffscreenDocument();
+}
+
+async function recycleOffscreenDocument(): Promise<void> {
   await closeOffscreenDocumentIfPresent();
+  creatingOffscreen = null;
+}
+
+function offscreenDocumentUrl(): string {
+  const base = browser.runtime.getURL(OFFSCREEN_PATH as never);
+  return `${base}?rvn=${encodeURIComponent(expectedOffscreenCodeStamp())}`;
 }
 
 async function ensureOffscreenDocument(): Promise<void> {
@@ -460,7 +474,7 @@ async function ensureOffscreenDocument(): Promise<void> {
 
   creatingOffscreen = offscreen
     .createDocument({
-      url: browser.runtime.getURL(OFFSCREEN_PATH as never),
+      url: offscreenDocumentUrl(),
       reasons: [workersReason],
       justification: 'FFmpeg WASM transcoding for voice note MP4 export',
     })
@@ -475,8 +489,8 @@ async function waitForOffscreenReady(): Promise<void> {
   for (let attempt = 0; attempt < OFFSCREEN_READY_RETRIES; attempt += 1) {
     const response = await pingOffscreenWorker();
     if (offscreenStampMatches(response)) return;
-    if (response?.ready && response.codeStamp !== OFFSCREEN_WORKER_STAMP) {
-      await closeOffscreenDocumentIfPresent();
+    if (response?.ready && !offscreenStampMatches(response)) {
+      await recycleOffscreenDocument();
       await ensureOffscreenDocument();
     }
     await new Promise((resolve) => setTimeout(resolve, OFFSCREEN_READY_DELAY_MS));
@@ -488,6 +502,12 @@ async function waitForOffscreenReady(): Promise<void> {
 async function dispatchToOffscreen(
   request: TranscodeOffscreenRequest | TranscribeOffscreenRequest | BurnInOffscreenRequest,
 ): Promise<void> {
+  // BUG FIX: partial WXT HMR leaves stale subtitle-burnin chunk (BUG-030 loop)
+  // Fix: full offscreen recycle before burn-in so all JS chunks reload together.
+  if (request.type === MSG_BURNIN_OFFSCREEN) {
+    await recycleOffscreenDocument();
+  }
+
   await ensureOffscreenDocument();
   await waitForOffscreenReady();
 
@@ -652,7 +672,7 @@ export default defineBackground(() => {
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,
     offscreenApi: Boolean(getChromeOffscreen()?.createDocument),
-    offscreenStamp: OFFSCREEN_WORKER_STAMP,
+    offscreenStamp: expectedOffscreenCodeStamp(),
   });
 
   // DISABLED: chrome.commands shortcut relay — see shortcut-handler.ts

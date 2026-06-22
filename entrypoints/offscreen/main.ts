@@ -59,7 +59,11 @@ import {
 } from '@/src/transcription/transcribe-cancel';
 import { enqueueTranscribeJob } from '@/src/transcription/transcribe-queue';
 import { resolveVoskModelUrl } from '@/src/transcription/constants';
-import { OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
+import { BURNIN_PIPELINE_STAMP, EXTENSION_LOG_PREFIX, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
+
+function offscreenCodeStamp(): string {
+  return `${OFFSCREEN_WORKER_STAMP}|${BURNIN_PIPELINE_STAMP}`;
+}
 
 const HEARTBEAT_INTERVAL_MS = 8_000;
 const JOB_RETRY_DELAY_MS = 400;
@@ -209,7 +213,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const pong: OffscreenPongResponse = {
       type: MSG_OFFSCREEN_PONG,
       ready: true,
-      codeStamp: OFFSCREEN_WORKER_STAMP,
+      codeStamp: offscreenCodeStamp(),
     };
     sendResponse(pong);
     return;
@@ -530,8 +534,10 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 /** eloquent-1 — offscreen transcription via MSG_TRANSCRIBE_* + vosk-sandbox iframe. */
 (globalThis as Record<string, unknown>).__rvnTranscribeHarness = {
-  transcribeWebmBlob,
+  transcribeWebmBlob: runTranscribeWebmBlob,
   resolveVoskModelUrl,
 };
 
-console.log('[Reddit Voice Notes] Offscreen FFmpeg worker ready');
+console.log(`${EXTENSION_LOG_PREFIX} Offscreen FFmpeg worker ready`, {
+  codeStamp: offscreenCodeStamp(),
+});

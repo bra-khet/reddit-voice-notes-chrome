@@ -7,6 +7,9 @@ import {
   subtitleStyleNeedsGlowLayers,
 } from '@/src/transcription/subtitle-effects';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
+import { BURNIN_PIPELINE_STAMP } from '@/src/utils/constants';
+
+export { BURNIN_PIPELINE_STAMP };
 
 export interface SubtitleBurnInInput {
   segments: TranscriptSegment[];

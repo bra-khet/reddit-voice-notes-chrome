@@ -57,5 +57,8 @@ export const FULL_SPECTRUM_FREQ_MIN_HZ = 20;
 
 export const EXTENSION_LOG_PREFIX = '[Reddit Voice Notes]';
 
-/** Offscreen pong stamp — bump when burn-in/transcode worker code changes (BUG-030). */
-export const OFFSCREEN_WORKER_STAMP = 'burnin-drawtext-only-v1';
+/** Offscreen pong stamp — bump when offscreen entry code changes (BUG-030). */
+export const OFFSCREEN_WORKER_STAMP = 'offscreen-v2';
+
+/** Burn-in pipeline stamp — bump when subtitle-burnin.ts changes; paired in offscreen pong. */
+export const BURNIN_PIPELINE_STAMP = 'drawtext-only-v2';
