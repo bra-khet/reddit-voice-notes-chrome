@@ -95,6 +95,8 @@ export interface OffscreenPingRequest {
 export interface OffscreenPongResponse {
   type: typeof MSG_OFFSCREEN_PONG;
   ready: boolean;
+  /** Must match OFFSCREEN_WORKER_STAMP — stale offscreen docs are closed on mismatch. */
+  codeStamp?: string;
 }
 
 export interface OpenRecorderMessage {

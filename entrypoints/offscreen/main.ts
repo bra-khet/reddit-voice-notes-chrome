@@ -59,6 +59,7 @@ import {
 } from '@/src/transcription/transcribe-cancel';
 import { enqueueTranscribeJob } from '@/src/transcription/transcribe-queue';
 import { resolveVoskModelUrl } from '@/src/transcription/constants';
+import { OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
 
 const HEARTBEAT_INTERVAL_MS = 8_000;
 const JOB_RETRY_DELAY_MS = 400;
@@ -205,7 +206,11 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   const ping = message as OffscreenPingRequest;
   if (ping.type === MSG_OFFSCREEN_PING && ping.target === 'offscreen') {
-    const pong: OffscreenPongResponse = { type: MSG_OFFSCREEN_PONG, ready: true };
+    const pong: OffscreenPongResponse = {
+      type: MSG_OFFSCREEN_PONG,
+      ready: true,
+      codeStamp: OFFSCREEN_WORKER_STAMP,
+    };
     sendResponse(pong);
     return;
   }

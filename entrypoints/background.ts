@@ -36,6 +36,7 @@ import {
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
 import type { TranscriptResult } from '@/src/transcription/types';
 import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-studio';
+import { OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
 import {
   MSG_OFFSCREEN_PING,
   MSG_OPEN_DESIGN_STUDIO,
@@ -97,6 +98,7 @@ const REDDIT_TAB_URLS = ['https://www.reddit.com/*', 'https://reddit.com/*'] as 
 
 type ChromeOffscreenApi = {
   hasDocument?: () => Promise<boolean>;
+  closeDocument?: () => Promise<void>;
   createDocument?: (options: {
     url: string;
     reasons: string[];
@@ -122,10 +124,6 @@ const burnInTabByJobId = new Map<string, number>();
 const activeBurnInJobByTabId = new Map<number, string>();
 /** Design Studio uses runtime.onMessage — skip tabs.sendMessage relay (no content script). */
 const burnInSkipTabRelayByJobId = new Map<string, boolean>();
-
-/** Bump when offscreen burn-in/transcode code changes — forces worker recycle after reload (BUG-030). */
-const OFFSCREEN_CODE_EPOCH = 2;
-const OFFSCREEN_EPOCH_KEY = 'rvnOffscreenCodeEpoch';
 
 let activeRelayJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -420,14 +418,27 @@ async function closeOffscreenDocumentIfPresent(): Promise<void> {
   }
 }
 
-async function ensureFreshOffscreenWorker(): Promise<void> {
-  const stored = await browser.storage.local.get(OFFSCREEN_EPOCH_KEY);
-  const epoch =
-    typeof stored[OFFSCREEN_EPOCH_KEY] === 'number' ? stored[OFFSCREEN_EPOCH_KEY] : 0;
-  if (epoch === OFFSCREEN_CODE_EPOCH) return;
+async function pingOffscreenWorker(): Promise<OffscreenPongResponse | null> {
+  const ping: OffscreenPingRequest = { type: MSG_OFFSCREEN_PING, target: 'offscreen' };
+  try {
+    const response = (await browser.runtime.sendMessage(ping)) as OffscreenPongResponse | undefined;
+    return response?.ready ? response : null;
+  } catch {
+    return null;
+  }
+}
 
+function offscreenStampMatches(response: OffscreenPongResponse | null): boolean {
+  return response?.codeStamp === OFFSCREEN_WORKER_STAMP;
+}
+
+// BUG FIX: stale offscreen bundle after extension reload (BUG-030 loop)
+// Fix: surviving offscreen docs lack current codeStamp — close and recreate before dispatch.
+async function ensureFreshOffscreenWorker(): Promise<void> {
+  if (!(await hasOffscreenDocument())) return;
+  const pong = await pingOffscreenWorker();
+  if (offscreenStampMatches(pong)) return;
   await closeOffscreenDocumentIfPresent();
-  await browser.storage.local.set({ [OFFSCREEN_EPOCH_KEY]: OFFSCREEN_CODE_EPOCH });
 }
 
 async function ensureOffscreenDocument(): Promise<void> {
@@ -461,14 +472,12 @@ async function ensureOffscreenDocument(): Promise<void> {
 }
 
 async function waitForOffscreenReady(): Promise<void> {
-  const ping: OffscreenPingRequest = { type: MSG_OFFSCREEN_PING, target: 'offscreen' };
-
   for (let attempt = 0; attempt < OFFSCREEN_READY_RETRIES; attempt += 1) {
-    try {
-      const response = (await browser.runtime.sendMessage(ping)) as OffscreenPongResponse | undefined;
-      if (response?.ready) return;
-    } catch {
-      // Offscreen script may still be loading.
+    const response = await pingOffscreenWorker();
+    if (offscreenStampMatches(response)) return;
+    if (response?.ready && response.codeStamp !== OFFSCREEN_WORKER_STAMP) {
+      await closeOffscreenDocumentIfPresent();
+      await ensureOffscreenDocument();
     }
     await new Promise((resolve) => setTimeout(resolve, OFFSCREEN_READY_DELAY_MS));
   }
@@ -636,9 +645,14 @@ async function relayBackgroundBlobViaPort(port: browser.runtime.Port, id: string
 }
 
 export default defineBackground(() => {
+  // BUG FIX: stale offscreen WASM survives MV3 service worker reload (BUG-030 loop)
+  // Fix: close any surviving offscreen document when the service worker boots.
+  void closeOffscreenDocumentIfPresent();
+
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,
     offscreenApi: Boolean(getChromeOffscreen()?.createDocument),
+    offscreenStamp: OFFSCREEN_WORKER_STAMP,
   });
 
   // DISABLED: chrome.commands shortcut relay — see shortcut-handler.ts
