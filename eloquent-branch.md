@@ -213,7 +213,7 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 |-------|------|-------|--------|
 | **eloquent-0** | Spike & types | Vosk WASM isolated on WebM blob; freeze `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig`; worker/queue decision; manual harness page | **Done** |
 | **eloquent-1** | Parallel wire | `stopRecording()` clones WebM; fire `TRANSCODE_*` + `TRANSCRIBE_*` in parallel; log/store result; no Studio UI yet | **Done** |
-| **eloquent-2** | Studio editor | Subtitles panel in Design Studio; editable transcript; style + backdrop preview on master canvas; collapsed summary chips | Pending |
+| **eloquent-2** | Studio editor | Subtitles panel in Design Studio; editable transcript; style + backdrop preview on master canvas; collapsed summary chips | **Done** |
 | **eloquent-3** | Burn-in export | `.srt` generation; second FFmpeg pass `base.mp4` → `final.mp4`; full E2E when user confirms subs | Pending |
 | **eloquent-4** | Profiles & polish | `transcriptConfig` on `ClipProfile`; Update/Clone/Save to new + exit guard; opt-in toggle copy; progress indicators; timing nudge | Pending |
 | **eloquent-5** | Harden & release | Memory/perf budget, error surfaces, Reddit upload QA, docs, prod zip, merge `eloquent` → `main`, tag **v4.0.0** | Pending |

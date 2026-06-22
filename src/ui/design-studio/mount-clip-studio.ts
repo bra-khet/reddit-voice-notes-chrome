@@ -55,6 +55,10 @@ import {
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
 import {
+  mountSubtitleControls,
+  renderSubtitleControlFields,
+} from '@/src/ui/design-studio/subtitle-controls';
+import {
   mountVoiceControls,
   renderVoiceControlFields,
 } from '@/src/ui/design-studio/voice-controls';
@@ -212,6 +216,16 @@ export function mountClipStudio(root: HTMLElement): () => void {
           ${renderVoiceControlFields()}
         </div>
       </details>
+      <details class="studio__panel" data-studio-panel="subtitles">
+        <summary class="studio__panel-summary">
+          <span class="studio__panel-title">Subtitles</span>
+          <span class="studio__panel-meta" data-summary-subtitles></span>
+          <span class="studio__panel-chevron" aria-hidden="true"></span>
+        </summary>
+        <div class="studio__panel-body">
+          ${renderSubtitleControlFields()}
+        </div>
+      </details>
       <p class="studio__footer-note">
         Changes apply live to the recorder. <strong>Clone</strong> then edit, or edit then
         <strong>Save to new</strong> — both reach the same fork. <strong>Update</strong> overwrites
@@ -258,6 +272,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
   let entryAppearance: AppearancePreferences | null = null;
   let allowStudioExit = false;
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
+  let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
   const PREVIEW_ANIM_FPS = 12;
 
   function cancelPendingColorSave(): void {
@@ -411,6 +426,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
       previewRaf = requestAnimationFrame(tick);
       if (now - lastPreviewFrame < 1000 / PREVIEW_ANIM_FPS) return;
       lastPreviewFrame = now;
+      const subtitlePreview = subtitleControls?.getPreviewOptions();
       for (const canvas of previewCanvases()) {
         void renderThemePreview(
           canvas,
@@ -419,6 +435,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
           now,
           activeCustomBackgroundId(),
           activeBackgroundLayout(),
+          subtitlePreview,
         );
       }
     };
@@ -427,6 +444,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   async function refreshPreview(timeMs?: number): Promise<void> {
     const generation = ++renderGeneration;
+    const subtitlePreview = subtitleControls?.getPreviewOptions();
     for (const canvas of previewCanvases()) {
       await renderThemePreview(
         canvas,
@@ -435,6 +453,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
         timeMs,
         activeCustomBackgroundId(),
         activeBackgroundLayout(),
+        subtitlePreview,
       );
     }
     if (generation !== renderGeneration) return;
@@ -549,6 +568,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     syncStudioSectionSummaries(root, {
       prefs: activePrefs,
       voiceDraft: voiceControls.getDraftConfig(),
+      subtitleDraft: subtitleControls.getDraftConfig(),
     });
   }
 
@@ -617,6 +637,12 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   voiceControls = mountVoiceControls(root, () => {
     syncSectionSummaries();
+  });
+
+  subtitleControls = mountSubtitleControls(root, () => {
+    syncSectionSummaries();
+    stopPreviewLoop();
+    void refreshPreview();
   });
 
   profileSelect.addEventListener('change', () => {
@@ -845,6 +871,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
     cancelPendingColorSave();
     stopPreviewLoop();
     voiceControls.dispose();
+    subtitleControls.dispose();
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('pagehide', pageHideHandler);
     unsubscribe();

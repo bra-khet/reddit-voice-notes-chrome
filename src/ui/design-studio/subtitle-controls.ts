@@ -1,0 +1,338 @@
+import { loadSessionTranscript, type SessionTranscriptSnapshot } from '@/src/storage/session-transcript-db';
+import {
+  DEFAULT_TRANSCRIPT_CONFIG,
+  normalizeSubtitleStyle,
+  normalizeTranscriptConfig,
+  type SubtitleStyleConfig,
+  type TranscriptConfig,
+  type TranscriptResult,
+} from '@/src/transcription/types';
+import type { SubtitlePreviewOptions } from '@/src/transcription/subtitle-preview';
+
+export interface SubtitleControlsHandle {
+  dispose(): void;
+  getDraftConfig(): TranscriptConfig;
+  getPreviewOptions(): SubtitlePreviewOptions | undefined;
+}
+
+const POSITION_OPTIONS: { value: SubtitleStyleConfig['position']; label: string }[] = [
+  { value: 'bottom', label: 'Bottom' },
+  { value: 'center', label: 'Center' },
+  { value: 'top', label: 'Top' },
+];
+
+function formatSavedAt(ms: number): string {
+  try {
+    return new Date(ms).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  } catch {
+    return 'recent session';
+  }
+}
+
+export function renderSubtitleControlFields(): string {
+  return `
+    <div class="studio__subtitles" data-subtitle-controls>
+      <p class="studio__subtitles-source" data-subtitle-source>
+        Loading transcript…
+      </p>
+      <label class="popup__toggle-row studio__subtitles-toggle">
+        <span class="popup__toggle-copy">
+          <span class="popup__toggle-label">Subtitles</span>
+          <p class="popup__field-desc">
+            Preview captions on the canvas. Burn-in export arrives in a later update.
+          </p>
+        </span>
+        <input
+          class="popup__toggle-input"
+          type="checkbox"
+          data-subtitle-enabled
+          aria-label="Enable subtitle preview"
+        />
+      </label>
+      <div class="studio__subtitles-body" data-subtitle-body hidden>
+        <label class="popup__field studio__field--compact">
+          <span class="popup__field-label">Transcript</span>
+          <textarea
+            class="popup__textarea studio__subtitles-text"
+            rows="5"
+            data-subtitle-text
+            placeholder="Transcript appears here after you record and stop on Reddit."
+            aria-label="Editable transcript text"
+          ></textarea>
+        </label>
+        <p class="studio__subtitles-meta popup__field-desc" data-subtitle-meta hidden></p>
+        <label class="popup__field studio__field--compact">
+          <span class="popup__field-label">Position</span>
+          <select class="popup__select" data-subtitle-position aria-label="Subtitle position"></select>
+        </label>
+        <label class="popup__field studio__field--compact">
+          <span class="popup__field-label">
+            Font size <span data-subtitle-font-size-value>22px</span>
+          </span>
+          <input
+            class="popup__range"
+            type="range"
+            min="14"
+            max="36"
+            step="1"
+            value="22"
+            data-subtitle-font-size
+            aria-label="Subtitle font size"
+          />
+        </label>
+        <label class="popup__toggle-row studio__subtitles-toggle">
+          <span class="popup__toggle-copy">
+            <span class="popup__toggle-label">Backdrop plate</span>
+            <p class="popup__field-desc">Semi-opaque plate behind text for readability over bars.</p>
+          </span>
+          <input
+            class="popup__toggle-input"
+            type="checkbox"
+            data-subtitle-backdrop
+            aria-label="Subtitle backdrop"
+            checked
+          />
+        </label>
+        <label class="popup__field studio__field--compact">
+          <span class="popup__field-label">
+            Backdrop opacity <span data-subtitle-backdrop-opacity-value>72%</span>
+          </span>
+          <input
+            class="popup__range"
+            type="range"
+            min="30"
+            max="95"
+            step="1"
+            value="72"
+            data-subtitle-backdrop-opacity
+            aria-label="Subtitle backdrop opacity"
+          />
+        </label>
+      </div>
+    </div>
+  `;
+}
+
+export function mountSubtitleControls(
+  root: HTMLElement,
+  onDraftChange?: () => void,
+): SubtitleControlsHandle {
+  const panel = root.querySelector<HTMLElement>('[data-subtitle-controls]')!;
+  const sourceEl = panel.querySelector<HTMLElement>('[data-subtitle-source]')!;
+  const bodyEl = panel.querySelector<HTMLElement>('[data-subtitle-body]')!;
+  const enabledInput = panel.querySelector<HTMLInputElement>('[data-subtitle-enabled]')!;
+  const textArea = panel.querySelector<HTMLTextAreaElement>('[data-subtitle-text]')!;
+  const metaEl = panel.querySelector<HTMLElement>('[data-subtitle-meta]')!;
+  const positionSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-position]')!;
+  const fontSizeInput = panel.querySelector<HTMLInputElement>('[data-subtitle-font-size]')!;
+  const fontSizeValueEl = panel.querySelector<HTMLElement>('[data-subtitle-font-size-value]')!;
+  const backdropInput = panel.querySelector<HTMLInputElement>('[data-subtitle-backdrop]')!;
+  const backdropOpacityInput = panel.querySelector<HTMLInputElement>('[data-subtitle-backdrop-opacity]')!;
+  const backdropOpacityValueEl = panel.querySelector<HTMLElement>(
+    '[data-subtitle-backdrop-opacity-value]',
+  )!;
+
+  let draftConfig: TranscriptConfig = normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
+  let lastSnapshot: SessionTranscriptSnapshot | null = null;
+  let syncing = false;
+
+  for (const option of POSITION_OPTIONS) {
+    const el = document.createElement('option');
+    el.value = option.value ?? 'bottom';
+    el.textContent = option.label;
+    positionSelect.append(el);
+  }
+
+  function notifyDraftChange(): void {
+    onDraftChange?.();
+  }
+
+  function previewText(): string {
+    const edited = textArea.value.trim();
+    if (edited) return edited;
+    return draftConfig.result?.text?.trim() ?? '';
+  }
+
+  function applyResultToDraft(result: TranscriptResult | null): void {
+    draftConfig = {
+      ...draftConfig,
+      result: result
+        ? {
+            ...result,
+            source: result.source === 'manual' ? 'manual' : 'vosk',
+          }
+        : null,
+    };
+    textArea.value = result?.text ?? '';
+    if (result?.segments?.length) {
+      metaEl.textContent = `${result.segments.length} segment(s) · edit text freely; timing preserved for export later.`;
+      metaEl.hidden = false;
+    } else {
+      metaEl.hidden = true;
+    }
+  }
+
+  function syncStyleControls(): void {
+    syncing = true;
+    const style = draftConfig.style;
+    positionSelect.value = style.position ?? 'bottom';
+    const fontSize = style.fontSize ?? 22;
+    fontSizeInput.value = String(fontSize);
+    fontSizeValueEl.textContent = `${fontSize}px`;
+    backdropInput.checked = style.backdrop?.enabled !== false;
+    const opacityPct = Math.round((style.backdrop?.opacity ?? 0.72) * 100);
+    backdropOpacityInput.value = String(opacityPct);
+    backdropOpacityValueEl.textContent = `${opacityPct}%`;
+    backdropOpacityInput.disabled = !backdropInput.checked;
+    syncing = false;
+  }
+
+  function syncEnabledUi(): void {
+    const enabled = draftConfig.transcriptionEnabled;
+    enabledInput.checked = enabled;
+    bodyEl.hidden = !enabled;
+  }
+
+  function updateSourceCopy(): void {
+    if (!lastSnapshot) {
+      sourceEl.textContent =
+        'No transcript yet — record a voice note on Reddit, then reopen Design Studio. Transcription runs in parallel with export (~40 MB model).';
+      return;
+    }
+
+    const chars = lastSnapshot.result.text.length;
+    const segments = lastSnapshot.result.segments.length;
+    sourceEl.textContent = `Last transcript: ${segments} segment(s) · ${chars} chars · ${formatSavedAt(lastSnapshot.capturedAt)}`;
+  }
+
+  function mergeStyleFromControls(): SubtitleStyleConfig {
+    const opacity = Number(backdropOpacityInput.value) / 100;
+    return normalizeSubtitleStyle({
+      ...draftConfig.style,
+      enabled: draftConfig.transcriptionEnabled,
+      position: positionSelect.value as SubtitleStyleConfig['position'],
+      fontSize: Number(fontSizeInput.value),
+      backdrop: {
+        ...draftConfig.style.backdrop,
+        enabled: backdropInput.checked,
+        opacity,
+      },
+    });
+  }
+
+  function syncControlsFromDraft(): void {
+    syncEnabledUi();
+    applyResultToDraft(draftConfig.result ?? null);
+    syncStyleControls();
+    notifyDraftChange();
+  }
+
+  async function loadTranscriptSource(): Promise<void> {
+    lastSnapshot = await loadSessionTranscript();
+    if (lastSnapshot) {
+      draftConfig = normalizeTranscriptConfig({
+        ...draftConfig,
+        result: lastSnapshot.result,
+      });
+    }
+    updateSourceCopy();
+    syncControlsFromDraft();
+  }
+
+  enabledInput.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = {
+      ...draftConfig,
+      transcriptionEnabled: enabledInput.checked,
+      style: normalizeSubtitleStyle({
+        ...draftConfig.style,
+        enabled: enabledInput.checked,
+      }),
+    };
+    syncEnabledUi();
+    notifyDraftChange();
+  });
+
+  textArea.addEventListener('input', () => {
+    if (syncing) return;
+    const text = textArea.value;
+    const base = draftConfig.result ?? {
+      text: '',
+      segments: [],
+      source: 'manual' as const,
+    };
+    draftConfig = {
+      ...draftConfig,
+      result: {
+        ...base,
+        text,
+        source: 'manual',
+      },
+    };
+    notifyDraftChange();
+  });
+
+  positionSelect.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    notifyDraftChange();
+  });
+
+  fontSizeInput.addEventListener('input', () => {
+    if (syncing) return;
+    fontSizeValueEl.textContent = `${fontSizeInput.value}px`;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    notifyDraftChange();
+  });
+
+  backdropInput.addEventListener('change', () => {
+    if (syncing) return;
+    backdropOpacityInput.disabled = !backdropInput.checked;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    notifyDraftChange();
+  });
+
+  backdropOpacityInput.addEventListener('input', () => {
+    if (syncing) return;
+    backdropOpacityValueEl.textContent = `${backdropOpacityInput.value}%`;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    notifyDraftChange();
+  });
+
+  const onVisibility = (): void => {
+    if (document.visibilityState !== 'visible') return;
+    void loadTranscriptSource();
+  };
+
+  document.addEventListener('visibilitychange', onVisibility);
+  void loadTranscriptSource();
+
+  return {
+    dispose(): void {
+      document.removeEventListener('visibilitychange', onVisibility);
+    },
+    getDraftConfig(): TranscriptConfig {
+      return normalizeTranscriptConfig({
+        ...draftConfig,
+        style: mergeStyleFromControls(),
+      });
+    },
+    getPreviewOptions(): SubtitlePreviewOptions | undefined {
+      const config = normalizeTranscriptConfig({
+        ...draftConfig,
+        style: mergeStyleFromControls(),
+      });
+      if (!config.transcriptionEnabled) return undefined;
+      return {
+        enabled: true,
+        text: previewText(),
+        style: config.style,
+      };
+    },
+  };
+}

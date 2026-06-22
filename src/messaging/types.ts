@@ -99,6 +99,20 @@ export interface SaveLastRecordingResponse {
   error?: string;
 }
 
+/** eloquent-2 — relay STT result from Reddit tab to extension IDB for Design Studio. */
+export const MSG_SAVE_SESSION_TRANSCRIPT = 'rvn/save-session-transcript' as const;
+
+export interface SaveSessionTranscriptRequest {
+  type: typeof MSG_SAVE_SESSION_TRANSCRIPT;
+  transcriptJson: string;
+  jobId?: string;
+}
+
+export interface SaveSessionTranscriptResponse {
+  ok: boolean;
+  error?: string;
+}
+
 export type TranscodeBroadcast =
   | TranscodeAckResponse
   | TranscodeProgressMessage

@@ -18,9 +18,12 @@ import {
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import { saveLastRecording } from '@/src/storage/last-recording-db';
+import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
+import type { TranscriptResult } from '@/src/transcription/types';
 import {
   MSG_OFFSCREEN_PING,
   MSG_SAVE_LAST_RECORDING,
+  MSG_SAVE_SESSION_TRANSCRIPT,
   MSG_TRANSCODE_ACK,
   MSG_TRANSCODE_CANCEL,
   MSG_TRANSCODE_COMPLETE,
@@ -37,6 +40,8 @@ import {
   type OffscreenPongResponse,
   type SaveLastRecordingRequest,
   type SaveLastRecordingResponse,
+  type SaveSessionTranscriptRequest,
+  type SaveSessionTranscriptResponse,
   type TranscodeAckResponse,
   type TranscodeCancelRequest,
   type TranscodeCompleteMessage,
@@ -501,6 +506,33 @@ export default defineBackground(() => {
               return;
             }
             sendResponse(backgroundBlobChunk(loaded.bytes, chunkIndex));
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+            sendResponse(response);
+          }
+        })();
+        return true;
+      }
+
+      if (type === MSG_SAVE_SESSION_TRANSCRIPT) {
+        void (async () => {
+          const response: SaveSessionTranscriptResponse = { ok: false };
+          try {
+            const request = message as SaveSessionTranscriptRequest;
+            if (!request.transcriptJson?.trim()) {
+              response.error = 'Transcript JSON missing for session save.';
+              sendResponse(response);
+              return;
+            }
+            const parsed = JSON.parse(request.transcriptJson) as TranscriptResult;
+            if (typeof parsed.text !== 'string' || !Array.isArray(parsed.segments)) {
+              response.error = 'Transcript JSON shape invalid.';
+              sendResponse(response);
+              return;
+            }
+            await saveSessionTranscript(parsed, request.jobId);
+            response.ok = true;
+            sendResponse(response);
           } catch (error) {
             response.error = error instanceof Error ? error.message : String(error);
             sendResponse(response);

@@ -16,6 +16,7 @@ import {
 } from '@/src/settings/user-preferences';
 import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
 import { forkTranscribeWebm } from '@/src/transcription/transcribe-client';
+import { relaySaveSessionTranscript } from '@/src/storage/session-transcript-relay';
 import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import { acquireMicStream } from './mic-constraints';
@@ -403,6 +404,7 @@ export class VoiceRecorderSession {
 
       if (outcome.applied) {
         setSessionTranscript(outcome.result, outcome.jobId);
+        void relaySaveSessionTranscript(outcome.result, outcome.jobId);
       }
 
       console.log(`${EXTENSION_LOG_PREFIX} Transcribe complete`, {
