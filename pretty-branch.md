@@ -2,6 +2,8 @@
 
 **MERGED → `main` as v2.0.0 (2026-06-21).** This document is the historical phase plan and engineering record for the v2 release. Active stable development continues on **`main`**; `pretty` is retained as a merged branch reference.
 
+**Current Studio semantics:** `docs/design-studio.md` — canonical Bar style / Background behavior. This file is historical when the two disagree.
+
 **Prior:** `main` v1.5.0 (MVP themes + pipeline). **`pretty`** shipped v1.6.0–v2.0.0 gate (pretty-0 through pretty-9).
 
 ## Goal

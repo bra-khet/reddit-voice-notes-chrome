@@ -3,6 +3,8 @@
 Structured record of confirmed bugs, mitigations, and deferred architectural fixes.
 Read this before changing the recording cap, binary transport, or FFmpeg pipeline.
 
+**Design Studio behavior (current semantics):** `docs/design-studio.md` — canonical reference; this archive is authoritative for bug history only.
+
 ---
 
 ## BUG-001 — Cap-stop transcode hang / permanent failure (2026-06)
@@ -898,15 +900,15 @@ Transcode may still proceed; transcribe fork may miss `MSG_TRANSCRIBE_COMPLETE` 
 
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
-Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.
+Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.
 
 | Gap | Notes |
 |-----|-------|
 | Legacy `transcriptConfig: null` on profiles | Subtitle dirty match skipped until **Update profile** embeds settings once |
 | Session transcript text | Extension IDB only; not stored in profile blobs |
 | Live subtitle draft vs profile dirty label | BUG-021 live-draft coupling **reverted** |
-| eloquent-4 | Subtitle snapshot UX polish; per-segment editor; segment-aware canvas preview |
-| Canvas subtitle preview | `drawSubtitlePreview()` uses flat `previewText()` — segments detected in meta/IDB but not rendered as timed cues | eloquent-4 |
+| eloquent-4 remainder | Profile subtitle UX polish; segment-aware canvas preview; font picker | `docs/design-studio.md` §11 |
+| Canvas subtitle preview | `drawSubtitlePreview()` uses flat `previewText()` — segments in IDB but not timed on canvas | eloquent-4b |
 | Voice preview stale while studio open | Only `visibilitychange` reload — fixed via `LAST_RECORDING_READY_KEY` + IDB poll (post `eloquent-profile-nominal`) | Fixed |
 
 **Do not** re-add BUG-021 `flushPersist` before profile saves or `transcriptDraft` params without queue + hydration review.

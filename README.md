@@ -51,7 +51,7 @@ Previous stable: **v3.0.0** (voice effects), **v2.0.0** (Design Studio + persona
 - Bundled + custom clip themes; hot-swap safe mid-recording
 - Download MP4 (primary, always reliable)
 - Best-effort **Attach to Reddit** via native file input
-- Settings popup + **Design Studio** for visual and voice personalization
+- Settings popup + **Design Studio** for visual and voice personalization — see `docs/design-studio.md`
 - Reload extension from popup after updates
 
 ## Voice effects (v3)
@@ -92,6 +92,7 @@ public/
   vosk-sandbox.html/js   # Manifest sandbox STT host (esbuild on postinstall)
 
 docs/
+  design-studio.md               # Canonical Design Studio semantics (four sections)
   transcription-architecture.md  # MV3 CSP / sandbox design audit (eloquent)
 src/
   recorder/              # getUserMedia + canvas + MediaRecorder

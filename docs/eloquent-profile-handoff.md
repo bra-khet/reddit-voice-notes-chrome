@@ -115,11 +115,13 @@ These are **known limitations**, not regressions from the profile fix. Do not �
 | **Do not re-add** | `flushPersist()` before profile save/update/fork; `transcriptDraft` param on profile save paths; live transcript in `populateProfileSelect` dirty arg | Caused BUG-021 regression |
 | **Canvas subtitle preview** | Vosk segments land correctly in IDB/textarea meta, but `drawSubtitlePreview()` renders **flat full-text** (`previewText()`), not timed per-segment cues. | eloquent-4 segment editor + preview polish |
 | **Subtitle panel placement** | Subtitles collapsible is below Voice; canvas preview is top — gap between style controls and live preview is a known UX issue. | eloquent-4 (optional mini preview near canvas) |
-| **Segment timing editor** | No YouTube-style per-segment text + nudge UI yet; burn-in should read `TranscriptResult.segments` JSON via `srt-builder.ts` without this UI. | **eloquent-3** burn-in first; editor in **eloquent-4** |
+| **Segment timing editor** | YouTube-style editor shipped (`v3.5.0`–`v3.6.0`). Segment-aware **canvas** preview still flat. | `docs/design-studio.md` §7.4, §11 |
 
 ---
 
 ## Race rules — mandatory for future subtitle/profile work
+
+**Canonical Studio rules:** `docs/design-studio.md` §3 (boot, storage, dirty layers). This list is the profile/subtitle subset — when the two overlap, both apply.
 
 1. **All** `rvnUserPrefs` mutations go through `enqueuePrefsOp` (or equivalent single-writer queue).
 2. Appearance-changing ops (`applyClipProfile`, `saveAppearancePreferences`) must be **one queue slot** (read fresh → merge → commit).
@@ -128,7 +130,7 @@ These are **known limitations**, not regressions from the profile fix. Do not �
 5. **`onUserPreferencesChanged`:** ignore until `prefsHydrated === true`.
 6. **`applyPrefs` must never throw** mid-function — downstream sync (backgrounds, buttons) depends on it.
 7. **Never** chain `subtitleControls.flushPersist()` before profile saves without `ignoreStoragePrefs` and queue awareness.
-8. Storage is two-tier: **IDB = blobs**, **`rvnUserPrefs` = pointers + profile state** — see `docs/eloquent-profile-checkpoint.md` § Storage architecture audit.
+8. Storage is two-tier: **IDB = blobs**, **`rvnUserPrefs` = pointers + profile state** — see `docs/design-studio.md` §3.2 (current map); `docs/eloquent-profile-checkpoint.md` § Storage audit is historical.
 
 ---
 

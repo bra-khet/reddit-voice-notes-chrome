@@ -75,6 +75,8 @@ Each section is a `<details class="studio__panel">` with:
 
 Collapsed summaries must remain accurate while the panel is closed — they are the primary scan affordance until a UI refresh replaces them.
 
+**Preview count:** One **Live preview** canvas since v3.1.0 (secondary/tertiary previews removed — see `docs/release-notes-v3.1.0.md`). Older branch docs may still mention dual preview; current code mounts `renderPreviewBlock('primary')` only.
+
 ### 2.3 Global chrome
 
 | Control | Behavior |
@@ -106,6 +108,7 @@ pagehide
 2. All `rvnUserPrefs` writes go through `enqueuePrefsOp` in `user-preferences.ts`.
 3. Storage listener ignores events until `prefsHydrated` and while `ignoreStoragePrefs` (in-flight save).
 4. Teardown uses `pagehide`, not `unload` (async storage flush — BUG-017).
+5. **Never** call `subtitleControls.flushPersist()` before profile save/update (BUG-021) — see `docs/eloquent-profile-handoff.md`.
 
 ### 3.2 Storage map
 
@@ -480,16 +483,24 @@ Before shipping a visual overhaul, verify:
 
 ## 12. Related documents (deep dives — not duplicated here)
 
+**Inbound rule:** Any doc that touches Design Studio development should link here for current UI semantics. This table is the outbound index.
+
 | Doc | Use when |
 |-----|----------|
-| `docs/eloquent-4-handoff.md` | Subtitle bake QA, BUG-025…032 |
-| `docs/eloquent-profile-handoff.md` | Prefs race rules, BUG-021…024 |
+| `docs/code-review.md` | Pre-change gate; fallback tags |
 | `docs/engineering-principles.md` | Semantic health, save pathways, ImageDB |
 | `docs/v4-development-principles.md` | Branch model, compositing, WASM queues |
-| `docs/transcription-architecture.md` | Vosk sandbox CSP stack |
+| `docs/eloquent-4-handoff.md` | Subtitle bake QA, BUG-025…032 |
+| `docs/eloquent-profile-handoff.md` | Prefs race rules, BUG-021…024 |
+| `docs/transcription-architecture.md` | Vosk sandbox CSP stack (Studio §7 integration) |
 | `docs/bug-archive.md` | Full bug write-ups |
-| `docs/code-review.md` | Pre-change gate |
-| `eloquent-branch.md` | Phase plan toward v4.0.0 |
+| `docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
+| `eloquent-branch.md` | v4 subtitle phase plan (historical milestones + open work) |
+| `dulcet-branch.md` | v3 voice-effects phase plan (Voice section origin) |
+| `pretty-branch.md` | v2 personalization phase plan (Bar style / Background origin) |
+| `claude-progress.md` | Session timeline and release tags |
+| `docs/eloquent-profile-checkpoint.md` | **Historical** profile bug cluster audit (superseded for semantics) |
+| `docs/eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint |
 
 ---
 
@@ -517,4 +528,4 @@ src/ui/design-studio/
   radial-knob.ts
 ```
 
-**This document supersedes scattered Studio notes in branch plans and handoffs for UI semantics.** Those docs remain authoritative for bug history and sprint QA; cite this doc for *what the Studio is* and *how sections behave*.
+**Supersedes (semantics only, not history):** scattered Studio layout/behavior notes in branch plans, handoffs, and checkpoints. Those docs remain authoritative for bug timelines, commit chains, and sprint QA. When a older doc disagrees with this file on *current* Studio behavior, **this file wins**.

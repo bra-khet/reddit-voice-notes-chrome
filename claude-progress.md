@@ -459,7 +459,7 @@ Legacy profiles lack `transcriptConfig` snapshot until **Update profile** once; 
 
 ### Do not regress
 
-Serialized prefs queue, studio boot order, `prefsHydrated`, no `flushPersist` before profile saves (BUG-021). Tags: `eloquent-profile-nominal` → `eloquent-prefs-hydrated` → `eloquent-semi-fixed`.
+Serialized prefs queue, studio boot order, `prefsHydrated`, no `flushPersist` before profile saves (BUG-021). Full rules: `docs/design-studio.md` §3. Tags: `v3.6.0` (Studio stable) · `eloquent-profile-nominal` (profile baseline).
 
 ### Post-nominal — voice preview refresh + eloquent-3/4 call (2026-06-21)
 
@@ -505,7 +505,7 @@ Serialized prefs queue, studio boot order, `prefsHydrated`, no `flushPersist` be
 
 ### Storage audit (2026-06-21)
 
-No profile migration from Local Storage → Extension Storage ever happened. Profiles in `rvnUserPrefs` (`chrome.storage.local`) since pretty-6 (`6541575`). DevTools **Extension Storage → Reddit Voice Notes** is normal manifest labeling. Only `localStorage` key: `rvn.subtitles.enabled` (BUG-019). Blobs: `rvnImageDb` IDB; session transcript: `rvnSessionTranscript` IDB. Full table: `docs/eloquent-profile-checkpoint.md` § Storage architecture audit.
+No profile migration from Local Storage → Extension Storage ever happened. Profiles in `rvnUserPrefs` (`chrome.storage.local`) since pretty-6 (`6541575`). DevTools **Extension Storage → Reddit Voice Notes** is normal manifest labeling. Only `localStorage` key: `rvn.subtitles.enabled` (BUG-019). Blobs: `rvnImageDb` IDB; session transcript: `rvnSessionTranscript` IDB. Full table (current): `docs/design-studio.md` §3.2. Historical audit: `docs/eloquent-profile-checkpoint.md`.
 
 ### Next sprint (proposed)
 
@@ -517,11 +517,13 @@ Fix **BUG-023 only** — verify `activeProfileId` persistence on profile `<selec
 
 After the BUG-017…024 cluster (concurrent prefs RMW, boot races, throw-aborted syncs), the following artifacts were added to make v4 development resilient:
 
-- **`docs/code-review.md`** — The canonical `/code-review` gate. **Mandatory**: name a stable fallback tag first (`v3.1.0` for main baseline; `eloquent-profile-nominal` for profile/subtitle work), run build/zip gate, and re-verify the race rules before touching prefs/profile/subtitle code.
-- **`docs/v4-development-principles.md`** — Single source that consolidates branch design patterns (pretty/dulcet/eloquent), the fork-at-stop parallel model, compositing layers (bg < bars < subtitles burn-in), separate WASM queues, semantic health only, `enqueuePrefsOp` + `prefsHydrated` + `buildDraftConfig()` closure discipline, and one-phase-per-sprint rule.
+- **`docs/design-studio.md`** — **Canonical Design Studio reference** — four sections, dirty-state taxonomy, storage map, UI refresh guardrails.
+- **`docs/code-review.md`** — The canonical `/code-review` gate. **Mandatory**: name a stable fallback tag first (`v3.1.0` for main baseline; `v3.6.0` for full Studio/subtitle work; `eloquent-profile-nominal` for profile-only regressions), run build/zip gate, and re-verify the race rules before touching prefs/profile/subtitle code.
+- **`docs/v4-development-principles.md`** — Cross-branch pipeline law (fork-at-stop, compositing, WASM queues, prefs discipline). Studio UI semantics: `docs/design-studio.md`.
 - Stable restore tags (confirmed):
-  - `v3.1.0` (main) — current release baseline.
-  - `eloquent-profile-nominal` (8834d4e on eloquent) — verified profile + background + voice + subtitle toggle state.
+  - `v3.1.0` (main) — release baseline without subtitles.
+  - `v3.6.0` (eloquent) — full Design Studio + subtitle pipeline.
+  - `eloquent-profile-nominal` (8834d4e on eloquent) — profile + background + voice + subtitle toggle (pre–burn-in hardening).
 - All future eloquent work (eloquent-3 burn-in onward) and any prefs/storage changes must pass the `/code-review` checklist before landing.
 
 **Sprint contract reminder:** one well-defined phase/integration per exchange. Record the fallback tag used for the sprint.
@@ -531,4 +533,4 @@ Restore from known-good (example):
 git checkout eloquent-profile-nominal && npm install && npm run dev
 ```
 
-See also: `docs/engineering-principles.md`, `docs/eloquent-profile-handoff.md`, and the individual branch plans.
+See also: `docs/design-studio.md`, `docs/engineering-principles.md`, `docs/eloquent-profile-handoff.md`, and the individual branch plans.

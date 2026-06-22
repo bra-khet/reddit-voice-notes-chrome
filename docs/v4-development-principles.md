@@ -2,6 +2,8 @@
 
 **Goal:** Make v4 (automated subtitles + profile polish) development predictable and resilient after the profile bug cluster of mid-2026.
 
+**Design Studio (canonical):** `docs/design-studio.md` — start here for UI semantics, four sections, dirty-state taxonomy, and refresh guardrails. This file covers cross-branch pipeline law; Studio behavior lives in that doc.
+
 **Primary sources synthesized here:** `docs/design-studio.md` (Design Studio suite semantics), `eloquent-branch.md`, `dulcet-branch.md`, `pretty-branch.md`, `docs/engineering-principles.md`, `docs/transcription-architecture.md`, `claude-progress.md`, `docs/eloquent-profile-handoff.md`, bug history (BUG-001…024), and observed pipeline patterns.
 
 ## 1. Branch & Release Model (Do Not Change Lightly)
@@ -141,7 +143,7 @@ Reuse `studio-save-pathways.ts` and `studio-exit.ts`.
 |-------------------------|--------------------------------------------------------|----------------|
 | Transcription wire      | voice-recorder.ts (fork), transcribe-*.ts, offscreen   | eloquent-1/3   |
 | Burn-in export          | transcoder.ts, ffmpeg-runner.ts (new strategy)         | eloquent-3     |
-| Subtitles panel + preview | subtitle-controls.ts, mount-clip-studio.ts, waveform.ts (overlay only) | eloquent-2/4 |
+| Subtitles panel + preview | subtitle-controls.ts, mount-clip-studio.ts; semantics in `docs/design-studio.md` §7 | eloquent-2/4 |
 | Profile + transcriptConfig | clip-profiles.ts, user-preferences.ts, studio save/exit | eloquent-4 + any prefs change |
 | Vosk sandbox / CSP      | vosk-sandbox-*.ts, transcription-architecture.md, wxt.config | Any sandbox edit |
 | General pipeline        | All of the above + engineering-principles.md           | Always         |

@@ -17,7 +17,7 @@ Before editing any pipeline, storage, profile, or worker code:
 | Use case                        | Tag                        | Branch | Notes |
 |---------------------------------|----------------------------|--------|-------|
 | General stable baseline         | `v3.1.0`                   | main   | Latest **main** release (Design Studio + voice). No subtitles. |
-| Subtitle edit→bake→attach on eloquent | `v3.6.0`               | eloquent | **Current eloquent stable.** Full pipeline + BUG-028…032 hardening. See `docs/eloquent-4-handoff.md`. |
+| Subtitle edit→bake→attach on eloquent | `v3.6.0`               | eloquent | **Current eloquent stable.** Full pipeline + BUG-028…032 hardening. Studio semantics: `docs/design-studio.md`. QA: `docs/eloquent-4-handoff.md`. |
 | Profile / subtitle / prefs work on eloquent | `eloquent-profile-nominal` | eloquent | User-verified: profiles, HSV, backgrounds, Save/Update/Clone, voice, subtitles toggle. See `docs/eloquent-profile-handoff.md`. |
 | Earlier solid releases          | `v3.0.0`, `v2.0.0`         | main   | Full prior milestones. |
 | Transcription spike             | `eloquent-0-vosk-spike`    | eloquent | Vosk sandbox verified in isolation. |
@@ -47,7 +47,7 @@ If the current working tree is dirty or on a long-lived branch, consider a fresh
 
 ## Special Guardrails — Profile / Subtitle / Prefs (Born From BUG-017…024)
 
-Recent bad bug cluster (concurrent RMW, boot races, throws aborting sync, dirty state lies) produced these **non-negotiable** rules. Any `/code-review` involving `user-preferences.ts`, `clip-profiles.ts`, `mount-clip-studio.ts`, `subtitle-controls.ts`, or storage must confirm:
+Recent bad bug cluster (concurrent RMW, boot races, throws aborting sync, dirty state lies) produced these **non-negotiable** rules. Any `/code-review` involving `user-preferences.ts`, `clip-profiles.ts`, `mount-clip-studio.ts`, `subtitle-controls.ts`, or storage must confirm (full Studio semantics: `docs/design-studio.md` §3):
 
 1. **All** `rvnUserPrefs` mutations go through `enqueuePrefsOp` (single-writer promise chain in `src/settings/user-preferences.ts`).
 2. Appearance + transcript writes are **atomic per queue slot** (`applyClipProfile`, `saveAppearancePreferences`, `saveTranscriptPreferences`).

@@ -3,6 +3,7 @@
 **Branch:** `eloquent`  
 **Tag:** `eloquent-semi-fixed` (annotated — intentional WIP checkpoint, not a release)  
 **Superseded by:** `eloquent-profile-nominal` (`8834d4e`) — see `docs/eloquent-profile-handoff.md`  
+**Current Studio semantics:** `docs/design-studio.md` (this checkpoint is historical audit only).  
 **Purpose:** Preserve a recoverable point where Design Studio is mostly nominal again, before attempting another profile-button fix. Last attempt at this stage (BUG-021) regressed further.
 
 ---

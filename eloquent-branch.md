@@ -4,7 +4,7 @@
 **Target release:** v4.0.0 on `main` after eloquent-5 merge.  
 **Handoff:** `docs/eloquent-4-handoff.md` · **Studio reference:** `docs/design-studio.md` · **Restore:** `git checkout v3.6.0 && npm install && npm run dev`
 
-**Related docs:** `.ignore/transcript-design-notes.txt`, `docs/engineering-principles.md`, `dulcet-branch.md`, `claude-progress.md`
+**Related docs:** `docs/design-studio.md` (Subtitles section + shell semantics), `docs/eloquent-4-handoff.md`, `.ignore/transcript-design-notes.txt`, `docs/engineering-principles.md`, `dulcet-branch.md`, `claude-progress.md`
 
 ## Goal
 

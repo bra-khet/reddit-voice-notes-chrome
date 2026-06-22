@@ -168,7 +168,7 @@ Chunked base-MP4 relay (mirror personal-background blob pattern) if single-messa
 
 ## Race / prefs rules (unchanged)
 
-From `docs/eloquent-profile-handoff.md` — still mandatory:
+From `docs/eloquent-profile-handoff.md` and `docs/design-studio.md` §3 — still mandatory:
 
 1. All `rvnUserPrefs` mutations through `enqueuePrefsOp`.
 2. Studio boot: `load → reconcile → mount(initialPrefs)`; `prefsHydrated` gate.
@@ -178,6 +178,8 @@ From `docs/eloquent-profile-handoff.md` — still mandatory:
 ---
 
 ## Open — eloquent-4b+ (not started)
+
+Canonical list: `docs/design-studio.md` §11.
 
 | Item | Notes |
 |------|-------|

@@ -2,6 +2,8 @@
 
 Design audit for client-side Vosk STT in a Chrome MV3 extension (2026). Read before changing the transcription pipeline.
 
+**Design Studio integration (Subtitles section):** `docs/design-studio.md` §7 — edit→confirm→bake UX, session IDB, and preview vs export fidelity.
+
 ## Problem statement
 
 Add optional offline subtitles without breaking the stable path:
@@ -154,8 +156,9 @@ Open `transcribe-harness.html` → load WebM from recorder → Transcribe.
 | Phase | Scope | Status |
 |-------|-------|--------|
 | eloquent-0 | Spike, types, harness, sandbox architecture | **Done** |
-| eloquent-1 | Parallel wire from `stopRecording()` | Pending |
-| eloquent-2 | Design Studio editor | Pending |
-| eloquent-3 | FFmpeg subtitle burn-in (`MSG_BURNIN_*`, SRT + drawtext fallback) | **Done** |
+| eloquent-1 | Parallel wire from `stopRecording()` | **Done** |
+| eloquent-2 | Design Studio Subtitles panel + preview | **Done** |
+| eloquent-3 | FFmpeg subtitle burn-in | **Done** |
+| eloquent-4 | Studio editor polish + relay hardening | **Partial** (`v3.6.0`) |
 
-See `eloquent-branch.md` for full phase plan.
+See `eloquent-branch.md` for full phase plan and `docs/design-studio.md` for current Studio semantics.
