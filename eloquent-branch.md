@@ -244,6 +244,8 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 
 **Dependency:** `vosk-browser@0.0.8` (embedded WASM worker; model bundled separately ~40 MB).
 
+**CSP:** Vosk Emscripten worker requires `'unsafe-eval'` on `extension_pages` (in addition to `'wasm-unsafe-eval'`). Applies to harness/offscreen/popup only — not Reddit content scripts.
+
 #### eloquent-0 — target handoff diagram
 
 ```

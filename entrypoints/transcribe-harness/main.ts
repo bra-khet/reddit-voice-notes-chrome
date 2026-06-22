@@ -10,6 +10,7 @@ app.innerHTML = `
     <h1>Transcription harness</h1>
     <p class="hint">eloquent-0 manual QA — open via <code>transcribe-harness.html</code> on the extension origin.</p>
     <p class="hint">First run downloads/loads the Vosk model (~40 MB). Run <code>npm install</code> if the model is missing.</p>
+    <p class="hint">Use a <strong>WebM</strong> from the recorder — MP4 and other formats are not supported in this harness.</p>
     <label class="field">
       <span>Recording (WebM)</span>
       <input type="file" id="file" accept="video/webm,audio/webm,.webm" />
@@ -61,22 +62,38 @@ const srtEl = document.querySelector<HTMLPreElement>('#srt')!;
 
 modelUrlInput.value = resolveVoskModelUrl();
 
+const WEBM_EBML_MAGIC = [0x1a, 0x45, 0xdf, 0xa3] as const;
+
 let inputBlob: Blob | null = null;
+
+async function isWebmBlob(blob: Blob): Promise<boolean> {
+  const head = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+  return WEBM_EBML_MAGIC.every((byte, index) => head[index] === byte);
+}
 
 function setStatus(text: string): void {
   statusEl.textContent = text;
 }
 
 fileInput.addEventListener('change', () => {
-  const file = fileInput.files?.[0];
-  if (!file) return;
+  void (async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
 
-  inputBlob = file;
-  transcribeBtn.disabled = false;
-  resetBtn.disabled = false;
-  jsonEl.textContent = '';
-  srtEl.textContent = '';
-  setStatus(`Loaded ${file.name} (${Math.round(file.size / 1024)} KB).`);
+    if (!(await isWebmBlob(file))) {
+      inputBlob = null;
+      transcribeBtn.disabled = true;
+      setStatus('That file is not WebM. Use a recording from the Reddit voice recorder.');
+      return;
+    }
+
+    inputBlob = file;
+    transcribeBtn.disabled = false;
+    resetBtn.disabled = false;
+    jsonEl.textContent = '';
+    srtEl.textContent = '';
+    setStatus(`Loaded ${file.name} (${Math.round(file.size / 1024)} KB).`);
+  })();
 });
 
 resetBtn.addEventListener('click', () => {

@@ -12,7 +12,11 @@ export default defineConfig({
   srcDir: '.',
   manifest: {
     content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+      // BUG FIX: Vosk-browser Emscripten worker uses new Function() at model load.
+      // Fix: 'unsafe-eval' on extension_pages only (harness, offscreen, popup — not Reddit content scripts).
+      // Sync: FFmpeg needs wasm-unsafe-eval only; Vosk needs both.
+      extension_pages:
+        "script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; object-src 'self'",
     },
     name: 'Reddit Voice Notes',
     description:
