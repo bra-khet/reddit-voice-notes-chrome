@@ -133,9 +133,41 @@ function segmentTiming(segment: TranscriptSegment): { start: number; end: number
   return { start, end, text };
 }
 
+// BUG FIX: backdrop plate covers glow and caption at high opacity (BUG-029)
+// Fix: render box on a transparent first drawtext layer; caption/glow layers stack above.
+const BACKDROP_PLATE_FONT_COLOR = 'black@0.00';
+
+function buildBackdropBoxOpt(style: SubtitleStyleConfig): string {
+  if (style.backdrop?.enabled === false) return '';
+  const opacity = style.backdrop?.opacity ?? 0.72;
+  return `:box=1:boxcolor=black@${opacity.toFixed(2)}:boxborderw=12`;
+}
+
+function buildBackdropPlateLayer(
+  text: string,
+  start: number,
+  end: number,
+  fontSize: number,
+  y: string,
+  style: SubtitleStyleConfig,
+): DrawtextLayer | null {
+  const box = buildBackdropBoxOpt(style);
+  if (!box) return null;
+  return {
+    text,
+    start,
+    end,
+    fontSize,
+    fontColor: BACKDROP_PLATE_FONT_COLOR,
+    x: drawtextX(0),
+    y,
+    box,
+  };
+}
+
 /**
- * BUG-025 proven path: one drawtext per cue, built-in shadow on the main layer.
- * Used whenever theme glow layers are off.
+ * BUG-025 proven path: drawtext per cue, built-in shadow on the caption layer.
+ * Backdrop plate is a separate first layer so high opacity does not cover glow/text.
  */
 function buildSimpleDrawtextFilter(
   segments: TranscriptSegment[],
@@ -145,26 +177,30 @@ function buildSimpleDrawtextFilter(
   const fontSize = style.fontSize ?? 22;
   const y = drawtextY(style.position, fontSize);
   const fontColor = drawtextMainFontColor(style);
-  const backdropOn = style.backdrop?.enabled !== false;
-  const opacity = style.backdrop?.opacity ?? 0.72;
-  const box = backdropOn ? `:box=1:boxcolor=black@${opacity.toFixed(2)}:boxborderw=12` : '';
   const shadow = style.shadow;
   const shadowOn = shadow?.enabled !== false;
   const shadowOpts = shadowOn
     ? `:shadowcolor=black@${(shadow?.opacity ?? 0.85).toFixed(2)}:shadowx=${shadow?.offsetX ?? 2}:shadowy=${shadow?.offsetY ?? 2}`
     : '';
 
-  const parts = segments.map((segment) => {
+  const parts: string[] = [];
+  for (const segment of segments) {
     const { start, end, text } = segmentTiming(segment);
-    if (!text) return '';
-    return (
-      `drawtext=fontfile=${fontFile}:fontcolor=${fontColor}:fontsize=${fontSize}` +
-      `:x=(w-text_w)/2:y=${y}${box}${shadowOpts}` +
-      `:text='${escapeDrawtext(text)}':enable='between(t,${start},${end})'`
-    );
-  });
+    if (!text) continue;
 
-  return parts.filter(Boolean).join(',');
+    const plate = buildBackdropPlateLayer(text, start, end, fontSize, y, style);
+    if (plate) {
+      parts.push(buildDrawtextLayer(plate, fontFile));
+    }
+
+    parts.push(
+      `drawtext=fontfile=${fontFile}:fontcolor=${fontColor}:fontsize=${fontSize}` +
+        `:x=(w-text_w)/2:y=${y}${shadowOpts}` +
+        `:text='${escapeDrawtext(text)}':enable='between(t,${start},${end})'`,
+    );
+  }
+
+  return parts.join(',');
 }
 
 interface DrawtextLayer {
@@ -201,6 +237,11 @@ function buildSegmentGlowLayers(
   const glow = style.glow!;
   const layers: DrawtextLayer[] = [];
 
+  const plate = buildBackdropPlateLayer(text, start, end, fontSize, yBase, style);
+  if (plate) {
+    layers.push(plate);
+  }
+
   for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
     layers.push({
       text,
@@ -227,12 +268,6 @@ function buildSegmentGlowLayers(
     });
   }
 
-  const backdropOn = style.backdrop?.enabled !== false;
-  const backdropOpacity = style.backdrop?.opacity ?? 0.72;
-  const box = backdropOn
-    ? `:box=1:boxcolor=black@${backdropOpacity.toFixed(2)}:boxborderw=12`
-    : '';
-
   layers.push({
     text,
     start,
@@ -241,7 +276,6 @@ function buildSegmentGlowLayers(
     fontColor: drawtextMainFontColor(style),
     x: drawtextX(0),
     y: yBase,
-    box,
   });
 
   return layers.map((layer) => buildDrawtextLayer(layer, fontFile));
