@@ -1,6 +1,9 @@
 import {
   clearSessionTranscriptStore,
   loadSessionTranscript,
+  revertSessionTranscriptEdits,
+  saveSessionTranscriptEdits,
+  sessionTranscriptIsDirty,
   type SessionTranscriptSnapshot,
 } from '@/src/storage/session-transcript-db';
 import {
@@ -21,7 +24,13 @@ import {
   type TranscriptConfig,
   type TranscriptResult,
 } from '@/src/transcription/types';
+import { rebuildTextFromSegments } from '@/src/transcription/transcript-editing';
 import type { SubtitlePreviewOptions } from '@/src/transcription/subtitle-preview';
+import { bakeSubtitlesInStudio } from '@/src/ui/design-studio/subtitle-bake';
+import {
+  mountSubtitleSegmentEditor,
+  renderSubtitleSegmentEditorFields,
+} from '@/src/ui/design-studio/subtitle-segment-editor';
 
 export interface SubtitleControlsHandle {
   dispose(): void;
@@ -64,7 +73,7 @@ export function renderSubtitleControlFields(): string {
         <span class="popup__toggle-copy">
           <span class="popup__toggle-label">Subtitles</span>
           <p class="popup__field-desc">
-            Preview captions on the canvas. Enabled subtitles burn into your MP4 on export.
+            Review and edit your transcript in Design Studio, then bake captions into the MP4 when ready.
           </p>
         </span>
         <input
@@ -75,26 +84,7 @@ export function renderSubtitleControlFields(): string {
         />
       </label>
       <div class="studio__subtitles-body" data-subtitle-body hidden>
-        <label class="popup__field studio__field--compact">
-          <span class="popup__field-label">Transcript</span>
-          <textarea
-            class="popup__textarea studio__subtitles-text"
-            rows="5"
-            data-subtitle-text
-            placeholder="Transcript appears here after you record and stop on Reddit."
-            aria-label="Editable transcript text"
-          ></textarea>
-        </label>
-        <p class="studio__subtitles-meta popup__field-desc" data-subtitle-meta hidden></p>
-        <div class="popup__profile-actions studio__inline-actions">
-          <button
-            type="button"
-            class="popup__profile-btn popup__profile-btn--delete"
-            data-subtitle-reset
-          >
-            Clear transcript
-          </button>
-        </div>
+        ${renderSubtitleSegmentEditorFields()}
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Position</span>
           <select class="popup__select" data-subtitle-position aria-label="Subtitle position"></select>
@@ -142,15 +132,35 @@ export function renderSubtitleControlFields(): string {
             aria-label="Subtitle backdrop opacity"
           />
         </label>
+        <div class="studio__subtitles-bake" data-subtitle-bake-block>
+          <button
+            type="button"
+            class="popup__profile-btn popup__profile-btn--save studio__bake-btn"
+            data-subtitle-bake
+            disabled
+          >
+            Bake subtitles into MP4
+          </button>
+          <p class="popup__field-desc studio__bake-status" data-subtitle-bake-status>
+            Confirm your transcript edits, then bake. The Reddit recorder will pick up the captioned MP4.
+          </p>
+        </div>
+        <div class="popup__profile-actions studio__inline-actions">
+          <button
+            type="button"
+            class="popup__profile-btn popup__profile-btn--delete"
+            data-subtitle-reset
+          >
+            Clear transcript
+          </button>
+        </div>
       </div>
     </div>
   `;
 }
 
 export interface SubtitleControlHandlers {
-  /** Style / enabled edits — may affect profile dirty state. */
   onSettingsChange?: () => void;
-  /** Transcript text merge — preview only. */
   onPreviewChange?: () => void;
 }
 
@@ -162,8 +172,6 @@ export function mountSubtitleControls(
   const sourceEl = panel.querySelector<HTMLElement>('[data-subtitle-source]')!;
   const bodyEl = panel.querySelector<HTMLElement>('[data-subtitle-body]')!;
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-subtitle-enabled]')!;
-  const textArea = panel.querySelector<HTMLTextAreaElement>('[data-subtitle-text]')!;
-  const metaEl = panel.querySelector<HTMLElement>('[data-subtitle-meta]')!;
   const positionSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-position]')!;
   const fontSizeInput = panel.querySelector<HTMLInputElement>('[data-subtitle-font-size]')!;
   const fontSizeValueEl = panel.querySelector<HTMLElement>('[data-subtitle-font-size-value]')!;
@@ -173,13 +181,44 @@ export function mountSubtitleControls(
     '[data-subtitle-backdrop-opacity-value]',
   )!;
   const resetBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-reset]')!;
+  const bakeBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-bake]')!;
+  const bakeStatusEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-status]')!;
 
   let draftConfig: TranscriptConfig = normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
   let lastSnapshot: SessionTranscriptSnapshot | null = null;
-  /** IDB snapshots at or before this ms are ignored (user clear / re-enable / reset). */
   let dismissedSnapshotCapturedAt = 0;
   let syncing = false;
   let saveTimer = 0;
+  let transcriptConfirmed = false;
+  let baking = false;
+  let bakeAbort: AbortController | null = null;
+
+  const segmentEditor = mountSubtitleSegmentEditor(panel, {
+    onStateChange: () => {
+      syncBakeButton();
+      syncDraftFromEditor();
+      notifyPreviewChange();
+    },
+    async onSaveEdits(edited) {
+      await saveSessionTranscriptEdits(edited, { confirmed: true });
+      transcriptConfirmed = true;
+      syncDraftFromEditor();
+      syncBakeButton();
+      updateSourceCopy();
+    },
+    async onDiscardEdits() {
+      await revertSessionTranscriptEdits();
+      const snapshot = await loadSessionTranscript();
+      if (snapshot) {
+        lastSnapshot = snapshot;
+        segmentEditor.setTranscript(snapshot.originalResult, snapshot.editedResult);
+        transcriptConfirmed = !sessionTranscriptIsDirty(snapshot);
+      }
+      syncDraftFromEditor();
+      syncBakeButton();
+      updateSourceCopy();
+    },
+  });
 
   for (const option of POSITION_OPTIONS) {
     const el = document.createElement('option');
@@ -235,6 +274,23 @@ export function mountSubtitleControls(
     }
   }
 
+  function syncDraftFromEditor(): void {
+    const edited = segmentEditor.getEditedResult();
+    draftConfig = {
+      ...draftConfig,
+      result: edited,
+      resultCapturedAt: lastSnapshot?.capturedAt,
+    };
+  }
+
+  function syncBakeButton(): void {
+    const edited = segmentEditor.getEditedResult();
+    const hasSegments = (edited?.segments?.length ?? 0) > 0;
+    const dirty = segmentEditor.getState().dirty;
+    const canBake = hasSegments && transcriptConfirmed && !dirty && !baking;
+    bakeBtn.disabled = !canBake;
+  }
+
   function dismissCurrentSessionTranscript(): void {
     dismissedSnapshotCapturedAt = Math.max(
       dismissedSnapshotCapturedAt,
@@ -245,8 +301,25 @@ export function mountSubtitleControls(
       result: null,
       resultCapturedAt: undefined,
     };
-    applyResultToDraft(null);
+    segmentEditor.setTranscript(null);
+    transcriptConfirmed = false;
+    syncBakeButton();
     notifyDraftChange();
+  }
+
+  function applySnapshotToUi(snapshot: SessionTranscriptSnapshot): void {
+    lastSnapshot = snapshot;
+    segmentEditor.setTranscript(snapshot.originalResult, snapshot.editedResult);
+    transcriptConfirmed =
+      typeof snapshot.confirmedAt === 'number' || !sessionTranscriptIsDirty(snapshot);
+    draftConfig = {
+      ...draftConfig,
+      result: snapshot.editedResult,
+      resultCapturedAt: snapshot.capturedAt,
+    };
+    syncBakeButton();
+    updateSourceCopy();
+    notifyPreviewChange();
   }
 
   function mergeIdbTranscriptIfNewer(): void {
@@ -254,41 +327,18 @@ export function mountSubtitleControls(
     if (lastSnapshot.capturedAt <= dismissedSnapshotCapturedAt) return;
     if (lastSnapshot.capturedAt <= (draftConfig.resultCapturedAt ?? 0)) return;
 
-    draftConfig = normalizeTranscriptConfig({
-      ...draftConfig,
-      result: lastSnapshot.result,
-      resultCapturedAt: lastSnapshot.capturedAt,
-    });
     syncing = true;
-    applyResultToDraft(draftConfig.result ?? null);
+    applySnapshotToUi(lastSnapshot);
     syncStyleControls();
     syncing = false;
-    notifyPreviewChange();
   }
 
   function previewText(): string {
-    const edited = textArea.value.trim();
-    if (edited) return edited;
-    return draftConfig.result?.text?.trim() ?? '';
-  }
-
-  function applyResultToDraft(result: TranscriptResult | null): void {
-    draftConfig = {
-      ...draftConfig,
-      result: result
-        ? {
-            ...result,
-            source: result.source === 'manual' ? 'manual' : 'vosk',
-          }
-        : null,
-    };
-    textArea.value = result?.text ?? '';
-    if (result?.segments?.length) {
-      metaEl.textContent = `${result.segments.length} segment(s) · edit text freely; timing preserved for export later.`;
-      metaEl.hidden = false;
-    } else {
-      metaEl.hidden = true;
+    const edited = segmentEditor.getEditedResult();
+    if (edited?.segments?.length) {
+      return rebuildTextFromSegments(edited.segments);
     }
+    return edited?.text?.trim() ?? '';
   }
 
   function syncStyleControls(): void {
@@ -319,9 +369,11 @@ export function mountSubtitleControls(
       return;
     }
 
-    const chars = lastSnapshot.result.text.length;
-    const segments = lastSnapshot.result.segments.length;
-    sourceEl.textContent = `Last transcript: ${segments} segment(s) · ${chars} chars · ${formatSavedAt(lastSnapshot.capturedAt)}`;
+    const chars = lastSnapshot.editedResult.text.length;
+    const segments = lastSnapshot.editedResult.segments.length;
+    const dirty = sessionTranscriptIsDirty(lastSnapshot);
+    const dirtyLabel = dirty ? ' · unsaved edits' : '';
+    sourceEl.textContent = `Last transcript: ${segments} segment(s) · ${chars} chars · ${formatSavedAt(lastSnapshot.capturedAt)}${dirtyLabel}`;
   }
 
   function mergeStyleFromControls(): SubtitleStyleConfig {
@@ -337,13 +389,6 @@ export function mountSubtitleControls(
         opacity,
       },
     });
-  }
-
-  function syncControlsFromDraft(): void {
-    syncEnabledUi();
-    applyResultToDraft(draftConfig.result ?? null);
-    syncStyleControls();
-    notifyDraftChange();
   }
 
   async function loadTranscriptSource(): Promise<void> {
@@ -364,8 +409,6 @@ export function mountSubtitleControls(
       }),
     };
     syncEnabledUi();
-    // CHANGED: re-enabling subtitles waits for a new recording transcript.
-    // WHY: IDB poll was resurrecting cleared / stale session text (BUG-020).
     if (enabled) {
       void loadTranscriptSource().then(() => {
         dismissCurrentSessionTranscript();
@@ -373,32 +416,6 @@ export function mountSubtitleControls(
     }
     writeSubtitlesEnabledLocal(enabled);
     void setSubtitlesEnabled(enabled).then(() => persistNow());
-    notifyDraftChange();
-  });
-
-  textArea.addEventListener('input', () => {
-    if (syncing) return;
-    const text = textArea.value;
-    if (!text.trim()) {
-      dismissCurrentSessionTranscript();
-      schedulePersist();
-      return;
-    }
-    const base = draftConfig.result ?? {
-      text: '',
-      segments: [],
-      source: 'manual' as const,
-    };
-    draftConfig = {
-      ...draftConfig,
-      result: {
-        ...base,
-        text,
-        source: 'manual',
-      },
-      resultCapturedAt: Date.now(),
-    };
-    schedulePersist();
     notifyDraftChange();
   });
 
@@ -410,6 +427,39 @@ export function mountSubtitleControls(
       dismissCurrentSessionTranscript();
       updateSourceCopy();
       await persistNow();
+    })();
+  });
+
+  bakeBtn.addEventListener('click', () => {
+    void (async () => {
+      const edited = segmentEditor.getEditedResult();
+      if (!edited || baking) return;
+
+      baking = true;
+      bakeAbort = new AbortController();
+      bakeBtn.disabled = true;
+      bakeStatusEl.textContent = 'Preparing subtitle bake…';
+
+      try {
+        const config = buildDraftConfig();
+        await bakeSubtitlesInStudio({
+          editedResult: edited,
+          style: config.style,
+          signal: bakeAbort.signal,
+          onProgress: (progress) => {
+            bakeStatusEl.textContent = progress.message ?? 'Baking subtitles…';
+          },
+        });
+        bakeStatusEl.textContent =
+          'Subtitles baked. Switch to your Reddit tab and attach the MP4 from the recorder.';
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        bakeStatusEl.textContent = `Bake failed: ${message}`;
+      } finally {
+        baking = false;
+        bakeAbort = null;
+        syncBakeButton();
+      }
     })();
   });
 
@@ -451,8 +501,6 @@ export function mountSubtitleControls(
 
   document.addEventListener('visibilitychange', onVisibility);
 
-  // CHANGED: poll extension IDB while studio is open.
-  // WHY: transcription completes on Reddit; studio does not receive tab-scoped progress relays.
   const pollTimer = window.setInterval(() => {
     void loadTranscriptSource();
   }, TRANSCRIPT_POLL_MS);
@@ -470,8 +518,6 @@ export function mountSubtitleControls(
       transcriptionEnabled: localEnabled,
       style: { ...draftConfig.style, enabled: localEnabled },
     });
-    // CHANGED: init from localStorage syncs UI only — not profile dirty state (BUG-021 revert).
-    // WHY: syncControlsFromDraft() fired onSettingsChange before prefs loaded, racing profile bar.
     syncEnabledUi();
     syncStyleControls();
     notifyPreviewChange();
@@ -509,17 +555,17 @@ export function mountSubtitleControls(
       await persistNow();
     },
     dispose(): void {
+      bakeAbort?.abort();
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onTranscriptReady);
       window.clearInterval(pollTimer);
       if (saveTimer) window.clearTimeout(saveTimer);
       writeSubtitlesEnabledLocal(draftConfig.transcriptionEnabled);
       void setSubtitlesEnabled(draftConfig.transcriptionEnabled).then(() => persistNow());
+      segmentEditor.dispose();
     },
     getDraftConfig: buildDraftConfig,
     getProfileSnapshotConfig(): TranscriptConfig {
-      // BUG FIX: getDraftConfig is not defined (BUG-024)
-      // Fix: use closure buildDraftConfig — method body cannot call sibling method by bare name.
       return transcriptConfigForProfileStorage(buildDraftConfig());
     },
     getPreviewOptions(): SubtitlePreviewOptions | undefined {

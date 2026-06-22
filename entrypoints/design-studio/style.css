@@ -580,27 +580,224 @@ body {
   margin-bottom: 10px;
 }
 
-.studio__subtitles-text {
+.studio__transcript {
+  margin-bottom: 12px;
+}
+
+.studio__transcript-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.studio__transcript-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.studio__transcript-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 152, 0, 0.18);
+  color: #ffb74d;
+}
+
+.studio__transcript-hint {
+  margin: 0 0 8px;
+}
+
+.studio__transcript-preview {
+  max-height: 11rem;
+  overflow-y: auto;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  background: #1a1a1b;
+  padding: 6px 0;
+}
+
+.studio__transcript-empty {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  color: #818384;
+}
+
+.studio__transcript-cue {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #2a2a2b;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.studio__transcript-cue:last-child {
+  border-bottom: none;
+}
+
+.studio__transcript-cue-time {
+  color: #818384;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.studio__transcript-cue-text {
+  color: #d7dadc;
+}
+
+.studio__transcript-actions {
+  margin-top: 8px;
+}
+
+.studio__transcript-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.studio__transcript-modal[hidden] {
+  display: none;
+}
+
+.studio__transcript-dialog {
   width: 100%;
-  min-height: 6.5rem;
-  resize: vertical;
-  padding: 8px 10px;
+  max-width: 520px;
+  max-height: min(80vh, 640px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  border-radius: 12px;
+  background: #272729;
+  border: 1px solid #343536;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.studio__transcript-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.studio__transcript-dialog-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.studio__transcript-close {
+  border: none;
+  background: transparent;
+  color: #818384;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.studio__transcript-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d7dadc;
+}
+
+.studio__transcript-dialog-copy {
+  margin: 0 0 10px;
+}
+
+.studio__transcript-segments {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-right: 4px;
+}
+
+.studio__transcript-segment {
+  padding: 10px;
   border-radius: 8px;
   border: 1px solid #343536;
   background: #1a1a1b;
+}
+
+.studio__transcript-segment-times {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.studio__transcript-time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #818384;
+}
+
+.studio__transcript-time-field input {
+  width: 6.5rem;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #343536;
+  background: #272729;
+  color: #d7dadc;
+  font: inherit;
+}
+
+.studio__transcript-segment-text-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #818384;
+}
+
+.studio__transcript-segment-text-field textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 2.5rem;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #343536;
+  background: #272729;
   color: #d7dadc;
   font: inherit;
   font-size: 0.8125rem;
   line-height: 1.45;
 }
 
-.studio__subtitles-text:focus {
-  outline: 2px solid #0079d3;
-  outline-offset: 1px;
+.studio__transcript-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.studio__subtitles-meta {
-  margin: -4px 0 10px;
+.studio__subtitles-bake {
+  margin: 12px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid #343536;
+}
+
+.studio__bake-btn {
+  width: 100%;
+}
+
+.studio__bake-status {
+  margin: 8px 0 0;
+  min-height: 1.2em;
 }
 
 .studio__effect-toggle {

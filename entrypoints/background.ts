@@ -18,6 +18,17 @@ import {
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import { saveLastRecording } from '@/src/storage/last-recording-db';
+import { saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
+import { loadLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
+import {
+  BAKED_MP4_CHUNK_BYTES,
+  MSG_GET_BAKED_MP4_CHUNK,
+  MSG_GET_BAKED_MP4_META,
+  type BakedMp4ChunkPayload,
+  type BakedMp4MetaPayload,
+  type GetBakedMp4ChunkRequest,
+  type GetBakedMp4MetaRequest,
+} from '@/src/messaging/baked-mp4-blob';
 import {
   LAST_RECORDING_READY_KEY,
   SESSION_TRANSCRIPT_READY_KEY,
@@ -27,6 +38,7 @@ import type { TranscriptResult } from '@/src/transcription/types';
 import {
   MSG_OFFSCREEN_PING,
   MSG_SAVE_LAST_RECORDING,
+  MSG_SAVE_LAST_BASE_MP4,
   MSG_SAVE_SESSION_TRANSCRIPT,
   MSG_TRANSCODE_ACK,
   MSG_TRANSCODE_CANCEL,
@@ -56,6 +68,8 @@ import {
   type OffscreenPongResponse,
   type SaveLastRecordingRequest,
   type SaveLastRecordingResponse,
+  type SaveLastBaseMp4Request,
+  type SaveLastBaseMp4Response,
   type SaveSessionTranscriptRequest,
   type SaveSessionTranscriptResponse,
   type TranscodeAckResponse,
@@ -478,6 +492,48 @@ function backgroundBlobMeta(bytes: Uint8Array, mimeType: string): BackgroundBlob
   };
 }
 
+let cachedBakedMp4Bytes: Uint8Array | null = null;
+let cachedBakedMp4Mime = 'video/mp4';
+let cachedBakedMp4SavedAt = 0;
+
+async function loadBakedMp4Bytes(): Promise<Uint8Array | null> {
+  const snapshot = await loadLastBakedMp4();
+  if (!snapshot?.blob) return null;
+  if (cachedBakedMp4SavedAt === snapshot.meta.savedAt && cachedBakedMp4Bytes) {
+    return cachedBakedMp4Bytes;
+  }
+  cachedBakedMp4Bytes = new Uint8Array(await snapshot.blob.arrayBuffer());
+  cachedBakedMp4Mime = snapshot.meta.mimeType || 'video/mp4';
+  cachedBakedMp4SavedAt = snapshot.meta.savedAt;
+  return cachedBakedMp4Bytes;
+}
+
+function bakedMp4Meta(bytes: Uint8Array, mimeType: string, savedAt: number): BakedMp4MetaPayload {
+  const chunkCount = Math.max(1, Math.ceil(bytes.length / BAKED_MP4_CHUNK_BYTES));
+  return {
+    ok: true,
+    mimeType,
+    totalByteLength: bytes.length,
+    chunkCount,
+    savedAt,
+  };
+}
+
+function bakedMp4Chunk(bytes: Uint8Array, chunkIndex: number): BakedMp4ChunkPayload {
+  const start = chunkIndex * BAKED_MP4_CHUNK_BYTES;
+  if (start >= bytes.length) {
+    return { ok: false, chunkIndex, error: 'Chunk index out of range.' };
+  }
+  const slice = bytes.subarray(start, Math.min(start + BAKED_MP4_CHUNK_BYTES, bytes.length));
+  const packed = packBinary(slice);
+  return {
+    ok: true,
+    chunkIndex,
+    dataBase64: packed.dataBase64,
+    byteLength: packed.byteLength,
+  };
+}
+
 function backgroundBlobChunk(bytes: Uint8Array, chunkIndex: number): BackgroundBlobChunkPayload {
   const start = chunkIndex * BACKGROUND_BLOB_CHUNK_BYTES;
   if (start >= bytes.length) {
@@ -630,6 +686,68 @@ export default defineBackground(() => {
             }
             await saveSessionTranscript(parsed, request.jobId);
             await browser.storage.local.set({ [SESSION_TRANSCRIPT_READY_KEY]: Date.now() });
+            response.ok = true;
+            sendResponse(response);
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+            sendResponse(response);
+          }
+        })();
+        return true;
+      }
+
+      if (type === MSG_GET_BAKED_MP4_META) {
+        void (async () => {
+          const response: BakedMp4MetaPayload = { ok: false };
+          try {
+            const bytes = await loadBakedMp4Bytes();
+            if (!bytes) {
+              response.error = 'No baked MP4 available.';
+              sendResponse(response);
+              return;
+            }
+            sendResponse(bakedMp4Meta(bytes, cachedBakedMp4Mime, cachedBakedMp4SavedAt));
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+            sendResponse(response);
+          }
+        })();
+        return true;
+      }
+
+      if (type === MSG_GET_BAKED_MP4_CHUNK) {
+        void (async () => {
+          const response: BakedMp4ChunkPayload = { ok: false };
+          try {
+            const request = message as GetBakedMp4ChunkRequest;
+            const bytes = await loadBakedMp4Bytes();
+            if (!bytes) {
+              response.error = 'No baked MP4 available.';
+              sendResponse(response);
+              return;
+            }
+            sendResponse(bakedMp4Chunk(bytes, request.chunkIndex));
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+            sendResponse(response);
+          }
+        })();
+        return true;
+      }
+
+      if (type === MSG_SAVE_LAST_BASE_MP4) {
+        void (async () => {
+          const response: SaveLastBaseMp4Response = { ok: false };
+          try {
+            const request = message as SaveLastBaseMp4Request;
+            if (!request.mp4Base64 || request.mp4ByteLength <= 0) {
+              response.error = 'MP4 payload missing for base export save.';
+              sendResponse(response);
+              return;
+            }
+            const bytes = unpackBinary(request.mp4Base64, request.mp4ByteLength);
+            const blob = new Blob([Uint8Array.from(bytes)], { type: 'video/mp4' });
+            await saveLastBaseMp4(blob, request.durationSeconds);
             response.ok = true;
             sendResponse(response);
           } catch (error) {

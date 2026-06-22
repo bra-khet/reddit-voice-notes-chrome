@@ -64,6 +64,8 @@ const SUBTITLES_ENABLED_LOCAL_KEY = 'rvn.subtitles.enabled' as const;
 
 /** Ms timestamp written when background saves a session transcript (studio refresh signal). */
 export const SESSION_TRANSCRIPT_READY_KEY = 'rvnSessionTranscriptReadyAt' as const;
+/** Set when Design Studio finishes subtitle burn-in — recorder tab fetches baked MP4. */
+export const BAKED_MP4_READY_KEY = 'rvnBakedMp4ReadyAt' as const;
 
 /** Ms timestamp written when background saves the last WebM for voice preview (studio refresh signal). */
 export const LAST_RECORDING_READY_KEY = 'rvnLastRecordingReadyAt' as const;

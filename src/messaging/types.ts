@@ -122,6 +122,21 @@ export interface SaveSessionTranscriptResponse {
   error?: string;
 }
 
+/** eloquent-4 — relay base MP4 (pre burn-in) for Design Studio subtitle bake. */
+export const MSG_SAVE_LAST_BASE_MP4 = 'rvn/save-last-base-mp4' as const;
+
+export interface SaveLastBaseMp4Request {
+  type: typeof MSG_SAVE_LAST_BASE_MP4;
+  mp4Base64: string;
+  mp4ByteLength: number;
+  durationSeconds: number;
+}
+
+export interface SaveLastBaseMp4Response {
+  ok: boolean;
+  error?: string;
+}
+
 export type TranscodeBroadcast =
   | TranscodeAckResponse
   | TranscodeProgressMessage

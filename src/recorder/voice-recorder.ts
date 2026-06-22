@@ -5,7 +5,8 @@ import {
 } from '@/src/utils/constants';
 import { friendlyRecorderError, type RecorderErrorCode } from '@/src/utils/errors';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
-import { burnInSubtitlesToMp4, transcodeWebmToMp4 } from '@/src/ffmpeg';
+import { transcodeWebmToMp4 } from '@/src/ffmpeg';
+import { relaySaveLastBaseMp4 } from '@/src/storage/last-base-mp4-relay';
 import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
 import { resolveAppearanceTheme, userBackgroundLayoutFromAppearance } from '@/src/theme';
@@ -16,7 +17,7 @@ import {
 } from '@/src/settings/user-preferences';
 import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
 import { forkTranscribeWebm } from '@/src/transcription/transcribe-client';
-import type { SubtitleStyleConfig } from '@/src/transcription/types';
+
 import { relaySaveSessionTranscript } from '@/src/storage/session-transcript-relay';
 import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
@@ -378,28 +379,23 @@ export class VoiceRecorderSession {
         const prefs = await loadUserPreferences();
         const subtitlesEnabled = prefs.transcriptConfig.transcriptionEnabled;
 
-        // CHANGED: parallel transcription fork; await when burn-in needed (eloquent-3).
-        // WHY: STT must not block base export when subtitles off; burn-in needs segment JSON.
+        // CHANGED: parallel transcription only — burn-in deferred to Design Studio (eloquent-4).
+        // WHY: users review and edit segment JSON before confirming subtitle bake.
         const webmClone = this.webmBlob.slice(0, this.webmBlob.size, this.webmBlob.type);
-        const transcribePromise = this.forkTranscribe(webmClone, stopEpoch, subtitlesEnabled);
+        void this.forkTranscribe(webmClone, stopEpoch, subtitlesEnabled);
 
         const transcodeOutcome = await this.transcodeToMp4(stopEpoch);
         if (this.isSuperseded(stopEpoch) || this.phase === 'error') return;
 
-        let subtitleBurnInFallback = false;
-        if (subtitlesEnabled) {
-          subtitleBurnInFallback = await this.burnInSubtitlesIfReady(
-            stopEpoch,
-            transcribePromise,
-            prefs.transcriptConfig.style,
-          );
+        if (this.mp4Blob) {
+          void relaySaveLastBaseMp4(this.mp4Blob, this.elapsedSeconds);
         }
 
         this.setPhase('stopped', {
           processingProgress: 100,
           stoppedAtCap: this.stoppedAtCap,
           voiceEffectFallback: transcodeOutcome.voiceEffectFallback === true,
-          subtitleBurnInFallback,
+          subtitleBurnInFallback: false,
         });
         this.processingAbort = null;
       } catch (error) {
@@ -469,47 +465,13 @@ export class VoiceRecorderSession {
       });
   }
 
-  private async burnInSubtitlesIfReady(
-    stopEpoch: number,
-    transcribePromise: Promise<Awaited<ReturnType<typeof forkTranscribeWebm>>>,
-    style: SubtitleStyleConfig,
-  ): Promise<boolean> {
-    const outcome = await transcribePromise;
-    if (this.isSuperseded(stopEpoch) || !this.mp4Blob) return false;
-
-    const segments = outcome?.result?.segments?.filter((segment) => segment.text.trim()) ?? [];
-    if (!outcome?.applied || segments.length === 0) {
-      console.warn(`${EXTENSION_LOG_PREFIX} Subtitle burn-in skipped — no transcript segments.`);
-      return true;
-    }
-
-    const signal = this.processingAbort?.signal;
-    let lastProgress = 82;
-
-    try {
-      const burned = await burnInSubtitlesToMp4(this.mp4Blob, {
-        segments,
-        style,
-        videoDurationSeconds: this.elapsedSeconds,
-        signal,
-        onProgress: (ratio) => {
-          if (this.isSuperseded(stopEpoch)) return;
-          const pct = 82 + Math.round(ratio * 18);
-          lastProgress = Math.max(lastProgress, pct);
-          this.setPhase('processing', { processingProgress: Math.min(100, lastProgress) });
-        },
-      });
-
-      if (this.isSuperseded(stopEpoch)) return false;
-      this.mp4Blob = burned;
-      return false;
-    } catch (error) {
-      if (this.isSuperseded(stopEpoch)) return false;
-      if (error instanceof DOMException && error.name === 'AbortError') throw error;
-      const detail = error instanceof Error ? error.message : String(error);
-      console.warn(`${EXTENSION_LOG_PREFIX} Subtitle burn-in failed — delivering base MP4`, detail);
-      return true;
-    }
+  /** Apply MP4 with burned subtitles after Design Studio bake (eloquent-4). */
+  applyBakedMp4(blob: Blob): void {
+    if (this.disposed || this.phase !== 'stopped') return;
+    this.mp4Blob = blob;
+    this.setPhase('stopped', {
+      subtitleBurnInFallback: false,
+    });
   }
 
   private async transcodeToMp4(stopEpoch: number): Promise<{ voiceEffectFallback?: boolean }> {

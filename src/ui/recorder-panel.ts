@@ -18,6 +18,8 @@ import {
 import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
 import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
+import { fetchBakedMp4FromExtension } from '@/src/storage/baked-mp4-fetch';
+import { BAKED_MP4_READY_KEY } from '@/src/settings/user-preferences';
 import { showToast } from './toast';
 
 const PANEL_HOST_ATTR = 'data-rvn-recorder-host';
@@ -59,6 +61,7 @@ export class RecorderPanel {
   private lastNotifiedPhase: RecorderState['phase'] | null = null;
   private lastNotifiedError = '';
   private attaching = false;
+  private bakedMp4Listener: ((changes: Record<string, unknown>, area: string) => void) | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -351,19 +354,38 @@ export class RecorderPanel {
       this.applyThemeChrome(prefs.appearance);
     });
 
+    this.bakedMp4Listener = (changes, area) => {
+      if (area !== 'local' || !(BAKED_MP4_READY_KEY in changes)) return;
+      void this.tryApplyBakedMp4();
+    };
+    browser.storage.onChanged.addListener(this.bakedMp4Listener);
+
     try {
       const prefs = await loadUserPreferences();
       this.syncClipStyleSelect(prefs);
       this.applyThemeChrome(prefs.appearance);
       await this.session.prepare();
       this.panelEl.focus();
+      void this.tryApplyBakedMp4();
     } catch {
       // Error state rendered via subscription.
       this.panelEl.focus();
     }
   }
 
+  private async tryApplyBakedMp4(): Promise<void> {
+    if (!this.session || this.currentState.phase !== 'stopped') return;
+    const blob = await fetchBakedMp4FromExtension();
+    if (!blob) return;
+    this.session.applyBakedMp4(blob);
+    showToast('Captioned MP4 ready — attach or download.', 'info', 5000);
+  }
+
   close(): void {
+    if (this.bakedMp4Listener) {
+      browser.storage.onChanged.removeListener(this.bakedMp4Listener);
+      this.bakedMp4Listener = null;
+    }
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = null;
     this.unsubscribe?.();
@@ -559,10 +581,8 @@ export class RecorderPanel {
           this.statusEl.textContent = `Loading FFmpeg WASM… ${state.processingProgress}%`;
         } else if (state.processingProgress <= 55) {
           this.statusEl.textContent = `Converting to MP4… ${state.processingProgress}%`;
-        } else if (state.processingProgress <= 80) {
-          this.statusEl.textContent = `Transcribing audio… ${state.processingProgress}%`;
         } else {
-          this.statusEl.textContent = `Burning subtitles… ${state.processingProgress}%`;
+          this.statusEl.textContent = `Transcribing audio… ${state.processingProgress}%`;
         }
         this.primaryBtn.textContent = 'Processing…';
         this.primaryBtn.disabled = true;
@@ -572,7 +592,8 @@ export class RecorderPanel {
         if (state.stoppedAtCap) {
           this.statusEl.textContent = `${formatRecordingCapProse()} limit reached — your MP4 is ready.`;
         } else {
-          this.statusEl.textContent = 'MP4 ready for Reddit video comments.';
+          this.statusEl.textContent =
+            'MP4 ready — edit transcript in Design Studio, bake subtitles, then attach.';
         }
         this.statusEl.classList.add('status--success');
         this.primaryBtn.textContent = 'Download MP4';
