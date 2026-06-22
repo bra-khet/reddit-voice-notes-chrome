@@ -1,8 +1,8 @@
 # `eloquent` branch — automated subtitles & transcription (Vosk WASM)
 
-**Status:** eloquent-0 complete on **`eloquent`** branch (2026-06). Baseline: **`main` v3.1.0**.  
-**Target release:** v4.0.0 on `main` after merge from `eloquent`.  
-**Baseline:** `main` v3.1.0 (Design Studio collapsible UX, voice effects, hardened transcode pipeline).
+**Status:** eloquent-0…4a + burn-in hardening complete on **`eloquent`** (2026-06-22). **Stable tag:** `v3.6.0`. Baseline: **`main` v3.1.0`.  
+**Target release:** v4.0.0 on `main` after eloquent-5 merge.  
+**Handoff:** `docs/eloquent-4-handoff.md` · **Restore:** `git checkout v3.6.0 && npm install && npm run dev`
 
 **Related docs:** `.ignore/transcript-design-notes.txt`, `docs/engineering-principles.md`, `dulcet-branch.md`, `claude-progress.md`
 
@@ -215,7 +215,7 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 | **eloquent-1** | Parallel wire | `stopRecording()` clones WebM; fire `TRANSCODE_*` + `TRANSCRIBE_*` in parallel; log/store result; no Studio UI yet | **Done** |
 | **eloquent-2** | Studio editor | Subtitles panel in Design Studio; editable transcript; style + backdrop preview on master canvas; collapsed summary chips | **Done** |
 | **eloquent-3** | Burn-in export | `.srt` generation; second FFmpeg pass `base.mp4` → `final.mp4`; full E2E when subtitles enabled | **Done** |
-| **eloquent-4** | Profiles & polish | Per-segment subtitle editor (YouTube-style text + timing nudge); segment-aware canvas preview; `transcriptConfig` profile UX; Update/Clone/Save; opt-in toggle copy; progress indicators | Pending |
+| **eloquent-4** | Profiles & polish | Per-segment subtitle editor (YouTube-style text + timing nudge); segment-aware canvas preview; `transcriptConfig` profile UX; Update/Clone/Save; opt-in toggle copy; progress indicators | **4a done** (`v3.3.0`); **4b partial** (`v3.5.0`–`v3.6.0` editor/relay/burn-in hardening) — canvas preview + fonts + profile subtitle UX remain |
 | **eloquent-5** | Harden & release | Memory/perf budget, error surfaces, Reddit upload QA, docs, prod zip, merge `eloquent` → `main`, tag **v4.0.0** | Pending |
 
 ### eloquent-0 — audit checklist

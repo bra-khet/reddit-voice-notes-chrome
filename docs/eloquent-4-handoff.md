@@ -9,7 +9,8 @@
 | `eloquent-4a-subtitle-mgmt` | `6c43775` | Edit-before-bake Studio UI (initial) |
 | `v3.3.0` | `73e78f6` | **Release:** eloquent-4a verified — edit → bake → attach with edited SRT |
 | `v3.3.1` | `ea636d3` | BUG-027 false **Update profile** highlight on Studio open |
-| `v3.5.0` | *(this release)* | eloquent-4b subtitle editor polish + recorder Design Studio CTA |
+| `v3.5.0` | `9df9e7a` | eloquent-4b subtitle editor polish + recorder Design Studio CTA |
+| `v3.6.0` | `494c16a` | **Stable:** full edit→bake→attach loop + burn-in hardening (BUG-028…032) + pending transcript UX — user-verified multi-run |
 
 **Prior profile baseline:** `eloquent-profile-nominal` (`8834d4e`) — still valid for prefs/profile race rules.
 
@@ -20,6 +21,8 @@
 eloquent-4 **phase A** shifts subtitle workflow from “auto-burn on record stop” to **review → edit → confirm → bake** in Design Studio. The Vosk `TranscriptResult.segments` JSON is the source of truth; users edit cues in a YouTube-style UI before a second FFmpeg pass burns hard subs.
 
 **User-verified (2026-06-22):** Studio transcript preview, segment editor, Confirm & save, and bake complete with message *“Subtitles baked. Switch to your Reddit tab…”*. Full happy path verified: recorder reaches **stopped**, attach on Reddit works, and **edited SRT burns correctly**. Tagged **`v3.3.0`**. BUG-027 false **Update profile** highlight fixed in **`v3.3.1`**.
+
+**User-verified (2026-06-22, `v3.6.0`):** Repeat recordings with and without transcript edits; **Pending → Ready** badges; apostrophe-heavy cues bake via `textfile=` (BUG-031); no transcribe relay warnings after SW/HMR reload (BUG-032). Tagged **`v3.6.0`** — restore point before eloquent-4b remainder / eloquent-5.
 
 ---
 
@@ -104,6 +107,10 @@ Transcode/transcribe progress and failures reach the Reddit content script via `
 | OOB badge (`⚠ OOB`) when cue end past clip | ✅ (recorder timer; hidden when in-bounds) |
 | Add cue in segment editor | ✅ user-verified |
 | Recorder **Open Design Studio** CTA (subtitles on) | ✅ `v3.5.0` — `tabs.create` relay, no new permissions |
+| Repeat bake with/without edits (multi-run) | ✅ `v3.6.0` — user-verified |
+| Pending → Ready transcript badge on new recording | ✅ `v3.6.0` (BUG-031) |
+| Apostrophe/comma-heavy cues burn correctly | ✅ `v3.6.0` (BUG-031 textfile) |
+| No transcribe relay warning after dev reload | ✅ `v3.6.0` (BUG-032) |
 
 ---
 
@@ -117,8 +124,11 @@ Transcode/transcribe progress and failures reach the Reddit content script via `
 | **eloquent-4a** | Profile Update lit on transcript edit | `buildProfileStyleConfig()` — no `result` in profile match |
 | **BUG-026** | Recorder stuck processing ~80% | Stopped before base-MP4 relay; transcribe off progress bar |
 | **BUG-027** | **Update profile** highlighted on open, click no-op | Sync subtitle draft before profile dirty check (`v3.3.1`) |
+| **BUG-028…030** | Burn-in regressions (colors, backdrop, silent SRT fallback, stale offscreen) | drawtext-only path; valid colors; offscreen recycle + code stamp |
+| **BUG-031** | Apostrophes/commas break drawtext filter chain | Per-cue `textfile=` in WASM FS; unsaved bake guard; Pending/Ready badges |
+| **BUG-032** | `No tab registered for transcribe relay` | `relay-registry.ts` session persistence; no map delete before `relay*Failure` |
 
-See `docs/bug-archive.md` for full BUG-025/026/027 write-ups.
+See `docs/bug-archive.md` for full write-ups.
 
 ---
 

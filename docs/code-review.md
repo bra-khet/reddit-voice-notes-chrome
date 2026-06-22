@@ -16,7 +16,8 @@ Before editing any pipeline, storage, profile, or worker code:
 
 | Use case                        | Tag                        | Branch | Notes |
 |---------------------------------|----------------------------|--------|-------|
-| General stable baseline         | `v3.1.0`                   | main   | Latest release (Design Studio + voice + parallel transcription wire). Full `npm run build && npm run zip` verified. |
+| General stable baseline         | `v3.1.0`                   | main   | Latest **main** release (Design Studio + voice). No subtitles. |
+| Subtitle edit→bake→attach on eloquent | `v3.6.0`               | eloquent | **Current eloquent stable.** Full pipeline + BUG-028…032 hardening. See `docs/eloquent-4-handoff.md`. |
 | Profile / subtitle / prefs work on eloquent | `eloquent-profile-nominal` | eloquent | User-verified: profiles, HSV, backgrounds, Save/Update/Clone, voice, subtitles toggle. See `docs/eloquent-profile-handoff.md`. |
 | Earlier solid releases          | `v3.0.0`, `v2.0.0`         | main   | Full prior milestones. |
 | Transcription spike             | `eloquent-0-vosk-spike`    | eloquent | Vosk sandbox verified in isolation. |

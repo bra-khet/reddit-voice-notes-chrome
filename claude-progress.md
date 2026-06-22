@@ -413,23 +413,30 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 False **Update profile** highlight on Design Studio open — subtitle draft synced after profile dirty check; see `docs/bug-archive.md` BUG-027.
 
-### v3.5.2 — BUG-032 transcribe relay registry (2026-06-22) — handoff hardening
+### v3.6.0 stable — eloquent subtitle pipeline hardened (2026-06-22)
 
-- **Symptom:** `No tab registered for transcribe relay` after SW/HMR reload or dispatch failure.
-- **Fix:** `relay-registry.ts` (session `jobId→tabId`); no map delete before `relay*Failure`; offscreen-only relay filter for transcode/transcribe.
-- **Docs:** `docs/bug-archive.md` BUG-032, `docs/eloquent-4-handoff.md`, `docs/code-review.md` checklist.
+**Tag:** `v3.6.0` · **Branch:** `eloquent` · **Handoff:** `docs/eloquent-4-handoff.md`  
+**Release zip:** `.output/reddit-voice-notes-3.6.0-chrome.zip`
 
-### v3.5.1 — BUG-031 drawtext textfile + transcript delivery UX (2026-06-22)
+**Why this is stable:** User-verified multi-run edit→bake→attach (with and without cue edits). Burn-in loop BUG-028…032 closed: valid drawtext colors, backdrop plate compositing, no silent SRT fallback, offscreen recycle + code stamp on HMR, per-cue `textfile=` for punctuation, session-persisted transcribe relay registry. Pending → Ready transcript badges give honest delivery UX while Vosk runs in parallel.
 
-- **Burn-in:** cue text via `textfile=` per segment (fixes apostrophe/comma filter parse failures).
-- **Studio:** unsaved-transcript bake prompt; `Pending` / `Ready` / `Timed out` transcript badges (120s, matches `TRANSCRIBE_TIMEOUT_MS`).
-- **Stamp:** `BURNIN_PIPELINE_STAMP` → `drawtext-only-v3`.
+| Sprint | Scope |
+|--------|-------|
+| v3.5.0 | Segment editor polish, cue preview, OOB badge, recorder Design Studio CTA |
+| v3.5.1 (BUG-031) | `textfile=` burn-in; unsaved bake guard; Pending/Ready/Timed out badges |
+| v3.5.2 (BUG-032) | `relay-registry.ts`; never delete relay maps before `relay*Failure` |
+| BUG-028…030 | drawtext color fixes, backdrop layer order, offscreen stale-worker hardening |
 
-**QA:** Record speech with apostrophes → bake with midnight bokeh preset → captions visible; new recording shows Pending until IDB transcript lands.
+**QA verified (user, 2026-06-22):** Repeat recordings seamless; edits optional; pending badges accurate; no transcribe relay console warnings after reload.
 
-### Next: eloquent-4b
+**Restore:**
+```bash
+git checkout v3.6.0 && npm install && npm run dev
+```
 
-Segment-aware canvas preview, fonts, optional chunked base-MP4 relay.
+### Next: eloquent-4b remainder + eloquent-5
+
+Segment-aware canvas preview, font picker, optional chunked base-MP4 relay, profile subtitle UX polish, then eloquent-5 harden → merge `main` → **v4.0.0**.
 
 ## HANDOFF — eloquent profile nominal (2026-06-21)
 
