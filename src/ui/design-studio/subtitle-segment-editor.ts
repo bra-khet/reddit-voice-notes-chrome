@@ -1,5 +1,6 @@
 import { createSegmentCuePlayer } from '@/src/transcription/segment-cue-player';
 import {
+  buildDefaultNewSegment,
   formatCueRange,
   isTranscriptDirty,
   cloneTranscriptResult,
@@ -103,6 +104,14 @@ export function renderSubtitleSegmentEditorFields(): string {
             Adjust each cue’s text and timing. Confirm &amp; save in the main panel when you are done.
           </p>
           <div class="studio__transcript-segments" data-transcript-segments></div>
+          <button
+            type="button"
+            class="studio__transcript-add-segment"
+            data-transcript-add-segment
+            aria-label="Add cue"
+          >
+            + Add cue
+          </button>
           <div class="studio__transcript-dialog-actions">
             <button type="button" class="popup__profile-btn popup__profile-btn--save" data-transcript-modal-save>
               Apply to preview
@@ -133,6 +142,7 @@ export function mountSubtitleSegmentEditor(
   const modalSaveBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-modal-save]')!;
   const modalCancelBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-modal-cancel]')!;
   const modalCloseBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-close]')!;
+  const addSegmentBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-add-segment]')!;
 
   let voskOriginal: TranscriptResult | null = null;
   let savedBaseline: TranscriptResult | null = null;
@@ -178,7 +188,7 @@ export function mountSubtitleSegmentEditor(
     const segments = edited?.segments ?? [];
     const clipDuration = clipDurationForOob();
 
-    if (!edited || segments.length === 0) {
+    if (!edited) {
       previewEl.innerHTML =
         '<p class="studio__transcript-empty">No transcript yet — record on Reddit first.</p>';
       editOpenBtn.disabled = true;
@@ -186,6 +196,12 @@ export function mountSubtitleSegmentEditor(
     }
 
     editOpenBtn.disabled = false;
+
+    if (segments.length === 0) {
+      previewEl.innerHTML =
+        '<p class="studio__transcript-empty">No cues yet — open the editor to add one.</p>';
+      return;
+    }
     const lines = segments
       .map((segment) => {
         const time = formatCueRange(segment.start, segment.end);
@@ -368,6 +384,22 @@ export function mountSubtitleSegmentEditor(
     }
   }
 
+  function syncModalDraftFromDom(): void {
+    modalDraft = readModalDraft();
+  }
+
+  function addSegment(): void {
+    syncModalDraftFromDom();
+    const clipDuration =
+      clipDurationForOob() ?? clipDurationForPlayback() ?? lastRecording?.meta.durationSeconds ?? null;
+    modalDraft.push(buildDefaultNewSegment(modalDraft, clipDuration));
+    renderModalSegments();
+    const textAreas = segmentsEl.querySelectorAll<HTMLTextAreaElement>('[data-segment-text]');
+    const lastText = textAreas[textAreas.length - 1];
+    lastText?.focus();
+    segmentsEl.scrollTop = segmentsEl.scrollHeight;
+  }
+
   function openModal(): void {
     if (!edited) return;
     modalDraft = edited.segments.map((segment) => ({ ...segment }));
@@ -442,6 +474,7 @@ export function mountSubtitleSegmentEditor(
   });
 
   editOpenBtn.addEventListener('click', openModal);
+  addSegmentBtn.addEventListener('click', addSegment);
   modalCloseBtn.addEventListener('click', closeModal);
   modalCancelBtn.addEventListener('click', closeModal);
   modalSaveBtn.addEventListener('click', applyModalDraft);
