@@ -645,8 +645,23 @@ body {
 }
 
 .studio__transcript-cue-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   color: #818384;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.studio__transcript-oob-badge {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 193, 7, 0.16);
+  color: #ffca28;
   white-space: nowrap;
 }
 
@@ -736,6 +751,52 @@ body {
   border-radius: 8px;
   border: 1px solid #343536;
   background: #1a1a1b;
+}
+
+.studio__transcript-segment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.studio__transcript-segment-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #d7dadc;
+}
+
+.studio__transcript-segment-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio__transcript-cue-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid #4a4a4c;
+  background: #272729;
+  color: #d7dadc;
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__transcript-cue-play:hover:not(:disabled) {
+  background: #343536;
+  border-color: #5a5a5c;
+}
+
+.studio__transcript-cue-play:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .studio__transcript-segment-times {

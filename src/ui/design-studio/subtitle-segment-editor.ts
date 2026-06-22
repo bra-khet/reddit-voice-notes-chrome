@@ -1,10 +1,19 @@
+import { createSegmentCuePlayer } from '@/src/transcription/segment-cue-player';
 import {
-  cloneTranscriptResult,
   formatCueRange,
   isTranscriptDirty,
+  cloneTranscriptResult,
   normalizeEditedTranscriptResult,
 } from '@/src/transcription/transcript-editing';
+import {
+  isSegmentEndOutOfBounds,
+  normalizeSegmentSeconds,
+  resolveClipDurationSeconds,
+  segmentHasOutOfBoundsEnd,
+} from '@/src/transcription/segment-timing';
 import type { TranscriptResult, TranscriptSegment } from '@/src/transcription/types';
+import { LAST_RECORDING_READY_KEY } from '@/src/settings/user-preferences';
+import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
 
 export interface SegmentEditorState {
   /** Immutable Vosk output — discard restores this. */
@@ -34,6 +43,9 @@ export interface SegmentEditorHandlers {
   onSaveEdits?: (edited: TranscriptResult) => void | Promise<void>;
   onDiscardEdits?: () => void | Promise<void>;
 }
+
+const RECORDING_POLL_MS = 2000;
+const OOB_LABEL = '⚠️ Out-of-Bounds';
 
 function escapeHtml(text: string): string {
   return text
@@ -125,10 +137,22 @@ export function mountSubtitleSegmentEditor(
   let savedBaseline: TranscriptResult | null = null;
   let edited: TranscriptResult | null = null;
   let modalDraft: TranscriptSegment[] = [];
+  let lastRecording: LastRecordingSnapshot | null = null;
+  let loadedSavedAt = 0;
+  let playingSegmentIndex: number | null = null;
+
+  const cuePlayer = createSegmentCuePlayer();
 
   function computeDirty(): boolean {
     if (!edited || !savedBaseline) return false;
     return isTranscriptDirty(savedBaseline, edited);
+  }
+
+  function clipDurationSeconds(): number | null {
+    return resolveClipDurationSeconds(
+      lastRecording?.meta.durationSeconds,
+      cuePlayer.getDecodedDuration(),
+    );
   }
 
   function notify(): void {
@@ -144,6 +168,8 @@ export function mountSubtitleSegmentEditor(
 
   function renderPreview(): void {
     const segments = edited?.segments ?? [];
+    const clipDuration = clipDurationSeconds();
+
     if (!edited || segments.length === 0) {
       previewEl.innerHTML =
         '<p class="studio__transcript-empty">No transcript yet — record on Reddit first.</p>';
@@ -156,9 +182,13 @@ export function mountSubtitleSegmentEditor(
       .map((segment) => {
         const time = formatCueRange(segment.start, segment.end);
         const text = escapeHtml(segment.text.trim() || '(empty)');
+        const oob =
+          clipDuration !== null && segmentHasOutOfBoundsEnd(segment, clipDuration)
+            ? `<span class="studio__transcript-oob-badge">${OOB_LABEL}</span>`
+            : '';
         return `
           <div class="studio__transcript-cue">
-            <span class="studio__transcript-cue-time">${time}</span>
+            <span class="studio__transcript-cue-time">${time}${oob}</span>
             <span class="studio__transcript-cue-text">${text}</span>
           </div>
         `;
@@ -177,14 +207,71 @@ export function mountSubtitleSegmentEditor(
     discardBtn.hidden = !dirty;
   }
 
+  function readRowTiming(row: HTMLElement): { start: number; end: number } {
+    const startInput = row.querySelector<HTMLInputElement>('[data-segment-start]');
+    const endInput = row.querySelector<HTMLInputElement>('[data-segment-end]');
+    return {
+      start: normalizeSegmentSeconds(Number(startInput?.value ?? 0)),
+      end: normalizeSegmentSeconds(Number(endInput?.value ?? 0)),
+    };
+  }
+
+  function syncRowOobBadge(row: HTMLElement): void {
+    const badge = row.querySelector<HTMLElement>('[data-segment-oob]');
+    if (!badge) return;
+
+    const clipDuration = clipDurationSeconds();
+    const { end } = readRowTiming(row);
+    const show = clipDuration !== null && isSegmentEndOutOfBounds(end, clipDuration);
+    badge.hidden = !show;
+  }
+
+  function syncPlayButtonState(row: HTMLElement, index: number): void {
+    const playBtn = row.querySelector<HTMLButtonElement>('[data-segment-play]');
+    if (!playBtn) return;
+
+    const hasSource = cuePlayer.hasSource();
+    const { start, end } = readRowTiming(row);
+    const clipDuration = clipDurationSeconds();
+    const startPastClip =
+      clipDuration !== null && start >= clipDuration - 0.05;
+    const invalidRange = end <= start;
+
+    playBtn.disabled = !hasSource || startPastClip || invalidRange;
+    playBtn.setAttribute('aria-pressed', playingSegmentIndex === index ? 'true' : 'false');
+    playBtn.textContent = playingSegmentIndex === index ? '■' : '▶';
+  }
+
+  function syncSegmentRowUi(row: HTMLElement, index: number): void {
+    syncRowOobBadge(row);
+    syncPlayButtonState(row, index);
+  }
+
   function renderModalSegments(): void {
     segmentsEl.innerHTML = '';
+    const clipDuration = clipDurationSeconds();
+
     for (let index = 0; index < modalDraft.length; index += 1) {
       const segment = modalDraft[index];
+      const showOob =
+        clipDuration !== null && segmentHasOutOfBoundsEnd(segment, clipDuration);
       const row = document.createElement('div');
       row.className = 'studio__transcript-segment';
       row.dataset.segmentIndex = String(index);
       row.innerHTML = `
+        <div class="studio__transcript-segment-head">
+          <span class="studio__transcript-segment-label">Cue ${index + 1}</span>
+          <span class="studio__transcript-segment-head-actions">
+            <button
+              type="button"
+              class="studio__transcript-cue-play"
+              data-segment-play
+              aria-label="Play cue audio"
+              ${cuePlayer.hasSource() ? '' : 'disabled'}
+            >▶</button>
+            <span class="studio__transcript-oob-badge" data-segment-oob ${showOob ? '' : 'hidden'}>${OOB_LABEL}</span>
+          </span>
+        </div>
         <div class="studio__transcript-segment-times">
           <label class="studio__transcript-time-field">
             <span>Start (s)</span>
@@ -196,14 +283,23 @@ export function mountSubtitleSegmentEditor(
           </label>
         </div>
         <label class="studio__transcript-segment-text-field">
-          <span>Cue ${index + 1}</span>
+          <span>Text</span>
           <textarea rows="2" data-segment-text></textarea>
         </label>
       `;
       const textArea = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
       if (textArea) textArea.value = segment.text;
+      syncSegmentRowUi(row, index);
       segmentsEl.append(row);
     }
+  }
+
+  function refreshModalSegmentUi(): void {
+    const rows = segmentsEl.querySelectorAll<HTMLElement>('[data-segment-index]');
+    rows.forEach((row) => {
+      const index = Number(row.dataset.segmentIndex);
+      syncSegmentRowUi(row, Number.isFinite(index) ? index : -1);
+    });
   }
 
   function readModalDraft(): TranscriptSegment[] {
@@ -216,11 +312,9 @@ export function mountSubtitleSegmentEditor(
       const textInput = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
       if (!startInput || !endInput || !textInput) return;
 
-      const start = Number(startInput.value);
-      const end = Number(endInput.value);
       next.push({
-        start: Number.isFinite(start) ? start : 0,
-        end: Number.isFinite(end) ? end : 0,
+        start: normalizeSegmentSeconds(Number(startInput.value)),
+        end: normalizeSegmentSeconds(Number(endInput.value)),
         text: textInput.value,
       });
     });
@@ -228,14 +322,50 @@ export function mountSubtitleSegmentEditor(
     return next;
   }
 
+  async function loadRecordingSource(): Promise<void> {
+    const snapshot = await loadLastRecording();
+    const savedAt = snapshot?.meta.savedAt ?? 0;
+    if (snapshot && savedAt <= loadedSavedAt && lastRecording) {
+      return;
+    }
+
+    if (cuePlayer.isPlaying()) {
+      cuePlayer.stop();
+      playingSegmentIndex = null;
+      refreshModalSegmentUi();
+    }
+
+    lastRecording = snapshot;
+    loadedSavedAt = savedAt;
+
+    if (lastRecording) {
+      try {
+        await cuePlayer.setSource(lastRecording.blob);
+      } catch (error) {
+        console.warn('[Reddit Voice Notes] Could not load recording for cue preview', error);
+      }
+    } else {
+      loadedSavedAt = 0;
+      await cuePlayer.setSource(null);
+    }
+
+    renderPreview();
+    if (!modalEl.hidden) {
+      refreshModalSegmentUi();
+    }
+  }
+
   function openModal(): void {
     if (!edited) return;
     modalDraft = edited.segments.map((segment) => ({ ...segment }));
     renderModalSegments();
     modalEl.hidden = false;
+    void loadRecordingSource();
   }
 
   function closeModal(): void {
+    cuePlayer.stop();
+    playingSegmentIndex = null;
     modalEl.hidden = true;
     modalDraft = [];
   }
@@ -249,6 +379,54 @@ export function mountSubtitleSegmentEditor(
     notify();
     closeModal();
   }
+
+  async function playSegmentAtIndex(index: number, row: HTMLElement): Promise<void> {
+    if (cuePlayer.isPlaying() && playingSegmentIndex === index) {
+      cuePlayer.stop();
+      playingSegmentIndex = null;
+      refreshModalSegmentUi();
+      return;
+    }
+
+    if (!cuePlayer.hasSource()) return;
+
+    const { start, end } = readRowTiming(row);
+    const clipDuration = clipDurationSeconds();
+
+    cuePlayer.stop();
+    playingSegmentIndex = index;
+    refreshModalSegmentUi();
+
+    try {
+      await cuePlayer.playSegment(start, end, clipDuration);
+    } catch (error) {
+      console.warn('[Reddit Voice Notes] Cue preview failed', error);
+    } finally {
+      if (!cuePlayer.isPlaying()) {
+        playingSegmentIndex = null;
+        refreshModalSegmentUi();
+      }
+    }
+  }
+
+  segmentsEl.addEventListener('input', (event) => {
+    const target = event.target as HTMLElement;
+    if (!target.matches('[data-segment-start], [data-segment-end]')) return;
+    const row = target.closest<HTMLElement>('[data-segment-index]');
+    if (!row) return;
+    const index = Number(row.dataset.segmentIndex);
+    syncSegmentRowUi(row, Number.isFinite(index) ? index : -1);
+  });
+
+  segmentsEl.addEventListener('click', (event) => {
+    const playBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-play]');
+    if (!playBtn || playBtn.disabled) return;
+    const row = playBtn.closest<HTMLElement>('[data-segment-index]');
+    if (!row) return;
+    const index = Number(row.dataset.segmentIndex);
+    if (!Number.isFinite(index)) return;
+    void playSegmentAtIndex(index, row);
+  });
 
   editOpenBtn.addEventListener('click', openModal);
   modalCloseBtn.addEventListener('click', closeModal);
@@ -296,9 +474,41 @@ export function mountSubtitleSegmentEditor(
     notify();
   }
 
+  const onVisibility = (): void => {
+    if (document.visibilityState === 'visible') {
+      void loadRecordingSource();
+    }
+  };
+
+  document.addEventListener('visibilitychange', onVisibility);
+
+  const pollTimer = window.setInterval(() => {
+    void loadRecordingSource();
+  }, RECORDING_POLL_MS);
+
+  const onRecordingReady = (changes: Record<string, unknown>, area: string): void => {
+    if (area !== 'local' || !(LAST_RECORDING_READY_KEY in changes)) return;
+    void loadRecordingSource();
+  };
+  browser.storage.onChanged.addListener(onRecordingReady);
+
+  void loadRecordingSource();
+
+  const playPoll = window.setInterval(() => {
+    if (!cuePlayer.isPlaying() && playingSegmentIndex !== null) {
+      playingSegmentIndex = null;
+      if (!modalEl.hidden) refreshModalSegmentUi();
+    }
+  }, 200);
+
   return {
     dispose(): void {
       closeModal();
+      document.removeEventListener('visibilitychange', onVisibility);
+      browser.storage.onChanged.removeListener(onRecordingReady);
+      window.clearInterval(pollTimer);
+      window.clearInterval(playPoll);
+      cuePlayer.dispose();
     },
     getState(): SegmentEditorState {
       const dirty = computeDirty();
