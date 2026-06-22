@@ -9,6 +9,8 @@ const unmount = mountClipStudio(app);
 
 void loadUserPreferences().then(reconcileBackgroundPreferences);
 
-window.addEventListener('unload', () => {
+// CHANGED: pagehide (not unload) so subtitle flush in mount teardown can run before tab death.
+// WHY: unload is too late for async chrome.storage writes (BUG-017).
+window.addEventListener('pagehide', () => {
   unmount();
-});
+}, { once: true });

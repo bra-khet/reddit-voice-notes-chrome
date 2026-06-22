@@ -6,7 +6,7 @@ import type { TranscribeAudioOptions, TranscribeAudioResult } from './types';
 import { enqueueTranscribeJob } from './transcribe-queue';
 import { disposeVoskSandbox, transcribePcmInSandbox } from './vosk-sandbox-client';
 
-async function transcribeWebmBlobInner(
+async function transcribeWebmBlobCore(
   blob: Blob,
   options: TranscribeAudioOptions,
 ): Promise<TranscribeAudioResult> {
@@ -52,26 +52,36 @@ async function withTranscribeTimeout<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Core WebM → PCM → Vosk path (no queue).
+ * Offscreen calls this inside its own `enqueueTranscribeJob` — do not wrap again (BUG-018 deadlock).
+ */
+export async function runTranscribeWebmBlob(
+  blob: Blob,
+  options: TranscribeAudioOptions,
+): Promise<TranscribeAudioResult> {
+  const started = performance.now();
+
+  try {
+    return await withTranscribeTimeout(() => transcribeWebmBlobCore(blob, options));
+  } catch (error) {
+    console.warn(`${EXTENSION_LOG_PREFIX} Transcription failed:`, error);
+    return {
+      result: { text: '', segments: [], source: 'vosk', language: options.language },
+      applied: false,
+      fallback: true,
+      stage: error instanceof Error ? error.message : 'transcribe-failed',
+      elapsedMs: Math.round(performance.now() - started),
+    };
+  }
+}
+
+/**
  * Transcribe a captured WebM blob with Vosk (eloquent-0 isolated API).
  * Inference runs in a manifest sandbox page (CSP allows Emscripten eval).
+ * Harness / extension pages without an outer queue use this wrapper.
  */
 export async function transcribeWebmBlob(blob: Blob, options: TranscribeAudioOptions): Promise<TranscribeAudioResult> {
-  return enqueueTranscribeJob(async () => {
-    const started = performance.now();
-
-    try {
-      return await withTranscribeTimeout(() => transcribeWebmBlobInner(blob, options));
-    } catch (error) {
-      console.warn(`${EXTENSION_LOG_PREFIX} Transcription failed:`, error);
-      return {
-        result: { text: '', segments: [], source: 'vosk', language: options.language },
-        applied: false,
-        fallback: true,
-        stage: error instanceof Error ? error.message : 'transcribe-failed',
-        elapsedMs: Math.round(performance.now() - started),
-      };
-    }
-  });
+  return enqueueTranscribeJob(() => runTranscribeWebmBlob(blob, options));
 }
 
 /** Test helper — unload sandbox model between harness runs. */

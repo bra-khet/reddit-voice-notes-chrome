@@ -38,7 +38,7 @@ import {
   type TranscribeOffscreenRequest,
   type TranscribeProgressMessage,
 } from '@/src/messaging/types';
-import { transcribeWebmBlob } from '@/src/transcription/transcribe-audio';
+import { runTranscribeWebmBlob } from '@/src/transcription/transcribe-audio';
 import {
   assertTranscribeNotCancelled,
   clearTranscribeCancelled,
@@ -223,7 +223,9 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           base64Chars: transcribeRequest.webmBase64.length,
         });
 
-        const outcome = await transcribeWebmBlob(webmBlob, {
+        // BUG FIX: transcribe queue deadlock (BUG-018)
+        // Fix: offscreen already serializes via enqueueTranscribeJob — call runTranscribeWebmBlob (no inner queue).
+        const outcome = await runTranscribeWebmBlob(webmBlob, {
           modelUrl: resolveVoskModelUrl(),
           language: transcribeRequest.language,
           onProgress: (ratio, stage) => {

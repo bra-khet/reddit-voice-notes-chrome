@@ -300,7 +300,9 @@ export function mountSubtitleControls(
       }),
     };
     syncEnabledUi();
-    schedulePersist();
+    // CHANGED: persist subtitle on/off immediately (no debounce).
+    // WHY: window close can kill debounced chrome.storage writes before they land (BUG-017).
+    void persistNow();
     notifyDraftChange();
   });
 
@@ -392,9 +394,14 @@ export function mountSubtitleControls(
       void persistNow();
     },
     getDraftConfig(): TranscriptConfig {
+      const enabled = draftConfig.transcriptionEnabled;
       return normalizeTranscriptConfig({
         ...draftConfig,
-        style: mergeStyleFromControls(),
+        transcriptionEnabled: enabled,
+        style: normalizeSubtitleStyle({
+          ...mergeStyleFromControls(),
+          enabled,
+        }),
       });
     },
     getPreviewOptions(): SubtitlePreviewOptions | undefined {

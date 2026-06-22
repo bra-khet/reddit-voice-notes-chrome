@@ -853,6 +853,9 @@ export function mountClipStudio(root: HTMLElement): () => void {
   };
 
   const pageHideHandler = (): void => {
+    // CHANGED: flush global subtitle prefs before the studio tab is torn down.
+    // WHY: chrome.storage.local.set is async; unload alone is not reliable (BUG-017).
+    void subtitleControls.flushPersist();
     if (allowStudioExit || !entryAppearance || !activePrefs) return;
     if (!hasStudioUnsavedChanges(activePrefs)) return;
     void discardStudioUnsavedChanges(entryAppearance);

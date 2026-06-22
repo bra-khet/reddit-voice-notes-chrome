@@ -318,10 +318,9 @@ function transcriptConfigFromProfile(profile: ClipProfile): TranscriptConfig | n
   if (profile.transcriptConfig != null) {
     return normalizeTranscriptConfig(profile.transcriptConfig);
   }
-  if (isPresetProfileId(profile.id)) {
-    return null;
-  }
-  return normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
+  // BUG FIX: subtitle toggle reverts on studio exit (BUG-017)
+  // Fix: legacy profiles without a transcript snapshot keep live global transcript prefs.
+  return null;
 }
 
 async function persistUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
