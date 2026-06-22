@@ -836,6 +836,28 @@ After BUG-029 (separate backdrop drawtext layer), bake reports success but MP4 h
 
 ---
 
+## BUG-031 (2026-06): drawtext burn-in fails on apostrophes / commas in transcript
+
+### Symptom
+
+Bake fails with FFmpeg errors such as `No such filter: 'this is just my normal voice:enable=between(t'` or `text=what the hell\s going on for:enable=between(t` — transcript words appear inside the filter graph string.
+
+### Root cause
+
+`drawtext=text='…'` embeds cue text directly in the comma-separated `-vf` chain. Apostrophes break single-quote wrapping; commas and colons split filters/options. Unrelated to preset style — any cue with `'` or `,` can fail. Saving edits appeared to “fix” it only when wording changed.
+
+### Fix
+
+- Write each cue to a WASM virtual FS file (`burnin-cue-N.txt`) and reference `textfile=` in drawtext layers.
+- `buildBurnInStrategies` passes cue files via `extraFiles`.
+- Studio: unsaved-transcript bake guard (Save & bake / Edit / Cancel); pending transcript badge (`Pending` → `Ready` / `Timed out`).
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/ui/design-studio/subtitle-controls.ts`, `src/ui/design-studio/subtitle-segment-editor.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed.

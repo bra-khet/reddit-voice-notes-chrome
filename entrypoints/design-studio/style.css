@@ -611,9 +611,35 @@ body {
   color: #ffb74d;
 }
 
+.studio__transcript-badge--pending {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffca28;
+}
+
+.studio__transcript-badge--timeout {
+  background: rgba(244, 67, 54, 0.18);
+  color: #e57373;
+}
+
 .studio__transcript-badge--saved {
   background: rgba(76, 175, 80, 0.18);
   color: #81c784;
+}
+
+.studio__bake-unsaved {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  background: rgba(255, 152, 0, 0.08);
+}
+
+.studio__bake-unsaved[hidden] {
+  display: none;
+}
+
+.studio__bake-unsaved-copy {
+  margin: 0 0 8px;
 }
 
 .studio__transcript-hint {

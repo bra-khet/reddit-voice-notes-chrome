@@ -6,6 +6,7 @@ import {
   type SessionTranscriptSnapshot,
 } from '@/src/storage/session-transcript-db';
 import {
+  LAST_RECORDING_READY_KEY,
   loadUserPreferences,
   readSubtitlesEnabledLocal,
   SESSION_TRANSCRIPT_READY_KEY,
@@ -14,6 +15,7 @@ import {
   writeSubtitlesEnabledLocal,
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
+import { TRANSCRIBE_TIMEOUT_MS } from '@/src/transcription/constants';
 import {
   DEFAULT_TRANSCRIPT_CONFIG,
   normalizeSubtitleStyle,
@@ -209,6 +211,22 @@ export function renderSubtitleControlFields(): string {
           >
             Bake subtitles into MP4
           </button>
+          <div class="studio__bake-unsaved" data-bake-unsaved-dialog hidden>
+            <p class="popup__field-desc studio__bake-unsaved-copy">
+              You have unsaved transcript edits. Save before baking, or go back to the editor.
+            </p>
+            <div class="popup__profile-actions studio__inline-actions">
+              <button type="button" class="popup__profile-btn popup__profile-btn--save" data-bake-save-continue>
+                Save &amp; bake
+              </button>
+              <button type="button" class="popup__button popup__button--secondary" data-bake-edit-back>
+                Edit transcript
+              </button>
+              <button type="button" class="popup__button popup__button--secondary" data-bake-unsaved-cancel>
+                Cancel
+              </button>
+            </div>
+          </div>
           <p class="popup__field-desc studio__bake-status" data-subtitle-bake-status>
             Confirm your transcript edits, then bake. The Reddit recorder will pick up the captioned MP4.
           </p>
@@ -260,6 +278,10 @@ export function mountSubtitleControls(
   const resetBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-reset]')!;
   const bakeBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-bake]')!;
   const bakeStatusEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-status]')!;
+  const bakeUnsavedDialog = panel.querySelector<HTMLElement>('[data-bake-unsaved-dialog]')!;
+  const bakeSaveContinueBtn = panel.querySelector<HTMLButtonElement>('[data-bake-save-continue]')!;
+  const bakeEditBackBtn = panel.querySelector<HTMLButtonElement>('[data-bake-edit-back]')!;
+  const bakeUnsavedCancelBtn = panel.querySelector<HTMLButtonElement>('[data-bake-unsaved-cancel]')!;
 
   let draftConfig: TranscriptConfig = normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
   let lastSnapshot: SessionTranscriptSnapshot | null = null;
@@ -268,6 +290,8 @@ export function mountSubtitleControls(
   let saveTimer = 0;
   let baking = false;
   let bakeAbort: AbortController | null = null;
+  let pendingTranscriptTimer: number | null = null;
+  let pendingTranscriptSince = 0;
 
   const segmentEditor = mountSubtitleSegmentEditor(panel, {
     onStateChange: () => {
@@ -376,12 +400,105 @@ export function mountSubtitleControls(
     };
   }
 
+  function clearPendingTranscriptTimer(): void {
+    if (pendingTranscriptTimer !== null) {
+      window.clearTimeout(pendingTranscriptTimer);
+      pendingTranscriptTimer = null;
+    }
+  }
+
+  function hideBakeUnsavedDialog(): void {
+    bakeUnsavedDialog.hidden = true;
+  }
+
+  function showBakeUnsavedDialog(): void {
+    bakeUnsavedDialog.hidden = false;
+  }
+
+  async function refreshTranscriptDeliveryStatus(): Promise<void> {
+    if (!draftConfig.transcriptionEnabled) {
+      clearPendingTranscriptTimer();
+      segmentEditor.setTranscriptDeliveryStatus('idle');
+      return;
+    }
+
+    const stored = await browser.storage.local.get(LAST_RECORDING_READY_KEY);
+    const recordingReadyAt =
+      typeof stored[LAST_RECORDING_READY_KEY] === 'number' ? stored[LAST_RECORDING_READY_KEY] : 0;
+    const snapshotAt = lastSnapshot?.capturedAt ?? 0;
+
+    if (snapshotAt > 0 && recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
+      clearPendingTranscriptTimer();
+      segmentEditor.setTranscriptDeliveryStatus('ready');
+      return;
+    }
+
+    if (recordingReadyAt > snapshotAt && recordingReadyAt > 0) {
+      if (pendingTranscriptSince !== recordingReadyAt) {
+        pendingTranscriptSince = recordingReadyAt;
+        clearPendingTranscriptTimer();
+        pendingTranscriptTimer = window.setTimeout(() => {
+          void (async () => {
+            const storedAgain = await browser.storage.local.get(LAST_RECORDING_READY_KEY);
+            const recAt =
+              typeof storedAgain[LAST_RECORDING_READY_KEY] === 'number'
+                ? storedAgain[LAST_RECORDING_READY_KEY]
+                : 0;
+            const snapAt = lastSnapshot?.capturedAt ?? 0;
+            if (recAt > snapAt && recAt > 0) {
+              segmentEditor.setTranscriptDeliveryStatus('timeout');
+            }
+          })();
+        }, TRANSCRIBE_TIMEOUT_MS);
+      }
+      segmentEditor.setTranscriptDeliveryStatus('pending');
+      return;
+    }
+
+    clearPendingTranscriptTimer();
+    segmentEditor.setTranscriptDeliveryStatus(snapshotAt > 0 ? 'ready' : 'idle');
+  }
+
   function syncBakeButton(): void {
     const edited = segmentEditor.getEditedResult();
     const hasSegments = (edited?.segments?.length ?? 0) > 0;
-    const { dirty, confirmed } = segmentEditor.getState();
-    const canBake = hasSegments && confirmed && !dirty && !baking;
+    const canBake = hasSegments && !baking;
     bakeBtn.disabled = !canBake;
+  }
+
+  async function runSubtitleBake(): Promise<void> {
+    const edited = segmentEditor.getEditedResult();
+    if (!edited) {
+      bakeStatusEl.textContent = 'Transcript not ready for bake yet.';
+      return;
+    }
+
+    baking = true;
+    bakeAbort = new AbortController();
+    bakeBtn.disabled = true;
+    hideBakeUnsavedDialog();
+    bakeStatusEl.textContent = 'Preparing subtitle bake…';
+
+    try {
+      const config = buildDraftConfig();
+      await bakeSubtitlesInStudio({
+        editedResult: edited,
+        style: config.style,
+        signal: bakeAbort.signal,
+        onProgress: (progress) => {
+          bakeStatusEl.textContent = progress.message ?? 'Baking subtitles…';
+        },
+      });
+      bakeStatusEl.textContent =
+        'Subtitles baked. Switch to your Reddit tab and attach the MP4 from the recorder.';
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      bakeStatusEl.textContent = `Bake failed: ${message}`;
+    } finally {
+      baking = false;
+      bakeAbort = null;
+      syncBakeButton();
+    }
   }
 
   function dismissCurrentSessionTranscript(): void {
@@ -411,6 +528,7 @@ export function mountSubtitleControls(
     };
     syncBakeButton();
     updateSourceCopy();
+    void refreshTranscriptDeliveryStatus();
     notifyPreviewChange();
   }
 
@@ -520,6 +638,7 @@ export function mountSubtitleControls(
     lastSnapshot = await loadSessionTranscript();
     updateSourceCopy();
     mergeIdbTranscriptIfNewer();
+    await refreshTranscriptDeliveryStatus();
   }
 
   enabledInput.addEventListener('change', () => {
@@ -559,39 +678,51 @@ export function mountSubtitleControls(
     void (async () => {
       const edited = segmentEditor.getEditedResult();
       const { dirty, confirmed } = segmentEditor.getState();
-      if (!edited || baking || dirty || !confirmed) {
-        bakeStatusEl.textContent = dirty
-          ? 'Confirm & save your transcript edits before baking.'
-          : 'Transcript not ready for bake yet.';
+      if (!edited || baking) {
+        bakeStatusEl.textContent = 'Transcript not ready for bake yet.';
         return;
       }
+      if (dirty) {
+        showBakeUnsavedDialog();
+        bakeStatusEl.textContent = 'Save your transcript edits before baking, or choose an option below.';
+        return;
+      }
+      if (!confirmed) {
+        bakeStatusEl.textContent = 'Confirm & save your transcript edits before baking.';
+        return;
+      }
+      await runSubtitleBake();
+    })();
+  });
 
-      baking = true;
-      bakeAbort = new AbortController();
-      bakeBtn.disabled = true;
-      bakeStatusEl.textContent = 'Preparing subtitle bake…';
-
+  bakeSaveContinueBtn.addEventListener('click', () => {
+    void (async () => {
+      const edited = segmentEditor.getEditedResult();
+      if (!edited || baking) return;
       try {
-        const config = buildDraftConfig();
-        await bakeSubtitlesInStudio({
-          editedResult: edited,
-          style: config.style,
-          signal: bakeAbort.signal,
-          onProgress: (progress) => {
-            bakeStatusEl.textContent = progress.message ?? 'Baking subtitles…';
-          },
-        });
-        bakeStatusEl.textContent =
-          'Subtitles baked. Switch to your Reddit tab and attach the MP4 from the recorder.';
+        await saveSessionTranscriptEdits(edited, { confirmed: true });
+        segmentEditor.markConfirmedSaved();
+        lastSnapshot = await loadSessionTranscript();
+        syncDraftFromEditor();
+        syncBakeButton();
+        updateSourceCopy();
+        await runSubtitleBake();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        bakeStatusEl.textContent = `Bake failed: ${message}`;
-      } finally {
-        baking = false;
-        bakeAbort = null;
-        syncBakeButton();
+        bakeStatusEl.textContent = `Could not save transcript: ${message}`;
       }
     })();
+  });
+
+  bakeEditBackBtn.addEventListener('click', () => {
+    hideBakeUnsavedDialog();
+    bakeStatusEl.textContent = 'Review your transcript edits, then save and bake.';
+    panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')?.focus();
+  });
+
+  bakeUnsavedCancelBtn.addEventListener('click', () => {
+    hideBakeUnsavedDialog();
+    bakeStatusEl.textContent = 'Bake cancelled.';
   });
 
   positionSelect.addEventListener('change', () => {
@@ -681,8 +812,14 @@ export function mountSubtitleControls(
   }, TRANSCRIPT_POLL_MS);
 
   const onTranscriptReady = (changes: Record<string, unknown>, area: string): void => {
-    if (area !== 'local' || !(SESSION_TRANSCRIPT_READY_KEY in changes)) return;
-    void loadTranscriptSource();
+    if (area !== 'local') return;
+    if (SESSION_TRANSCRIPT_READY_KEY in changes) {
+      void loadTranscriptSource();
+      return;
+    }
+    if (LAST_RECORDING_READY_KEY in changes) {
+      void refreshTranscriptDeliveryStatus();
+    }
   };
   browser.storage.onChanged.addListener(onTranscriptReady);
 
@@ -734,6 +871,7 @@ export function mountSubtitleControls(
     },
     dispose(): void {
       bakeAbort?.abort();
+      clearPendingTranscriptTimer();
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onTranscriptReady);
       window.clearInterval(pollTimer);

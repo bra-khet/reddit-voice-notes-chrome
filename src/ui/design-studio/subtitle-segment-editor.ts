@@ -27,6 +27,8 @@ export interface SegmentEditorState {
   confirmed: boolean;
 }
 
+export type TranscriptDeliveryStatus = 'idle' | 'pending' | 'ready' | 'timeout';
+
 export interface SegmentEditorHandle {
   dispose(): void;
   getState(): SegmentEditorState;
@@ -38,6 +40,7 @@ export interface SegmentEditorHandle {
   getEditedResult(): TranscriptResult | null;
   /** After IDB persist — align baseline so dirty UI clears. */
   markConfirmedSaved(): void;
+  setTranscriptDeliveryStatus(status: TranscriptDeliveryStatus): void;
 }
 
 export interface SegmentEditorHandlers {
@@ -63,7 +66,9 @@ export function renderSubtitleSegmentEditorFields(): string {
       <div class="studio__transcript-header">
         <span class="studio__transcript-label">Generated transcript</span>
         <span class="studio__transcript-badge" data-transcript-dirty-badge hidden>Unsaved</span>
-        <span class="studio__transcript-badge studio__transcript-badge--saved" data-transcript-saved-badge hidden>Saved</span>
+        <span class="studio__transcript-badge studio__transcript-badge--pending" data-transcript-pending-badge hidden>Pending</span>
+        <span class="studio__transcript-badge studio__transcript-badge--timeout" data-transcript-timeout-badge hidden>Timed out</span>
+        <span class="studio__transcript-badge studio__transcript-badge--saved" data-transcript-saved-badge hidden>Ready</span>
       </div>
       <p class="studio__transcript-hint popup__field-desc">
         Review what Vosk produced. Open the editor to fix wording or timing before baking.
@@ -133,6 +138,8 @@ export function mountSubtitleSegmentEditor(
   const panel = root.querySelector<HTMLElement>('[data-transcript-editor]')!;
   const previewEl = panel.querySelector<HTMLElement>('[data-transcript-preview]')!;
   const dirtyBadge = panel.querySelector<HTMLElement>('[data-transcript-dirty-badge]')!;
+  const pendingBadge = panel.querySelector<HTMLElement>('[data-transcript-pending-badge]')!;
+  const timeoutBadge = panel.querySelector<HTMLElement>('[data-transcript-timeout-badge]')!;
   const savedBadge = panel.querySelector<HTMLElement>('[data-transcript-saved-badge]')!;
   const editOpenBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')!;
   const saveBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-save]')!;
@@ -150,6 +157,7 @@ export function mountSubtitleSegmentEditor(
   let modalDraft: TranscriptSegment[] = [];
   let lastRecording: LastRecordingSnapshot | null = null;
   let loadedSavedAt = 0;
+  let deliveryStatus: TranscriptDeliveryStatus = 'idle';
   let playingSegmentIndex: number | null = null;
 
   const cuePlayer = createSegmentCuePlayer();
@@ -226,9 +234,16 @@ export function mountSubtitleSegmentEditor(
     const dirty = computeDirty();
     const hasTranscript = Boolean(edited?.segments?.length);
     dirtyBadge.hidden = !dirty;
-    savedBadge.hidden = dirty || !hasTranscript;
+    pendingBadge.hidden = dirty || deliveryStatus !== 'pending';
+    timeoutBadge.hidden = dirty || deliveryStatus !== 'timeout';
+    savedBadge.hidden = dirty || deliveryStatus !== 'ready' || !hasTranscript;
     saveBtn.hidden = !dirty;
     discardBtn.hidden = !dirty;
+  }
+
+  function setTranscriptDeliveryStatus(status: TranscriptDeliveryStatus): void {
+    deliveryStatus = status;
+    syncActionButtons();
   }
 
   function readRowTiming(row: HTMLElement): { start: number; end: number } {
@@ -590,5 +605,6 @@ export function mountSubtitleSegmentEditor(
       return edited ? cloneTranscriptResult(edited) : null;
     },
     markConfirmedSaved,
+    setTranscriptDeliveryStatus,
   };
 }

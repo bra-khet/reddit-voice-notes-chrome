@@ -413,6 +413,14 @@ Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats
 
 False **Update profile** highlight on Design Studio open — subtitle draft synced after profile dirty check; see `docs/bug-archive.md` BUG-027.
 
+### v3.5.1 — BUG-031 drawtext textfile + transcript delivery UX (2026-06-22)
+
+- **Burn-in:** cue text via `textfile=` per segment (fixes apostrophe/comma filter parse failures).
+- **Studio:** unsaved-transcript bake prompt; `Pending` / `Ready` / `Timed out` transcript badges (120s, matches `TRANSCRIBE_TIMEOUT_MS`).
+- **Stamp:** `BURNIN_PIPELINE_STAMP` → `drawtext-only-v3`.
+
+**QA:** Record speech with apostrophes → bake with midnight bokeh preset → captions visible; new recording shows Pending until IDB transcript lands.
+
 ### Next: eloquent-4b
 
 Segment-aware canvas preview, fonts, optional chunked base-MP4 relay.

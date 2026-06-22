@@ -32,6 +32,11 @@ function usableSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   return segments.filter((segment) => segment.text.trim().length > 0);
 }
 
+/** WASM virtual FS path for cue text — avoids drawtext filter escaping bugs (BUG-031). */
+export function burnInCueTextFilePath(segmentIndex: number): string {
+  return `burnin-cue-${segmentIndex}.txt`;
+}
+
 /**
  * Vosk partial results can carry text without word timestamps (start/end = 0).
  * Spread cues across the clip so drawtext enable windows are visible.
@@ -100,15 +105,6 @@ export function buildSubtitleForceStyle(style: SubtitleStyleConfig): string {
   ].join(',');
 }
 
-function escapeDrawtext(text: string): string {
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/:/g, '\\:')
-    .replace(/'/g, "\\'")
-    .replace(/%/g, '\\%')
-    .replace(/\n/g, ' ');
-}
-
 function drawtextY(position: SubtitleStyleConfig['position'], fontSize: number): string {
   const margin = Math.max(16, Math.round(fontSize * 0.9));
   if (position === 'top') return String(margin);
@@ -135,6 +131,16 @@ function segmentTiming(segment: TranscriptSegment): { start: number; end: number
   return { start, end, text };
 }
 
+function buildCueTextFiles(segments: TranscriptSegment[]): Record<string, string> {
+  const files: Record<string, string> = {};
+  segments.forEach((segment, index) => {
+    const { text } = segmentTiming(segment);
+    if (!text) return;
+    files[burnInCueTextFilePath(index)] = text;
+  });
+  return files;
+}
+
 // BUG FIX: backdrop plate covers glow and caption at high opacity (BUG-029)
 // Fix: render box on a transparent first drawtext layer; caption/glow layers stack above.
 // Sync: DRAWTEXT_BACKDROP_PLATE_FONT_COLOR in subtitle-effects.ts (never black@0.00 — breaks -vf, BUG-030)
@@ -146,7 +152,7 @@ function buildBackdropBoxOpt(style: SubtitleStyleConfig): string {
 }
 
 function buildBackdropPlateLayer(
-  text: string,
+  textFilePath: string,
   start: number,
   end: number,
   fontSize: number,
@@ -156,7 +162,7 @@ function buildBackdropPlateLayer(
   const box = buildBackdropBoxOpt(style);
   if (!box) return null;
   return {
-    text,
+    textFilePath,
     start,
     end,
     fontSize,
@@ -186,11 +192,13 @@ function buildSimpleDrawtextFilter(
     : '';
 
   const parts: string[] = [];
-  for (const segment of segments) {
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
     const { start, end, text } = segmentTiming(segment);
     if (!text) continue;
 
-    const plate = buildBackdropPlateLayer(text, start, end, fontSize, y, style);
+    const textFilePath = burnInCueTextFilePath(index);
+    const plate = buildBackdropPlateLayer(textFilePath, start, end, fontSize, y, style);
     if (plate) {
       parts.push(buildDrawtextLayer(plate, fontFile));
     }
@@ -198,7 +206,7 @@ function buildSimpleDrawtextFilter(
     parts.push(
       `drawtext=fontfile=${fontFile}:fontcolor=${fontColor}:fontsize=${fontSize}` +
         `:x=(w-text_w)/2:y=${y}${shadowOpts}` +
-        `:text='${escapeDrawtext(text)}':enable='between(t,${start},${end})'`,
+        `:textfile=${textFilePath}:enable='between(t,${start},${end})'`,
     );
   }
 
@@ -206,7 +214,7 @@ function buildSimpleDrawtextFilter(
 }
 
 interface DrawtextLayer {
-  text: string;
+  textFilePath: string;
   start: number;
   end: number;
   fontSize: number;
@@ -216,16 +224,19 @@ interface DrawtextLayer {
   box?: string;
 }
 
+// BUG FIX: transcript punctuation breaks drawtext filter graph (BUG-031)
+// Fix: cue text via textfile= in WASM FS — commas/colons/apostrophes stay out of -vf string.
 function buildDrawtextLayer(layer: DrawtextLayer, fontFile: string): string {
   return (
     `drawtext=fontfile=${fontFile}:fontcolor=${layer.fontColor}:fontsize=${layer.fontSize}` +
     `:x=${layer.x}:y=${layer.y}${layer.box ?? ''}` +
-    `:text='${escapeDrawtext(layer.text)}':enable='between(t,${layer.start},${layer.end})'`
+    `:textfile=${layer.textFilePath}:enable='between(t,${layer.start},${layer.end})'`
   );
 }
 
 function buildSegmentGlowLayers(
   segment: TranscriptSegment,
+  segmentIndex: number,
   style: SubtitleStyleConfig,
   fontFile: string,
   themeBarColor: string,
@@ -233,20 +244,21 @@ function buildSegmentGlowLayers(
   const { start, end, text } = segmentTiming(segment);
   if (!text) return [];
 
+  const textFilePath = burnInCueTextFilePath(segmentIndex);
   const fontSize = style.fontSize ?? 22;
   const yBase = drawtextY(style.position, fontSize);
   const palette = resolveSubtitleEffectPalette(style, themeBarColor);
   const glow = style.glow!;
   const layers: DrawtextLayer[] = [];
 
-  const plate = buildBackdropPlateLayer(text, start, end, fontSize, yBase, style);
+  const plate = buildBackdropPlateLayer(textFilePath, start, end, fontSize, yBase, style);
   if (plate) {
     layers.push(plate);
   }
 
   for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
     layers.push({
-      text,
+      textFilePath,
       start,
       end,
       fontSize: spec.fontSize,
@@ -260,7 +272,7 @@ function buildSegmentGlowLayers(
   if (shadow?.enabled !== false) {
     const shadowOpacity = shadow?.opacity ?? 0.85;
     layers.push({
-      text,
+      textFilePath,
       start,
       end,
       fontSize,
@@ -271,7 +283,7 @@ function buildSegmentGlowLayers(
   }
 
   layers.push({
-    text,
+    textFilePath,
     start,
     end,
     fontSize,
@@ -293,8 +305,8 @@ function buildDrawtextFilter(
     return buildSimpleDrawtextFilter(segments, style, fontFile);
   }
 
-  const parts = segments.flatMap((segment) =>
-    buildSegmentGlowLayers(segment, style, fontFile, themeBarColor),
+  const parts = segments.flatMap((segment, index) =>
+    buildSegmentGlowLayers(segment, index, style, fontFile, themeBarColor),
   );
   return parts.join(',');
 }
@@ -316,6 +328,8 @@ export function burnInLogIndicatesFailure(lines: string[]): string | null {
     'error parsing filter',
     'unable to parse option',
     'failed to set value',
+    'error when evaluating the expression',
+    'missing',
   ];
   for (const needle of needles) {
     if (text.includes(needle)) return needle;
@@ -337,6 +351,7 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
   }
 
   const themeBarColor = input.themeBarColor ?? DEFAULT_THEME_BAR;
+  const cueTextFiles = buildCueTextFiles(segments);
   const drawtextFilter = buildDrawtextFilter(segments, input.style, BURNIN_FONT_FS_PATH, themeBarColor);
 
   // BUG FIX: silent burn-in success with no visible subs (BUG-025 / BUG-030)
@@ -346,6 +361,7 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
     {
       name: 'drawtext-font',
       requiresFont: true,
+      extraFiles: cueTextFiles,
       args: [
         '-i',
         INPUT_MP4,
