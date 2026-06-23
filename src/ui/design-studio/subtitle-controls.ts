@@ -63,6 +63,15 @@ export interface SubtitleControlsHandle {
 const TRANSCRIPT_SAVE_DEBOUNCE_MS = 250;
 const TRANSCRIPT_POLL_MS = 2000;
 
+type BakeButtonUiState = 'unavailable' | 'ready' | 'baking' | 'complete';
+
+const BAKE_BTN_STATE_CLASS: Record<BakeButtonUiState, string> = {
+  unavailable: 'studio-v4__bake-btn--unavailable',
+  ready: 'studio-v4__bake-btn--ready',
+  baking: 'studio-v4__bake-btn--baking',
+  complete: 'studio-v4__bake-btn--complete',
+};
+
 // CHANGED: top → center → bottom (visual order on screen)
 // WHY: dropdown order regressed to bottom-first before; keep top-first in source
 const POSITION_OPTIONS: { value: SubtitleStyleConfig['position']; label: string }[] = [
@@ -110,11 +119,11 @@ export function renderSubtitleControlFields(): string {
           <div class="studio__subtitles-bake" data-subtitle-bake-block>
             <button
               type="button"
-              class="studio-v4__bake-btn studio__bake-btn"
+              class="studio-v4__bake-btn studio-v4__bake-btn--unavailable studio__bake-btn"
               data-subtitle-bake
               disabled
             >
-              Bake subtitles into MP4
+              Not ready to bake
             </button>
             <div class="studio__bake-unsaved" data-bake-unsaved-dialog hidden>
               <p class="popup__field-desc studio__bake-unsaved-copy">
@@ -466,6 +475,7 @@ export function mountSubtitleControls(
     lastRecordingReadyAt =
       typeof stored[LAST_RECORDING_READY_KEY] === 'number' ? stored[LAST_RECORDING_READY_KEY] : 0;
     lastBakedAt = typeof stored[BAKED_MP4_READY_KEY] === 'number' ? stored[BAKED_MP4_READY_KEY] : 0;
+    syncBakeButton();
     handlers?.onSettingsChange?.();
   }
 
@@ -536,17 +546,106 @@ export function mountSubtitleControls(
       }
 
       clearPendingTranscriptTimer();
-      segmentEditor.setTranscriptDeliveryStatus(snapshotAt > 0 ? 'ready' : 'idle');
+      // BUG FIX: stale IDB transcript marked delivery ready without a current recording
+      // Fix: only ready when snapshot capturedAt is at or after last recording ready.
+      if (recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
+        segmentEditor.setTranscriptDeliveryStatus('ready');
+      } else {
+        segmentEditor.setTranscriptDeliveryStatus('idle');
+      }
     } finally {
+      syncBakeButton();
       notifySettingsChange();
     }
   }
 
+  function transcriptMatchesCurrentRecording(): boolean {
+    const recordingReadyAt = lastRecordingReadyAt;
+    const snapshotAt = lastSnapshot?.capturedAt ?? draftConfig.resultCapturedAt ?? 0;
+    if (recordingReadyAt <= 0) return false;
+    return snapshotAt >= recordingReadyAt;
+  }
+
+  function canBakeNow(): boolean {
+    if (baking || !draftConfig.transcriptionEnabled) return false;
+    if (!hasTranscriptCues() || !transcriptMatchesCurrentRecording()) return false;
+    if (segmentEditor.getTranscriptDeliveryStatus() !== 'ready') return false;
+    const { dirty, confirmed } = segmentEditor.getState();
+    if (dirty || !confirmed) return false;
+    return true;
+  }
+
+  function resolveBakeButtonUiState(): BakeButtonUiState {
+    if (baking) return 'baking';
+    if (canBakeNow()) {
+      return isBakedForCurrentSession() ? 'complete' : 'ready';
+    }
+    if (
+      isBakedForCurrentSession() &&
+      transcriptMatchesCurrentRecording() &&
+      hasTranscriptCues()
+    ) {
+      return 'complete';
+    }
+    return 'unavailable';
+  }
+
+  function resolveUnavailableBakeLabel(): string {
+    const delivery = segmentEditor.getTranscriptDeliveryStatus();
+    if (!transcriptMatchesCurrentRecording()) {
+      return delivery === 'pending' ? 'Transcription in progress…' : 'Record on Reddit first';
+    }
+    if (delivery === 'pending') return 'Transcription in progress…';
+    if (delivery === 'timeout') return 'Transcription failed — record again';
+    if (!hasTranscriptCues()) return 'No transcript to bake';
+    const { dirty } = segmentEditor.getState();
+    if (dirty) return 'Confirm transcript edits first';
+    return 'Not ready to bake';
+  }
+
+  function resolveUnavailableBakeHint(): string {
+    const label = resolveUnavailableBakeLabel();
+    if (label === 'Confirm transcript edits first') {
+      return 'Confirm & save your transcript edits before baking.';
+    }
+    if (label === 'Transcription in progress…') {
+      return 'Transcription is still running — bake unlocks when cues arrive.';
+    }
+    if (label === 'Record on Reddit first') {
+      return 'Record a voice note on Reddit, then reopen Design Studio when transcription finishes.';
+    }
+    return label;
+  }
+
   function syncBakeButton(): void {
-    const edited = segmentEditor.getEditedResult();
-    const hasSegments = (edited?.segments?.length ?? 0) > 0;
-    const canBake = hasSegments && !baking;
-    bakeBtn.disabled = !canBake;
+    const state = resolveBakeButtonUiState();
+    for (const className of Object.values(BAKE_BTN_STATE_CLASS)) {
+      bakeBtn.classList.remove(className);
+    }
+    bakeBtn.classList.add(BAKE_BTN_STATE_CLASS[state]);
+
+    switch (state) {
+      case 'baking':
+        bakeBtn.disabled = true;
+        bakeBtn.textContent = 'Baking subtitles…';
+        bakeBtn.setAttribute('aria-busy', 'true');
+        break;
+      case 'ready':
+        bakeBtn.disabled = false;
+        bakeBtn.textContent = 'Bake subtitles into MP4';
+        bakeBtn.removeAttribute('aria-busy');
+        break;
+      case 'complete':
+        bakeBtn.disabled = false;
+        bakeBtn.textContent = 'Subtitles baked — bake again';
+        bakeBtn.removeAttribute('aria-busy');
+        break;
+      default:
+        bakeBtn.disabled = true;
+        bakeBtn.textContent = resolveUnavailableBakeLabel();
+        bakeBtn.removeAttribute('aria-busy');
+        break;
+    }
   }
 
   async function runSubtitleBake(): Promise<void> {
@@ -558,7 +657,7 @@ export function mountSubtitleControls(
 
     baking = true;
     bakeAbort = new AbortController();
-    bakeBtn.disabled = true;
+    syncBakeButton();
     hideBakeUnsavedDialog();
     bakeStatusEl.textContent = 'Preparing subtitle bake…';
 
@@ -771,19 +870,14 @@ export function mountSubtitleControls(
 
   bakeBtn.addEventListener('click', () => {
     void (async () => {
+      if (baking) return;
+      if (!canBakeNow()) {
+        bakeStatusEl.textContent = resolveUnavailableBakeHint();
+        return;
+      }
       const edited = segmentEditor.getEditedResult();
-      const { dirty, confirmed } = segmentEditor.getState();
-      if (!edited || baking) {
+      if (!edited) {
         bakeStatusEl.textContent = 'Transcript not ready for bake yet.';
-        return;
-      }
-      if (dirty) {
-        showBakeUnsavedDialog();
-        bakeStatusEl.textContent = 'Save your transcript edits before baking, or choose an option below.';
-        return;
-      }
-      if (!confirmed) {
-        bakeStatusEl.textContent = 'Confirm & save your transcript edits before baking.';
         return;
       }
       await runSubtitleBake();
