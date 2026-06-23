@@ -207,7 +207,7 @@ export function syncStudioStatusStrip(root: HTMLElement, input: StudioStatusStri
           ${openPanelBtn}
         </span>
       </div>
-      <div class="studio-v4__status-row studio-v4__status-row--ready">
+      <div class="studio-v4__status-row studio-v4__status-row--ready${snapshot.ready.yes ? '' : ' studio-v4__status-row--not-ready'}">
         <span class="studio-v4__status-label">Ready?</span>
         <span class="studio-v4__status-value studio-v4__status-value--${snapshot.ready.yes ? 'yes' : 'no'}">
           <img class="studio-v4__icon studio-v4__icon--16" src="${studioV4AssetUrl(snapshot.ready.icon)}" alt="" width="16" height="16" />
@@ -216,7 +216,7 @@ export function syncStudioStatusStrip(root: HTMLElement, input: StudioStatusStri
       </div>
       ${
         snapshot.ready.hint
-          ? `<p class="studio-v4__status-hint">${escapeHtml(snapshot.ready.hint)}</p>`
+          ? `<p class="studio-v4__status-hint${snapshot.ready.yes ? '' : ' studio-v4__status-hint--not-ready'}">${escapeHtml(snapshot.ready.hint)}</p>`
           : ''
       }
     </div>

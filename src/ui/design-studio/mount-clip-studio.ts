@@ -133,15 +133,15 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
           <p class="studio__exit-copy">
             Your profile, voice, or custom style has edits that are not saved. Save them before leaving?
           </p>
-          <div class="studio__exit-actions">
-            <button type="button" class="popup__profile-btn popup__profile-btn--save" data-exit-save>
-              Save changes
+          <div class="studio__exit-actions studio-v4__guard-actions">
+            <button type="button" class="popup__button popup__button--secondary studio__exit-cancel studio-v4__guard-cancel" data-exit-cancel>
+              Keep editing
             </button>
-            <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-exit-discard>
+            <button type="button" class="popup__profile-btn popup__profile-btn--delete studio-v4__guard-discard" data-exit-discard>
               Discard
             </button>
-            <button type="button" class="popup__button popup__button--secondary studio__exit-cancel" data-exit-cancel>
-              Keep editing
+            <button type="button" class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply" data-exit-save>
+              Save changes
             </button>
           </div>
         </div>

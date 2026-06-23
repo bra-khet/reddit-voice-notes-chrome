@@ -243,15 +243,15 @@ export function renderSubtitleControlFields(): string {
             <p class="popup__field-desc studio__bake-unsaved-copy">
               You have unsaved transcript edits. Save before baking, or go back to the editor.
             </p>
-            <div class="popup__profile-actions studio__inline-actions">
-              <button type="button" class="popup__profile-btn popup__profile-btn--save" data-bake-save-continue>
-                Save &amp; bake
+            <div class="popup__profile-actions studio__inline-actions studio-v4__guard-actions">
+              <button type="button" class="popup__button popup__button--secondary studio-v4__guard-cancel" data-bake-unsaved-cancel>
+                Cancel
               </button>
-              <button type="button" class="popup__button popup__button--secondary" data-bake-edit-back>
+              <button type="button" class="popup__button popup__button--secondary studio-v4__guard-discard" data-bake-edit-back>
                 Edit transcript
               </button>
-              <button type="button" class="popup__button popup__button--secondary" data-bake-unsaved-cancel>
-                Cancel
+              <button type="button" class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply" data-bake-save-continue>
+                Save &amp; bake
               </button>
             </div>
           </div>

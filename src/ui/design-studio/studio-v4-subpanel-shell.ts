@@ -141,14 +141,12 @@ export function mountStudioV4SubpanelShell(
 
   function requestClose(): void {
     if (!activePanelId) return;
-    if (guard.isVisible()) {
-      guard.hide();
-      pendingClose = false;
-      return;
-    }
+    // BUG FIX: subpanel exit guard dismissed silently on second Done/back
+    // Fix: while the guard is visible, ignore repeat close attempts — only Keep editing hides it.
+    if (guard.isVisible()) return;
     if (isPanelDirty()) {
       pendingClose = true;
-      guard.show();
+      guard.show(activePanelId);
       return;
     }
     closeImmediate();

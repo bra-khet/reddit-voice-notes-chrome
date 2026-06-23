@@ -122,36 +122,36 @@ export function renderSubtitleSegmentEditorFields(): string {
             <p class="popup__field-desc studio__bake-unsaved-copy">
               You have unsaved cue edits. Apply them to the preview, discard, or keep editing.
             </p>
-            <div class="popup__profile-actions studio__inline-actions">
+            <div class="popup__profile-actions studio__inline-actions studio-v4__guard-actions">
               <button
                 type="button"
-                class="popup__profile-btn popup__profile-btn--save"
-                data-transcript-modal-unsaved-apply
+                class="popup__button popup__button--secondary studio-v4__guard-cancel"
+                data-transcript-modal-unsaved-cancel
               >
-                Apply to preview
+                Keep editing
               </button>
               <button
                 type="button"
-                class="popup__profile-btn popup__profile-btn--delete"
+                class="popup__profile-btn popup__profile-btn--delete studio-v4__guard-discard"
                 data-transcript-modal-unsaved-discard
               >
                 Discard
               </button>
               <button
                 type="button"
-                class="popup__button popup__button--secondary"
-                data-transcript-modal-unsaved-cancel
+                class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply"
+                data-transcript-modal-unsaved-apply
               >
-                Keep editing
+                Apply to preview
               </button>
             </div>
           </div>
-          <div class="studio__transcript-dialog-actions" data-transcript-modal-actions>
-            <button type="button" class="popup__profile-btn popup__profile-btn--save" data-transcript-modal-save>
-              Apply to preview
-            </button>
-            <button type="button" class="popup__button popup__button--secondary" data-transcript-modal-cancel>
+          <div class="studio__transcript-dialog-actions studio-v4__guard-actions" data-transcript-modal-actions>
+            <button type="button" class="popup__button popup__button--secondary studio-v4__guard-cancel" data-transcript-modal-cancel>
               Cancel
+            </button>
+            <button type="button" class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply" data-transcript-modal-save>
+              Apply to preview
             </button>
           </div>
         </div>
