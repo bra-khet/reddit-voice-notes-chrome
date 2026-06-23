@@ -66,6 +66,35 @@ function drawTextLines(
   }
 }
 
+const SUBTITLE_TEXT_PREVIEW_WIDTH = 320;
+const SUBTITLE_TEXT_PREVIEW_HEIGHT = 180;
+
+/** Text-only caption preview for the Subtitles sub-panel (no bars/background). */
+export function drawSubtitleTextOnlyPreview(
+  canvas: HTMLCanvasElement,
+  options: SubtitlePreviewOptions | undefined,
+  timeMs: number = performance.now(),
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  canvas.width = SUBTITLE_TEXT_PREVIEW_WIDTH;
+  canvas.height = SUBTITLE_TEXT_PREVIEW_HEIGHT;
+
+  ctx.fillStyle = '#0a0014';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, 'rgba(18, 0, 31, 0.35)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!options?.enabled) return;
+
+  drawSubtitlePreview(ctx, canvas, { ...options, previewTimeMs: timeMs });
+}
+
 /** Preview-only subtitle overlay — topmost layer over bars (eloquent-2; not encoded path). */
 export function drawSubtitlePreview(
   ctx: CanvasRenderingContext2D,

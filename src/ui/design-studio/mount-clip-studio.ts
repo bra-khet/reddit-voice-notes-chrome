@@ -55,6 +55,7 @@ import {
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
 import { subtitlePreviewNeedsAnimation } from '@/src/transcription/subtitle-effects';
+import { drawSubtitleTextOnlyPreview } from '@/src/transcription/subtitle-preview';
 import {
   mountSubtitleControls,
   renderSubtitleControlFields,
@@ -184,6 +185,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       <section class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">
         ${renderStudioV4PanelCard('Bar style', 'data-summary-bar-style', 'bar-style')}
         <div class="studio__panel-body" hidden>
+          ${renderPreviewBlock('subpanel')}
           <label class="popup__field studio__field--compact">
             <span class="popup__field-label">Clip style</span>
             <select class="popup__select" data-theme-select aria-label="Clip style"></select>
@@ -221,6 +223,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
         ${renderStudioV4PanelCard('Background', 'data-summary-background', 'background')}
         <div class="studio__panel-body" hidden>
+          ${renderPreviewBlock('subpanel')}
           ${renderPersonalBackgroundFields()}
           ${renderBackgroundLayoutFields()}
         </div>
@@ -253,7 +256,13 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   applyStudioV4ShellChrome(studioShell);
 
   const previewCanvases = () =>
-    [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')];
+    [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')].filter(
+      (canvas) => canvas.dataset.previewKind !== 'subtitle-text',
+    );
+  const subtitleTextPreviewCanvases = () =>
+    [...root.querySelectorAll<HTMLCanvasElement>(
+      '[data-preview-canvas][data-preview-kind="subtitle-text"]',
+    )];
   const profileSelect = root.querySelector<HTMLSelectElement>('[data-profile-select]')!;
   const themeSelect = root.querySelector<HTMLSelectElement>('[data-theme-select]')!;
   const alignmentSelect = root.querySelector<HTMLSelectElement>('[data-alignment-select]')!;
@@ -443,6 +452,14 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     deleteStyleBtn.disabled = false;
   }
 
+  function refreshSubtitleTextPreview(timeMs?: number): void {
+    const subtitlePreview = subtitleControls?.getPreviewOptions();
+    const now = timeMs ?? performance.now();
+    for (const canvas of subtitleTextPreviewCanvases()) {
+      drawSubtitleTextOnlyPreview(canvas, subtitlePreview, now);
+    }
+  }
+
   function syncPreviewLoop(): void {
     const theme = resolvedTheme();
     const presetBokeh = backgroundIsBokeh(theme.background);
@@ -476,6 +493,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
           subtitlePreview,
         );
       }
+      refreshSubtitleTextPreview(now);
     };
     previewRaf = requestAnimationFrame(tick);
   }
@@ -494,6 +512,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         subtitlePreview,
       );
     }
+    refreshSubtitleTextPreview(timeMs);
     if (generation !== renderGeneration) return;
     syncPreviewLoop();
   }

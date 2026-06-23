@@ -619,6 +619,88 @@ body:has(.studio-v4) {
   padding: 0 8px 12px;
 }
 
+/* Compact WYSIWYG preview — Bar style / Background sub-panels (same frame logic as hero). */
+.studio-v4 .studio__subpanel-content .studio__preview-wrap--subpanel {
+  --studio-v4-preview-w: 628;
+  --studio-v4-preview-h: 348;
+  --studio-v4-preview-hole-x: 12;
+  --studio-v4-preview-hole-y: 12;
+  --studio-v4-preview-hole-w: 604;
+  --studio-v4-preview-hole-h: 324;
+  position: relative;
+  width: 100%;
+  max-width: 280px;
+  margin: 4px auto 14px;
+  aspect-ratio: 628 / 348;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: #0a0014;
+  overflow: hidden;
+}
+
+.studio-v4 .studio__subpanel-content .studio__preview-wrap--subpanel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: var(--studio-v4-preview-frame) 0 0 / 100% 100% no-repeat;
+}
+
+.studio-v4 .studio__subpanel-content .studio__preview-wrap--subpanel .studio__preview-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  clip-path: inset(
+    calc(var(--studio-v4-preview-hole-y) / var(--studio-v4-preview-h) * 100%)
+    calc(
+      (var(--studio-v4-preview-w) - var(--studio-v4-preview-hole-x) - var(--studio-v4-preview-hole-w)) /
+        var(--studio-v4-preview-w) * 100%
+    )
+    calc(
+      (var(--studio-v4-preview-h) - var(--studio-v4-preview-hole-y) - var(--studio-v4-preview-hole-h)) /
+        var(--studio-v4-preview-h) * 100%
+    )
+    calc(var(--studio-v4-preview-hole-x) / var(--studio-v4-preview-w) * 100%)
+    round 4px
+  );
+}
+
+.studio-v4 .studio__subpanel-content .studio__preview-wrap--subpanel .studio__preview-label {
+  z-index: 4;
+  color: var(--studio-amber);
+  font-size: var(--studio-font-caption);
+}
+
+/* Caption text preview — Subtitles sub-panel (style fidelity without full canvas). */
+.studio-v4 .studio__preview-wrap--subtitle-text {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  border: 1px solid rgba(138, 134, 176, 0.45);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0a0014;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+.studio-v4 .studio__preview-wrap--subtitle-text .studio__preview-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-v4 .studio__preview-wrap--subtitle-text .studio__preview-label {
+  color: var(--studio-violet-confirm);
+  background: rgba(18, 0, 31, 0.78);
+}
+
 .studio-v4 .studio__subpanel-guard {
   position: absolute;
   inset: 0;

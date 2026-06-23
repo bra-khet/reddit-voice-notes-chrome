@@ -561,3 +561,13 @@ See also: `docs/design-studio.md`, `docs/engineering-principles.md`, `docs/eloqu
 ### Next (post–v3.7)
 
 Sub-panel control chrome (knobs/sliders), main Done asset, eloquent-4b remainder → eloquent-5 → merge `main` → v4.0.0.
+
+## v3.7.1 — sub-panel previews (2026-06-23, in progress toward v3.8)
+
+**Version:** `3.7.1` · **Branch:** `eloquent`
+
+### Shipped
+
+- **Bar style / Background sub-panels:** Compact framed WYSIWYG live preview at top (same 628×348 clip-path + bezel, max-width ~280px) — shares `renderThemePreview` RAF loop with hero canvas.
+- **Subtitles sub-panel:** Caption text preview at top (`drawSubtitleTextOnlyPreview` — style fidelity without full bars/bg); **Bake** moved from bottom to top with amber 9-slice chrome (`studio-v4__bake-btn`).
+- **Preview kinds:** `subpanel` + `subtitle-text` in `preview-block.ts`.

@@ -44,6 +44,10 @@ export function applyStudioV4ShellChrome(root: HTMLElement): void {
     '--studio-v4-border-subpanel-header',
     `url("${studioV4AssetUrl(panels.subpanelHeader9Slice)}") 10 14 10 14 fill`,
   );
+  root.style.setProperty(
+    '--studio-v4-border-bake-btn',
+    studioV4BorderImage(STUDIO_V4_ASSETS.buttons.frame9Slice, 10),
+  );
 
   setImageUrl('--studio-v4-preview-frame', panels.previewWindowFrame);
   setImageUrl('--studio-v4-profile-frame', panels.profileStatusFrame);

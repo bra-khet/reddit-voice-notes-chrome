@@ -112,3 +112,44 @@
 .studio-v4 .studio__subpanel-done-btn:focus-visible {
   outline-color: var(--studio-violet-confirm);
 }
+
+/* Bake — primary export action; amber chrome distinct from violet confirm/save */
+.studio-v4 .studio-v4__bake-btn {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border-style: solid;
+  border-width: 10px;
+  border-image: var(--studio-v4-border-bake-btn);
+  background: linear-gradient(180deg, rgba(255, 196, 64, 0.95) 0%, var(--studio-amber-action) 100%);
+  color: #1a1000;
+  font-size: var(--studio-font-body);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 0 18px rgba(255, 196, 64, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.studio-v4 .studio-v4__bake-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 0 24px rgba(255, 196, 64, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.studio-v4 .studio-v4__bake-btn:focus-visible {
+  outline: 2px solid var(--studio-amber-action);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio-v4__bake-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+  box-shadow: none;
+}

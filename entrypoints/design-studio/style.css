@@ -943,10 +943,19 @@ body {
   display: none;
 }
 
+.studio__subtitles-top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(74, 74, 138, 0.45);
+}
+
 .studio__subtitles-bake {
-  margin: 12px 0 8px;
-  padding-top: 10px;
-  border-top: 1px solid #343536;
+  margin: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .studio__bake-btn {

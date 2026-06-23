@@ -42,6 +42,7 @@ import {
   renderSubtitleSegmentEditorFields,
   type TranscriptDeliveryStatus,
 } from '@/src/ui/design-studio/subtitle-segment-editor';
+import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
 
 export interface SubtitleControlsHandle {
   dispose(): void;
@@ -104,6 +105,38 @@ export function renderSubtitleControlFields(): string {
         />
       </label>
       <div class="studio__subtitles-body" data-subtitle-body hidden>
+        <div class="studio__subtitles-top" data-subtitle-top-block>
+          ${renderPreviewBlock('subtitle-text')}
+          <div class="studio__subtitles-bake" data-subtitle-bake-block>
+            <button
+              type="button"
+              class="studio-v4__bake-btn studio__bake-btn"
+              data-subtitle-bake
+              disabled
+            >
+              Bake subtitles into MP4
+            </button>
+            <div class="studio__bake-unsaved" data-bake-unsaved-dialog hidden>
+              <p class="popup__field-desc studio__bake-unsaved-copy">
+                You have unsaved transcript edits. Save before baking, or go back to the editor.
+              </p>
+              <div class="popup__profile-actions studio__inline-actions studio-v4__guard-actions">
+                <button type="button" class="popup__button popup__button--secondary studio-v4__guard-cancel" data-bake-unsaved-cancel>
+                  Cancel
+                </button>
+                <button type="button" class="popup__button popup__button--secondary studio-v4__guard-discard" data-bake-edit-back>
+                  Edit transcript
+                </button>
+                <button type="button" class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply" data-bake-save-continue>
+                  Save &amp; bake
+                </button>
+              </div>
+            </div>
+            <p class="popup__field-desc studio__bake-status" data-subtitle-bake-status>
+              Confirm your transcript edits, then bake. The Reddit recorder will pick up the captioned MP4.
+            </p>
+          </div>
+        </div>
         ${renderSubtitleSegmentEditorFields()}
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Position</span>
@@ -229,35 +262,6 @@ export function renderSubtitleControlFields(): string {
               aria-label="Rainbow pulse on special hue"
             />
           </label>
-        </div>
-        <div class="studio__subtitles-bake" data-subtitle-bake-block>
-          <button
-            type="button"
-            class="popup__profile-btn popup__profile-btn--save studio__bake-btn"
-            data-subtitle-bake
-            disabled
-          >
-            Bake subtitles into MP4
-          </button>
-          <div class="studio__bake-unsaved" data-bake-unsaved-dialog hidden>
-            <p class="popup__field-desc studio__bake-unsaved-copy">
-              You have unsaved transcript edits. Save before baking, or go back to the editor.
-            </p>
-            <div class="popup__profile-actions studio__inline-actions studio-v4__guard-actions">
-              <button type="button" class="popup__button popup__button--secondary studio-v4__guard-cancel" data-bake-unsaved-cancel>
-                Cancel
-              </button>
-              <button type="button" class="popup__button popup__button--secondary studio-v4__guard-discard" data-bake-edit-back>
-                Edit transcript
-              </button>
-              <button type="button" class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply" data-bake-save-continue>
-                Save &amp; bake
-              </button>
-            </div>
-          </div>
-          <p class="popup__field-desc studio__bake-status" data-subtitle-bake-status>
-            Confirm your transcript edits, then bake. The Reddit recorder will pick up the captioned MP4.
-          </p>
         </div>
         <div class="popup__profile-actions studio__inline-actions">
           <button
