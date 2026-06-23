@@ -633,6 +633,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       transcriptForMatch: subtitleControls.getProfileSnapshotConfig(),
       transcriptDirty: subtitleControls.isTranscriptDirty(),
       transcriptDelivery: subtitleControls.getTranscriptDeliveryStatus(),
+      hasSessionRecording: subtitleControls.hasSessionRecording(),
+      hasTranscriptCues: subtitleControls.hasTranscriptCues(),
+      bakedForSession: subtitleControls.isBakedForCurrentSession(),
     });
   }
 

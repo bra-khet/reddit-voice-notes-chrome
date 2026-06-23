@@ -114,8 +114,100 @@ body:has(.studio-v4) {
   min-height: 2.5rem;
 }
 
+.studio-v4 .studio-v4__status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studio-v4 .studio-v4__status-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.studio-v4 .studio-v4__status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--studio-cyan-ready);
+}
+
+.studio-v4 .studio-v4__status-value {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+  text-align: right;
+  color: var(--studio-text-primary);
+}
+
+.studio-v4 .studio-v4__status-value--yes .studio-v4__status-ready-label,
+.studio-v4 .studio-v4__status-value--baked,
+.studio-v4 .studio-v4__status-value--transcribed {
+  color: var(--studio-cyan-ready);
+  font-weight: 700;
+}
+
+.studio-v4 .studio-v4__status-value--no,
+.studio-v4 .studio-v4__status-value--error,
+.studio-v4 .studio-v4__status-value--edits-pending {
+  color: var(--studio-amber);
+  font-weight: 700;
+}
+
+.studio-v4 .studio-v4__status-value--incoming {
+  color: var(--studio-indigo-muted);
+  font-weight: 600;
+}
+
+.studio-v4 .studio-v4__status-link {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--studio-cyan-ready);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.studio-v4 .studio-v4__status-link:hover {
+  color: var(--studio-amber);
+}
+
+.studio-v4 .studio-v4__status-hint {
+  margin: 0;
+  font-size: 0.625rem;
+  line-height: 1.4;
+  color: var(--studio-indigo-muted);
+}
+
+.studio-v4 .studio-v4__status-advisory {
+  margin-top: 6px;
+}
+
 .studio-v4 .studio__status-strip-line {
   margin: 0 0 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.625rem;
+  line-height: 1.35;
+  color: var(--studio-indigo-muted);
 }
 
 .studio-v4 .studio__status-strip-line:last-child {

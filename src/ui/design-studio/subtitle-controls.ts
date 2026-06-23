@@ -6,6 +6,7 @@ import {
   type SessionTranscriptSnapshot,
 } from '@/src/storage/session-transcript-db';
 import {
+  BAKED_MP4_READY_KEY,
   LAST_RECORDING_READY_KEY,
   loadUserPreferences,
   readSubtitlesEnabledLocal,
@@ -51,6 +52,9 @@ export interface SubtitleControlsHandle {
   syncFromPreferences(prefs: UserPreferencesV1): void;
   isTranscriptDirty(): boolean;
   getTranscriptDeliveryStatus(): TranscriptDeliveryStatus;
+  hasSessionRecording(): boolean;
+  hasTranscriptCues(): boolean;
+  isBakedForCurrentSession(): boolean;
   confirmTranscriptEdits(): Promise<void>;
   discardTranscriptEdits(): Promise<void>;
 }
@@ -317,6 +321,8 @@ export function mountSubtitleControls(
   let saveTimer = 0;
   let baking = false;
   let bakeAbort: AbortController | null = null;
+  let lastRecordingReadyAt = 0;
+  let lastBakedAt = 0;
   let pendingTranscriptTimer: number | null = null;
   let pendingTranscriptSince = 0;
 
@@ -448,6 +454,33 @@ export function mountSubtitleControls(
     }
   }
 
+  async function refreshSessionStatusCache(): Promise<void> {
+    const stored = await browser.storage.local.get([
+      LAST_RECORDING_READY_KEY,
+      BAKED_MP4_READY_KEY,
+    ]);
+    lastRecordingReadyAt =
+      typeof stored[LAST_RECORDING_READY_KEY] === 'number' ? stored[LAST_RECORDING_READY_KEY] : 0;
+    lastBakedAt = typeof stored[BAKED_MP4_READY_KEY] === 'number' ? stored[BAKED_MP4_READY_KEY] : 0;
+    handlers?.onSettingsChange?.();
+  }
+
+  function hasSessionRecording(): boolean {
+    return lastRecordingReadyAt > 0 || (lastSnapshot?.capturedAt ?? 0) > 0;
+  }
+
+  function isBakedForCurrentSession(): boolean {
+    return (
+      lastBakedAt > 0 &&
+      lastRecordingReadyAt > 0 &&
+      lastBakedAt >= lastRecordingReadyAt
+    );
+  }
+
+  function hasTranscriptCues(): boolean {
+    return (segmentEditor.getEditedResult()?.segments?.length ?? 0) > 0;
+  }
+
   function hideBakeUnsavedDialog(): void {
     bakeUnsavedDialog.hidden = true;
   }
@@ -457,47 +490,52 @@ export function mountSubtitleControls(
   }
 
   async function refreshTranscriptDeliveryStatus(): Promise<void> {
-    if (!draftConfig.transcriptionEnabled) {
-      clearPendingTranscriptTimer();
-      segmentEditor.setTranscriptDeliveryStatus('idle');
-      return;
-    }
-
-    const stored = await browser.storage.local.get(LAST_RECORDING_READY_KEY);
-    const recordingReadyAt =
-      typeof stored[LAST_RECORDING_READY_KEY] === 'number' ? stored[LAST_RECORDING_READY_KEY] : 0;
-    const snapshotAt = lastSnapshot?.capturedAt ?? 0;
-
-    if (snapshotAt > 0 && recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
-      clearPendingTranscriptTimer();
-      segmentEditor.setTranscriptDeliveryStatus('ready');
-      return;
-    }
-
-    if (recordingReadyAt > snapshotAt && recordingReadyAt > 0) {
-      if (pendingTranscriptSince !== recordingReadyAt) {
-        pendingTranscriptSince = recordingReadyAt;
+    try {
+      if (!draftConfig.transcriptionEnabled) {
         clearPendingTranscriptTimer();
-        pendingTranscriptTimer = window.setTimeout(() => {
-          void (async () => {
-            const storedAgain = await browser.storage.local.get(LAST_RECORDING_READY_KEY);
-            const recAt =
-              typeof storedAgain[LAST_RECORDING_READY_KEY] === 'number'
-                ? storedAgain[LAST_RECORDING_READY_KEY]
-                : 0;
-            const snapAt = lastSnapshot?.capturedAt ?? 0;
-            if (recAt > snapAt && recAt > 0) {
-              segmentEditor.setTranscriptDeliveryStatus('timeout');
-            }
-          })();
-        }, TRANSCRIBE_TIMEOUT_MS);
+        segmentEditor.setTranscriptDeliveryStatus('idle');
+        return;
       }
-      segmentEditor.setTranscriptDeliveryStatus('pending');
-      return;
-    }
 
-    clearPendingTranscriptTimer();
-    segmentEditor.setTranscriptDeliveryStatus(snapshotAt > 0 ? 'ready' : 'idle');
+      const stored = await browser.storage.local.get(LAST_RECORDING_READY_KEY);
+      const recordingReadyAt =
+        typeof stored[LAST_RECORDING_READY_KEY] === 'number' ? stored[LAST_RECORDING_READY_KEY] : 0;
+      const snapshotAt = lastSnapshot?.capturedAt ?? 0;
+
+      if (snapshotAt > 0 && recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
+        clearPendingTranscriptTimer();
+        segmentEditor.setTranscriptDeliveryStatus('ready');
+        return;
+      }
+
+      if (recordingReadyAt > snapshotAt && recordingReadyAt > 0) {
+        if (pendingTranscriptSince !== recordingReadyAt) {
+          pendingTranscriptSince = recordingReadyAt;
+          clearPendingTranscriptTimer();
+          pendingTranscriptTimer = window.setTimeout(() => {
+            void (async () => {
+              const storedAgain = await browser.storage.local.get(LAST_RECORDING_READY_KEY);
+              const recAt =
+                typeof storedAgain[LAST_RECORDING_READY_KEY] === 'number'
+                  ? storedAgain[LAST_RECORDING_READY_KEY]
+                  : 0;
+              const snapAt = lastSnapshot?.capturedAt ?? 0;
+              if (recAt > snapAt && recAt > 0) {
+                segmentEditor.setTranscriptDeliveryStatus('timeout');
+                notifySettingsChange();
+              }
+            })();
+          }, TRANSCRIBE_TIMEOUT_MS);
+        }
+        segmentEditor.setTranscriptDeliveryStatus('pending');
+        return;
+      }
+
+      clearPendingTranscriptTimer();
+      segmentEditor.setTranscriptDeliveryStatus(snapshotAt > 0 ? 'ready' : 'idle');
+    } finally {
+      notifySettingsChange();
+    }
   }
 
   function syncBakeButton(): void {
@@ -532,6 +570,7 @@ export function mountSubtitleControls(
       });
       bakeStatusEl.textContent =
         'Subtitles baked. Switch to your Reddit tab and attach the MP4 from the recorder.';
+      await refreshSessionStatusCache();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       bakeStatusEl.textContent = `Bake failed: ${message}`;
@@ -873,7 +912,8 @@ export function mountSubtitleControls(
       void loadTranscriptSource();
       return;
     }
-    if (LAST_RECORDING_READY_KEY in changes) {
+    if (LAST_RECORDING_READY_KEY in changes || BAKED_MP4_READY_KEY in changes) {
+      void refreshSessionStatusCache();
       void refreshTranscriptDeliveryStatus();
     }
   };
@@ -890,6 +930,8 @@ export function mountSubtitleControls(
     syncStyleControls();
     notifyPreviewChange();
   }
+
+  void refreshSessionStatusCache();
 
   void loadUserPreferences().then((prefs) => {
     const settings = normalizeTranscriptConfig(prefs.transcriptConfig);
@@ -959,6 +1001,9 @@ export function mountSubtitleControls(
     getTranscriptDeliveryStatus(): TranscriptDeliveryStatus {
       return segmentEditor.getTranscriptDeliveryStatus();
     },
+    hasSessionRecording,
+    hasTranscriptCues,
+    isBakedForCurrentSession,
     async confirmTranscriptEdits(): Promise<void> {
       const edited = segmentEditor.getEditedResult();
       if (!edited || !segmentEditor.getState().dirty) return;
