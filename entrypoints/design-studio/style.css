@@ -596,6 +596,14 @@ body {
   margin: 0 0 4px;
 }
 
+.studio__rainbow-bake-hint {
+  margin-left: 6px;
+  font-weight: 500;
+  color: #818384;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .studio__transcript {
   margin-bottom: 12px;
 }

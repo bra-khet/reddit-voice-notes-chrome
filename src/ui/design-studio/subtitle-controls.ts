@@ -205,9 +205,12 @@ export function renderSubtitleControlFields(): string {
           ${renderColorPickerFields()}
           <label class="popup__toggle-row studio__subtitles-toggle">
             <span class="popup__toggle-copy">
-              <span class="popup__toggle-label">Rainbow pulse</span>
+              <span class="popup__toggle-label">
+                Rainbow pulse
+                <span class="popup__micro studio__rainbow-bake-hint">Bake: stepped</span>
+              </span>
               <p class="popup__field-desc">
-                Rotates special-hue text and glow through the wheel over time (~3 s per cycle).
+                Rotates special-hue text and glow through the wheel over time (~3 s per cycle). Live preview is smoother than baked MP4.
               </p>
             </span>
             <input

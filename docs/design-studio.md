@@ -389,7 +389,7 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 **Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel (~**3 s** per cycle at `RAINBOW_CYCLES_PER_SECOND = 0.35`). **Preview** uses `previewTimeMs` from the Live preview RAF (~12 fps). **Bake** cannot animate `fontcolor` in FFmpeg drawtext — rainbow is **quantized into 0.25 s static-color slices** per cue (max 24).
 
-**Why faster rotation looked *choppier* (counterintuitive):** The **step rate is fixed** by `RAINBOW_BAKE_SLICE_SECONDS` (0.25 s), not by cycle speed. Each slice holds one static `fontcolor` for ¼ s. Cycle speed only changes **how many degrees of hue advance between slices** (`Δhue ≈ sliceSeconds × cyclesPerSecond × 360°`). Faster rotation → larger color jumps per step → more visible stepping. Slower rotation → smaller jumps → smoother appearance. To change step *frequency*, adjust slice duration (costs more drawtext filters). See **pipeline-native solutions** in `docs/engineering-principles.md`.
+**Why faster rotation looked *choppier* (counterintuitive):** The **step rate is fixed** by `RAINBOW_BAKE_SLICE_SECONDS` (0.25 s), not by cycle speed. Each slice holds one static `fontcolor` for ¼ s. Cycle speed only changes **how many degrees of hue advance between slices** (`Δhue ≈ sliceSeconds × cyclesPerSecond × 360°`). Faster rotation → larger color jumps per step → more visible stepping. Slower rotation → smaller jumps → smaller appearance change but **same step cadence**. To change step *frequency*, adjust slice duration (costs more drawtext filters). UI hint: **Bake: stepped** on the Rainbow pulse toggle. See **pipeline-native solutions** in `docs/engineering-principles.md`.
 
 \*Segment-aware timed preview on canvas is **open** (eloquent-4b) — preview may lag bake until implemented.
 
@@ -477,6 +477,77 @@ Before shipping a visual overhaul, verify:
 - [ ] `npm run build` + record → Studio → bake smoke pass.
 
 **Fallback tag for Studio work:** `v3.6.0` (see `docs/code-review.md`).
+
+---
+
+## 10.1 UI refresh — surgery map (pre-flight, not implemented)
+
+Target layout (your sketch):
+
+| Breakpoint | Structure |
+|------------|-----------|
+| **Landscape** | Large preview (+ optional record) left; profile/status top-right of preview; four section cards in **2×2** grid below or beside preview |
+| **Portrait / narrow** | Profile/status → preview (+ record) → four section cards **stacked**, each with **major controls exposed** + optional **sub-panel** for full feature set |
+
+Replace `<details>` accordion with always-visible “dressed” cards + nested submenus. **Semantics unchanged** — same four sections, same `data-*` contracts, same mount modules.
+
+### Tier A — Mostly CSS / markup shell (lower risk)
+
+| Area | Files | Notes |
+|------|-------|-------|
+| Page grid / responsive | `entrypoints/design-studio/style.css` | New `studio__layout`, `studio__hero`, `studio__panel-grid`; media queries for 2×2 vs stack. No TS required if DOM order preserved. |
+| Accordion chrome | `style.css` `.studio__panel*` | Swap `<details>/<summary>` for `<section>` + header + optional `hidden` sub-panel; **keep** `data-studio-panel` on outer wrapper. |
+| Preview sizing | `preview-block.ts`, `.studio__preview-wrap` | Larger hero preview in landscape; same `[data-preview-canvas]`. |
+| Header / Done | `mount-clip-studio.ts` header block | May merge into profile/status cluster; **keep** `[data-studio-done]`, exit modal markup. |
+| Summary chips | `studio-section-summaries.ts` | Today: collapsed accordion scan affordance. Refresh: move chips to **card headers** or inline major controls — **do not delete** `data-summary-*` targets without updating sync call sites. |
+
+### Tier B — Shell restructure (medium risk — where it hurts)
+
+| Area | Files | Risk |
+|------|-------|------|
+| **Monolith orchestrator** | `mount-clip-studio.ts` (~950 lines) | Single `innerHTML` template + all `querySelector` roots. Any DOM move must preserve: profile buttons, theme/alignment selects, `data-custom-style-panel`, four panel bodies, preview canvas. **Split template into layout partials** before styling — reduces diff blast radius. |
+| **Profile bar relocation** | `mount-clip-studio.ts`, CSS | Profile select + Save/Update/Clone/Delete beside preview. All `syncProfileButton` / `isProfileDirty` logic stays; only queries must still find `[data-profile-select]`, `[data-save-profile]`, etc. |
+| **Major vs full controls** | Each `render*Fields()` module | New pattern: split each section into `render*MajorFields()` + `render*AdvancedFields()` (or sub-panel). **Highest product-design work** — define what’s “major” per section without losing features. |
+| **Bar style nesting** | `color-picker.ts`, `effect-controls.ts` | Hue wheel + radial knobs need ~300px width; compact 2×2 cards may clip. Sub-panel or landscape-only full picker. `isUserAdjusting()` / `endInteraction()` must survive panel open/close. |
+| **Subtitles nesting** | `subtitle-controls.ts`, `subtitle-segment-editor.ts` | Already has hidden bodies (`data-subtitle-body`, glow options, special hue, bake dialog, **modal**). Segment modal is `position: fixed` — z-index vs new grid. Bake unsaved dialog competes with exit modal (`z-index: 20`). |
+| **Voice preview** | `voice-controls.ts` | Play/stop polls IDB; independent of layout if `[data-voice-*]` preserved. |
+
+### Tier C — High risk (likely to go wrong)
+
+| Area | Why |
+|------|-----|
+| **Boot / prefs hydration** | `main.ts` boot order + `applyPrefs` voice/subtitle sync **before** `syncProfileActions` (BUG-027). Re-mounting or re-ordering panel init can resurrect false “Update profile”. |
+| **Four dirty layers** | Profile, style, transcript panel, segment modal — UI refresh must not merge dirty booleans. Exit modal (`studio-exit.ts`) only knows profile/style. |
+| **Storage listener gate** | `prefsHydrated`, `ignoreStoragePrefs`, `invalidateInFlightSaves` — remounting sections on breakpoint change would reset drafts; **avoid re-mount on resize**. |
+| **Preview RAF loop** | `syncPreviewLoop` / `previewCanvases()` — multiple canvases or resize must not duplicate RAF or starve rainbow/bokeh. |
+| **Color debounce** | `COLOR_SAVE_DEBOUNCE_MS` + `colorPicker.endInteraction()` on external sync — collapsing panels must not stomp in-progress hue drags. |
+| **Subtitle `flushPersist` on pagehide** | Teardown order in `unmount()` — must run before tab death (BUG-017/021). |
+| **WYSIWYG copy** | Header says “preview matches recorded video” — rainbow and future effects need honest hints (see `Bake: stepped`). Refresh tagline may need qualification. |
+
+### Tier D — Optional in-Studio recording (separate surgery)
+
+Not required for accordion→cards refresh, but your landscape mock includes record on preview.
+
+| Concern | Detail |
+|---------|--------|
+| **New surface** | `VoiceRecorder` today lives on **Reddit content script** (`recorder-panel.ts`). Studio is **extension page** — needs recorder variant or shared core with different chrome. |
+| **Canvas source** | Record path uses same `waveform.ts` / `captureStream` — preview canvas could become capture target **if** dimensions and theme state match export. |
+| **Pipeline unchanged** | `stopRecording` → parallel transcode + transcribe → same storage keys Studio already polls. |
+| **Reddit attach** | Still needs Reddit tab for composer — Studio record → bake → user switches tab to attach. |
+| **Risk** | Mic permission on extension origin; tab lifecycle (user closes Studio mid-record); progress UI duplication vs recorder panel. |
+
+### Recommended refresh sequence (minimize pain)
+
+1. **CSS-only prototype** — grid + card chrome on current DOM; validate 2×2 and narrow stack without TS changes.
+2. **Extract layout template** from `mount-clip-studio.ts` (header, hero, panel grid) — no behavior change.
+3. **Per-section major/advanced split** — one section per sprint (Background simplest; Subtitles last).
+4. **Profile/status cluster** beside preview.
+5. **Recording** — optional phase after layout stable; harness in Studio before Reddit decoupling.
+
+### Out of scope for UI-only refresh (do not accidentally break)
+
+- `enqueuePrefsOp`, `transcriptConfigForProfileStorage`, bake relay, segment IDB, `chrome.storage` keys, offscreen WASM paths.
+- Renaming `data-studio-panel`, `data-summary-*`, `data-subtitle-*`, `data-voice-*`, `data-preview-canvas` without migration.
 
 ---
 
