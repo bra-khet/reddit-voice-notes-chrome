@@ -17,6 +17,7 @@ export const STUDIO_V4_ASSETS = {
     subpanelHeader5Slice: `${BASE}/panels/subpanel-header-5slice.svg`,
     subpanelHeader9SliceLegacy: `${BASE}/panels/subpanel-header-9slice.legacy.svg`,
     navChip9Slice: `${BASE}/panels/nav-chip-9slice.svg`,
+    navChipNegate9Slice: `${BASE}/panels/nav-chip-negate-9slice.svg`,
     dialogFrame9Slice: `${BASE}/panels/dialog-frame-9slice.svg`,
     panelHeaderBar: `${BASE}/panels/panel-header-bar.svg`,
   },

@@ -15,7 +15,7 @@
 }
 
 .studio-v4__surface--card-footer {
-  border-width: 8px 12px;
+  border-width: 6px 10px;
 }
 
 .studio-v4__surface--subpanel-header {
@@ -27,11 +27,17 @@
 }
 
 .studio-v4__nav-chip {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.studio-v4__nav-chip--negate {
+  width: 40px;
+  height: 40px;
+  border-image: var(--studio-v4-border-nav-chip-negate);
 }
 
 .studio-v4__icon {

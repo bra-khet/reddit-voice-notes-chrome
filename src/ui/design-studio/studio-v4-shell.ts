@@ -29,8 +29,12 @@ export function applyStudioV4ShellChrome(root: HTMLElement): void {
     studioV4BorderImage(panels.navChip9Slice, 10),
   );
   root.style.setProperty(
+    '--studio-v4-border-nav-chip-negate',
+    studioV4BorderImage(panels.navChipNegate9Slice, 10),
+  );
+  root.style.setProperty(
     '--studio-v4-border-card-footer',
-    `url("${studioV4AssetUrl(panels.cardFooter9Slice)}") 8 12 8 12 fill`,
+    `url("${studioV4AssetUrl(panels.cardFooter9Slice)}") 6 10 6 10 fill`,
   );
   root.style.setProperty(
     '--studio-v4-border-dialog',

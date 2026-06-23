@@ -41,7 +41,7 @@ export function renderStudioV4SubpanelChrome(): string {
         <div class="studio__subpanel-chrome-status studio-v4__surface studio-v4__surface--subpanel-header">
           <button
             type="button"
-            class="studio__subpanel-back studio-v4__nav-chip"
+            class="studio__subpanel-back studio-v4__nav-chip studio-v4__nav-chip--negate"
             data-studio-subpanel-back
             aria-label="Cancel and return to sections"
           >
