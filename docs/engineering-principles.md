@@ -122,7 +122,7 @@ When a feature “should” vary over time or depend on expressive filter math, 
 1. **Name the real constraint** — e.g. FFmpeg `drawtext` `fontcolor` is static per filter instance in our wasm burn-in path.
 2. **Map preview vs bake** — canvas/RAF can be fully expressive; export may need quantization, duplicate layers, or a different subsystem.
 3. **Ship the closest working analogue** — time-sliced static colors, stacked drawtext duplicates for glow/border, `textfile=` for escaping (BUG-031).
-4. **Document the fidelity gap** — stepped rainbow vs smooth preview; filter-graph cost; when to coarsen slices.
+4. **Document the fidelity gap** — e.g. rainbow: **slice rate** (`RAINBOW_BAKE_SLICE_SECONDS`) fixes step frequency; **cycle speed** only changes hue delta per step (faster rotation can look choppier). See `docs/design-studio.md` §7.4.
 5. **Only escalate pipeline** when the workaround’s cost or quality ceiling blocks the product goal.
 
 **Reference:** `specialHueRainbow` — `temporalizeDrawtextColor()` in `subtitle-effects.ts` / `subtitle-burnin.ts`; live hue via `previewTimeMs` in `subtitle-preview.ts`. Canonical Studio notes: `docs/design-studio.md` §7.4.

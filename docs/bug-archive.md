@@ -736,11 +736,28 @@ Recorder/offscreen logs show `Subtitle burn-in succeeded (subtitles-srt)` and fu
 - Primary strategy: **`drawtext` + bundled `DejaVuSans.ttf`** in extension package (`public/assets/fonts/`).
 - Reject exit-0 attempts when FFmpeg logs indicate filter/font failure (`burnInLogIndicatesFailure`).
 - Normalize segment timings across clip duration when word timestamps missing.
-- `subtitles`+SRT retained as secondary fallback only.
+- `subtitles`+SRT retained as secondary fallback only (removed in BUG-030 — see below).
+
+### Postmortem — libass vs drawtext vs “no fonts” (sanity check)
+
+Three separate issues were bundled in the original symptom; they are **not** the same failure mode:
+
+| Path | Renderer | Font need | Observed in ffmpeg.wasm |
+|------|----------|-----------|-------------------------|
+| `subtitles=srt:force_style=…` | **libass** (via `subtitles` filter) | `FontName` must resolve — no OS fontconfig | Often **exit 0, no visible text** (eloquent-3 primary) |
+| `drawtext` without `fontfile=` | FFmpeg built-in | Default font lookup | Same silent no-op |
+| `drawtext` + `fontfile=` (DejaVu in package) | FFmpeg drawtext | Bundled TTF in wasm FS | **Reliable** — current production path |
+
+**Was libass “broken” or assumed?** Empirically broken **as shipped**: eloquent-3 tried `subtitles-srt` first; logs reported success while MP4 had no captions. That is consistent with missing libass/fonts in the wasm build, not a logic bug in our SRT. We did **not** prove libass could never work — it would need wasm libass enabled **and** bundled fonts/fontsdir **and** harness validation.
+
+**Why drawtext won:** Bundled font is explicit; glow/border/rainbow map to stacked drawtext layers we control. ASS `\t()` animation would need a **working** libass path.
+
+**The overreaction risk (BUG-028 / BUG-030):** Keeping `subtitles-srt` as **fallback** was the real hazard — when **drawtext** failed (invalid `fontcolor`, BAD-029 plate color), the runner fell through to libass, which **always** “succeeded” silently → false confidence. BUG-030 removed that fallback so drawtext failures surface as errors. Dropping libass as fallback ≠ proving drawtext is the only possible renderer forever.
 
 ### Related files
 
 - `src/ffmpeg/subtitle-burnin.ts`, `src/ffmpeg/ffmpeg-runner.ts`, `wxt.config.ts`
+- `docs/transcription-architecture.md` § Subtitle burn-in render paths
 
 ---
 

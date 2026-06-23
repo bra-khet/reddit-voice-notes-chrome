@@ -151,6 +151,27 @@ npm run build:vosk-sandbox && reload extension at chrome://extensions
 
 Open `transcribe-harness.html` → load WebM from recorder → Transcribe.
 
+## Subtitle burn-in render paths (eloquent-3+)
+
+Production uses **one** strategy: `drawtext-font` + bundled `DejaVuSans.ttf` (`subtitle-burnin.ts`). Historical `subtitles-srt` (libass) was removed in BUG-030.
+
+| Capability | `drawtext` + bundled TTF (current) | `subtitles` + SRT/ASS (libass) |
+|------------|-----------------------------------|--------------------------------|
+| Timed cues | `enable='between(t,start,end)'` per cue | Native ASS timing |
+| Backdrop / glow / border | Stacked drawtext duplicate layers | ASS styles (Outline, Shadow, BorderStyle) |
+| Animated color (`\t()`, rainbow) | Time-sliced static colors (see `design-studio.md` §7.4) | Theoretically smooth transforms |
+| ffmpeg.wasm fonts | `fontfile=` to wasm virtual FS | Needs libass + fontsdir or embedded fonts |
+| Failure mode when misconfigured | Log needles + thrown error (since BUG-030) | **Exit 0, no visible subs** (BUG-025) |
+
+**Headroom in current architecture before pain:**
+
+- More drawtext layers (glow, border, rainbow slices) — filter graph size; long clips + many cues need slice caps.
+- `textfile=` per cue (BUG-031) — punctuation-safe; keep using this pattern.
+- Finer rainbow slices — smoother stepped hue; linear cost in filter count.
+- Revisit libass only via **isolated harness** — confirm wasm build includes libass, bundle fonts, validate pixels; do not restore silent fallback.
+
+Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031.
+
 ## Phase status
 
 | Phase | Scope | Status |

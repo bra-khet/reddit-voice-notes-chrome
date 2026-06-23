@@ -207,7 +207,7 @@ export function renderSubtitleControlFields(): string {
             <span class="popup__toggle-copy">
               <span class="popup__toggle-label">Rainbow pulse</span>
               <p class="popup__field-desc">
-                Rotates special-hue text and glow through the wheel over time (~2 s per cycle).
+                Rotates special-hue text and glow through the wheel over time (~3 s per cycle).
               </p>
             </span>
             <input

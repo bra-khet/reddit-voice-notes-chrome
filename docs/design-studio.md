@@ -387,7 +387,9 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 **Subtitle effects (v3.6.1+):** Drop shadow removed (theme glow covers contrast). Glow modes: **halo** (soft, opacity slider) or **border** (solid 1 px ring, no alpha). **Special hue** is one shared `specialHue` field for both text and glow when either selects `special`.
 
-**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel over time (~**2 s** per cycle at `RAINBOW_CYCLES_PER_SECOND = 0.5`). **Preview** uses `previewTimeMs` from the Live preview RAF (same clock as bokeh). **Bake** cannot animate `fontcolor` in FFmpeg drawtext — rainbow is **quantized into 0.25 s static-color slices** per cue (max 24). Stepped, not per-frame; filter graph grows with slice count. See **pipeline-native solutions** in `docs/engineering-principles.md`.
+**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel (~**3 s** per cycle at `RAINBOW_CYCLES_PER_SECOND = 0.35`). **Preview** uses `previewTimeMs` from the Live preview RAF (~12 fps). **Bake** cannot animate `fontcolor` in FFmpeg drawtext — rainbow is **quantized into 0.25 s static-color slices** per cue (max 24).
+
+**Why faster rotation looked *choppier* (counterintuitive):** The **step rate is fixed** by `RAINBOW_BAKE_SLICE_SECONDS` (0.25 s), not by cycle speed. Each slice holds one static `fontcolor` for ¼ s. Cycle speed only changes **how many degrees of hue advance between slices** (`Δhue ≈ sliceSeconds × cyclesPerSecond × 360°`). Faster rotation → larger color jumps per step → more visible stepping. Slower rotation → smaller jumps → smoother appearance. To change step *frequency*, adjust slice duration (costs more drawtext filters). See **pipeline-native solutions** in `docs/engineering-principles.md`.
 
 \*Segment-aware timed preview on canvas is **open** (eloquent-4b) — preview may lag bake until implemented.
 
@@ -521,8 +523,8 @@ Before shipping a visual overhaul, verify:
 
 | Direction | Bake fidelity | Cost |
 |-----------|---------------|------|
-| User-adjustable rainbow speed | Same slice model | Prefs field only |
-| Finer slices (e.g. 0.15 s) | Smoother stepped rainbow | More drawtext filters per cue |
+| User-adjustable rainbow speed | Changes Δhue per slice, not slice rate | Prefs field only |
+| Finer slices (e.g. 0.15 s) | More steps per second — actually smoother | More drawtext filters per cue |
 | Coarser slices / max-slice cap | Choppier but safer on long clips | Fewer filters |
 | ASS/libass with `\t()` color tags | Smooth per-frame hue possible | New burn path + wasm libass risk (BUG-025 removed this) |
 | Canvas subtitle pass in `base.mp4` | Matches preview exactly | Subtitles in capture layer — breaks “subs are post-transcode burn-in” invariant unless architecture shifts |
