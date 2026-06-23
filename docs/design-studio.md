@@ -536,11 +536,37 @@ Not required for accordion→cards refresh, but your landscape mock includes rec
 | **Reddit attach** | Still needs Reddit tab for composer — Studio record → bake → user switches tab to attach. |
 | **Risk** | Mic permission on extension origin; tab lifecycle (user closes Studio mid-record); progress UI duplication vs recorder panel. |
 
-### Recommended refresh sequence (minimize pain)
+### 10.1.1 Narrow scope variant (status cards only)
+
+If card faces expose **no interactive controls** — only read-only status/summary (today’s collapsed accordion chips, dressed up) — and **all** editing happens inside a per-section sub-panel/sub-menu, the refresh becomes substantially easier. This matches the original accordion semantics and defers “major controls on the card” to a later feature set.
+
+| Full-scope item (§10.1) | Narrow-scope change |
+|-------------------------|---------------------|
+| **Major vs full control split** (`render*MajorFields` + `render*AdvancedFields`) | **Removed** — keep existing `render*Fields()` modules intact; mount entire body in sub-panel only. |
+| **Bar style 2×2 clipping** (hue wheel ~300px in compact card) | **Removed** — picker runs full-width inside open sub-panel. |
+| **Summary chips → card headers** | **Becomes the main card deliverable** — `studio-section-summaries.ts` + `data-summary-*` stay; add optional status cues (e.g. “Bake pending”, “Custom style”). |
+| **Portrait vs landscape control density** | **One pattern** — card = status; sub-panel = full controls at both breakpoints. |
+| **Tier A shell / grid / hero preview** | Unchanged |
+| **Profile/status beside preview** | Unchanged |
+| **Tier C** (boot order, dirty layers, no resize re-mount, RAF, debounce) | Unchanged — still the real hazard |
+| **Tier D in-Studio recording** | Still separate; not required for card migration |
+
+**New work (narrow scope only):** sub-panel **navigation chrome** — tap card → open sub-view (overlay, slide-in, or full-page push) with Back + section title; preserve `data-studio-panel` wrapper and existing panel bodies. No control duplication on the card face.
+
+**Recommended sequence (narrow):**
+
+1. CSS-only prototype — 2×2 / stack grid + card chrome; summaries on card faces only.
+2. Extract layout template from `mount-clip-studio.ts` — hero, panel grid, profile cluster.
+3. Sub-panel shell — one generic open/close pattern; wire four cards to existing panel bodies (no `render*` splits).
+4. Profile/status cluster beside preview.
+5. *(Later)* exposed major controls on cards, if desired.
+6. *(Separate)* in-Studio recording.
+
+### Recommended refresh sequence (full scope — minimize pain)
 
 1. **CSS-only prototype** — grid + card chrome on current DOM; validate 2×2 and narrow stack without TS changes.
 2. **Extract layout template** from `mount-clip-studio.ts` (header, hero, panel grid) — no behavior change.
-3. **Per-section major/advanced split** — one section per sprint (Background simplest; Subtitles last).
+3. **Per-section major/advanced split** — one section per sprint (Background simplest; Subtitles last). *Skip if using §10.1.1 narrow scope.*
 4. **Profile/status cluster** beside preview.
 5. **Recording** — optional phase after layout stable; harness in Studio before Reddit decoupling.
 
@@ -548,6 +574,93 @@ Not required for accordion→cards refresh, but your landscape mock includes rec
 
 - `enqueuePrefsOp`, `transcriptConfigForProfileStorage`, bake relay, segment IDB, `chrome.storage` keys, offscreen WASM paths.
 - Renaming `data-studio-panel`, `data-summary-*`, `data-subtitle-*`, `data-voice-*`, `data-preview-canvas` without migration.
+
+### 10.2 Layout variant — hero row + four-card strip (preferred sketch)
+
+Landscape (wide):
+
+```
+┌──────────────────────────────┬─────────────────┐
+│ LIVE PREVIEW (hero canvas)   │ PROFILE         │
+│                              │ + STATUS strip  │
+└──────────────────────────────┴─────────────────┘
+┌──────────┬──────────┬──────────┬──────────┐
+│ Bar style│Background│  Voice   │ Subtitles│
+│ (status) │ (status) │ (status) │ (status) │
+└──────────┴──────────┴──────────┴──────────┘
+```
+
+Narrow (stack — typical breakpoint when four cards cannot hold min readable width, ~720–900px container-dependent):
+
+```
+PROFILE + STATUS
+LIVE PREVIEW
+Bar style   (status card)
+Background  (status card)
+Voice       (status card)
+Subtitles   (status card)
+```
+
+**Card faces (§10.1.1 narrow scope):** read-only — section title, optional icon, `data-summary-*` one-liner, enter affordance (chevron / “Open”). **Sub-panel:** full existing `render*Fields()` body; segment editor pattern for dirty exit.
+
+**Profile + status cluster (top-right landscape):** profile select + Save/Update/Clone/Delete; nested **status** subsection — session guidance (transcript pending/ready, unsaved profile/style, bake available, honest preview caveats). Visual guide, not a second control surface.
+
+#### Layout comparison (pre-flight ratings)
+
+Assumes §10.1.1 narrow scope (status cards + sub-panel only).
+
+| Layout | Landscape | Narrow |
+|--------|-----------|--------|
+| **A — 2×2 grid** (§10.1 original) | Four section cards in 2×2 below/beside preview | Same cards stacked |
+| **B — 1×4 strip** (§10.2) | Hero row (preview + profile/status) + **one row of four** cards | Vertical stack of four cards |
+
+| Criterion | A — 2×2 | B — 1×4 strip | Notes |
+|-----------|---------|---------------|-------|
+| **UX / intuitiveness** (1–10) | **7** | **9** | B separates “watch” (hero) from “configure” (four doors); scan line matches four bounded sections; profile/status beside preview answers “what am I editing?” |
+| **Ease of development** (1–10) | **7** | **9** | B is pure CSS grid (`2fr 1fr` hero + `repeat(4,1fr)` strip); one collapse rule (`4→1` columns). A fights vertical budget (preview vs 2×2 height) and uneven card aspect ratios |
+
+**Pain vs §10.1 plan:** Switching B→vertical **reduces** overall pain vs 2×2 — not increases. Tier C unchanged. Tier B **bar-style clipping in cards** already removed by narrow scope; B’s thinner landscape cards only affect summary truncation (solved with progressive disclosure, not control layout). **New watchpoint:** subtitle summary verbosity — use card badge + hover tooltip, not full cue list on the face.
+
+**Recommended breakpoint:** collapse the four-card strip to a single column when `min(card) < ~160px` or container width `< ~720px` (tune in CSS prototype). Aspect ratio alone is a weak signal; **container query on the strip** is more reliable than `1:1`.
+
+### 10.3 Visual design — CVD-friendly tech accent
+
+Studio chrome should read as **retro / punchy / tech** without relying on red-vs-green semantics.
+
+| Principle | Guidance |
+|-----------|----------|
+| **Palette anchor** | Deep **indigo** surfaces + **amber** accents (warnings, active affordances, “needs attention”). Success/ready: cyan or amber outline + icon, not green alone. |
+| **State encoding** | Never color-only: pair hue with **icon, label, weight, or position** (badge text, border style, `aria-live` status). |
+| **Contrast** | WCAG AA for body text; punch via typography (mono status lines, bordered cards) not neon saturation. |
+| **Preview honesty** | Stepped-bake and similar caveats live in status strip + sub-panel, not only tooltips. |
+
+Vector assets for the four cards should be **recognizable silhouettes** (bars, frame, waveform/mic, caption lines) — usable at 24–32px beside titles.
+
+### 10.4 Unified sub-panel exit guard (target contract)
+
+Any **editing sub-panel** (four section menus; future help/settings) should share one close/back behavior, modeled on `subtitle-segment-editor.ts` modal unsaved flow:
+
+| Action | Behavior |
+|--------|----------|
+| **Back / close** | If sub-panel dirty → inline prompt: **Save / Apply**, **Discard**, **Keep editing** (cancel). If clean → close immediately. |
+| **Dirty scope** | Section-local draft vs open baseline — do not merge the four global dirty layers (§3.5) into one flag; **compose** prompts (e.g. profile dirty + section dirty → ordered prompts). |
+| **Done (global)** | Still `hasStudioUnsavedChanges` + `studio-exit.ts` for profile/style; transcript panel + segment modal keep existing rules. |
+| **Implementation** | Extract shared helper (e.g. `studio-subpanel-guard.ts`) — **one sprint**, layout-agnostic; applies equally to layout A or B. |
+
+Card faces remain non-interactive except **enter**; all apply/discard lives inside the sub-panel or its close guard.
+
+### 10.5 Vector assets (v4 refresh)
+
+| Location | Contents |
+|----------|----------|
+| `public/assets/design-studio-v4/` | Runtime SVGs (panels, icons, status, buttons, chrome) |
+| `docs/design-studio-v4/asset-inventory.md` | MVP punch list, deprecated assets, gaps |
+| `docs/design-studio-v4/vector-ui-assets-spec.md` | Authoring spec + theming |
+| `entrypoints/design-studio/studio-palette.css` | CVD-friendly CSS tokens (§10.3) |
+
+**MVP status (2026-06-23):** Shell migration ready. Gaps: card enter/back chevrons, pending status variant, Done button chrome — all CSS-workaroundable for Phase 1.
+
+**Fallback tag before UI migration:** `v3.6.0-pre-ui-refresh` (assets + design docs landed; no layout TS yet).
 
 ---
 
@@ -561,7 +674,9 @@ Not required for accordion→cards refresh, but your landscape mock includes rec
 | Font picker | Subtitles | Deferred |
 | Chunked base-MP4 relay | Subtitles | If large-clip bake fails |
 | Legacy `transcriptConfig` on profiles | Subtitles / Profile | Update profile once embeds style |
-| Section tabs vs `<details>` | Shell | Layout only — semantics unchanged |
+| Section tabs vs `<details>` | Shell | §10.2 hero + 1×4 strip preferred over 2×2 |
+| Unified sub-panel exit guard | Shell | §10.4 — extract from segment editor |
+| CVD-friendly chrome palette | Shell | §10.3 — indigo/amber anchor |
 
 ---
 

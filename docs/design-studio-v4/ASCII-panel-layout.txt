@@ -1,0 +1,20 @@
+Panel layout with titles/Purpose:
+
++----------------------------+  +-------------------+
+|       LIVE PREVIEW         |  |     PROFILE       |
+|                            |  |      STATUS       |
+|                            |  |      +---+        |
+|                            |  |      |   |        |
+|                            |  |      +---+        |
++----------------------------+  +-------------------+
+
++--------+  +--------+  +--------+  +--------+ 
+|BARSTYLE|  |BACKGRND|  | VOICE  |  |SUBTITLE| 
+|        |  |        |  |        |  |        | 
+|        |  |        |  |        |  |        |
++--------+  +--------+  +--------+  +--------+
+
+Also:
+
+Vector assets: simple silhouettes at 24–32px (bars, frame, mic/wave, caption lines)
+

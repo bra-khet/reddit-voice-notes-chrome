@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="36" viewBox="0 0 280 36" aria-hidden="true">
+/*
+  Design Studio v4 — Physical Analog Slider Track
+  Features:
+  - Hard outer edge
+  - Inner glowing "light bleed" using theme color that feathers inward to a true black center mask
+  - Designed to look like a machined slot with illumination coming from under the edges
+
+  Theming:
+  - Replace #ffd54f stops with var(--theme-color)
+  - The black center (#12001f or pure black) gives the "feathered to black center" physical look.
+
+  Pair with physical-slider-tab.svg
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Comments must be placed INSIDE the <svg> ... </svg> tags.
+*/
+  <defs>
+    /* The critical "bleed" gradient: theme on edges fading to black in center */
+    <linearGradient id="trackBleed" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="#ffd54f" stop-opacity="0.9"/>
+      <stop offset="12%" stop-color="#ffd54f" stop-opacity="0.65"/>
+      <stop offset="28%" stop-color="#12001f" stop-opacity="0.15"/>
+      <stop offset="50%" stop-color="#000000"/>
+      <stop offset="72%" stop-color="#12001f" stop-opacity="0.15"/>
+      <stop offset="88%" stop-color="#ffd54f" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#ffd54f" stop-opacity="0.9"/>
+    </linearGradient>
+
+    /* Subtle vertical shading for physical depth */
+    <linearGradient id="trackDepth" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a2e" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#000000" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#1a1a2e" stop-opacity="0.5"/>
+    </linearGradient>
+
+    /* Soft mask so the glow doesn't go all the way to the outer chrome */
+    <linearGradient id="innerMask" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.2"/>
+      <stop offset="18%" stop-color="white"/>
+      <stop offset="82%" stop-color="white"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+
+  /* Outer hard chrome edge of the track housing */
+  <rect x="8" y="8" width="264" height="20" rx="4" ry="4"
+        fill="#1d1f6e" stroke="#0a0014" stroke-width="2"/>
+
+  /* The glowing inner track area (the "slot") */
+  <rect x="12" y="11" width="256" height="14" rx="2" ry="2"
+        fill="url(#trackBleed)"/>
+
+  /* Depth overlay + center black mask */
+  <rect x="12" y="11" width="256" height="14" rx="2" ry="2"
+        fill="url(#trackDepth)" opacity="0.85"/>
+
+  /* Very thin bright inner highlight line at top of slot for physicality */
+  <rect x="14" y="12" width="252" height="2" rx="1" ry="1"
+        fill="#ffd54f" opacity="0.25"/>
+
+  /* Comment: In CSS usage you can drive the gradient stops or add an additional feathered box-shadow on a wrapper */
+</svg>

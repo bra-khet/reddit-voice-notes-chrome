@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60" viewBox="0 0 100 60">
+/*
+  Design Studio v4 — Reusable Theme Glow Layer Template
+  Drop this pattern into other SVGs or use as a reference for CSS.
+
+  In real UI prefer CSS:
+    .theme-glow {
+      filter: drop-shadow(0 0 6px var(--theme-color));
+    }
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+*/
+
+  <defs>
+    <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g fill="#ffd54f" opacity="0.6" filter="url(#glow)">
+    /* Example geometry that should glow */
+    <rect x="10" y="15" width="80" height="30" rx="4"/>
+  </g>
+</svg>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="140" viewBox="0 0 220 140" aria-hidden="true">
+/*
+  Design Studio v4 — Generic Panel Backlight Radial Decal
+  Can be placed behind knobs or entire panel sections for subtle theme glow.
+  Low opacity by default.
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Place the comments INSIDE the <svg> ... </svg> tags.
+*/
+  <defs>
+    <filter id="softRadial" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  /* Faint radial spokes */
+  <g fill="none" stroke="#ffd54f" stroke-width="1.5" opacity="0.12" filter="url(#softRadial)">
+    <line x1="110" y1="10" x2="110" y2="130"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(20 110 70)"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(40 110 70)"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(60 110 70)"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(80 110 70)"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(100 110 70)"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(120 110 70)"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(140 110 70)"/>
+    <line x1="110" y1="10" x2="110" y2="130" transform="rotate(160 110 70)"/>
+  </g>
+
+  /* Center hotspot */
+  <circle cx="110" cy="70" r="18" fill="#ffd54f" opacity="0.08"/>
+</svg>

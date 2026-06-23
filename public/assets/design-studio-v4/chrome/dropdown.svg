@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="32" viewBox="0 0 180 32" aria-hidden="true">
+/*
+  Design Studio v4 — Dropdown trigger / menu chrome
+  Includes small preview area hint (useful for Background selector).
+  Layered depth on the box + chevron.
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Place the comments INSIDE the <svg> ... </svg> tags.
+*/
+  <defs>
+    <linearGradient id="ddBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2a2a44"/>
+      <stop offset="50%" stop-color="#1d1f6e"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+
+  /* Main box */
+  <rect x="1" y="2" width="178" height="28" rx="5" ry="5"
+        fill="url(#ddBevel)" stroke="#0a0014" stroke-width="1.5"/>
+
+  /* Inner surface */
+  <rect x="3" y="4" width="160" height="24" rx="3" ry="3" fill="#12001f" opacity="0.6"/>
+
+  /* Preview thumbnail hint (for Background dropdown) */
+  <rect x="6" y="7" width="22" height="18" rx="2" ry="2" fill="#1d1f6e" stroke="#3a3a5a" stroke-width="1"/>
+
+  /* Chevron */
+  <path d="M 160 14 L 166 20 L 172 14" fill="none" stroke="#ffd54f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  /* Placeholder text line */
+  <rect x="34" y="13" width="110" height="3" rx="1" ry="1" fill="#3a3a5a"/>
+  <rect x="34" y="19" width="70" height="2.5" rx="1" ry="1" fill="#2a2a44"/>
+</svg>

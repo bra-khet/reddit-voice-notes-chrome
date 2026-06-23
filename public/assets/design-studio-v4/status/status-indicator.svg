@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+<!--
+  Design Studio v4 — Clean Status Indicator (LED/dot style)
+  For panel status chrome: complete (greenish amber), pending, warning.
+  Pillowing bevel, glow for active.
+  Variants via fill or CSS.
+-->
+  <defs>
+    <linearGradient id="ledBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c9a63d"/>
+      <stop offset="50%" stop-color="#ffd54f"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shadow -->
+  <circle cx="12" cy="13" r="7" fill="#000000" opacity="0.4"/>
+
+  <!-- LED body -->
+  <circle cx="12" cy="11" r="7" fill="url(#ledBevel)" stroke="#8a6f1a" stroke-width="1"/>
+
+  <!-- Inner highlight -->
+  <circle cx="10" cy="9" r="2.5" fill="#ffffff" opacity="0.3"/>
+</svg>

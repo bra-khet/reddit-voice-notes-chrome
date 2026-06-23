@@ -1,0 +1,18 @@
+/* Design Studio v4 chrome tokens — CVD-friendly indigo + amber anchor.
+   WHY: Shared palette for UI refresh; pair hue with icon/label per design-studio.md §10.3. */
+
+:root {
+  --studio-bg-deep: #12001f;
+  --studio-panel: #1d1f6e;
+  --studio-panel-edge: #0a0014;
+  --studio-amber: #ffd54f;
+  --studio-amber-dim: #c9a63d;
+  --studio-amber-edge: #8a6f1a;
+  --studio-cyan-ready: #5ec8e8;
+  --studio-indigo-accent: #4a4a8a;
+  --studio-text: #e8e6f0;
+  --studio-text-muted: #a8a4c0;
+  --studio-warning: #ffb84d;
+  --studio-theme-color: var(--studio-amber);
+  --studio-theme-glow: var(--studio-amber);
+}

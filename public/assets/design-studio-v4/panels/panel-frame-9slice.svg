@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" aria-hidden="true">
+<!--
+  Design Studio v4 — Panel Frame Base for 9-Slice Scaling
+  Symmetric square base (viewBox 0 0 100 100) with 10-unit border thickness for easy border-image-slice: 10 10 10 10;
+  Pseudo-3D pillowing and bordering to match existing button/slider tactile style:
+  - Outer shadow lift
+  - Multi-layer bevel: dark outer stroke, gradient body, inner light highlight
+  - Inset content area with subtle bevel
+  - Scalable gradients (percentages)
+  Usage in CSS:
+    .panel {
+      border-image: url('panel-frame-9slice.svg') 10 10 10 10 fill;
+      border-width: 10px;
+      /* or adjust for size */
+    }
+  The center (20-80) can be transparent or filled for content area.
+  Corners pinned, edges stretch/repeat.
+  Theming: use currentColor or CSS vars on fills/strokes.
+-->
+  <defs>
+    <!-- Scalable gradients using % -->
+    <linearGradient id="frameBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="40%" stop-color="#1d1f6e"/>
+      <stop offset="60%" stop-color="#12001f"/>
+      <stop offset="100%" stop-color="#0a0014"/>
+    </linearGradient>
+    <linearGradient id="frameHighlight" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="insetBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0014" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer drop shadow for pseudo-3D lift (will be in corners/edges) -->
+  <rect x="3" y="3" width="94" height="94" rx="8" ry="8" fill="#000000" opacity="0.45"/>
+
+  <!-- Main outer frame body with pillowing -->
+  <rect x="0" y="0" width="100" height="100" rx="8" ry="8"
+        fill="url(#frameBevel)" stroke="#0a0014" stroke-width="2"/>
+
+  <!-- Inner highlight for bevel edge -->
+  <rect x="2" y="2" width="96" height="96" rx="6" ry="6"
+        fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.1"/>
+
+  <!-- Inset content area (center for 9-slice, will stretch) -->
+  <rect x="10" y="10" width="80" height="80" rx="4" ry="4"
+        fill="url(#insetBevel)" stroke="#2a2a44" stroke-width="1"/>
+
+  <!-- Subtle top inner highlight on inset for depth -->
+  <rect x="12" y="12" width="76" height="4" rx="2" ry="2"
+        fill="url(#frameHighlight)"/>
+</svg>
