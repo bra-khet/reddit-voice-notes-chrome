@@ -11,8 +11,8 @@ Resolve URLs with `studioV4AssetUrl()` from `src/ui/design-studio/studio-v4-asse
 | `nav-chip-9slice.svg` | 10 | 10px | Enter/back icon chips |
 | `button-frame-9slice.svg` | 8 | 8px | Scalable buttons (HTML label inside) |
 | `card-footer-9slice.svg` | 8 12 8 12 | 8px 12px | Status card enter rail |
-| `subpanel-header-5slice.svg` | `10 14 10 48` | `10px 14px 10px 48px` | Sub-panel header bar — see `5-slice-usage.md` |
-| `subpanel-header-9slice.legacy.svg` | — | — | **Deprecated** (scaled baked chevron) |
+| `subpanel-header-9slice.svg` | 10 14 10 14 | 10px 14px | Sub-panel header bar (no baked chevron — HTML nav-chip) |
+| `subpanel-header-9slice.legacy.svg` | — | — | Frozen copy with baked chevron (reference only) |
 
 ## TypeScript helper
 

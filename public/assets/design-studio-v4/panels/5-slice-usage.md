@@ -1,6 +1,8 @@
-# 5-Slice horizontal bar guide
+# 5-Slice horizontal bar guide (experimental — not used in runtime)
 
-For **wide, short chrome bars** (sub-panel header status strip) where the left zone must stay fixed and a middle stripe stretches — not uniform 9-slice.
+Superseded for sub-panel header by `subpanel-header-9slice.svg` (baked chevron removed; HTML nav-chip only).
+
+For **wide, short chrome bars** where the left zone must stay fixed and a middle stripe stretches — not uniform 9-slice.
 
 Resolve URLs with `studioV4AssetUrl()` and `studioV4BorderImageSlices()` from `src/ui/design-studio/studio-v4-assets.ts`.
 

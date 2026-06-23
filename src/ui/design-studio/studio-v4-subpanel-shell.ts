@@ -38,7 +38,7 @@ export function renderStudioV4SubpanelChrome(): string {
   return `
     <header class="studio__subpanel-chrome" data-studio-subpanel-chrome hidden>
       <div class="studio__subpanel-chrome-row studio__header-row">
-        <div class="studio__subpanel-chrome-status studio-v4__surface studio-v4__surface--subpanel-header-bar">
+        <div class="studio__subpanel-chrome-status studio-v4__surface studio-v4__surface--subpanel-header">
           <button
             type="button"
             class="studio__subpanel-back studio-v4__nav-chip"

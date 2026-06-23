@@ -285,14 +285,11 @@ body:has(.studio-v4) {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 8px 12px 8px 4px;
+  padding: 8px 12px 8px 6px;
   border-style: solid;
+  border-image: var(--studio-v4-border-subpanel-header);
   box-sizing: border-box;
   background: var(--studio-bg-deep);
-}
-
-.studio-v4 .studio__subpanel-chrome-status.studio-v4__surface--subpanel-header-bar {
-  border-image: var(--studio-v4-border-subpanel-header);
 }
 
 .studio-v4 .studio__subpanel-back {

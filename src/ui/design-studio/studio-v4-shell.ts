@@ -2,7 +2,6 @@ import {
   STUDIO_V4_ASSETS,
   studioV4AssetUrl,
   studioV4BorderImage,
-  studioV4BorderImageSlices,
 } from '@/src/ui/design-studio/studio-v4-assets';
 
 const PANEL_ICON_BY_ID: Record<string, string> = {
@@ -39,7 +38,7 @@ export function applyStudioV4ShellChrome(root: HTMLElement): void {
   );
   root.style.setProperty(
     '--studio-v4-border-subpanel-header',
-    studioV4BorderImageSlices(panels.subpanelHeader5Slice, 10, 14, 10, 48),
+    `url("${studioV4AssetUrl(panels.subpanelHeader9Slice)}") 10 14 10 14 fill`,
   );
 
   setImageUrl('--studio-v4-preview-frame', panels.previewWindowFrame);

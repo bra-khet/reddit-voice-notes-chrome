@@ -65,7 +65,7 @@ function buildRows(input: StudioStatusStripInput): StatusRow[] {
       icon: STUDIO_V4_ASSETS.status.warning,
       text: 'Transcript edits not confirmed',
     });
-  } else if (transcriptDelivery === 'ready' && subtitleDraft.transcriptionEnabled) {
+  } else if (transcriptDelivery === 'ready' && transcriptForMatch.transcriptionEnabled) {
     rows.push({
       icon: STUDIO_V4_ASSETS.status.complete,
       text: 'Transcript ready',
