@@ -48,6 +48,9 @@ export interface SubtitleControlsHandle {
   getProfileSnapshotConfig(): TranscriptConfig;
   getPreviewOptions(): SubtitlePreviewOptions | undefined;
   syncFromPreferences(prefs: UserPreferencesV1): void;
+  isTranscriptDirty(): boolean;
+  confirmTranscriptEdits(): Promise<void>;
+  discardTranscriptEdits(): Promise<void>;
 }
 
 const TRANSCRIPT_SAVE_DEBOUNCE_MS = 250;
@@ -947,6 +950,32 @@ export function mountSubtitleControls(
         style: config.style,
         themeBarColor: handlers?.getThemeBarColor?.(),
       };
+    },
+    isTranscriptDirty(): boolean {
+      return segmentEditor.getState().dirty;
+    },
+    async confirmTranscriptEdits(): Promise<void> {
+      const edited = segmentEditor.getEditedResult();
+      if (!edited || !segmentEditor.getState().dirty) return;
+      await saveSessionTranscriptEdits(edited, { confirmed: true });
+      lastSnapshot = await loadSessionTranscript();
+      segmentEditor.markConfirmedSaved();
+      syncDraftFromEditor();
+      syncBakeButton();
+      updateSourceCopy();
+    },
+    async discardTranscriptEdits(): Promise<void> {
+      await revertSessionTranscriptEdits();
+      const snapshot = await loadSessionTranscript();
+      if (snapshot) {
+        lastSnapshot = snapshot;
+        segmentEditor.setTranscript(snapshot.originalResult, snapshot.editedResult, {
+          savedBaseline: snapshot.editedResult,
+        });
+      }
+      syncDraftFromEditor();
+      syncBakeButton();
+      updateSourceCopy();
     },
   };
 }

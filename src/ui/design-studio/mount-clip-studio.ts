@@ -72,8 +72,13 @@ import {
   populateDesignStudioStyleSelect,
 } from '@/src/ui/style-select';
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
-import { renderStudioV4PanelSummary } from '@/src/ui/design-studio/studio-v4-panel-summary';
+import { renderStudioV4PanelCard } from '@/src/ui/design-studio/studio-v4-panel-summary';
 import { applyStudioV4ShellChrome } from '@/src/ui/design-studio/studio-v4-shell';
+import {
+  mountStudioV4SubpanelShell,
+  renderStudioV4SubpanelShell,
+  type StudioSubpanelShellHandle,
+} from '@/src/ui/design-studio/studio-v4-subpanel-shell';
 import { syncStudioSectionSummaries } from '@/src/ui/design-studio/studio-section-summaries';
 import {
   discardStudioUnsavedChanges,
@@ -139,6 +144,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         </div>
       </div>
       <div class="studio__layout">
+        <div class="studio__layout-main" data-studio-layout-main>
         <div class="studio__hero">
           ${renderPreviewBlock('primary')}
           <div class="studio__profile-cluster">
@@ -174,10 +180,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
           </div>
         </div>
         <div class="studio__panel-strip">
-      <!-- V4 NOTE: Status cards below — full controls stay in panel bodies until sub-panel shell (next phase). -->
-      <details class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">
-        ${renderStudioV4PanelSummary('Bar style', 'data-summary-bar-style')}
-        <div class="studio__panel-body">
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">
+        ${renderStudioV4PanelCard('Bar style', 'data-summary-bar-style', 'bar-style')}
+        <div class="studio__panel-body" hidden>
           <label class="popup__field studio__field--compact">
             <span class="popup__field-label">Clip style</span>
             <select class="popup__select" data-theme-select aria-label="Clip style"></select>
@@ -211,32 +216,34 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
             ${renderBackgroundFlairFields()}
           </div>
         </div>
-      </details>
-      <details class="studio__panel studio-v4__status-card" data-studio-panel="background">
-        ${renderStudioV4PanelSummary('Background', 'data-summary-background')}
-        <div class="studio__panel-body">
+      </section>
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
+        ${renderStudioV4PanelCard('Background', 'data-summary-background', 'background')}
+        <div class="studio__panel-body" hidden>
           ${renderPersonalBackgroundFields()}
           ${renderBackgroundLayoutFields()}
         </div>
-      </details>
-      <details class="studio__panel studio-v4__status-card" data-studio-panel="voice">
-        ${renderStudioV4PanelSummary('Voice', 'data-summary-voice')}
-        <div class="studio__panel-body">
+      </section>
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="voice">
+        ${renderStudioV4PanelCard('Voice', 'data-summary-voice', 'voice')}
+        <div class="studio__panel-body" hidden>
           ${renderVoiceControlFields()}
         </div>
-      </details>
-      <details class="studio__panel studio-v4__status-card" data-studio-panel="subtitles">
-        ${renderStudioV4PanelSummary('Subtitles', 'data-summary-subtitles')}
-        <div class="studio__panel-body">
+      </section>
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="subtitles">
+        ${renderStudioV4PanelCard('Subtitles', 'data-summary-subtitles', 'subtitles')}
+        <div class="studio__panel-body" hidden>
           ${renderSubtitleControlFields()}
         </div>
-      </details>
+      </section>
         </div>
       <p class="studio__footer-note">
         Changes apply live to the recorder. <strong>Clone</strong> then edit, or edit then
         <strong>Save to new</strong> — both reach the same fork. <strong>Update</strong> overwrites
         the selected saved profile or style.
       </p>
+        </div>
+        ${renderStudioV4SubpanelShell()}
       </div>
     </main>
   `;
@@ -284,6 +291,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let prefsHydrated = false;
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
+  let subpanelShell!: StudioSubpanelShellHandle;
   const PREVIEW_ANIM_FPS = 12;
 
   function cancelPendingColorSave(): void {
@@ -707,6 +715,36 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     getThemeBarColor: () => resolvedTheme().colors.bar,
   });
 
+  subpanelShell = mountStudioV4SubpanelShell(studioShell, {
+    isPanelDirty: (panelId) => {
+      if (panelId === 'bar-style') return hasPendingColorEdit();
+      if (panelId === 'subtitles') return subtitleControls.isTranscriptDirty();
+      return false;
+    },
+    onApplyPanel: async (panelId) => {
+      if (panelId === 'bar-style') {
+        await flushPendingDesignPersist();
+        return;
+      }
+      if (panelId === 'subtitles') {
+        await subtitleControls.confirmTranscriptEdits();
+      }
+    },
+    onDiscardPanel: async (panelId) => {
+      if (panelId === 'bar-style') {
+        cancelPendingColorSave();
+        if (activePrefs) {
+          syncStyleControlsFromPrefs(activePrefs, true);
+          syncSectionSummaries();
+        }
+        return;
+      }
+      if (panelId === 'subtitles') {
+        await subtitleControls.discardTranscriptEdits();
+      }
+    },
+  });
+
   profileSelect.addEventListener('change', () => {
     invalidateInFlightSaves();
     resetProfileUpdateConfirm();
@@ -944,6 +982,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   return () => {
     cancelPendingColorSave();
     stopPreviewLoop();
+    subpanelShell.dispose();
     voiceControls.dispose();
     subtitleControls.dispose();
     window.removeEventListener('beforeunload', beforeUnloadHandler);
