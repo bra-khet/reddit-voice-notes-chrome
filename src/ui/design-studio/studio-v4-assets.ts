@@ -9,6 +9,8 @@ export const STUDIO_V4_ASSETS = {
   panels: {
     panelFrame9Slice: `${BASE}/panels/panel-frame-9slice.svg`,
     previewWindowFrame: `${BASE}/panels/preview-window-frame.svg`,
+    /** Mask-cutout predecessor — see panels/preview-window-frame.legacy.svg */
+    previewWindowFrameLegacy: `${BASE}/panels/preview-window-frame.legacy.svg`,
     profileStatusFrame: `${BASE}/panels/profile-status-frame.svg`,
     statusPanelFrame: `${BASE}/panels/status-panel-frame.svg`,
     cardFooter9Slice: `${BASE}/panels/card-footer-9slice.svg`,

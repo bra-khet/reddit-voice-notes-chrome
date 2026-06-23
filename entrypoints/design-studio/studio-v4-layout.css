@@ -73,7 +73,15 @@ body:has(.studio-v4) {
   }
 }
 
+/* CHANGED: hero preview couples 640×360 canvas + frame — shared box, matched clip/mask hole.
+   WHY: stretched ::after + inset canvas scaled from top-left at different rates (misaligned bezel). */
 .studio-v4 .studio__hero .studio__preview-wrap {
+  --studio-v4-preview-w: 640;
+  --studio-v4-preview-h: 360;
+  --studio-v4-preview-hole-x: 12;
+  --studio-v4-preview-hole-y: 12;
+  --studio-v4-preview-hole-w: 604;
+  --studio-v4-preview-hole-h: 324;
   position: relative;
   margin-bottom: 0;
   border: none;
@@ -81,30 +89,42 @@ body:has(.studio-v4) {
   box-shadow: none;
   background: #0a0014;
   overflow: hidden;
-  aspect-ratio: 16 / 9;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 640 / 360;
 }
 
-/* Bezel rim overlay — transparent center; canvas draws WYSIWYG beneath this layer. */
+/* Bezel ring — locked to same 640×360 box as canvas (top-left, 100% stretch). */
 .studio-v4 .studio__hero .studio__preview-wrap::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 3;
-  background: var(--studio-v4-preview-frame) center / 100% 100% no-repeat;
+  background: var(--studio-v4-preview-frame) 0 0 / 100% 100% no-repeat;
 }
 
-/* CHANGED: canvas above dark well, below bezel — paired inset matches SVG viewport hole. */
+/* WYSIWYG canvas fills wrap; clip-path punches the same hole as the SVG mask. */
 .studio-v4 .studio__hero .studio__preview-canvas {
   position: absolute;
+  inset: 0;
   z-index: 2;
-  left: 1.91%;
-  top: 3.45%;
-  right: 1.91%;
-  bottom: 3.45%;
-  width: auto;
-  height: auto;
-  border-radius: 8px;
+  display: block;
+  width: 100%;
+  height: 100%;
+  clip-path: inset(
+    calc(var(--studio-v4-preview-hole-y) / var(--studio-v4-preview-h) * 100%)
+    calc(
+      (var(--studio-v4-preview-w) - var(--studio-v4-preview-hole-x) - var(--studio-v4-preview-hole-w)) /
+        var(--studio-v4-preview-w) * 100%
+    )
+    calc(
+      (var(--studio-v4-preview-h) - var(--studio-v4-preview-hole-y) - var(--studio-v4-preview-hole-h)) /
+        var(--studio-v4-preview-h) * 100%
+    )
+    calc(var(--studio-v4-preview-hole-x) / var(--studio-v4-preview-w) * 100%)
+    round 6px
+  );
 }
 
 .studio-v4 .studio__hero .studio__preview-label {
