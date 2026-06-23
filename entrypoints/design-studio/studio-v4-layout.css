@@ -35,56 +35,69 @@ body:has(.studio-v4) {
 
 /* ── Hero row: preview (left) + profile/status (right) ── */
 
+/* CHANGED: default column stack — profile DOM-first, preview below.
+   WHY: order-based container query stacked profile beside preview (left) instead of above. */
 .studio-v4 .studio__hero {
-  container-type: inline-size;
-  container-name: studio-hero;
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   margin-bottom: 12px;
-  align-items: stretch;
 }
 
-/* CHANGED: hero stacks before preview squeezes profile unreadably.
-   WHY: viewport breakpoint at 720px was too late — preview dominated profile column. */
-@container studio-hero (max-width: 880px) {
-  .studio-v4 .studio__hero {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-  }
+.studio-v4 .studio__hero .studio__profile-cluster {
+  flex: 0 0 auto;
+  width: 100%;
+}
 
-  .studio-v4 .studio__profile-cluster {
-    order: 1;
+.studio-v4 .studio__hero .studio__preview-wrap {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+/* Wide: preview left, profile right — explicit grid placement (not order). */
+@media (min-width: 900px) {
+  .studio-v4 .studio__hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
+    align-items: stretch;
   }
 
   .studio-v4 .studio__hero .studio__preview-wrap {
-    order: 2;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .studio-v4 .studio__hero .studio__profile-cluster {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 
 .studio-v4 .studio__hero .studio__preview-wrap {
+  position: relative;
   margin-bottom: 0;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  background: transparent;
-  overflow: visible;
+  background: #0a0014;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
 }
 
+/* Bezel rim overlay — transparent center; canvas draws WYSIWYG beneath this layer. */
 .studio-v4 .studio__hero .studio__preview-wrap::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
   background: var(--studio-v4-preview-frame) center / 100% 100% no-repeat;
 }
 
-/* CHANGED: canvas sits inside the frame bezel, not behind an opaque SVG viewport.
-   WHY: preview-window-frame inner rect is transparent; canvas fills the hole. */
+/* CHANGED: canvas above dark well, below bezel — paired inset matches SVG viewport hole. */
 .studio-v4 .studio__hero .studio__preview-canvas {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   left: 1.91%;
   top: 3.45%;
   right: 1.91%;

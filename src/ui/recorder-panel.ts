@@ -48,6 +48,7 @@ export class RecorderPanel {
   private panelEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private studioCtaBtn!: HTMLButtonElement;
+  private studioFlowEl!: HTMLElement;
   private timerEl!: HTMLElement;
   private timeProgressEl!: HTMLElement;
   private timeProgressBar!: HTMLElement;
@@ -120,26 +121,64 @@ export class RecorderPanel {
           margin: 0 0 10px;
         }
         .status-studio[hidden] { display: none !important; }
+        .studio-flow {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px 10px;
+          margin-top: 8px;
+        }
+        .studio-flow[hidden] { display: none !important; }
+        .studio-first-hint {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin: 0;
+          padding: 6px 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 213, 79, 0.55);
+          background: rgba(212, 160, 32, 0.16);
+          color: #ffd54f;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.03em;
+          line-height: 1.2;
+          box-shadow: 0 0 12px rgba(255, 193, 7, 0.18);
+        }
+        .studio-first-hint__caution {
+          flex-shrink: 0;
+          font-size: 16px;
+          line-height: 1;
+          color: #ffb84d;
+        }
+        .studio-first-hint__arrow {
+          flex-shrink: 0;
+          font-size: 22px;
+          font-weight: 800;
+          line-height: 1;
+          color: #ffd54f;
+          transform: translateY(-1px);
+        }
         .studio-cta {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          margin-top: 6px;
-          padding: 6px 12px;
-          border: 1px solid var(--rvn-accent, ${RVN_COLORS.redditBlue});
+          padding: 7px 14px;
+          border: 1px solid #6b70c4;
           border-radius: 999px;
-          background: transparent;
-          color: var(--rvn-accent, ${RVN_COLORS.redditBlue});
+          background: #9498e8;
+          color: #f4f3ff;
           font: inherit;
           font-size: 12px;
-          font-weight: 600;
+          font-weight: 700;
           cursor: pointer;
+          box-shadow: 0 0 0 1px rgba(107, 112, 196, 0.35), 0 2px 8px rgba(107, 112, 196, 0.3);
         }
         .studio-cta:hover {
-          background: rgba(255, 255, 255, 0.06);
+          filter: brightness(1.08);
         }
         .studio-cta:focus-visible {
-          outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue});
+          outline: 2px solid #9498e8;
           outline-offset: 2px;
         }
         .timer-wrap { margin: 0 0 8px; }
@@ -280,6 +319,14 @@ export class RecorderPanel {
           .action--secondary:hover { background: #edeff1; }
           .tertiary { color: #576f76; }
           .tertiary:hover { color: #1a1a1b; }
+          .studio-first-hint {
+            color: #7a5a00;
+            border-color: rgba(201, 166, 61, 0.65);
+            background: rgba(255, 213, 79, 0.28);
+            box-shadow: none;
+          }
+          .studio-first-hint__caution { color: #9a7210; }
+          .studio-first-hint__arrow { color: #7a5a00; }
         }
       </style>
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rvn-title" tabindex="-1">
@@ -289,9 +336,16 @@ export class RecorderPanel {
         </div>
         <div class="status-studio" data-status-studio>
           <p class="status" data-status role="status" aria-live="polite">Initializing microphone…</p>
-          <button type="button" class="studio-cta" data-open-design-studio hidden>
-            Open Design Studio
-          </button>
+          <div class="studio-flow" data-studio-flow hidden>
+            <p class="studio-first-hint" id="rvn-studio-first-hint">
+              <span class="studio-first-hint__caution" aria-hidden="true">⚠</span>
+              <span class="studio-first-hint__arrow" aria-hidden="true">→</span>
+              <strong>Go here first</strong>
+            </p>
+            <button type="button" class="studio-cta" data-open-design-studio aria-describedby="rvn-studio-first-hint">
+              Open Design Studio
+            </button>
+          </div>
         </div>
         <div class="timer-wrap" aria-live="polite" aria-atomic="true">
           <p class="timer" data-timer>0:00<span class="timer__cap">/ 2:00 max</span></p>
@@ -315,6 +369,7 @@ export class RecorderPanel {
 
     this.panelEl = this.shadow.querySelector('.panel')!;
     this.statusEl = this.shadow.querySelector('[data-status]')!;
+    this.studioFlowEl = this.shadow.querySelector('[data-studio-flow]')!;
     this.studioCtaBtn = this.shadow.querySelector('[data-open-design-studio]')!;
     this.timerEl = this.shadow.querySelector('[data-timer]')!;
     this.timeProgressEl = this.shadow.querySelector('[data-time-progress]')!;
@@ -584,7 +639,7 @@ export class RecorderPanel {
     this.tertiaryBtn.hidden = state.phase !== 'stopped';
 
     this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
-    this.studioCtaBtn.hidden = true;
+    this.studioFlowEl.hidden = true;
 
     switch (state.phase) {
       case 'idle':
@@ -628,7 +683,7 @@ export class RecorderPanel {
         if (state.subtitleStudioPending) {
           this.statusEl.textContent =
             'MP4 ready — open Design Studio to edit subtitles, bake, then attach.';
-          this.studioCtaBtn.hidden = false;
+          this.studioFlowEl.hidden = false;
         } else if (state.stoppedAtCap) {
           this.statusEl.textContent = `${formatRecordingCapProse()} limit reached — your MP4 is ready.`;
         } else {

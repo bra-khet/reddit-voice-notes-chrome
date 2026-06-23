@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" aria-hidden="true">
 <!--
-  Design Studio v4 — Live Preview Window Frame (hero)
-  Inner viewport is transparent so the live canvas shows through the ::after overlay.
-  Canvas inset: ~1.91% horizontal, ~3.45% vertical (12px on 628×348 frame).
+  Design Studio v4 — Live Preview bezel overlay (hero)
+  Center is fully transparent — canvas (z-index 2) draws WYSIWYG; this paints only the rim on z-index 3.
+  Pair with .studio__preview-wrap background #0a0014 for the viewport well.
 -->
   <defs>
     <linearGradient id="previewBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -13,20 +13,26 @@
       <stop offset="100%" stop-color="#0a0014"/>
     </linearGradient>
     <linearGradient id="previewHighlight" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.1"/>
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
       <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
 
   <rect x="6" y="6" width="628" height="348" rx="12" ry="12" fill="#000000" opacity="0.5"/>
 
-  <rect x="0" y="0" width="628" height="348" rx="12" ry="12"
-        fill="url(#previewBevel)" stroke="#0a0014" stroke-width="3"/>
+  <!-- Bezel ring only — even-odd punches transparent viewport hole -->
+  <path
+    fill="url(#previewBevel)"
+    fill-rule="evenodd"
+    stroke="#0a0014"
+    stroke-width="3"
+    d="M 0 12 A 12 12 0 0 1 12 0 H 616 A 12 12 0 0 1 628 12 V 336 A 12 12 0 0 1 616 348 H 12 A 12 12 0 0 1 0 336 Z
+       M 12 12 H 616 V 336 H 12 Z"
+  />
 
-  <rect x="3" y="3" width="622" height="342" rx="10" ry="10"
+  <rect x="4" y="4" width="620" height="340" rx="9" ry="9"
         fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.08"/>
 
-  <!-- Transparent viewport — canvas renders behind this frame overlay -->
   <rect x="12" y="12" width="604" height="324" rx="8" ry="8"
         fill="none" stroke="#2a2a44" stroke-width="2"/>
 
