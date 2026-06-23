@@ -123,15 +123,6 @@ export function drawSubtitlePreview(
     ctx.globalAlpha = 1;
   }
 
-  const shadow = style.shadow;
-  if (shadow?.enabled !== false) {
-    const offsetX = shadow?.offsetX ?? 2;
-    const offsetY = shadow?.offsetY ?? 2;
-    const shadowOpacity = shadow?.opacity ?? 0.85;
-    ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
-    drawTextLines(ctx, lines, textX, textY, lineHeight, offsetX, offsetY);
-  }
-
   ctx.fillStyle = palette.textHex;
   drawTextLines(ctx, lines, textX, textY, lineHeight);
 

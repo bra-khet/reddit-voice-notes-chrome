@@ -37,11 +37,14 @@ export interface SubtitleOutlineConfig {
   width?: number;
 }
 
-export type SubtitleTextColor = 'white' | 'black';
+export type SubtitleTextColor = 'white' | 'black' | 'theme' | 'special';
 
-export type SubtitleGlowColorSource = 'theme' | 'black' | 'white';
+export type SubtitleGlowColorSource = 'theme' | 'black' | 'white' | 'special';
 
-export type SubtitleGlowMode = 'halo' | 'offset';
+export type SubtitleGlowMode = 'halo' | 'border';
+
+/** Shared custom hue when text or glow color source is `special`. */
+export const DEFAULT_SUBTITLE_SPECIAL_HUE = '#e040fb';
 
 export interface SubtitleGlowConfig {
   enabled: boolean;
@@ -60,8 +63,11 @@ export interface SubtitleStyleConfig {
   fontSize?: number;
   position?: 'bottom' | 'top' | 'center';
   textColor?: SubtitleTextColor;
+  /** Shared by text + glow when either uses `special` color source. */
+  specialHue?: string;
   backdrop?: SubtitleBackdropConfig;
   glow?: SubtitleGlowConfig;
+  /** @deprecated Drop shadow removed — theme glow covers contrast; kept for prefs migration only. */
   shadow?: SubtitleShadowConfig;
   outline?: SubtitleOutlineConfig;
 }
@@ -91,7 +97,8 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
     offsetX: 2,
     offsetY: 2,
   },
-  shadow: { enabled: true, offsetX: 2, offsetY: 2, opacity: 0.85 },
+  specialHue: DEFAULT_SUBTITLE_SPECIAL_HUE,
+  shadow: { enabled: false, offsetX: 2, offsetY: 2, opacity: 0.85 },
   outline: { enabled: false, width: 1 },
 };
 
@@ -120,16 +127,20 @@ export interface TranscribeAudioResult {
 }
 
 function normalizeGlowColorSource(raw: string | undefined): SubtitleGlowColorSource {
-  if (raw === 'black' || raw === 'white') return raw;
+  if (raw === 'black' || raw === 'white' || raw === 'special') return raw;
   return 'theme';
 }
 
 function normalizeGlowMode(raw: string | undefined): SubtitleGlowMode {
-  return raw === 'offset' ? 'offset' : 'halo';
+  // CHANGED: offset glow mode retired — border replaces it
+  // WHY: offset duplicated drop shadow; border is a solid no-alpha outline
+  if (raw === 'border' || raw === 'offset') return 'border';
+  return 'halo';
 }
 
 function normalizeTextColor(raw: string | undefined): SubtitleTextColor {
-  return raw === 'black' ? 'black' : 'white';
+  if (raw === 'black' || raw === 'theme' || raw === 'special') return raw;
+  return 'white';
 }
 
 export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null | undefined): SubtitleStyleConfig {
@@ -144,6 +155,10 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
     fontSize: typeof raw?.fontSize === 'number' ? raw.fontSize : DEFAULT_SUBTITLE_STYLE.fontSize,
     position: raw?.position ?? DEFAULT_SUBTITLE_STYLE.position,
     textColor: normalizeTextColor(raw?.textColor),
+    specialHue:
+      typeof raw?.specialHue === 'string' && raw.specialHue.trim().length > 0
+        ? raw.specialHue
+        : DEFAULT_SUBTITLE_STYLE.specialHue,
     backdrop: {
       enabled: backdrop.enabled !== false,
       opacity: typeof backdrop.opacity === 'number' ? backdrop.opacity : DEFAULT_SUBTITLE_STYLE.backdrop!.opacity,
@@ -164,7 +179,7 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
       offsetY: typeof glow.offsetY === 'number' ? glow.offsetY : DEFAULT_SUBTITLE_STYLE.glow!.offsetY,
     },
     shadow: {
-      enabled: shadow.enabled !== false,
+      enabled: false,
       offsetX: typeof shadow.offsetX === 'number' ? shadow.offsetX : DEFAULT_SUBTITLE_STYLE.shadow!.offsetX,
       offsetY: typeof shadow.offsetY === 'number' ? shadow.offsetY : DEFAULT_SUBTITLE_STYLE.shadow!.offsetY,
       opacity: typeof shadow.opacity === 'number' ? shadow.opacity : DEFAULT_SUBTITLE_STYLE.shadow!.opacity,

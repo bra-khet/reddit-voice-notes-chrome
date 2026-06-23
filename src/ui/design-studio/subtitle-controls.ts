@@ -17,6 +17,7 @@ import {
 } from '@/src/settings/user-preferences';
 import { TRANSCRIBE_TIMEOUT_MS } from '@/src/transcription/constants';
 import {
+  DEFAULT_SUBTITLE_SPECIAL_HUE,
   DEFAULT_TRANSCRIPT_CONFIG,
   normalizeSubtitleStyle,
   normalizeTranscriptConfig,
@@ -28,6 +29,10 @@ import {
   type TranscriptConfig,
   type TranscriptResult,
 } from '@/src/transcription/types';
+import {
+  mountColorPickerControls,
+  renderColorPickerFields,
+} from '@/src/ui/design-studio/color-picker';
 import { rebuildTextFromSegments } from '@/src/transcription/transcript-editing';
 import type { SubtitlePreviewOptions } from '@/src/transcription/subtitle-preview';
 import { bakeSubtitlesInStudio } from '@/src/ui/design-studio/subtitle-bake';
@@ -48,10 +53,12 @@ export interface SubtitleControlsHandle {
 const TRANSCRIPT_SAVE_DEBOUNCE_MS = 250;
 const TRANSCRIPT_POLL_MS = 2000;
 
+// CHANGED: top → center → bottom (visual order on screen)
+// WHY: dropdown order regressed to bottom-first before; keep top-first in source
 const POSITION_OPTIONS: { value: SubtitleStyleConfig['position']; label: string }[] = [
-  { value: 'bottom', label: 'Bottom' },
-  { value: 'center', label: 'Center' },
   { value: 'top', label: 'Top' },
+  { value: 'center', label: 'Center' },
+  { value: 'bottom', label: 'Bottom' },
 ];
 
 function formatSavedAt(ms: number): string {
@@ -139,28 +146,17 @@ export function renderSubtitleControlFields(): string {
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Text color</span>
           <select class="popup__select" data-subtitle-text-color aria-label="Subtitle text color">
+            <option value="theme">Theme hue</option>
             <option value="white">White</option>
             <option value="black">Black</option>
+            <option value="special">Special hue</option>
           </select>
-        </label>
-        <label class="popup__toggle-row studio__subtitles-toggle">
-          <span class="popup__toggle-copy">
-            <span class="popup__toggle-label">Drop shadow</span>
-            <p class="popup__field-desc">Dark offset copy behind text for contrast on bright bars.</p>
-          </span>
-          <input
-            class="popup__toggle-input"
-            type="checkbox"
-            data-subtitle-shadow
-            aria-label="Subtitle drop shadow"
-            checked
-          />
         </label>
         <label class="popup__toggle-row studio__subtitles-toggle">
           <span class="popup__toggle-copy">
             <span class="popup__toggle-label">Theme glow</span>
             <p class="popup__field-desc">
-              Colored halo or offset glow from your bar hue — stacks with backdrop and shadow.
+              Colored halo or solid border — stacks with backdrop. Shares Special hue with text color.
             </p>
           </span>
           <input
@@ -175,7 +171,7 @@ export function renderSubtitleControlFields(): string {
             <span class="popup__field-label">Glow style</span>
             <select class="popup__select" data-subtitle-glow-mode aria-label="Subtitle glow style">
               <option value="halo">Halo (soft)</option>
-              <option value="offset">Offset</option>
+              <option value="border">Border (solid)</option>
             </select>
           </label>
           <label class="popup__field studio__field--compact">
@@ -184,6 +180,7 @@ export function renderSubtitleControlFields(): string {
               <option value="theme">Theme hue</option>
               <option value="black">Black</option>
               <option value="white">White</option>
+              <option value="special">Special hue</option>
             </select>
           </label>
           <label class="popup__field studio__field--compact">
@@ -201,6 +198,11 @@ export function renderSubtitleControlFields(): string {
               aria-label="Subtitle glow strength"
             />
           </label>
+        </div>
+        <div class="studio__subtitle-special-hue" data-subtitle-special-hue-panel hidden>
+          <p class="popup__field-label studio__subtitle-special-hue-label">Special hue</p>
+          <p class="popup__field-desc">Shared by text and glow when either uses Special hue.</p>
+          ${renderColorPickerFields()}
         </div>
         <div class="studio__subtitles-bake" data-subtitle-bake-block>
           <button
@@ -268,7 +270,7 @@ export function mountSubtitleControls(
     '[data-subtitle-backdrop-opacity-value]',
   )!;
   const textColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-text-color]')!;
-  const shadowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-shadow]')!;
+  const specialHuePanel = panel.querySelector<HTMLElement>('[data-subtitle-special-hue-panel]')!;
   const glowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow]')!;
   const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
   const glowModeSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-mode]')!;
@@ -327,6 +329,20 @@ export function mountSubtitleControls(
     el.textContent = option.label;
     positionSelect.append(el);
   }
+
+  const specialHuePicker = mountColorPickerControls(specialHuePanel, (overrides) => {
+    if (syncing) return;
+    const hex = overrides.barColor ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
+    draftConfig = {
+      ...draftConfig,
+      style: normalizeSubtitleStyle({
+        ...mergeStyleFromControls(),
+        specialHue: hex,
+      }),
+    };
+    schedulePersist();
+    notifyDraftChange();
+  });
 
   function notifySettingsChange(): void {
     handlers?.onSettingsChange?.();
@@ -556,10 +572,22 @@ export function mountSubtitleControls(
 
   function syncGlowOptionsUi(): void {
     const glowOn = glowInput.checked;
+    const borderMode = glowModeSelect.value === 'border';
     glowOptionsEl.hidden = !glowOn;
     glowModeSelect.disabled = !glowOn;
     glowColorSelect.disabled = !glowOn;
-    glowOpacityInput.disabled = !glowOn;
+    glowOpacityInput.disabled = !glowOn || borderMode;
+  }
+
+  function syncSpecialHueUi(): void {
+    const needsSpecial =
+      textColorSelect.value === 'special' || (glowInput.checked && glowColorSelect.value === 'special');
+    specialHuePanel.hidden = !needsSpecial;
+    if (needsSpecial) {
+      specialHuePicker.sync({
+        barColor: draftConfig.style.specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE,
+      });
+    }
   }
 
   function syncStyleControls(): void {
@@ -575,7 +603,6 @@ export function mountSubtitleControls(
     backdropOpacityValueEl.textContent = `${opacityPct}%`;
     backdropOpacityInput.disabled = !backdropInput.checked;
     textColorSelect.value = style.textColor ?? 'white';
-    shadowInput.checked = style.shadow?.enabled !== false;
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
@@ -583,6 +610,7 @@ export function mountSubtitleControls(
     glowOpacityInput.value = String(glowOpacityPct);
     glowOpacityValueEl.textContent = `${glowOpacityPct}%`;
     syncGlowOptionsUi();
+    syncSpecialHueUi();
     syncing = false;
   }
 
@@ -620,10 +648,7 @@ export function mountSubtitleControls(
         enabled: backdropInput.checked,
         opacity,
       },
-      shadow: {
-        ...draftConfig.style.shadow,
-        enabled: shadowInput.checked,
-      },
+      specialHue: draftConfig.style.specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE,
       glow: {
         ...draftConfig.style.glow,
         enabled: glowInput.checked,
@@ -758,13 +783,7 @@ export function mountSubtitleControls(
 
   textColorSelect.addEventListener('change', () => {
     if (syncing) return;
-    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
-    schedulePersist();
-    notifyDraftChange();
-  });
-
-  shadowInput.addEventListener('change', () => {
-    if (syncing) return;
+    syncSpecialHueUi();
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();
@@ -773,6 +792,7 @@ export function mountSubtitleControls(
   glowInput.addEventListener('change', () => {
     if (syncing) return;
     syncGlowOptionsUi();
+    syncSpecialHueUi();
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();
@@ -780,6 +800,7 @@ export function mountSubtitleControls(
 
   glowModeSelect.addEventListener('change', () => {
     if (syncing) return;
+    syncGlowOptionsUi();
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();
@@ -787,6 +808,7 @@ export function mountSubtitleControls(
 
   glowColorSelect.addEventListener('change', () => {
     if (syncing) return;
+    syncSpecialHueUi();
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();

@@ -334,9 +334,12 @@ This section is the largest integrated subsystem: prefs + session IDB + offscree
 | Segment editor | see §7.3 | Session IDB on Confirm & save |
 | Position / font size | `subtitleStyle` | `transcriptConfig` in prefs |
 | Backdrop + opacity | `subtitleStyle` | prefs |
-| Text color | `subtitleStyle` | prefs |
-| Drop shadow / theme glow | `subtitleStyle` | prefs |
-| Glow mode / color / strength | `subtitleStyle` | prefs |
+| Text color | `subtitleStyle.textColor` — `theme` \| `white` \| `black` \| `special` | prefs |
+| Special hue (shared) | `subtitleStyle.specialHue` — HSV/HEX picker when text or glow uses `special` | prefs |
+| Theme glow | `subtitleStyle.glow` | prefs |
+| Glow mode / color / strength | `glow.mode` (`halo` \| `border`), `colorSource`, `opacity` (halo only) | prefs |
+
+**Position dropdown order:** **top → center → bottom** (matches on-screen vertical order). This has regressed before — keep `POSITION_OPTIONS` in that sequence in `subtitle-controls.ts`, not lexical/reverse order.
 | Bake subtitles into MP4 | — | `rvnLastBakedMp4` IDB |
 | Clear transcript | — | Clears session IDB |
 
@@ -378,7 +381,9 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 |--------|---------|------|
 | Text | `getPreviewOptions()` — flat `previewText()` today* | Per-segment `textfile=` drawtext |
 | Style | `subtitle-effects.ts` layering | `subtitle-burnin.ts` same layer order |
-| Glow/shadow/backdrop | Canvas overlay | FFmpeg drawtext duplicates |
+| Glow/border/backdrop | Canvas overlay | FFmpeg drawtext duplicates |
+
+**Subtitle effects (v3.6.1+):** Drop shadow removed (theme glow covers contrast). Glow modes: **halo** (soft, opacity slider) or **border** (solid 1 px ring, no alpha). **Special hue** is one shared `specialHue` field for both text and glow when either selects `special`.
 
 \*Segment-aware timed preview on canvas is **open** (eloquent-4b) — preview may lag bake until implemented.
 

@@ -89,7 +89,6 @@ export function buildSubtitleForceStyle(style: SubtitleStyleConfig): string {
   const backColour = assBackColour(style);
   const borderStyle = style.backdrop?.enabled === false ? 1 : 4;
   const outline = style.outline?.enabled === true ? (style.outline.width ?? 1) : 0;
-  const shadow = style.shadow?.enabled === false ? 0 : 1;
   const primaryColour = style.textColor === 'black' ? '&H00000000&' : '&H00FFFFFF&';
 
   return [
@@ -99,7 +98,7 @@ export function buildSubtitleForceStyle(style: SubtitleStyleConfig): string {
     `BackColour=${backColour}`,
     `BorderStyle=${borderStyle}`,
     `Outline=${outline}`,
-    `Shadow=${shadow}`,
+    'Shadow=0',
     `Alignment=${alignment}`,
     'MarginV=24',
   ].join(',');
@@ -173,23 +172,16 @@ function buildBackdropPlateLayer(
   };
 }
 
-/**
- * BUG-025 proven path: drawtext per cue, built-in shadow on the caption layer.
- * Backdrop plate is a separate first layer so high opacity does not cover glow/text.
- */
+/** BUG-025 proven path: drawtext per cue; backdrop plate is a separate first layer. */
 function buildSimpleDrawtextFilter(
   segments: TranscriptSegment[],
   style: SubtitleStyleConfig,
   fontFile: string,
+  themeBarColor: string,
 ): string {
   const fontSize = style.fontSize ?? 22;
   const y = drawtextY(style.position, fontSize);
-  const fontColor = drawtextMainFontColor(style);
-  const shadow = style.shadow;
-  const shadowOn = shadow?.enabled !== false;
-  const shadowOpts = shadowOn
-    ? `:shadowcolor=black@${(shadow?.opacity ?? 0.85).toFixed(2)}:shadowx=${shadow?.offsetX ?? 2}:shadowy=${shadow?.offsetY ?? 2}`
-    : '';
+  const fontColor = drawtextMainFontColor(style, themeBarColor);
 
   const parts: string[] = [];
   for (let index = 0; index < segments.length; index += 1) {
@@ -205,7 +197,7 @@ function buildSimpleDrawtextFilter(
 
     parts.push(
       `drawtext=fontfile=${fontFile}:fontcolor=${fontColor}:fontsize=${fontSize}` +
-        `:x=(w-text_w)/2:y=${y}${shadowOpts}` +
+        `:x=(w-text_w)/2:y=${y}` +
         `:textfile=${textFilePath}:enable='between(t,${start},${end})'`,
     );
   }
@@ -268,26 +260,12 @@ function buildSegmentGlowLayers(
     });
   }
 
-  const shadow = style.shadow;
-  if (shadow?.enabled !== false) {
-    const shadowOpacity = shadow?.opacity ?? 0.85;
-    layers.push({
-      textFilePath,
-      start,
-      end,
-      fontSize,
-      fontColor: ffmpegDrawtextColor(palette.shadowHex, shadowOpacity),
-      x: drawtextX(shadow?.offsetX ?? 2),
-      y: drawtextYWithOffset(yBase, shadow?.offsetY ?? 2),
-    });
-  }
-
   layers.push({
     textFilePath,
     start,
     end,
     fontSize,
-    fontColor: drawtextMainFontColor(style),
+    fontColor: drawtextMainFontColor(style, themeBarColor),
     x: drawtextX(0),
     y: yBase,
   });
@@ -302,7 +280,7 @@ function buildDrawtextFilter(
   themeBarColor: string,
 ): string {
   if (!subtitleStyleNeedsGlowLayers(style)) {
-    return buildSimpleDrawtextFilter(segments, style, fontFile);
+    return buildSimpleDrawtextFilter(segments, style, fontFile, themeBarColor);
   }
 
   const parts = segments.flatMap((segment, index) =>
