@@ -340,9 +340,10 @@ This section is the largest integrated subsystem: prefs + session IDB + offscree
 | Theme glow | `subtitleStyle.glow` | prefs |
 | Glow mode / color / strength | `glow.mode` (`halo` \| `border`), `colorSource`, `opacity` (halo only) | prefs |
 
-**Position dropdown order:** **top → center → bottom** (matches on-screen vertical order). This has regressed before — keep `POSITION_OPTIONS` in that sequence in `subtitle-controls.ts`, not lexical/reverse order.
 | Bake subtitles into MP4 | — | `rvnLastBakedMp4` IDB |
 | Clear transcript | — | Clears session IDB |
+
+**Position dropdown order:** **top → center → bottom** (matches on-screen vertical order). This has regressed before — keep `POSITION_OPTIONS` in that sequence in `subtitle-controls.ts`, not lexical/reverse order.
 
 ### 7.2 End-to-end pipeline
 
@@ -386,9 +387,7 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 **Subtitle effects (v3.6.1+):** Drop shadow removed (theme glow covers contrast). Glow modes: **halo** (soft, opacity slider) or **border** (solid 1 px ring, no alpha). **Special hue** is one shared `specialHue` field for both text and glow when either selects `special`.
 
-**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel over time. **Preview** uses `previewTimeMs` from the Live preview RAF. **Bake** cannot animate `fontcolor` in FFmpeg drawtext — rainbow is quantized into **0.25 s static-color slices** per cue (max 24). Stepped, not per-frame; ~0.35 hue cycles/s. Filter graph grows with slice count.
-
-**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel over time. **Preview** uses `previewTimeMs` from the Live preview RAF (same clock as bokeh). **Bake** cannot use expressive `fontcolor` in FFmpeg drawtext — rainbow is **quantized into 0.25 s static-color slices** per cue (max 24 slices). Not true per-frame hue; stepped but WYSIWYG-close at medium-fast speed (~0.35 cycles/s). Filter graph grows with slice count — very long clips with many cues may need coarser slices later.
+**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel over time (~**2 s** per cycle at `RAINBOW_CYCLES_PER_SECOND = 0.5`). **Preview** uses `previewTimeMs` from the Live preview RAF (same clock as bokeh). **Bake** cannot animate `fontcolor` in FFmpeg drawtext — rainbow is **quantized into 0.25 s static-color slices** per cue (max 24). Stepped, not per-frame; filter graph grows with slice count. See **pipeline-native solutions** in `docs/engineering-principles.md`.
 
 \*Segment-aware timed preview on canvas is **open** (eloquent-4b) — preview may lag bake until implemented.
 
@@ -484,6 +483,8 @@ Before shipping a visual overhaul, verify:
 | Item | Section | Notes |
 |------|---------|-------|
 | Segment-aware canvas preview | Subtitles | `previewText()` flat today |
+| Rainbow speed / slice fineness | Subtitles | Tunable `RAINBOW_CYCLES_PER_SECOND` + `RAINBOW_BAKE_SLICE_SECONDS`; user slider optional |
+| In-Studio recording (optional) | Shell / Voice | Extension page mic + unified canvas; Reddit tab keeps attach-only — see §13 |
 | Font picker | Subtitles | Deferred |
 | Chunked base-MP4 relay | Subtitles | If large-clip bake fails |
 | Legacy `transcriptConfig` on profiles | Subtitles / Profile | Update profile once embeds style |
@@ -514,7 +515,34 @@ Before shipping a visual overhaul, verify:
 
 ---
 
-## 13. Source file index
+## 13. Future: temporal effects & optional in-Studio recording
+
+### 13.1 Temporal subtitle effects (tack-ons)
+
+| Direction | Bake fidelity | Cost |
+|-----------|---------------|------|
+| User-adjustable rainbow speed | Same slice model | Prefs field only |
+| Finer slices (e.g. 0.15 s) | Smoother stepped rainbow | More drawtext filters per cue |
+| Coarser slices / max-slice cap | Choppier but safer on long clips | Fewer filters |
+| ASS/libass with `\t()` color tags | Smooth per-frame hue possible | New burn path + wasm libass risk (BUG-025 removed this) |
+| Canvas subtitle pass in `base.mp4` | Matches preview exactly | Subtitles in capture layer — breaks “subs are post-transcode burn-in” invariant unless architecture shifts |
+| Segment-aware preview timing | Preview matches cue windows | `previewText()` + segment clock (eloquent-4b) |
+
+**Hard limit today:** expressive `fontcolor` in **drawtext** on the **ffmpeg.wasm** burn path. Not a hard limit on the **product** — alternate burn strategies can exist — but any new path must pass BUG-025/028/031-style validation.
+
+### 13.2 Optional recording inside Design Studio
+
+Feasible as a **mode**, not a replacement for Reddit attach:
+
+- **Studio wins:** extension-origin page — direct ImageDB, no personal-bg relay, same canvas as Live preview, prefs already hydrated, mic via `getUserMedia` (extension pages allow it).
+- **Reddit tab stays:** composer injection, attach MP4/WebM to post, content-script Shadow DOM.
+- **Pipeline unchanged at stop:** `webmBlob` → parallel transcode + transcribe → same IDB/storage signals Studio already polls.
+- **UX win:** record → edit → bake without tab hopping; preview WYSIWYG is literally the capture canvas.
+- **Work:** relocate or duplicate `VoiceRecorder` shell into Studio; keep one transcode queue; Reddit panel becomes optional “quick record” entry.
+
+---
+
+## 14. Source file index (modules)
 
 ```
 entrypoints/design-studio/

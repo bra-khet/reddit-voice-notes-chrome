@@ -35,6 +35,9 @@ git checkout <stable-tag> && npm install && npm run dev
 - Everything visible in Design Studio Live preview (including subtitles overlay in eloquent-2) must be reproducible by the export path.
 - No parallel recorders for visuals.
 
+### Pipeline-native solutions
+- When export cannot express a feature directly (e.g. time-varying `drawtext` color), ship the closest pipeline-faithful analogue first — time slices, duplicate layers, `textfile=` indirection — and document the fidelity gap before changing renderers. See `docs/engineering-principles.md` § Pipeline-native solutions; example: `specialHueRainbow`.
+
 ### Capture Fork at Stop (the v4 parallel pattern)
 At `stopRecording()` (after `validateWebmRecording`):
 - Retain `webmBlob` for transcode.

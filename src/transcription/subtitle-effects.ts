@@ -13,8 +13,8 @@ export interface GlowLayerSpec {
   opacity: number;
 }
 
-/** ~2.9 s per full hue cycle — medium-fast breathing rainbow. */
-export const RAINBOW_CYCLES_PER_SECOND = 0.35;
+/** 2 s per full hue cycle — medium-fast breathing rainbow. */
+export const RAINBOW_CYCLES_PER_SECOND = 0.5;
 
 /** Bake quantizes rainbow into static drawtext slices (FFmpeg fontcolor is not time-expressive). */
 export const RAINBOW_BAKE_SLICE_SECONDS = 0.25;
