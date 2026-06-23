@@ -72,6 +72,8 @@ import {
   populateDesignStudioStyleSelect,
 } from '@/src/ui/style-select';
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
+import { renderStudioV4PanelSummary } from '@/src/ui/design-studio/studio-v4-panel-summary';
+import { applyStudioV4ShellChrome } from '@/src/ui/design-studio/studio-v4-shell';
 import { syncStudioSectionSummaries } from '@/src/ui/design-studio/studio-section-summaries';
 import {
   discardStudioUnsavedChanges,
@@ -105,7 +107,7 @@ export type MountClipStudioOptions = {
 
 export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOptions): () => void {
   root.innerHTML = `
-    <main class="studio">
+    <main class="studio studio-v4">
       <header class="studio__header">
         <div class="studio__header-row">
           <div>
@@ -136,36 +138,45 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
           </div>
         </div>
       </div>
-      <section class="studio__profile-bar">
-        <label class="studio__profile-bar-field">
-          <span class="studio__profile-bar-label">Profile</span>
-          <select class="popup__select studio__profile-bar-select" data-profile-select aria-label="Saved profile"></select>
-        </label>
-        <div class="studio__profile-bar-actions">
-          <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>
-            Save as profile
-          </button>
-          <button
-            type="button"
-            class="popup__profile-btn popup__profile-btn--save-new"
-            data-save-profile-new
-            hidden
-          >
-            ${CLONE_LABEL}
-          </button>
-          <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
-            Delete
-          </button>
+      <div class="studio__layout">
+        <div class="studio__hero">
+          ${renderPreviewBlock('primary')}
+          <div class="studio__profile-cluster">
+            <div class="studio__profile-cluster-head">
+              <img class="studio__profile-cluster-icon studio-v4__icon studio-v4__icon--32" alt="" width="32" height="32" />
+              <h2 class="studio__profile-cluster-title">Profile &amp; status</h2>
+            </div>
+            <section class="studio__profile-bar">
+              <label class="studio__profile-bar-field">
+                <span class="studio__profile-bar-label">Profile</span>
+                <select class="popup__select studio__profile-bar-select" data-profile-select aria-label="Saved profile"></select>
+              </label>
+              <div class="studio__profile-bar-actions">
+                <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>
+                  Save as profile
+                </button>
+                <button
+                  type="button"
+                  class="popup__profile-btn popup__profile-btn--save-new"
+                  data-save-profile-new
+                  hidden
+                >
+                  ${CLONE_LABEL}
+                </button>
+                <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
+                  Delete
+                </button>
+              </div>
+            </section>
+            <div class="studio__status-strip" data-studio-status-strip aria-live="polite">
+              <p class="studio__status-strip-placeholder">Session status will appear here.</p>
+            </div>
+          </div>
         </div>
-      </section>
-      ${renderPreviewBlock('primary')}
-      <!-- V4 NOTE: Collapsible panels below — Subtitles/Captions panel will sit in this stack as topmost foreground layer. -->
-      <details class="studio__panel" data-studio-panel="bar-style">
-        <summary class="studio__panel-summary">
-          <span class="studio__panel-title">Bar style</span>
-          <span class="studio__panel-meta" data-summary-bar-style></span>
-          <span class="studio__panel-chevron" aria-hidden="true"></span>
-        </summary>
+        <div class="studio__panel-strip">
+      <!-- V4 NOTE: Status cards below — full controls stay in panel bodies until sub-panel shell (next phase). -->
+      <details class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">
+        ${renderStudioV4PanelSummary('Bar style', 'data-summary-bar-style')}
         <div class="studio__panel-body">
           <label class="popup__field studio__field--compact">
             <span class="popup__field-label">Clip style</span>
@@ -201,44 +212,37 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
           </div>
         </div>
       </details>
-      <details class="studio__panel" data-studio-panel="background">
-        <summary class="studio__panel-summary">
-          <span class="studio__panel-title">Background</span>
-          <span class="studio__panel-meta" data-summary-background></span>
-          <span class="studio__panel-chevron" aria-hidden="true"></span>
-        </summary>
+      <details class="studio__panel studio-v4__status-card" data-studio-panel="background">
+        ${renderStudioV4PanelSummary('Background', 'data-summary-background')}
         <div class="studio__panel-body">
           ${renderPersonalBackgroundFields()}
           ${renderBackgroundLayoutFields()}
         </div>
       </details>
-      <details class="studio__panel" data-studio-panel="voice">
-        <summary class="studio__panel-summary">
-          <span class="studio__panel-title">Voice</span>
-          <span class="studio__panel-meta" data-summary-voice></span>
-          <span class="studio__panel-chevron" aria-hidden="true"></span>
-        </summary>
+      <details class="studio__panel studio-v4__status-card" data-studio-panel="voice">
+        ${renderStudioV4PanelSummary('Voice', 'data-summary-voice')}
         <div class="studio__panel-body">
           ${renderVoiceControlFields()}
         </div>
       </details>
-      <details class="studio__panel" data-studio-panel="subtitles">
-        <summary class="studio__panel-summary">
-          <span class="studio__panel-title">Subtitles</span>
-          <span class="studio__panel-meta" data-summary-subtitles></span>
-          <span class="studio__panel-chevron" aria-hidden="true"></span>
-        </summary>
+      <details class="studio__panel studio-v4__status-card" data-studio-panel="subtitles">
+        ${renderStudioV4PanelSummary('Subtitles', 'data-summary-subtitles')}
         <div class="studio__panel-body">
           ${renderSubtitleControlFields()}
         </div>
       </details>
+        </div>
       <p class="studio__footer-note">
         Changes apply live to the recorder. <strong>Clone</strong> then edit, or edit then
         <strong>Save to new</strong> — both reach the same fork. <strong>Update</strong> overwrites
         the selected saved profile or style.
       </p>
+      </div>
     </main>
   `;
+
+  const studioShell = root.querySelector<HTMLElement>('.studio-v4')!;
+  applyStudioV4ShellChrome(studioShell);
 
   const previewCanvases = () =>
     [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')];
