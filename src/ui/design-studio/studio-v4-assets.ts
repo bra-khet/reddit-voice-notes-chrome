@@ -74,6 +74,12 @@ export function studioV4BorderImage(relativePath: string, slice: number): string
   return `url("${url}") ${slice} fill`;
 }
 
+/** Border corners/edges only — center discarded so HTML/CSS background shows through. */
+export function studioV4BorderImageEdgesOnly(relativePath: string, slice: number): string {
+  const url = studioV4AssetUrl(relativePath);
+  return `url("${url}") ${slice}`;
+}
+
 /** CSS border-image with per-edge slice (5-slice horizontal bars, asymmetric frames). */
 export function studioV4BorderImageSlices(
   relativePath: string,

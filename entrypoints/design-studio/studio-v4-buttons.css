@@ -113,14 +113,18 @@
   outline-color: var(--studio-violet-confirm);
 }
 
-/* Bake — state classes drive visuals; native :disabled only blocks interaction */
+/* Bake — frame via border-image edges; state gradients paint the padding box (no SVG fill). */
 .studio-v4 .studio-v4__bake-btn {
   display: block;
   width: 100%;
   padding: 12px 16px;
+  appearance: none;
+  -webkit-appearance: none;
   border-style: solid;
-  border-width: 10px;
+  border-width: 8px;
   border-image: var(--studio-v4-border-bake-btn);
+  background-origin: padding-box;
+  background-clip: padding-box;
   color: #1a1000;
   font-size: var(--studio-font-body);
   font-weight: 700;

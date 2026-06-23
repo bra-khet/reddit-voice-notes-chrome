@@ -2,6 +2,7 @@ import {
   STUDIO_V4_ASSETS,
   studioV4AssetUrl,
   studioV4BorderImage,
+  studioV4BorderImageEdgesOnly,
 } from '@/src/ui/design-studio/studio-v4-assets';
 
 const PANEL_ICON_BY_ID: Record<string, string> = {
@@ -44,9 +45,11 @@ export function applyStudioV4ShellChrome(root: HTMLElement): void {
     '--studio-v4-border-subpanel-header',
     `url("${studioV4AssetUrl(panels.subpanelHeader9Slice)}") 10 14 10 14 fill`,
   );
+  // BUG FIX: bake button amber state hidden under border-image fill
+  // Fix: frame edges only (no fill) — button-frame center is dark; CSS gradient must show through.
   root.style.setProperty(
     '--studio-v4-border-bake-btn',
-    studioV4BorderImage(STUDIO_V4_ASSETS.buttons.frame9Slice, 10),
+    studioV4BorderImageEdgesOnly(STUDIO_V4_ASSETS.buttons.frame9Slice, 8),
   );
 
   setImageUrl('--studio-v4-preview-frame', panels.previewWindowFrame);
