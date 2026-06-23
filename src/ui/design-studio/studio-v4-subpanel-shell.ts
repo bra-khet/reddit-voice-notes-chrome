@@ -33,21 +33,48 @@ export type StudioSubpanelShellHandle = {
   getActivePanelId(): StudioPanelId | null;
 };
 
+/** Mirrors main Design Studio header while a section sub-panel is open (§10.4 chrome). */
+export function renderStudioV4SubpanelChrome(): string {
+  return `
+    <header class="studio__subpanel-chrome" data-studio-subpanel-chrome hidden>
+      <div class="studio__subpanel-chrome-row studio__header-row">
+        <div class="studio__subpanel-chrome-status">
+          <button
+            type="button"
+            class="studio__subpanel-back studio-v4__nav-chip"
+            data-studio-subpanel-back
+            aria-label="Cancel and return to sections"
+          >
+            <img class="studio-v4__icon studio-v4__icon--16" data-studio-subpanel-back-icon alt="" width="16" height="16" />
+          </button>
+          <img
+            class="studio__subpanel-icon studio-v4__icon studio-v4__icon--32"
+            data-studio-subpanel-icon
+            alt=""
+            width="32"
+            height="32"
+          />
+          <div class="studio__subpanel-chrome-copy">
+            <h1 class="studio__subpanel-chrome-title" data-studio-subpanel-title id="studio-subpanel-title"></h1>
+            <p class="studio__subpanel-chrome-subtitle">Section settings — changes apply live</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          class="studio__subpanel-done-btn"
+          data-studio-subpanel-done
+          aria-label="Done editing this section"
+        >
+          Done
+        </button>
+      </div>
+    </header>
+  `;
+}
+
 export function renderStudioV4SubpanelShell(): string {
   return `
     <div class="studio__subpanel" data-studio-subpanel hidden>
-      <header class="studio__subpanel-header studio-v4__surface studio-v4__surface--subpanel-header">
-        <button
-          type="button"
-          class="studio__subpanel-back studio-v4__nav-chip"
-          data-studio-subpanel-back
-          aria-label="Back to sections"
-        >
-          <img class="studio-v4__icon studio-v4__icon--16" data-studio-subpanel-back-icon alt="" width="16" height="16" />
-        </button>
-        <img class="studio__subpanel-icon studio-v4__icon studio-v4__icon--32" data-studio-subpanel-icon alt="" width="32" height="32" />
-        <h2 class="studio__subpanel-title" data-studio-subpanel-title></h2>
-      </header>
       <div class="studio__subpanel-content" data-studio-subpanel-slot></div>
       ${renderStudioSubpanelGuardFields()}
     </div>
@@ -58,6 +85,8 @@ export function mountStudioV4SubpanelShell(
   studioRoot: HTMLElement,
   hooks: StudioSubpanelGuardHooks = {},
 ): StudioSubpanelShellHandle {
+  const mainHeader = studioRoot.querySelector<HTMLElement>('[data-studio-main-header]')!;
+  const chromeEl = studioRoot.querySelector<HTMLElement>('[data-studio-subpanel-chrome]')!;
   const layoutMain = studioRoot.querySelector<HTMLElement>('[data-studio-layout-main]')!;
   const subpanelEl = studioRoot.querySelector<HTMLElement>('[data-studio-subpanel]')!;
   const slotEl = studioRoot.querySelector<HTMLElement>('[data-studio-subpanel-slot]')!;
@@ -65,6 +94,7 @@ export function mountStudioV4SubpanelShell(
   const iconEl = studioRoot.querySelector<HTMLImageElement>('[data-studio-subpanel-icon]')!;
   const backBtn = studioRoot.querySelector<HTMLButtonElement>('[data-studio-subpanel-back]')!;
   const backIcon = studioRoot.querySelector<HTMLImageElement>('[data-studio-subpanel-back-icon]')!;
+  const doneBtn = studioRoot.querySelector<HTMLButtonElement>('[data-studio-subpanel-done]')!;
 
   backIcon.src = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.chevronBack16);
 
@@ -94,6 +124,16 @@ export function mountStudioV4SubpanelShell(
     },
   });
 
+  function setMainHeaderGuarded(guarded: boolean): void {
+    if (guarded) {
+      mainHeader.setAttribute('inert', '');
+      mainHeader.setAttribute('aria-hidden', 'true');
+    } else {
+      mainHeader.removeAttribute('inert');
+      mainHeader.removeAttribute('aria-hidden');
+    }
+  }
+
   function isPanelDirty(): boolean {
     if (!activePanelId) return false;
     return hooks.isPanelDirty?.(activePanelId) ?? false;
@@ -116,8 +156,10 @@ export function mountStudioV4SubpanelShell(
 
   function closeImmediate(): void {
     if (!activePanelId || !activePanelEl) {
+      chromeEl.hidden = true;
       subpanelEl.hidden = true;
       studioRoot.classList.remove('studio-v4--subpanel-open');
+      setMainHeaderGuarded(false);
       activePanelId = null;
       activePanelEl = null;
       return;
@@ -131,8 +173,10 @@ export function mountStudioV4SubpanelShell(
 
     guard.hide();
     pendingClose = false;
+    chromeEl.hidden = true;
     subpanelEl.hidden = true;
     studioRoot.classList.remove('studio-v4--subpanel-open');
+    setMainHeaderGuarded(false);
     layoutMain.hidden = false;
     activePanelId = null;
     activePanelEl = null;
@@ -157,9 +201,11 @@ export function mountStudioV4SubpanelShell(
     body.hidden = false;
     slotEl.appendChild(body);
     layoutMain.hidden = true;
+    chromeEl.hidden = false;
     subpanelEl.hidden = false;
     studioRoot.classList.add('studio-v4--subpanel-open');
-    backBtn.focus();
+    setMainHeaderGuarded(true);
+    doneBtn.focus();
   }
 
   function onCardClick(event: Event): void {
@@ -181,6 +227,7 @@ export function mountStudioV4SubpanelShell(
 
   studioRoot.addEventListener('click', onCardClick);
   backBtn.addEventListener('click', requestClose);
+  doneBtn.addEventListener('click', requestClose);
   document.addEventListener('keydown', onKeydown);
 
   return {

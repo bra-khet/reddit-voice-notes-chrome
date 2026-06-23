@@ -76,6 +76,7 @@ import { renderStudioV4PanelCard } from '@/src/ui/design-studio/studio-v4-panel-
 import { applyStudioV4ShellChrome } from '@/src/ui/design-studio/studio-v4-shell';
 import {
   mountStudioV4SubpanelShell,
+  renderStudioV4SubpanelChrome,
   renderStudioV4SubpanelShell,
   type StudioSubpanelShellHandle,
 } from '@/src/ui/design-studio/studio-v4-subpanel-shell';
@@ -113,7 +114,7 @@ export type MountClipStudioOptions = {
 export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOptions): () => void {
   root.innerHTML = `
     <main class="studio studio-v4">
-      <header class="studio__header">
+      <header class="studio__header" data-studio-main-header>
         <div class="studio__header-row">
           <div>
             <h1 class="studio__title">Design Studio</h1>
@@ -124,6 +125,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
           </button>
         </div>
       </header>
+      ${renderStudioV4SubpanelChrome()}
       <div class="studio__exit-modal" data-exit-modal hidden>
         <div class="studio__exit-dialog" role="dialog" aria-labelledby="studio-exit-title">
           <h2 class="studio__exit-title" id="studio-exit-title">Unsaved changes</h2>
@@ -917,6 +919,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   });
 
   doneBtn.addEventListener('click', () => {
+    // CHANGED: when a section sub-panel is open, main Done must not exit Design Studio.
+    // WHY: users follow the top Done affordance; sub-panel chrome replaces this header slot.
+    if (subpanelShell.isOpen()) {
+      subpanelShell.closeActive();
+      return;
+    }
     void attemptStudioExit();
   });
 

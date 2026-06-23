@@ -7,9 +7,17 @@ body:has(.studio-v4) {
 }
 
 .studio-v4 {
+  display: flex;
+  flex-direction: column;
   background: var(--studio-bg-deep);
   color: var(--studio-text);
   min-height: 100vh;
+}
+
+.studio-v4.studio-v4--subpanel-open {
+  /* CHANGED: nested section mode — distinct from root Studio shell.
+     WHY: users must not confuse section Done with exit Design Studio. */
+  box-shadow: inset 0 4px 0 var(--studio-cyan-ready);
 }
 
 .studio-v4 .studio__subtitle,
@@ -243,42 +251,50 @@ body:has(.studio-v4) {
   transform: rotate(90deg);
 }
 
-/* ── Sub-panel shell ── */
+/* ── Sub-panel shell — nested header mirrors main Studio chrome ── */
 
 .studio-v4 .studio__layout {
   position: relative;
   flex: 1;
 }
 
-.studio-v4 .studio__subpanel {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 0;
-}
-
-.studio-v4 .studio__subpanel[hidden] {
+.studio-v4--subpanel-open .studio__header[data-studio-main-header] {
   display: none;
 }
 
-.studio-v4 .studio__subpanel-header {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
+.studio-v4 .studio__subpanel-chrome {
+  display: none;
+  margin-bottom: 12px;
+}
+
+.studio-v4 .studio__subpanel-chrome[hidden] {
+  display: none;
+}
+
+.studio-v4--subpanel-open .studio__subpanel-chrome:not([hidden]) {
+  display: block;
+}
+
+.studio-v4 .studio__subpanel-chrome-status {
+  display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  margin-bottom: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--studio-v4-profile-frame) center / 100% 100% no-repeat;
   border-style: solid;
   border-width: 10px 14px;
   border-image: var(--studio-v4-border-subpanel-header);
-  background: transparent;
 }
 
 .studio-v4 .studio__subpanel-back {
+  flex-shrink: 0;
   border-style: solid;
   border-width: 10px;
   border-image: var(--studio-v4-border-nav-chip);
-  background: rgba(18, 0, 31, 0.65);
+  background: rgba(255, 213, 79, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 213, 79, 0.42);
   cursor: pointer;
 }
 
@@ -287,13 +303,61 @@ body:has(.studio-v4) {
   outline-offset: 2px;
 }
 
-.studio-v4 .studio__subpanel-title {
+.studio-v4 .studio__subpanel-chrome-copy {
+  min-width: 0;
+}
+
+.studio-v4 .studio__subpanel-chrome-title {
   margin: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 1.05rem;
+  font-weight: 600;
   color: var(--studio-amber);
+  letter-spacing: 0.02em;
+}
+
+.studio-v4 .studio__subpanel-chrome-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--studio-text-muted);
+  line-height: 1.35;
+}
+
+.studio-v4 .studio__subpanel-done-btn {
+  flex-shrink: 0;
+  margin-top: 2px;
+  padding: 8px 16px;
+  border: 2px solid var(--studio-cyan-ready);
+  border-radius: 8px;
+  background: rgba(94, 200, 232, 0.14);
+  color: var(--studio-cyan-ready);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(94, 200, 232, 0.25);
+}
+
+.studio-v4 .studio__subpanel-done-btn:hover {
+  background: rgba(94, 200, 232, 0.24);
+  filter: brightness(1.05);
+}
+
+.studio-v4 .studio__subpanel-done-btn:focus-visible {
+  outline: 2px solid var(--studio-cyan-ready);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__subpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.studio-v4 .studio__subpanel[hidden] {
+  display: none;
 }
 
 .studio-v4 .studio__subpanel-content {
