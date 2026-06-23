@@ -534,3 +534,17 @@ git checkout eloquent-profile-nominal && npm install && npm run dev
 ```
 
 See also: `docs/design-studio.md`, `docs/engineering-principles.md`, `docs/eloquent-profile-handoff.md`, and the individual branch plans.
+
+## v4 UI refresh — hero live preview layering (2026-06-23, eloquent)
+
+**Status:** Layering approach **verified correct** (user sign-off).
+
+**Pattern (keep this):**
+1. One shared preview box (`aspect-ratio` matches frame artboard).
+2. Canvas fills the box; `clip-path: inset(...)` punches the WYSIWYG viewport hole.
+3. Frame SVG is a **mask-cutout bezel only** (`::after`, `z-index: 3`, `background-position: 0 0`, `background-size: 100% 100%`).
+4. No translucent center fill over the canvas.
+
+**Polish fix:** SVG viewBox was 640×360 while drawn frame is 628×348 — 12px dead margin made the bezel appear offset (mirror overhang bottom-right). Cropped artboard to **628×348** so clip/mask insets are symmetric (12px all sides). Canvas internal resolution stays 640×360; display scales into the clipped hole.
+
+**Assets:** `preview-window-frame.svg` (bezel); `preview-window-frame.legacy.svg` (rollback).

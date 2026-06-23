@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="628" height="348" viewBox="0 0 628 348" aria-hidden="true">
 <!--
   Design Studio v4 — Live Preview bezel ring (hero overlay only)
-  Viewport hole: 12,12 → 604×324 (matches 640×360 canvas + CSS clip-path).
-  Mask cuts the center out completely — no translucent fill over WYSIWYG canvas.
+  Artboard matches drawn frame (628×348) — no dead margin in viewBox.
+  Viewport hole: 12,12 → 604×324 (symmetric 12px bezel; pairs with CSS clip-path).
 -->
   <defs>
     <linearGradient id="previewBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -13,13 +13,13 @@
       <stop offset="100%" stop-color="#0a0014"/>
     </linearGradient>
     <mask id="viewportHole" maskUnits="userSpaceOnUse">
-      <rect x="0" y="0" width="640" height="360" fill="white"/>
+      <rect x="0" y="0" width="628" height="348" fill="white"/>
       <rect x="12" y="12" width="604" height="324" rx="6" ry="6" fill="black"/>
     </mask>
   </defs>
 
   <g mask="url(#viewportHole)">
-    <rect x="6" y="6" width="628" height="348" rx="12" ry="12" fill="#000000" opacity="0.45"/>
+    <rect x="3" y="3" width="622" height="342" rx="12" ry="12" fill="#000000" opacity="0.45"/>
     <rect x="0" y="0" width="628" height="348" rx="12" ry="12"
           fill="url(#previewBevel)" stroke="#0a0014" stroke-width="3"/>
     <rect x="4" y="4" width="620" height="340" rx="9" ry="9"

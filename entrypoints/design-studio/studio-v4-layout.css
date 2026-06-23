@@ -73,11 +73,12 @@ body:has(.studio-v4) {
   }
 }
 
-/* CHANGED: hero preview couples 640×360 canvas + frame — shared box, matched clip/mask hole.
-   WHY: stretched ::after + inset canvas scaled from top-left at different rates (misaligned bezel). */
+/* CHANGED: hero preview couples canvas + frame in one 628×348 artboard (symmetric 12px bezel).
+   WHY: 640×360 viewBox had 12px dead margin → frame underhung top-left, overhung bottom-right.
+   Logic (shared box + clip-path + mask overlay) is correct — artboard must match drawn frame. */
 .studio-v4 .studio__hero .studio__preview-wrap {
-  --studio-v4-preview-w: 640;
-  --studio-v4-preview-h: 360;
+  --studio-v4-preview-w: 628;
+  --studio-v4-preview-h: 348;
   --studio-v4-preview-hole-x: 12;
   --studio-v4-preview-hole-y: 12;
   --studio-v4-preview-hole-w: 604;
@@ -90,11 +91,11 @@ body:has(.studio-v4) {
   background: #0a0014;
   overflow: hidden;
   width: 100%;
-  max-width: 640px;
-  aspect-ratio: 640 / 360;
+  max-width: 628px;
+  aspect-ratio: 628 / 348;
 }
 
-/* Bezel ring — locked to same 640×360 box as canvas (top-left, 100% stretch). */
+/* Bezel ring — locked to same artboard as canvas (top-left, 100% stretch). */
 .studio-v4 .studio__hero .studio__preview-wrap::after {
   content: '';
   position: absolute;
