@@ -48,7 +48,6 @@ export class RecorderPanel {
   private panelEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private studioCtaBtn!: HTMLButtonElement;
-  private studioFlowEl!: HTMLElement;
   private timerEl!: HTMLElement;
   private timeProgressEl!: HTMLElement;
   private timeProgressBar!: HTMLElement;
@@ -128,7 +127,7 @@ export class RecorderPanel {
           gap: 8px 10px;
           margin-top: 8px;
         }
-        .studio-flow[hidden] { display: none !important; }
+
         .studio-first-hint {
           display: inline-flex;
           align-items: center;
@@ -336,7 +335,7 @@ export class RecorderPanel {
         </div>
         <div class="status-studio" data-status-studio>
           <p class="status" data-status role="status" aria-live="polite">Initializing microphone…</p>
-          <div class="studio-flow" data-studio-flow hidden>
+          <div class="studio-flow" data-studio-flow>
             <p class="studio-first-hint" id="rvn-studio-first-hint">
               <span class="studio-first-hint__caution" aria-hidden="true">⚠</span>
               <span class="studio-first-hint__arrow" aria-hidden="true">→</span>
@@ -369,7 +368,6 @@ export class RecorderPanel {
 
     this.panelEl = this.shadow.querySelector('.panel')!;
     this.statusEl = this.shadow.querySelector('[data-status]')!;
-    this.studioFlowEl = this.shadow.querySelector('[data-studio-flow]')!;
     this.studioCtaBtn = this.shadow.querySelector('[data-open-design-studio]')!;
     this.timerEl = this.shadow.querySelector('[data-timer]')!;
     this.timeProgressEl = this.shadow.querySelector('[data-time-progress]')!;
@@ -639,7 +637,8 @@ export class RecorderPanel {
     this.tertiaryBtn.hidden = state.phase !== 'stopped';
 
     this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
-    this.studioFlowEl.hidden = true;
+    // CHANGED: studio-flow always visible — Design Studio is step one for every session.
+    // WHY: post-record-only CTA told users "go here first" after they had already recorded.
 
     switch (state.phase) {
       case 'idle':
@@ -683,7 +682,6 @@ export class RecorderPanel {
         if (state.subtitleStudioPending) {
           this.statusEl.textContent =
             'MP4 ready — open Design Studio to edit subtitles, bake, then attach.';
-          this.studioFlowEl.hidden = false;
         } else if (state.stoppedAtCap) {
           this.statusEl.textContent = `${formatRecordingCapProse()} limit reached — your MP4 is ready.`;
         } else {
