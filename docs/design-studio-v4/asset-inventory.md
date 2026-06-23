@@ -1,13 +1,13 @@
 # Design Studio v4 — Asset inventory
 
-**Status:** Complete for UI refresh MVP (2026-06-23)  
+**Status:** Complete + **wired in v3.7.0** (2026-06-23)
 **Runtime:** `public/assets/design-studio-v4/` · **Catalog:** `CATALOG.md`  
 **TS index:** `src/ui/design-studio/studio-v4-assets.ts`  
 **CSS:** `studio-palette.css`, `studio-v4-chrome.css`
 
-## MVP verdict: **ready**
+## MVP verdict: **shipped (v3.7.0)**
 
-All P1/P2 gaps closed. Shell migration can use asset-based 9-slice chrome end-to-end.
+All P1/P2 gaps closed. Runtime shell uses asset-based 9-slice chrome. Hero bezel: `panels/preview-window-frame.svg` (628×348 mask-cutout); rollback: `preview-window-frame.legacy.svg`. Negation chip: `nav-chip-negate-9slice.svg`.
 
 ## Navigation & status (added)
 

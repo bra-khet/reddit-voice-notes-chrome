@@ -12,12 +12,13 @@ Before editing any pipeline, storage, profile, or worker code:
 2. Pick **one** tag you will restore from if things break.
 3. Write it down explicitly in your session notes / commit message.
 
-**Current recommended stable fallbacks (2026-06-22):**
+**Current recommended stable fallbacks (2026-06-23):**
 
 | Use case                        | Tag                        | Branch | Notes |
 |---------------------------------|----------------------------|--------|-------|
 | General stable baseline         | `v3.1.0`                   | main   | Latest **main** release (Design Studio + voice). No subtitles. |
-| Subtitle edit→bake→attach on eloquent | `v3.6.0`               | eloquent | **Current eloquent stable.** Full pipeline + BUG-028…032 hardening. Studio semantics: `docs/design-studio.md`. QA: `docs/eloquent-4-handoff.md`. |
+| **Current eloquent stable**     | `v3.7.0`                   | eloquent | v3.6 pipeline + **v4 UI shell** (hero, cards, sub-panels, preview bezel). `docs/release-notes-v3.7.0.md`. |
+| Subtitle pipeline (pre–UI shell) | `v3.6.0`                  | eloquent | Full pipeline + BUG-028…032; legacy `<details>` layout. |
 | Profile / subtitle / prefs work on eloquent | `eloquent-profile-nominal` | eloquent | User-verified: profiles, HSV, backgrounds, Save/Update/Clone, voice, subtitles toggle. See `docs/eloquent-profile-handoff.md`. |
 | Earlier solid releases          | `v3.0.0`, `v2.0.0`         | main   | Full prior milestones. |
 | Transcription spike             | `eloquent-0-vosk-spike`    | eloquent | Vosk sandbox verified in isolation. |

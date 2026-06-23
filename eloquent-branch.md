@@ -1,8 +1,9 @@
 # `eloquent` branch — automated subtitles & transcription (Vosk WASM)
 
-**Status:** eloquent-0…4a + burn-in hardening complete on **`eloquent`** (2026-06-22). **Stable tag:** `v3.6.0`. Baseline: **`main` v3.1.0`.  
+**Status:** eloquent-0…4a + v4 UI shell shipped on **`eloquent`** (2026-06-23). **Stable tag:** `v3.7.0`. Baseline: **`main` v3.1.0`.  
 **Target release:** v4.0.0 on `main` after eloquent-5 merge.  
-**Handoff:** `docs/eloquent-4-handoff.md` · **Studio reference:** `docs/design-studio.md` · **Restore:** `git checkout v3.6.0 && npm install && npm run dev`
+**Handoff:** `docs/eloquent-4-handoff.md` · **Studio reference:** `docs/design-studio.md` · **Restore:** `git checkout v3.7.0 && npm install && npm run dev`  
+**Prior stable:** `v3.6.0` (subtitle pipeline; pre–v4 shell)
 
 **Related docs:** `docs/design-studio.md` (Subtitles section + shell semantics), `docs/eloquent-4-handoff.md`, `.ignore/transcript-design-notes.txt`, `docs/engineering-principles.md`, `dulcet-branch.md`, `claude-progress.md`
 

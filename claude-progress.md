@@ -518,11 +518,12 @@ Fix **BUG-023 only** — verify `activeProfileId` persistence on profile `<selec
 After the BUG-017…024 cluster (concurrent prefs RMW, boot races, throw-aborted syncs), the following artifacts were added to make v4 development resilient:
 
 - **`docs/design-studio.md`** — **Canonical Design Studio reference** — four sections, dirty-state taxonomy, storage map, UI refresh guardrails.
-- **`docs/code-review.md`** — The canonical `/code-review` gate. **Mandatory**: name a stable fallback tag first (`v3.1.0` for main baseline; `v3.6.0` for full Studio/subtitle work; `eloquent-profile-nominal` for profile-only regressions), run build/zip gate, and re-verify the race rules before touching prefs/profile/subtitle code.
+- **`docs/code-review.md`** — The canonical `/code-review` gate. **Mandatory**: name a stable fallback tag first (`v3.1.0` for main baseline; **`v3.7.0`** for eloquent UI shell + subtitles; `v3.6.0` for pipeline-only baseline; `eloquent-profile-nominal` for profile-only regressions), run build/zip gate, and re-verify the race rules before touching prefs/profile/subtitle code.
 - **`docs/v4-development-principles.md`** — Cross-branch pipeline law (fork-at-stop, compositing, WASM queues, prefs discipline). Studio UI semantics: `docs/design-studio.md`.
 - Stable restore tags (confirmed):
   - `v3.1.0` (main) — release baseline without subtitles.
-  - `v3.6.0` (eloquent) — full Design Studio + subtitle pipeline.
+  - `v3.7.0` (eloquent) — v4 UI shell + subtitle pipeline (**current**).
+  - `v3.6.0` (eloquent) — subtitle pipeline; pre–v4 shell.
   - `eloquent-profile-nominal` (8834d4e on eloquent) — profile + background + voice + subtitle toggle (pre–burn-in hardening).
 - All future eloquent work (eloquent-3 burn-in onward) and any prefs/storage changes must pass the `/code-review` checklist before landing.
 
@@ -535,16 +536,28 @@ git checkout eloquent-profile-nominal && npm install && npm run dev
 
 See also: `docs/design-studio.md`, `docs/engineering-principles.md`, `docs/eloquent-profile-handoff.md`, and the individual branch plans.
 
-## v4 UI refresh — hero live preview layering (2026-06-23, eloquent)
+## v3.7.0 stable — Design Studio v4 UI shell (2026-06-23)
 
-**Status:** Layering approach **verified correct** (user sign-off).
+**Tag:** `v3.7.0` · **Branch:** `eloquent` · **Release:** `docs/release-notes-v3.7.0.md`  
+**Restore:** `git checkout v3.7.0 && npm install && npm run dev`  
+**Prior:** `v3.6.0` (subtitle pipeline; legacy `<details>` layout)
 
-**Pattern (keep this):**
-1. One shared preview box (`aspect-ratio` matches frame artboard).
-2. Canvas fills the box; `clip-path: inset(...)` punches the WYSIWYG viewport hole.
-3. Frame SVG is a **mask-cutout bezel only** (`::after`, `z-index: 3`, `background-position: 0 0`, `background-size: 100% 100%`).
-4. No translucent center fill over the canvas.
+### Shipped (condensed)
 
-**Polish fix:** SVG viewBox was 640×360 while drawn frame is 628×348 — 12px dead margin made the bezel appear offset (mirror overhang bottom-right). Cropped artboard to **628×348** so clip/mask insets are symmetric (12px all sides). Canvas internal resolution stays 640×360; display scales into the clipped hole.
+- **Shell:** `.studio-v4` — hero row + 1×4 status cards + sub-panel navigation (`5217d55`…`519c098`)
+- **Profile status:** Subtitles? + Ready? strip; sub-panel exit guard + v4 button palette
+- **Live preview:** Shared 628×348 box; canvas `clip-path` + mask-cutout bezel overlay (**logic verified** — see below)
+- **Recorder:** Always-visible **Go here first** + Open Design Studio CTA
 
-**Assets:** `preview-window-frame.svg` (bezel); `preview-window-frame.legacy.svg` (rollback).
+### Hero preview layering (canonical — do not regress)
+
+1. One shared preview box (`aspect-ratio` = frame artboard **628×348**).
+2. Canvas fills box; `clip-path: inset(...)` punches WYSIWYG viewport hole.
+3. Bezel SVG mask overlay (`::after`, `z-index: 3`, `0 0 / 100% 100%`).
+4. No translucent center fill over canvas. Artboard must match drawn frame (no dead viewBox margin).
+
+**Assets:** `preview-window-frame.svg` · `preview-window-frame.legacy.svg`
+
+### Next (post–v3.7)
+
+Sub-panel control chrome (knobs/sliders), main Done asset, eloquent-4b remainder → eloquent-5 → merge `main` → v4.0.0.

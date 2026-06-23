@@ -1,8 +1,9 @@
 # Design Studio — semantic framework & architecture reference
 
-**Status:** Canonical source of truth for Design Studio behavior (v3.6.0 / `eloquent`, 2026-06-22).  
+**Status:** Canonical source of truth for Design Studio behavior (v3.7.0 / `eloquent`, 2026-06-23).  
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
-**Stable tag:** `v3.6.0` · **Restore:** `git checkout v3.6.0 && npm install && npm run dev`
+**Stable tag:** `v3.7.0` · **Restore:** `git checkout v3.7.0 && npm install && npm run dev`  
+**Prior stable:** `v3.6.0` (subtitle pipeline; pre–v4 UI shell)
 
 ---
 
@@ -24,7 +25,7 @@ Future UI refreshes must preserve the **semantic contracts** in this document ev
 | Entry | Mechanism | File |
 |-------|-----------|------|
 | Extension popup | Link / summary → opens tab | `entrypoints/popup/` |
-| Recorder panel | **Open Design Studio** CTA (subtitles on) | `src/ui/design-studio/open-design-studio.ts` |
+| Recorder panel | **Go here first** + **Open Design Studio** (always visible) | `src/ui/recorder-panel.ts`, `open-design-studio.ts` |
 | Direct URL | `chrome-extension://<id>/design-studio.html` | `entrypoints/design-studio/main.ts` |
 
 Opening from Reddit uses `MSG_OPEN_DESIGN_STUDIO` → background `tabs.create` (existing `tabs` permission; no new grants).
@@ -43,37 +44,41 @@ Opening from Reddit uses `MSG_OPEN_DESIGN_STUDIO` → background `tabs.create` (
 
 ## 2. Shell layout & information architecture
 
-### 2.1 Vertical stack (top → bottom)
+### 2.1 Shell layout (v3.7+ — shipped on `eloquent`)
+
+Runtime root: `.studio-v4` (`mount-clip-studio.ts`). **§10.2 hero + 1×4 strip** is live.
+
+**Wide (≥900px):**
 
 ```
-┌─────────────────────────────────────────────┐
-│ Header — title, subtitle, [Done]            │
-├─────────────────────────────────────────────┤
-│ Profile bar — select, Save/Update, Clone,   │
-│               Delete                         │
-├─────────────────────────────────────────────┤
-│ Live preview — single canvas (WYSIWYG)      │
-├─────────────────────────────────────────────┤
-│ ▼ Bar style    — collapsed summary chip     │
-│ ▼ Background   — collapsed summary chip     │
-│ ▼ Voice        — collapsed summary chip     │
-│ ▼ Subtitles    — collapsed summary chip     │
-├─────────────────────────────────────────────┤
-│ Footer note — Clone / Save to new / Update   │
-└─────────────────────────────────────────────┘
+┌ Header — title, subtitle, [Done] ─────────────────────────┐
+├──────────────────────────────┬──────────────────────────┤
+│ LIVE PREVIEW (hero, WYSIWYG) │ PROFILE + STATUS strip   │
+│ canvas + mask-cutout bezel   │ (Subtitles? / Ready?)    │
+├──────────┬──────────┬──────────┬──────────┤
+│ Bar style│Background│  Voice   │ Subtitles│  ← status cards
+│ summary  │ summary  │ summary  │ summary  │  → tap opens sub-panel
+└──────────┴──────────┴──────────┴──────────┘
 ```
 
-**Panel order is semantic:** bottom → top compositing in the final MP4 is **background → bars → subtitles**. Voice is audio-only (no canvas layer). Subtitles panel is last in the stack because it is the topmost visual layer.
+**Narrow:** profile + status **above** preview; four cards stack in one column (`flex` default + `@media (min-width: 900px)` grid).
 
-### 2.2 Collapsible panels
+**Hero preview layering (verified):** one shared **628×348** artboard; canvas fills box + `clip-path` viewport hole; bezel SVG (`preview-window-frame.svg`) mask overlay at `z-index: 3`. See `claude-progress.md` § v4 UI refresh — hero live preview.
 
-Each section is a `<details class="studio__panel">` with:
+### 2.1.1 Legacy stack (v3.1–v3.6, superseded in DOM)
 
-- **Title** — human name (`Bar style`, `Background`, `Voice`, `Subtitles`).
-- **Summary chip** — live one-line state (`data-summary-*`), updated by `studio-section-summaries.ts`.
-- **Body** — section-specific controls; mounted by dedicated `mount*Controls` modules.
+Pre-v4 used vertical `<details>` panels (profile bar → preview → four collapsible sections). Behavior preserved inside sub-panel bodies; card faces replace collapsed `<details>` summaries.
 
-Collapsed summaries must remain accurate while the panel is closed — they are the primary scan affordance until a UI refresh replaces them.
+### 2.2 Section panels (cards + sub-panels)
+
+Each section is a **status card** (`.studio__panel`, `data-studio-panel`) with:
+
+- **Face** — icon, title, `data-summary-*` one-liner, centered nav chip (enter ↓).
+- **Body** — existing `render*Fields()` markup; shown in **sub-panel shell** (`studio-v4-subpanel-shell.ts`) on card tap.
+
+Summaries must stay accurate on the card face while the sub-panel is closed (`studio-section-summaries.ts`).
+
+**Sub-panel chrome:** nested header (negate back chip, section title, **Done**); **exit guard** (`studio-subpanel-guard.ts`) — cancel left, discard middle, confirm right (v4 button palette).
 
 **Preview count:** One **Live preview** canvas since v3.1.0 (secondary/tertiary previews removed — see `docs/release-notes-v3.1.0.md`). Older branch docs may still mention dual preview; current code mounts `renderPreviewBlock('primary')` only.
 
@@ -661,9 +666,9 @@ Card faces remain non-interactive except **enter**; all apply/discard lives insi
 | `src/ui/design-studio/studio-v4-assets.ts` | Asset path constants + `studioV4BorderImage()` |
 | `public/assets/design-studio-v4/CATALOG.md` | Full file index |
 
-**MVP status (2026-06-23):** Asset set complete — navigation chevrons, status variants, 9-slice frames, Done/Cancel, 16px icons, volume knob assembly.
+**MVP status (2026-06-23):** Asset set complete; **shell wired** in v3.7.0 — hero bezel (`preview-window-frame.svg` + `.legacy.svg`), negation nav chip, card footer rail, `studio-v4-buttons.css` (violet confirm / amber action / charcoal negation).
 
-**Fallback tags:** `v3.6.0` (behavior) · `v3.6.0-pre-ui-refresh` (initial import) · `v3.6.0-ui-assets-ready` (full asset baseline before layout TS).
+**Fallback tags:** `v3.7.0` (UI shell + subtitles) · `v3.6.0` (behavior-only baseline) · `v3.6.0-ui-assets-ready` (assets before layout TS).
 
 ---
 
@@ -677,9 +682,11 @@ Card faces remain non-interactive except **enter**; all apply/discard lives insi
 | Font picker | Subtitles | Deferred |
 | Chunked base-MP4 relay | Subtitles | If large-clip bake fails |
 | Legacy `transcriptConfig` on profiles | Subtitles / Profile | Update profile once embeds style |
-| Section tabs vs `<details>` | Shell | §10.2 hero + 1×4 strip preferred over 2×2 |
-| Unified sub-panel exit guard | Shell | §10.4 — extract from segment editor |
-| CVD-friendly chrome palette | Shell | §10.3 — indigo/amber anchor |
+| ~~Section tabs vs `<details>`~~ | Shell | **Done v3.7** — hero + 1×4 cards + sub-panels |
+| ~~Unified sub-panel exit guard~~ | Shell | **Done v3.7** — `studio-subpanel-guard.ts` |
+| ~~CVD-friendly chrome palette~~ | Shell | **Done v3.7** — `studio-palette.css` + `studio-v4-buttons.css`; theme-hue accents unchanged |
+| Sub-panel control chrome (knobs/sliders SVG) | Shell | Assets exist; not fully wired in panel bodies |
+| v4 Done / profile button assets | Shell | Sub-panel Done styled; main header Done still legacy |
 
 ---
 
@@ -697,6 +704,7 @@ Card faces remain non-interactive except **enter**; all apply/discard lives insi
 | `docs/transcription-architecture.md` | Vosk sandbox CSP stack (Studio §7 integration) |
 | `docs/bug-archive.md` | Full bug write-ups |
 | `docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
+| `docs/release-notes-v3.7.0.md` | v3.7 v4 UI shell (hero, cards, sub-panels, preview bezel) |
 | `eloquent-branch.md` | v4 subtitle phase plan (historical milestones + open work) |
 | `dulcet-branch.md` | v3 voice-effects phase plan (Voice section origin) |
 | `pretty-branch.md` | v2 personalization phase plan (Bar style / Background origin) |
@@ -738,10 +746,19 @@ Feasible as a **mode**, not a replacement for Reddit attach:
 ```
 entrypoints/design-studio/
   main.ts              Boot
-  style.css            Studio-specific styles
+  studio-palette.css   CVD tokens (§10.3)
+  studio-v4-chrome.css 9-slice utilities
+  studio-v4-layout.css Hero + strip + sub-panel shell
+  studio-v4-buttons.css v4 action palette
+  style.css            Legacy + shared controls
 
 src/ui/design-studio/
-  mount-clip-studio.ts     Shell, profile bar, preview, panel wiring
+  mount-clip-studio.ts     Shell, hero, profile cluster, panel wiring
+  studio-v4-shell.ts       CSS var injection for 9-slice / frames
+  studio-v4-subpanel-shell.ts  Sub-panel chrome + guard hooks
+  studio-v4-panel-summary.ts   Status card faces
+  studio-status-strip.ts   Profile Subtitles? / Ready? rows
+  studio-subpanel-guard.ts Unified dirty exit prompt
   studio-section-summaries.ts  Collapsed chips
   studio-exit.ts           Done / exit modal logic
   studio-save-pathways.ts  Clone / fork prompts
