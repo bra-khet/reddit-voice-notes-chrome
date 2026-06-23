@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" aria-hidden="true">
+/*
+  Design Studio v4 — Knob needle / indicator (standalone layer)
+  Rotate via CSS transform on parent; default points to 12 o'clock (value ~75%).
+  Center at 80,80 matches knob-housing.svg.
+*/
+  <g transform="rotate(0 80 80)">
+    <line x1="80" y1="80" x2="80" y2="28" stroke="#ffd54f" stroke-width="3.5" stroke-linecap="round"/>
+    <polygon points="80,24 76,34 84,34" fill="#ffd54f" stroke="#8a6f1a" stroke-width="0.5"/>
+    <circle cx="80" cy="80" r="6" fill="#1d1f6e" stroke="#ffd54f" stroke-width="1.5"/>
+  </g>
+</svg>

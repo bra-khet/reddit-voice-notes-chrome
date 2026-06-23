@@ -12,6 +12,10 @@ Test assets generated from voice notes (legacy UI) + feature-set analysis.
 - `sliders/physical-slider-track.svg` + `physical-slider-tab.svg` — wide analog tab + feathered glowing track edges to black center
 - `chrome/position-3x3-grid.svg` — background / alignment position widget
 
+## Catalog
+
+See **`CATALOG.md`** for the full file index. TypeScript paths: `src/ui/design-studio/studio-v4-assets.ts`.
+
 ## Panel Windows & Status (from ASCII layout + notes, 2026-06-23)
 - `panels/panel-frame-9slice.svg` (square base for CSS border-image 9-slice)
 - `panels/preview-window-frame.svg`, `status-panel-frame.svg`, `profile-status-frame.svg`

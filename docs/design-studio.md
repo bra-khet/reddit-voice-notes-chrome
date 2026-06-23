@@ -657,10 +657,13 @@ Card faces remain non-interactive except **enter**; all apply/discard lives insi
 | `docs/design-studio-v4/asset-inventory.md` | MVP punch list, deprecated assets, gaps |
 | `docs/design-studio-v4/vector-ui-assets-spec.md` | Authoring spec + theming |
 | `entrypoints/design-studio/studio-palette.css` | CVD-friendly CSS tokens (§10.3) |
+| `entrypoints/design-studio/studio-v4-chrome.css` | 9-slice utility classes |
+| `src/ui/design-studio/studio-v4-assets.ts` | Asset path constants + `studioV4BorderImage()` |
+| `public/assets/design-studio-v4/CATALOG.md` | Full file index |
 
-**MVP status (2026-06-23):** Shell migration ready. Gaps: card enter/back chevrons, pending status variant, Done button chrome — all CSS-workaroundable for Phase 1.
+**MVP status (2026-06-23):** Asset set complete — navigation chevrons, status variants, 9-slice frames, Done/Cancel, 16px icons, volume knob assembly.
 
-**Fallback tag before UI migration:** `v3.6.0-pre-ui-refresh` (assets + design docs landed; no layout TS yet).
+**Fallback tags:** `v3.6.0` (behavior) · `v3.6.0-pre-ui-refresh` (initial import) · `v3.6.0-ui-assets-ready` (full asset baseline before layout TS).
 
 ---
 

@@ -1,4 +1,6 @@
 import '../popup/style.css';
+import './studio-palette.css';
+import './studio-v4-chrome.css';
 import './style.css';
 import { reconcileBackgroundPreferences } from '@/src/storage/background-refs';
 import { loadUserPreferences } from '@/src/settings/user-preferences';

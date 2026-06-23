@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+/*
+  Design Studio v4 — Subtitles caption silhouette (16px)
+*/
+  <g fill="#ffd54f">
+    <rect x="2" y="4" width="12" height="1.5" rx="0.5"/>
+    <rect x="2" y="7" width="10" height="1.5" rx="0.5"/>
+    <rect x="2" y="10" width="8" height="1.5" rx="0.5"/>
+  </g>
+</svg>
