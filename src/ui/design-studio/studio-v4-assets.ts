@@ -12,7 +12,9 @@ export const STUDIO_V4_ASSETS = {
     profileStatusFrame: `${BASE}/panels/profile-status-frame.svg`,
     statusPanelFrame: `${BASE}/panels/status-panel-frame.svg`,
     cardFooter9Slice: `${BASE}/panels/card-footer-9slice.svg`,
-    subpanelHeader9Slice: `${BASE}/panels/subpanel-header-9slice.svg`,
+    subpanelHeader5Slice: `${BASE}/panels/subpanel-header-5slice.svg`,
+    /** @deprecated Use subpanelHeader5Slice — see panels/5-slice-usage.md */
+    subpanelHeader9SliceLegacy: `${BASE}/panels/subpanel-header-9slice.legacy.svg`,
     navChip9Slice: `${BASE}/panels/nav-chip-9slice.svg`,
     dialogFrame9Slice: `${BASE}/panels/dialog-frame-9slice.svg`,
     panelHeaderBar: `${BASE}/panels/panel-header-bar.svg`,
@@ -66,4 +68,16 @@ export function studioV4AssetUrl(relativePath: string): string {
 export function studioV4BorderImage(relativePath: string, slice: number): string {
   const url = studioV4AssetUrl(relativePath);
   return `url("${url}") ${slice} fill`;
+}
+
+/** CSS border-image with per-edge slice (5-slice horizontal bars, asymmetric frames). */
+export function studioV4BorderImageSlices(
+  relativePath: string,
+  top: number,
+  right: number,
+  bottom: number,
+  left: number,
+): string {
+  const url = studioV4AssetUrl(relativePath);
+  return `url("${url}") ${top} ${right} ${bottom} ${left} fill`;
 }

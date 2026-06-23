@@ -69,8 +69,12 @@ body:has(.studio-v4) {
   flex-direction: column;
   gap: 0;
   min-width: 0;
-  padding: 10px;
-  background: var(--studio-v4-profile-frame) center / 100% 100% no-repeat;
+  padding: 14px 12px 10px;
+  border-style: solid;
+  border-width: 10px;
+  border-image: var(--studio-v4-border-panel);
+  background: var(--studio-bg-deep);
+  box-sizing: border-box;
 }
 
 .studio-v4 .studio__profile-cluster-head {
@@ -110,12 +114,12 @@ body:has(.studio-v4) {
   min-height: 2.5rem;
 }
 
-.studio-v4 .studio__status-strip-placeholder {
-  margin: 0;
-  font-family: ui-monospace, monospace;
-  font-size: 0.6875rem;
-  line-height: 1.45;
-  color: var(--studio-text-muted);
+.studio-v4 .studio__status-strip-line {
+  margin: 0 0 6px;
+}
+
+.studio-v4 .studio__status-strip-line:last-child {
+  margin-bottom: 0;
 }
 
 /* ── Four-card strip (1×4 → stack) ── */
@@ -281,10 +285,13 @@ body:has(.studio-v4) {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 10px 12px;
-  background: var(--studio-v4-profile-frame) center / 100% 100% no-repeat;
+  padding: 8px 12px 8px 4px;
   border-style: solid;
-  border-width: 10px 14px;
+  box-sizing: border-box;
+  background: var(--studio-bg-deep);
+}
+
+.studio-v4 .studio__subpanel-chrome-status.studio-v4__surface--subpanel-header-bar {
   border-image: var(--studio-v4-border-subpanel-header);
 }
 

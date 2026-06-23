@@ -39,6 +39,7 @@ import { bakeSubtitlesInStudio } from '@/src/ui/design-studio/subtitle-bake';
 import {
   mountSubtitleSegmentEditor,
   renderSubtitleSegmentEditorFields,
+  type TranscriptDeliveryStatus,
 } from '@/src/ui/design-studio/subtitle-segment-editor';
 
 export interface SubtitleControlsHandle {
@@ -49,6 +50,7 @@ export interface SubtitleControlsHandle {
   getPreviewOptions(): SubtitlePreviewOptions | undefined;
   syncFromPreferences(prefs: UserPreferencesV1): void;
   isTranscriptDirty(): boolean;
+  getTranscriptDeliveryStatus(): TranscriptDeliveryStatus;
   confirmTranscriptEdits(): Promise<void>;
   discardTranscriptEdits(): Promise<void>;
 }
@@ -953,6 +955,9 @@ export function mountSubtitleControls(
     },
     isTranscriptDirty(): boolean {
       return segmentEditor.getState().dirty;
+    },
+    getTranscriptDeliveryStatus(): TranscriptDeliveryStatus {
+      return segmentEditor.getTranscriptDeliveryStatus();
     },
     async confirmTranscriptEdits(): Promise<void> {
       const edited = segmentEditor.getEditedResult();

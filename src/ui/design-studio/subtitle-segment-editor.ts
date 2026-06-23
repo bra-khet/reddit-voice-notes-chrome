@@ -41,6 +41,7 @@ export interface SegmentEditorHandle {
   /** After IDB persist — align baseline so dirty UI clears. */
   markConfirmedSaved(): void;
   setTranscriptDeliveryStatus(status: TranscriptDeliveryStatus): void;
+  getTranscriptDeliveryStatus(): TranscriptDeliveryStatus;
 }
 
 export interface SegmentEditorHandlers {
@@ -710,5 +711,8 @@ export function mountSubtitleSegmentEditor(
     },
     markConfirmedSaved,
     setTranscriptDeliveryStatus,
+    getTranscriptDeliveryStatus(): TranscriptDeliveryStatus {
+      return deliveryStatus;
+    },
   };
 }

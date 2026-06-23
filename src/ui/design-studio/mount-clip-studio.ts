@@ -81,6 +81,7 @@ import {
   type StudioSubpanelShellHandle,
 } from '@/src/ui/design-studio/studio-v4-subpanel-shell';
 import { syncStudioSectionSummaries } from '@/src/ui/design-studio/studio-section-summaries';
+import { syncStudioStatusStrip } from '@/src/ui/design-studio/studio-status-strip';
 import {
   discardStudioUnsavedChanges,
   hasStudioUnsavedChanges,
@@ -176,9 +177,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
                 </button>
               </div>
             </section>
-            <div class="studio__status-strip" data-studio-status-strip aria-live="polite">
-              <p class="studio__status-strip-placeholder">Session status will appear here.</p>
-            </div>
+            <div class="studio__status-strip" data-studio-status-strip aria-live="polite"></div>
           </div>
         </div>
         <div class="studio__panel-strip">
@@ -628,6 +627,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       prefs: activePrefs,
       voiceDraft: voiceControls.getDraftConfig(),
       subtitleDraft: subtitleControls.getDraftConfig(),
+    });
+    syncStudioStatusStrip(root, {
+      prefs: activePrefs,
+      transcriptForMatch: subtitleControls.getProfileSnapshotConfig(),
+      transcriptDirty: subtitleControls.isTranscriptDirty(),
+      transcriptDelivery: subtitleControls.getTranscriptDeliveryStatus(),
     });
   }
 

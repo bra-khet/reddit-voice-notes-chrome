@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="100" height="56" viewBox="0 0 100 56" aria-hidden="true">
 <!--
-  DEPRECATED — use subpanel-header-5slice.svg (panels/5-slice-usage.md).
-  Legacy copy: subpanel-header-9slice.legacy.svg
+  LEGACY — superseded by subpanel-header-5slice.svg (2026-06-23)
+  Problem: uniform 9-slice scaled baked chevron under HTML nav-chip.
+  Retained for reference only — do not use in runtime CSS.
 -->
   <defs>
     <linearGradient id="subHdrBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">

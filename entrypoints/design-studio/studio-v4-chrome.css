@@ -22,6 +22,10 @@
   border-width: 10px 14px;
 }
 
+.studio-v4__surface--subpanel-header-bar {
+  border-width: 10px 14px 10px 48px;
+}
+
 .studio-v4__nav-chip {
   width: 40px;
   height: 40px;
