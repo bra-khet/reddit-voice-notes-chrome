@@ -203,6 +203,20 @@ export function renderSubtitleControlFields(): string {
           <p class="popup__field-label studio__subtitle-special-hue-label">Special hue</p>
           <p class="popup__field-desc">Shared by text and glow when either uses Special hue.</p>
           ${renderColorPickerFields()}
+          <label class="popup__toggle-row studio__subtitles-toggle">
+            <span class="popup__toggle-copy">
+              <span class="popup__toggle-label">Rainbow pulse</span>
+              <p class="popup__field-desc">
+                Rotates special-hue text and glow through the wheel over time (~3 s per cycle).
+              </p>
+            </span>
+            <input
+              class="popup__toggle-input"
+              type="checkbox"
+              data-subtitle-special-hue-rainbow
+              aria-label="Rainbow pulse on special hue"
+            />
+          </label>
         </div>
         <div class="studio__subtitles-bake" data-subtitle-bake-block>
           <button
@@ -271,6 +285,9 @@ export function mountSubtitleControls(
   )!;
   const textColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-text-color]')!;
   const specialHuePanel = panel.querySelector<HTMLElement>('[data-subtitle-special-hue-panel]')!;
+  const specialHueRainbowInput = panel.querySelector<HTMLInputElement>(
+    '[data-subtitle-special-hue-rainbow]',
+  )!;
   const glowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow]')!;
   const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
   const glowModeSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-mode]')!;
@@ -603,6 +620,7 @@ export function mountSubtitleControls(
     backdropOpacityValueEl.textContent = `${opacityPct}%`;
     backdropOpacityInput.disabled = !backdropInput.checked;
     textColorSelect.value = style.textColor ?? 'white';
+    specialHueRainbowInput.checked = style.specialHueRainbow === true;
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
@@ -649,6 +667,7 @@ export function mountSubtitleControls(
         opacity,
       },
       specialHue: draftConfig.style.specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE,
+      specialHueRainbow: specialHueRainbowInput.checked,
       glow: {
         ...draftConfig.style.glow,
         enabled: glowInput.checked,
@@ -809,6 +828,13 @@ export function mountSubtitleControls(
   glowColorSelect.addEventListener('change', () => {
     if (syncing) return;
     syncSpecialHueUi();
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  specialHueRainbowInput.addEventListener('change', () => {
+    if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();

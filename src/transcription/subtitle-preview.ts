@@ -10,6 +10,8 @@ export interface SubtitlePreviewOptions {
   style: SubtitleStyleConfig;
   /** Active theme bar color — resolves theme-hue glow in preview. */
   themeBarColor?: string;
+  /** Wall-clock ms for animated special-hue rainbow (from preview RAF). */
+  previewTimeMs?: number;
 }
 
 const PREVIEW_PLACEHOLDER = 'Your caption here';
@@ -81,7 +83,8 @@ export function drawSubtitlePreview(
   const paddingX = 14;
   const paddingY = 10;
   const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
-  const palette = resolveSubtitleEffectPalette(style, themeBarColor);
+  const previewTimeSec = (options.previewTimeMs ?? performance.now()) / 1000;
+  const palette = resolveSubtitleEffectPalette(style, themeBarColor, previewTimeSec);
 
   ctx.save();
   ctx.font = `600 ${fontSize}px ${fontFamily}`;

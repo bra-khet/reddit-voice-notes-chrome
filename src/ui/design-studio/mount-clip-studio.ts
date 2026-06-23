@@ -54,6 +54,7 @@ import {
   mountBackgroundLayoutControls,
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
+import { subtitlePreviewNeedsAnimation } from '@/src/transcription/subtitle-effects';
 import {
   mountSubtitleControls,
   renderSubtitleControlFields,
@@ -433,7 +434,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const theme = resolvedTheme();
     const presetBokeh = backgroundIsBokeh(theme.background);
     const animatedOverlay = themeHasAnimatedOverlay(theme);
-    const shouldAnimate = presetBokeh || animatedOverlay;
+    const subtitlePreview = subtitleControls?.getPreviewOptions();
+    const rainbowPreview = subtitlePreview?.enabled && subtitlePreviewNeedsAnimation(subtitlePreview.style);
+    const shouldAnimate = presetBokeh || animatedOverlay || rainbowPreview;
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
       return;

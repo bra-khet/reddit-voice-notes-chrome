@@ -3,8 +3,10 @@ import {
   drawtextMainFontColor,
   DRAWTEXT_BACKDROP_PLATE_FONT_COLOR,
   ffmpegDrawtextColor,
-  resolveSubtitleEffectPalette,
+  resolveGlowColorHex,
+  styleUsesSpecialHueRainbow,
   subtitleStyleNeedsGlowLayers,
+  temporalizeDrawtextColor,
 } from '@/src/transcription/subtitle-effects';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
 import { BURNIN_PIPELINE_STAMP } from '@/src/utils/constants';
@@ -181,7 +183,7 @@ function buildSimpleDrawtextFilter(
 ): string {
   const fontSize = style.fontSize ?? 22;
   const y = drawtextY(style.position, fontSize);
-  const fontColor = drawtextMainFontColor(style, themeBarColor);
+  const animateText = styleUsesSpecialHueRainbow(style) && style.textColor === 'special';
 
   const parts: string[] = [];
   for (let index = 0; index < segments.length; index += 1) {
@@ -196,9 +198,19 @@ function buildSimpleDrawtextFilter(
     }
 
     parts.push(
-      `drawtext=fontfile=${fontFile}:fontcolor=${fontColor}:fontsize=${fontSize}` +
-        `:x=(w-text_w)/2:y=${y}` +
-        `:textfile=${textFilePath}:enable='between(t,${start},${end})'`,
+      ...emitTemporalDrawtextLayers(
+        {
+          textFilePath,
+          start,
+          end,
+          fontSize,
+          x: drawtextX(0),
+          y,
+        },
+        (timeSeconds) => drawtextMainFontColor(style, themeBarColor, timeSeconds),
+        animateText,
+        fontFile,
+      ),
     );
   }
 
@@ -226,6 +238,26 @@ function buildDrawtextLayer(layer: DrawtextLayer, fontFile: string): string {
   );
 }
 
+/**
+ * FFmpeg drawtext fontcolor is static per filter — rainbow bakes as time-sliced duplicates.
+ * Sync: temporalizeDrawtextColor + subtitle-preview previewTimeMs (live RAF path).
+ */
+function emitTemporalDrawtextLayers(
+  base: Omit<DrawtextLayer, 'fontColor'>,
+  colorAtTime: (timeSeconds: number) => string,
+  animate: boolean,
+  fontFile: string,
+): string[] {
+  if (!animate) {
+    const mid = (base.start + base.end) / 2;
+    return [buildDrawtextLayer({ ...base, fontColor: colorAtTime(mid) }, fontFile)];
+  }
+
+  return temporalizeDrawtextColor(base.start, base.end, colorAtTime).map((slice) =>
+    buildDrawtextLayer({ ...base, start: slice.start, end: slice.end, fontColor: slice.fontColor }, fontFile),
+  );
+}
+
 function buildSegmentGlowLayers(
   segment: TranscriptSegment,
   segmentIndex: number,
@@ -239,38 +271,61 @@ function buildSegmentGlowLayers(
   const textFilePath = burnInCueTextFilePath(segmentIndex);
   const fontSize = style.fontSize ?? 22;
   const yBase = drawtextY(style.position, fontSize);
-  const palette = resolveSubtitleEffectPalette(style, themeBarColor);
   const glow = style.glow!;
-  const layers: DrawtextLayer[] = [];
+  const rainbow = styleUsesSpecialHueRainbow(style);
+  const animateGlow = rainbow && glow.colorSource === 'special';
+  const animateText = rainbow && style.textColor === 'special';
+  const parts: string[] = [];
 
   const plate = buildBackdropPlateLayer(textFilePath, start, end, fontSize, yBase, style);
   if (plate) {
-    layers.push(plate);
+    parts.push(buildDrawtextLayer(plate, fontFile));
   }
 
   for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
-    layers.push({
-      textFilePath,
-      start,
-      end,
-      fontSize: spec.fontSize,
-      fontColor: ffmpegDrawtextColor(palette.glowHex, spec.opacity),
-      x: drawtextX(spec.offsetX),
-      y: drawtextYWithOffset(yBase, spec.offsetY),
-    });
+    parts.push(
+      ...emitTemporalDrawtextLayers(
+        {
+          textFilePath,
+          start,
+          end,
+          fontSize: spec.fontSize,
+          x: drawtextX(spec.offsetX),
+          y: drawtextYWithOffset(yBase, spec.offsetY),
+        },
+        (timeSeconds) => {
+          const hex = resolveGlowColorHex(
+            glow.colorSource,
+            themeBarColor,
+            style.specialHue,
+            timeSeconds,
+            animateGlow,
+          );
+          return ffmpegDrawtextColor(hex, spec.opacity);
+        },
+        animateGlow,
+        fontFile,
+      ),
+    );
   }
 
-  layers.push({
-    textFilePath,
-    start,
-    end,
-    fontSize,
-    fontColor: drawtextMainFontColor(style, themeBarColor),
-    x: drawtextX(0),
-    y: yBase,
-  });
+  parts.push(
+    ...emitTemporalDrawtextLayers(
+      {
+        textFilePath,
+        start,
+        end,
+        fontSize,
+        x: drawtextX(0),
+        y: yBase,
+      },
+      (timeSeconds) => drawtextMainFontColor(style, themeBarColor, timeSeconds),
+      animateText,
+      fontFile,
+    ),
+  );
 
-  return layers.map((layer) => buildDrawtextLayer(layer, fontFile));
+  return parts;
 }
 
 function buildDrawtextFilter(

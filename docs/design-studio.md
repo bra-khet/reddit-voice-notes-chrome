@@ -336,6 +336,7 @@ This section is the largest integrated subsystem: prefs + session IDB + offscree
 | Backdrop + opacity | `subtitleStyle` | prefs |
 | Text color | `subtitleStyle.textColor` — `theme` \| `white` \| `black` \| `special` | prefs |
 | Special hue (shared) | `subtitleStyle.specialHue` — HSV/HEX picker when text or glow uses `special` | prefs |
+| Rainbow pulse | `subtitleStyle.specialHueRainbow` — time-varying hue on special layers | prefs |
 | Theme glow | `subtitleStyle.glow` | prefs |
 | Glow mode / color / strength | `glow.mode` (`halo` \| `border`), `colorSource`, `opacity` (halo only) | prefs |
 
@@ -384,6 +385,10 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 | Glow/border/backdrop | Canvas overlay | FFmpeg drawtext duplicates |
 
 **Subtitle effects (v3.6.1+):** Drop shadow removed (theme glow covers contrast). Glow modes: **halo** (soft, opacity slider) or **border** (solid 1 px ring, no alpha). **Special hue** is one shared `specialHue` field for both text and glow when either selects `special`.
+
+**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel over time. **Preview** uses `previewTimeMs` from the Live preview RAF. **Bake** cannot animate `fontcolor` in FFmpeg drawtext — rainbow is quantized into **0.25 s static-color slices** per cue (max 24). Stepped, not per-frame; ~0.35 hue cycles/s. Filter graph grows with slice count.
+
+**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel over time. **Preview** uses `previewTimeMs` from the Live preview RAF (same clock as bokeh). **Bake** cannot use expressive `fontcolor` in FFmpeg drawtext — rainbow is **quantized into 0.25 s static-color slices** per cue (max 24 slices). Not true per-frame hue; stepped but WYSIWYG-close at medium-fast speed (~0.35 cycles/s). Filter graph grows with slice count — very long clips with many cues may need coarser slices later.
 
 \*Segment-aware timed preview on canvas is **open** (eloquent-4b) — preview may lag bake until implemented.
 

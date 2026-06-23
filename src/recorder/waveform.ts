@@ -450,6 +450,6 @@ export async function renderThemePreview(
   );
   drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);
   if (subtitlePreview) {
-    drawSubtitlePreview(ctx, canvas, subtitlePreview);
+    drawSubtitlePreview(ctx, canvas, { ...subtitlePreview, previewTimeMs: timeMs });
   }
 }
