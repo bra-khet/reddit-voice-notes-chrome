@@ -15,6 +15,12 @@ import {
   onUserPreferencesChanged,
   type AppearancePreferences,
 } from '@/src/settings/user-preferences';
+import {
+  getWorkflowPhase,
+  onWorkflowPhaseChanged,
+  setWorkflowPhase,
+  type WorkflowPhase,
+} from '@/src/workflow/workflow-state';
 import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
 import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
@@ -64,6 +70,8 @@ export class RecorderPanel {
   private lastNotifiedError = '';
   private attaching = false;
   private bakedMp4Listener: ((changes: Record<string, unknown>, area: string) => void) | null = null;
+  private workflowPhase: WorkflowPhase = 'design';
+  private unsubWorkflowPhase: (() => void) | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -448,8 +456,15 @@ export class RecorderPanel {
     };
     browser.storage.onChanged.addListener(this.bakedMp4Listener);
 
+    this.unsubWorkflowPhase?.();
+    this.unsubWorkflowPhase = onWorkflowPhaseChanged((phase) => {
+      this.workflowPhase = phase;
+      this.render(this.currentState);
+    });
+
     try {
-      const prefs = await loadUserPreferences();
+      const [prefs, phase] = await Promise.all([loadUserPreferences(), getWorkflowPhase()]);
+      this.workflowPhase = phase;
       this.syncClipStyleSelect(prefs);
       this.applyThemeChrome(prefs.appearance);
       await this.session.prepare();
@@ -478,6 +493,8 @@ export class RecorderPanel {
     }
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = null;
+    this.unsubWorkflowPhase?.();
+    this.unsubWorkflowPhase = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.session?.dispose();
@@ -637,8 +654,34 @@ export class RecorderPanel {
     this.tertiaryBtn.hidden = state.phase !== 'stopped';
 
     this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
-    // CHANGED: studio-flow always visible — Design Studio is step one for every session.
-    // WHY: post-record-only CTA told users "go here first" after they had already recorded.
+    // Phase-aware studio flow label — before recording: "Go here first"; after: "Return to studio"
+    const studioFlowEl = this.shadow.querySelector<HTMLElement>('[data-studio-flow]');
+    const studioHintEl = this.shadow.querySelector<HTMLElement>('.studio-first-hint');
+    const isPostRecording = state.phase === 'stopped' || state.phase === 'processing';
+    if (studioFlowEl && studioHintEl) {
+      if (isPostRecording) {
+        studioHintEl.innerHTML =
+          '<span class="studio-first-hint__caution" aria-hidden="true">★</span>' +
+          '<span class="studio-first-hint__arrow" aria-hidden="true">→</span>' +
+          '<strong>Phase 3</strong>';
+        this.studioCtaBtn.textContent = 'Edit & Bake in Design Studio';
+        studioFlowEl.setAttribute('aria-label', 'Phase 3 — return to Design Studio to edit subtitles and bake');
+      } else if (this.workflowPhase === 'capture') {
+        studioHintEl.innerHTML =
+          '<span class="studio-first-hint__caution" aria-hidden="true">●</span>' +
+          '<strong>Phase 2 — Ready to record</strong>';
+        studioFlowEl.setAttribute('aria-label', 'Phase 2 — recording phase');
+        // Keep CTA available in case user wants to go back
+        this.studioCtaBtn.textContent = 'Open Design Studio';
+      } else {
+        studioHintEl.innerHTML =
+          '<span class="studio-first-hint__caution" aria-hidden="true">⚠</span>' +
+          '<span class="studio-first-hint__arrow" aria-hidden="true">→</span>' +
+          '<strong>Go here first</strong>';
+        this.studioCtaBtn.textContent = 'Open Design Studio';
+        studioFlowEl.removeAttribute('aria-label');
+      }
+    }
 
     switch (state.phase) {
       case 'idle':
@@ -681,7 +724,7 @@ export class RecorderPanel {
       case 'stopped':
         if (state.subtitleStudioPending) {
           this.statusEl.textContent =
-            'MP4 ready — open Design Studio to edit subtitles, bake, then attach.';
+            'MP4 ready — open Design Studio to edit subtitles, bake, then attach. (Phase 3)';
         } else if (state.stoppedAtCap) {
           this.statusEl.textContent = `${formatRecordingCapProse()} limit reached — your MP4 is ready.`;
         } else {
@@ -695,6 +738,8 @@ export class RecorderPanel {
           this.attaching || !state.mp4Blob || !this.composer || !document.contains(this.composer);
         this.tertiaryBtn.textContent = 'Record again';
         if (this.lastNotifiedPhase !== 'stopped') {
+          // Advance workflow phase to 'polish' so Design Studio banner updates.
+          void setWorkflowPhase('polish');
           if (state.stoppedAtCap) {
             showToast(`${formatRecordingCapProse()} limit reached — processing complete.`, 'info', 5000);
           }

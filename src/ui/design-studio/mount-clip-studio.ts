@@ -76,6 +76,11 @@ import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
 import { renderStudioV4PanelCard } from '@/src/ui/design-studio/studio-v4-panel-summary';
 import { applyStudioV4ShellChrome } from '@/src/ui/design-studio/studio-v4-shell';
 import {
+  mountWorkflowBanner,
+  type WorkflowBannerHandle,
+} from '@/src/ui/design-studio/workflow-phase-banner';
+import type { WorkflowPhase } from '@/src/workflow/workflow-state';
+import {
   mountStudioV4SubpanelShell,
   renderStudioV4SubpanelChrome,
   renderStudioV4SubpanelShell,
@@ -111,6 +116,8 @@ const COLOR_SAVE_DEBOUNCE_MS = 200;
 export type MountClipStudioOptions = {
   /** Reconciled prefs from boot — avoids racing storage listeners before first paint (BUG-023). */
   initialPrefs?: UserPreferencesV1;
+  /** Workflow phase from boot — avoids banner flash on first paint. */
+  initialWorkflowPhase?: WorkflowPhase;
 };
 
 export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOptions): () => void {
@@ -128,6 +135,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         </div>
       </header>
       ${renderStudioV4SubpanelChrome()}
+      <div class="studio__workflow-banner" data-workflow-banner aria-label="Workflow guidance"></div>
       <div class="studio__exit-modal" data-exit-modal hidden>
         <div class="studio__exit-dialog" role="dialog" aria-labelledby="studio-exit-title">
           <h2 class="studio__exit-title" id="studio-exit-title">Unsaved changes</h2>
@@ -302,6 +310,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
   let subpanelShell!: StudioSubpanelShellHandle;
+  let workflowBanner!: WorkflowBannerHandle;
   const PREVIEW_ANIM_FPS = 12;
 
   function cancelPendingColorSave(): void {
@@ -656,6 +665,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       hasTranscriptCues: subtitleControls.hasTranscriptCues(),
       bakedForSession: subtitleControls.isBakedForCurrentSession(),
     });
+    workflowBanner?.update({
+      hasSessionRecording: subtitleControls.hasSessionRecording(),
+      hasTranscriptCues: subtitleControls.hasTranscriptCues(),
+      bakedForSession: subtitleControls.isBakedForCurrentSession(),
+      transcriptDelivery: subtitleControls.getTranscriptDeliveryStatus(),
+    });
   }
 
   function applyPrefs(prefs: UserPreferencesV1, opts?: { captureEntry?: boolean }): void {
@@ -743,6 +758,17 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     },
     getThemeBarColor: () => resolvedTheme().colors.bar,
   });
+
+  workflowBanner = mountWorkflowBanner(
+    root,
+    options?.initialWorkflowPhase ?? 'design',
+    {
+      hasSessionRecording: false,
+      hasTranscriptCues: false,
+      bakedForSession: false,
+      transcriptDelivery: 'idle',
+    },
+  );
 
   subpanelShell = mountStudioV4SubpanelShell(studioShell, {
     isPanelDirty: (panelId) => {
@@ -1017,6 +1043,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   return () => {
     cancelPendingColorSave();
     stopPreviewLoop();
+    workflowBanner.dispose();
     subpanelShell.dispose();
     voiceControls.dispose();
     subtitleControls.dispose();
