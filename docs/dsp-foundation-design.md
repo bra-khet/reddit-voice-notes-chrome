@@ -168,13 +168,23 @@ and the build stays green.
 
 - **1.1 DONE:** model, registry, renderer contract, FFmpeg renderer (v1 primitive
   set), `buildStylizedGraph`, migration, smoke-verified round-trip.
-- **1.2:** emitters for the stylized kinds (modulation, color, de-ess/de-click,
-  ring-mod) + the `-filter_complex` promotion path for `convReverb`/`granular`/
-  `hybridLayer` + the IR bundle plan for convolution.
+  `CANONICAL_CHAIN_ORDER` confirmed (clean → shape → character → space → safety).
+- **1.2a DONE:** linear-`-af` stylized emitters — modulation (flanger, chorus,
+  phaser, tremolo, vibrato), color (saturation via `asoftclip`, harmonicExciter via
+  `aexciter`, presenceAir via `equalizer`+`treble`), clarity (deEsser via `deesser`,
+  deClick via `adeclick`). 15 of 21 kinds now emit; smoke-verified syntax + intensity
+  response. Strength (depth/mix/amount) folds with intensity; LFO rate stays raw.
+- **1.2b:** the `-filter_complex` promotion path + parallel kinds — `ringMod`
+  (sine carrier × signal via `amultiply`), `convReverb` (`afir` + IR bundle),
+  `granular`, `hybridLayer` (vocoder-style) — plus `spectralCarve` (`afftfilt`).
 - **1.3:** wire into export, non-linear intensity curves, native fragment presets.
 
 ### Open decisions
-- `CANONICAL_CHAIN_ORDER` (proposed; awaiting confirm).
-- Non-linear per-primitive intensity curve shape (1.3).
-- IR bundle: size/format/licensing for `convReverb` (1.2).
-- Whether `deClick`/`deEsser` need dedicated FFmpeg filters vs. EQ-band approximations.
+- **IR bundle** for `convReverb` (1.2b): count/size/format/licensing of impulse
+  responses. Blocks `convReverb` only — the rest of 1.2b (ringMod, granular,
+  hybridLayer, the filter_complex scaffold) is independent.
+- **Non-linear per-primitive intensity curve** shape (1.3) — replaces the linear
+  `RenderContext.scale`.
+- Runtime QA gate: confirm `asoftclip`/`aexciter`/`deesser`/`adeclick` exist in the
+  shipped `@ffmpeg/core` build; harden per-fragment skip so one missing filter does
+  not fail the whole `-af` chain (today it falls back to raw audio all-or-nothing).

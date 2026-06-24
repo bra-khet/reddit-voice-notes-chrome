@@ -367,7 +367,8 @@ export const FRAGMENT_DEFS: { [K in FragmentKind]: FragmentDef<K> } = {
     label: 'Ring Mod',
     blurb: 'Clangorous metallic robot timbre — classic sci-fi villain.',
     defaults: { frequency: 110, mix: 50 },
-    parallel: false,
+    // True ring modulation = signal × sine carrier (amultiply) → needs filter_complex (1.2b).
+    parallel: true,
   },
   saturation: {
     kind: 'saturation',

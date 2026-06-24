@@ -675,10 +675,20 @@ scales `-5→-2`; whisper normalize→compressor; voice-off → `none`; unimplem
 skips to `none` (no crash). `tsc --noEmit`: zero new errors (only pre-existing
 background.ts / background-loader.ts / voice-recorder.ts / segment-cue-player.ts).
 
-### Open decisions (need user)
-- `CANONICAL_CHAIN_ORDER` — proposed default in `build-stylized-graph.ts`; confirm/adjust.
-- Non-linear per-primitive intensity curve (1.3); IR bundle for convReverb (1.2).
+### Sub-Phase 1.2a — DONE
+`CANONICAL_CHAIN_ORDER` confirmed by user (clean → shape → character → space → safety).
+Linear-`-af` stylized emitters added (15/21 kinds now emit): flanger, chorus, aphaser,
+tremolo, vibrato; saturation (`asoftclip`), harmonicExciter (`aexciter`), presenceAir
+(`equalizer`+`treble`); deEsser (`deesser`), deClick (`adeclick`). Strength scales with
+intensity, LFO rate stays raw. Smoke-verified syntax + scaling; tsc clean.
 
-### Next: Sub-Phase 1.2
-Stylized emitters (modulation/color/de-ess/de-click/ring-mod) + `-filter_complex`
-promotion for parallel kinds (convReverb/granular/hybridLayer).
+### Next: Sub-Phase 1.2b + 1.3 (need user input)
+- **1.2b:** `-filter_complex` path + parallel kinds: ringMod (`amultiply` carrier),
+  convReverb (`afir`), granular, hybridLayer; + spectralCarve (`afftfilt`).
+  **Blocked on:** IR bundle decision for convReverb (count/size/licensing) — affects
+  convReverb only; ringMod/granular/hybridLayer/scaffold are independent.
+- **1.3:** wire graph into export (replace `buildFfmpegAudioFilter` call sites at
+  `ffmpeg-runner.ts:462` / `process-audio.ts:141`), **non-linear per-primitive
+  intensity curve** (user decision), native fragment presets, resolve-config refactor.
+- **QA gate:** confirm `asoftclip`/`aexciter`/`deesser`/`adeclick` in shipped core;
+  make per-fragment skip resilient (today a missing filter fails the whole `-af`).
