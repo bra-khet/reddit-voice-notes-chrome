@@ -637,3 +637,48 @@ Add a clear, professional **3-Phase Creative Workflow** guidance layer on top of
 ```bash
 git checkout v4.0.0 && npm install && npm run dev
 ```
+
+---
+
+## Dulcet II (v5) — `dulcet-ii/dsp-foundation` (2026-06-24, in progress)
+
+**Design doc:** `docs/dsp-foundation-design.md` · **Roadmap:** `docs/v5-development-roadmap*.md` + `docs/v5-implementation-notes.md`
+
+### Branch naming (git ref D/F conflict — important)
+v5 reuses the "dulcet" codename, but the old `dulcet` branch (merged v3) still exists,
+and git can't have both a branch `dulcet-ii` and branches under `dulcet-ii/`. So
+**`dulcet-ii` is a namespace**: integration line = `dulcet-ii/integration`; features =
+`dulcet-ii/dsp-foundation` (+ `pitch-formant`, `preview-pipeline`, `character-system`).
+Read roadmap's `dulcet`→`dulcet-ii/integration`, `dulcet/<x>`→`dulcet-ii/<x>`.
+
+### Locked v5 decisions (user, 2026-06-24)
+1. Fresh `dulcet-ii` namespace; old `dulcet` untouched.
+2. **Replace + migrate** the voice config — fragment graph is canonical, flat
+   `VoiceEffectConfig` becomes a legacy migration input. No prod user data (dev
+   profiles only) → no long-term compat shim. Forward-looking posture for all v5.
+3. Backend-agnostic fragment descriptors + FFmpeg emitter now; Web Audio in Branch 3.
+
+### Sub-Phase 1.1 — DONE
+New self-contained `src/voice/dsp/` module (additive, **unwired** — legacy export
+path untouched, build green):
+- `fragment-types.ts` — canonical `StylizedGraph` + 21 fragment kinds / 7 categories +
+  `FRAGMENT_DEFS` registry + normalize/create. Pure-data leaf (no WASM, popup-safe).
+- `renderer.ts` — backend-agnostic `FragmentRenderer` + `RenderContext`.
+- `ffmpeg-renderer.ts` — emits `-af` / (1.2) `-filter_complex`; v1 primitive emitters
+  (pitch, eq, compressor, gate, limiter, echo) implemented; stylized kinds skip to 1.2.
+- `build-stylized-graph.ts` — `buildStylizedGraph()` + `CANONICAL_CHAIN_ORDER`.
+- `migrate-v1.ts` — legacy config → graph.
+
+**Smoke-verified round-trip** (compiled dsp to CJS, ran under node): robot →
+`pitchFormant→eq→compressor` with byte-identical legacy EQ (`g=3`/`g=-2`); intensity
+scales `-5→-2`; whisper normalize→compressor; voice-off → `none`; unimplemented kind
+skips to `none` (no crash). `tsc --noEmit`: zero new errors (only pre-existing
+background.ts / background-loader.ts / voice-recorder.ts / segment-cue-player.ts).
+
+### Open decisions (need user)
+- `CANONICAL_CHAIN_ORDER` — proposed default in `build-stylized-graph.ts`; confirm/adjust.
+- Non-linear per-primitive intensity curve (1.3); IR bundle for convReverb (1.2).
+
+### Next: Sub-Phase 1.2
+Stylized emitters (modulation/color/de-ess/de-click/ring-mod) + `-filter_complex`
+promotion for parallel kinds (convReverb/granular/hybridLayer).
