@@ -6,13 +6,21 @@ All recording, visualization, transcoding, and voice effects happen **client-sid
 
 ## Status
 
-**Stable `main` v3.1.0** (2026-06) — Design Studio UX polish on v3 voice effects: collapsible Bar style / Background / Voice panels, corner background alignment, preset usage tips, single live preview.
+**Stable `main` v4.0.0 — Eloquent I** (2026-06-24) — optional automated subtitles on the full v3 stack: Vosk WASM STT, Design Studio v4 shell, YouTube-style segment editor, edit-before-bake, hard-burned captions, 3-phase workflow guidance. Fully opt-in — v3 fast path unchanged when subtitles are off. Release: `docs/release-notes-v4.0.0.md`.
 
-**Development `eloquent` v3.6.0** (2026-06-22) — optional automated subtitles: Vosk STT, YouTube-style segment editor, edit-before-bake in Design Studio, hard-burned captions. User-verified multi-run. Studio reference: `docs/design-studio.md`. Subtitle handoff: `docs/eloquent-4-handoff.md`. Target: merge to `main` as **v4.0.0** after eloquent-5.
+Previous stable: **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3), `eloquent-branch.md` (v4 subtitles).
 
-Previous stable: **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3), `eloquent-branch.md` (v4 subtitles).
+### What's new in v4.0 (Eloquent I)
 
-### What's new in v3.1
+| Area | Highlights |
+|------|------------|
+| **Subtitles** | Vosk WASM transcription; segment editor; bake hard subs into MP4 (repeatable) |
+| **Design Studio v4** | Hero preview + status cards + sub-panels; profile Subtitles? / Ready? strip |
+| **Workflow** | 3-phase guidance: Design → Capture → Polish & Bake (cross-tab stepper) |
+| **Fonts** | Bundled DejaVu family; WYSIWYG preview matches burn-in output |
+| **Profiles** | `transcriptConfig` on clip profiles; disable-subtitles confirm guard |
+
+### v3.1 recap
 
 | Area | Highlights |
 |------|------------|
@@ -48,6 +56,7 @@ Previous stable: **v3.0.0** (voice effects), **v2.0.0** (Design Studio + persona
 - Floating recorder with live waveform, **2-minute cap**, discard/cancel flows
 - Client-side WebM capture → FFmpeg.wasm MP4 (offscreen document)
 - Optional **voice effects** on export (off by default; per-profile)
+- Optional **automated subtitles** — Vosk STT + Design Studio edit + FFmpeg burn-in (off by default)
 - Bundled + custom clip themes; hot-swap safe mid-recording
 - Download MP4 (primary, always reliable)
 - Best-effort **Attach to Reddit** via native file input
@@ -64,7 +73,16 @@ Previous stable: **v3.0.0** (voice effects), **v2.0.0** (Design Studio + persona
 
 **Disabled path:** identical to v2 — no `-af`, no extra WASM work.
 
-**Manual QA harnesses:** `voice-harness.html` (voice effects), `transcribe-harness.html` (Vosk STT spike, eloquent branch)
+## Subtitles (v4)
+
+1. Open **Design Studio** → **Subtitles** → enable transcription
+2. Record on Reddit → wait for transcript **Ready** badge in Studio
+3. Edit cues in the segment editor → **Confirm & save** → **Bake**
+4. Return to Reddit → **Attach** the baked MP4 (hard subs)
+
+**Disabled path:** identical to v3 — no Vosk load, no burn-in pass, same `base.mp4` timing.
+
+**Manual QA harnesses:** `voice-harness.html` (voice effects), `transcribe-harness.html` (Vosk STT)
 
 ## Tech stack
 
@@ -152,7 +170,7 @@ Output: `.output/chrome-mv3/`
 npm run zip
 ```
 
-Output: `.output/reddit-voice-notes-3.1.0-chrome.zip` (~10 MB)
+Output: `.output/reddit-voice-notes-4.0.0-chrome.zip` (~57 MB — includes Vosk model + fonts)
 
 ### Type check
 
@@ -187,12 +205,14 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 - Background tab pauses canvas `requestAnimationFrame` (audio still records)
 - Voice preview requires a prior recording in the same browser session
 - Auto-attach may break when Reddit changes uploader UI — download always works
-- WASM memory is tight (~32 MB FFmpeg core); no parallel transcode jobs
+- WASM memory is tight (~32 MB FFmpeg core + ~40 MB Vosk model); separate transcode/transcribe queues
+- Subtitle bundle adds ~40 MB Vosk model at install (`npm install` fetches on postinstall)
 
 ## Release tags
 
 | Tag | Meaning |
 |-----|---------|
+| `v4.0.0` | **Eloquent I** — automated subtitles + Design Studio v4 (`eloquent` merge, 2026-06) |
 | `v3.1.0` | Design Studio collapsible panels + UX polish (2026-06) |
 | `v3.0.0` | Voice effects (`dulcet` merge, 2026-06) |
 | `v2.0.0` | Design Studio + personalization (`pretty` merge) |
@@ -204,4 +224,4 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 
 ## License
 
-Private — v3.1 stable.
+Private — v4.0 stable.

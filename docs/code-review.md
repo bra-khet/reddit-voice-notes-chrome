@@ -17,7 +17,8 @@ Before editing any pipeline, storage, profile, or worker code:
 | Use case                        | Tag                        | Branch | Notes |
 |---------------------------------|----------------------------|--------|-------|
 | General stable baseline         | `v3.1.0`                   | main   | Latest **main** release (Design Studio + voice). No subtitles. |
-| **Current eloquent stable**     | `v3.7.0`                   | eloquent | v3.6 pipeline + **v4 UI shell** (hero, cards, sub-panels, preview bezel). `docs/release-notes-v3.7.0.md`. |
+| **Current stable (main)**       | `v4.0.0`                   | main     | **Eloquent I** — subtitles + Design Studio v4. `docs/release-notes-v4.0.0.md`. |
+| **Pre-merge eloquent UI shell** | `v3.7.0`                   | eloquent | v3.6 pipeline + v4 UI shell only. `docs/release-notes-v3.7.0.md`. |
 | Subtitle pipeline (pre–UI shell) | `v3.6.0`                  | eloquent | Full pipeline + BUG-028…032; legacy `<details>` layout. |
 | Profile / subtitle / prefs work on eloquent | `eloquent-profile-nominal` | eloquent | User-verified: profiles, HSV, backgrounds, Save/Update/Clone, voice, subtitles toggle. See `docs/eloquent-profile-handoff.md`. |
 | Earlier solid releases          | `v3.0.0`, `v2.0.0`         | main   | Full prior milestones. |

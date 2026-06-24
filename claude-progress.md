@@ -132,7 +132,8 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 
 | Branch | Role |
 |--------|------|
-| `main` | **v3.1.0** stable — Design Studio UX polish on v3 (2026-06) |
+| `main` | **v4.0.0** stable — **Eloquent I** subtitles + Design Studio v4 (2026-06-24) |
+| `eloquent` | **Merged** into `main` as **v4.0.0** (2026-06-24); branch retained for history |
 | `pretty` | **Merged** into `main` as **v2.0.0** (2026-06-21); branch retained for history |
 | `dulcet` | **Merged** into `main` as **v3.0.0** (2026-06); branch retained for history |
 
@@ -609,3 +610,30 @@ Add a clear, professional **3-Phase Creative Workflow** guidance layer on top of
 - **Bake button states:** `unavailable` / `ready` / `baking` / `complete` — class-driven visuals aligned with `canBakeNow()` (requires transcript matched to current recording + delivery ready + confirmed edits).
 - **Bake compositing fix:** `button-frame-9slice` must use border-image **edges only** (no `fill`) — SVG center is dark `#12001f`; `fill` painted over CSS amber gradients (flash-then-gray symptom). See `studioV4BorderImageEdgesOnly()`.
 - **Bake UX:** “Repeatable” hint under bake status; disable-subtitles guard clears IDB transcript only after confirm (no accidental wipe on re-enable).
+
+## v4.0.0 stable — **Eloquent I** merged to `main` (2026-06-24)
+
+**Tag:** `v4.0.0` · **Codename:** Eloquent I · **Release:** `docs/release-notes-v4.0.0.md`  
+**Merge:** `eloquent` → `main` (92 commits from v3.1.0)  
+**Release zip:** `.output/reddit-voice-notes-4.0.0-chrome.zip` (~57 MB)
+
+### Pre-merge gate (passed)
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | Pass |
+| `npm run zip` | Pass |
+| `npm run compile` | Pre-existing strictness warnings only (non-blocking) |
+| eloquent-5 hardening | H1–H4 resolved; relay SW-restart; font loader resilience |
+| User-verified | Edit → bake → attach; repeatable rebake; disable guard |
+
+### What shipped (condensed)
+
+- **Subtitles:** Vosk WASM STT, parallel transcribe wire, edit-before-bake, FFmpeg burn-in, DejaVu fonts
+- **Design Studio v4:** Hero preview, status cards, sub-panels, segment editor, workflow phase banner
+- **Architecture:** `docs/architecture/` map + hardening backlog; `docs/v4-development-principles.md`
+
+**Restore:**
+```bash
+git checkout v4.0.0 && npm install && npm run dev
+```
