@@ -17,6 +17,7 @@ import {
 } from '@/src/messaging/background-blob';
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
 import {
+  clearAllRelayTabs,
   forgetRelayTab,
   lookupRelayTab,
   rememberRelayTab,
@@ -188,7 +189,18 @@ function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCo
     if (tabId === undefined) return;
 
     void browser.tabs.sendMessage(tabId, message).catch((error) => {
-      console.warn('[Reddit Voice Notes] Tab relay failed:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      // CHANGED: detect dead-tab connection errors and clean up relay mapping
+      // WHY: "Receiving end does not exist" means the content script is gone; stale entry would
+      //      block resolveRelayTabId fallback from finding a valid tab on future sends
+      if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+        transcodeTabByJobId.delete(message.jobId);
+        if (tabId !== undefined) activeTranscodeJobByTabId.delete(tabId);
+        void forgetRelayTab(message.jobId);
+        console.warn('[Reddit Voice Notes] Transcode relay target gone — cleaned up', { jobId: message.jobId, tabId });
+      } else {
+        console.warn('[Reddit Voice Notes] Tab relay failed:', error);
+      }
     });
 
     if (message.type === MSG_TRANSCODE_COMPLETE) {
@@ -215,7 +227,17 @@ function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMes
       const tabId = await resolveRelayTabId(jobId, burnInTabByJobId, 'burn-in');
       if (tabId === undefined) return;
       void browser.tabs.sendMessage(tabId, message).catch((error) => {
-        console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
+        const msg = error instanceof Error ? error.message : String(error);
+        // CHANGED: detect dead-tab connection errors and clean up relay mapping
+        // WHY: mirrors transcode relay cleanup — stale entry would block resolveRelayTabId fallback
+        if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+          burnInTabByJobId.delete(jobId);
+          if (tabId !== undefined) activeBurnInJobByTabId.delete(tabId);
+          void forgetRelayTab(jobId);
+          console.warn('[Reddit Voice Notes] Burn-in relay target gone — cleaned up', { jobId, tabId });
+        } else {
+          console.warn('[Reddit Voice Notes] Burn-in tab relay failed:', error);
+        }
       });
     })();
   }
@@ -240,7 +262,17 @@ function relayTranscribeBroadcast(message: TranscribeProgressMessage | Transcrib
     if (tabId === undefined) return;
 
     void browser.tabs.sendMessage(tabId, message).catch((error) => {
-      console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      // CHANGED: detect dead-tab connection errors and clean up relay mapping
+      // WHY: mirrors transcode relay cleanup — stale entry would block resolveRelayTabId fallback
+      if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+        transcribeTabByJobId.delete(message.jobId);
+        if (tabId !== undefined) activeTranscribeJobByTabId.delete(tabId);
+        void forgetRelayTab(message.jobId);
+        console.warn('[Reddit Voice Notes] Transcribe relay target gone — cleaned up', { jobId: message.jobId, tabId });
+      } else {
+        console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
+      }
     });
 
     if (message.type === MSG_TRANSCRIBE_COMPLETE) {
@@ -712,6 +744,11 @@ export default defineBackground(() => {
   // BUG FIX: stale offscreen WASM survives MV3 service worker reload (BUG-030 loop)
   // Fix: close any surviving offscreen document when the service worker boots.
   void closeOffscreenDocumentIfPresent();
+  // CHANGED: purge session-storage relay entries on every SW boot
+  // WHY: closeOffscreenDocumentIfPresent above kills any in-flight offscreen job, so all relay
+  //      entries from the previous SW lifetime are stale — clearing prevents misrouted broadcasts
+  //      to wrong tabs on the next job's resolveRelayTabId fallback path
+  void clearAllRelayTabs();
 
   console.log('[Reddit Voice Notes] Background service worker started', {
     id: browser.runtime.id,

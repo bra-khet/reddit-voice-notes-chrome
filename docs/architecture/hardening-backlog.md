@@ -14,8 +14,8 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 |---|------|-----|--------|
 | H1 | `subtitle-effects.ts` undefined argument to `normalizeHexColor` | High | **Resolved** (this session) |
 | H2 | `voice-recorder.ts:400` dead `phase === 'error'` branch | High | **Resolved** (this session) |
-| H3 | `vosk-sandbox-host.ts` discriminated union narrowing | Med | **Open** |
-| H4 | Relay-registry production smoke: SW restart scenario | Med | **Open** |
+| H3 | `vosk-sandbox-host.ts` discriminated union narrowing | Med | **Resolved** |
+| H4 | Relay-registry SW restart resilience | Med | **Resolved** |
 | H5 | Binary transport / 3:00 cap restoration (BUG-001 deferred) | Low (post-v4) | **Deferred** |
 
 ---
@@ -42,7 +42,7 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 - **Out of scope / Non-goals:** Full recorder state machine audit; `phase` type refactor — just remove the dead comparison
 - **Resolution commit:** Pending (see Phase 3 code changes below)
 
-## H3 — `vosk-sandbox-host.ts` discriminated union narrowing (OPEN)
+## H3 — `vosk-sandbox-host.ts` discriminated union narrowing (RESOLVED)
 
 - **Item / class it kills:** Property access on wrong union variant — `.result` and `.error` accessed on `ModelMessage` without narrowing the discriminated union (`ServerMessageLoadResult | ServerMessageError`). If Vosk reports an error, accessing `.result` (which doesn't exist on `ServerMessageError`) could yield `undefined` silently rather than surfacing the error.
 - **Evidence:** TS errors `src/transcription/vosk-sandbox-host.ts:49,56` — `Property 'result' does not exist on type 'ModelMessage'` / `Property 'error' does not exist on type 'ServerMessageLoadResult'`
@@ -53,16 +53,17 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 - **Out of scope / Non-goals:** Full `ModelMessage` type redesign; adding new Vosk error categories — just fix the narrowing at existing access sites
 - **Priority for v4:** Medium — Vosk already has BUG-015 fixes for empty transcript; this covers the structural type hole in the error branch. Worth fixing before `eloquent → main` merge.
 
-## H4 — Relay-registry production smoke: SW restart scenario (OPEN)
+## H4 — Relay-registry SW restart resilience (RESOLVED)
 
-- **Item / class it kills:** BUG-032 relay-drop-on-failure class recurrence — the fix uses `browser.storage.session` for `jobId→tabId` persistence across MV3 service worker restarts, but this has only been tested under WXT dev HMR restarts, not a clean production SW termination/restart cycle
-- **Evidence:** BUG-032 fix (`src/messaging/relay-registry.ts`); Phase-2 confidence ledger "Med" for relay-registry production persistence; `resolveRelayTabId` late-bind fallback to active Reddit tab exists but is untested in production
-- **Invariant it protects:** I4 (failure broadcast before relay map cleanup) — if the session key is lost on SW restart, relay has a fallback; but the fallback (find active Reddit tab) may pick the wrong tab in multi-tab scenarios
-- **Surgical change:** No code change required. QA step: (1) start a recording in production build, (2) open `chrome://serviceworker-internals`, force-terminate the extension SW, (3) complete or cancel the recording, (4) verify progress/complete reaches the Reddit tab. If fallback fires, check it finds the correct tab.
-- **Blast radius:** QA only (no code change unless the smoke test fails)
-- **Verification hook:** Manual QA as above; log `[RVN relay]` messages to confirm session storage lookup
-- **Out of scope / Non-goals:** Persistent relay across browser restarts (not needed — SW is reinstated when extension tab is active); multi-window tab disambiguation (post-v4)
-- **Priority for v4:** Medium — production builds have seen fewer relay issues than dev HMR (where SW restarts are frequent), but the gap is still a known unverified assumption.
+- **Item / class it kills:** BUG-032 relay-drop-on-failure class recurrence — after SW restart, stale session-storage relay entries could misroute broadcasts; in-memory `burnInSkipTabRelayByJobId` lost on restart could send burn-in messages to wrong tabs; silent connection-failure swallowing left frozen UIs
+- **Evidence:** BUG-032 fix (`src/messaging/relay-registry.ts`); relay broadcasts swallowed "Receiving end does not exist" silently; startup already called `closeOffscreenDocumentIfPresent()` (killing all in-flight jobs), but didn't clear relay entries from prior lifetime
+- **Resolution:** Three surgical changes:
+  1. `src/messaging/relay-registry.ts`: added `clearAllRelayTabs()` — removes entire session-storage relay key
+  2. `entrypoints/background.ts` startup: added `void clearAllRelayTabs()` alongside the existing offscreen-doc close — since the offscreen doc is always killed on SW boot, all prior relay entries are provably stale
+  3. All three relay broadcast functions (`relayTranscodeBroadcast`, `relayBurnInBroadcast`, `relayTranscribeBroadcast`): connection-failure catch now detects "Receiving end does not exist" / "Could not establish connection", removes the dead entry from in-memory Map and session storage, and logs with jobId+tabId context
+- **Blast radius:** `src/messaging/relay-registry.ts`, `entrypoints/background.ts` — no UI changes, no cross-context protocol changes
+- **Verification hook:** `npm run compile` passes (no new errors); SW force-kill mid-job scenario: offscreen doc closes → relay entries clear → next job starts fresh with no stale mappings; connection-failure path logs warning and cleans up instead of silently swallowing
+- **Out of scope / Non-goals:** Multi-window tab disambiguation (post-v4); relay persistence across browser restarts (not needed)
 
 ## H5 — Binary transport / 3:00 cap restoration (DEFERRED — post-v4)
 
@@ -85,3 +86,5 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | `'missing'` needle too broad in `burnInLogIndicatesFailure` | eloquent-5 | Replaced with `'required option is missing'` + `'no output streams'` |
 | Font loader single-point-of-failure | eloquent-5 | Per-font `try/catch` in `loadOneFont`; cached promise always resolves |
 | `canBakeNow()` locks user out when Vosk fails | eloquent-3/5 | Delivery status gate removed; any confirmed cues allow bake |
+| H3: `vosk-sandbox-host.ts` ModelMessage union narrowing | eloquent-5 (H3 sprint) | Discriminant guards on `message.event` in `waitForVoskModel`; TS2339 cleared |
+| H4: Relay registry SW-restart resilience | eloquent-5 (H4 sprint) | `clearAllRelayTabs()` on SW boot; connection-failure cleanup in all three relay broadcast functions |

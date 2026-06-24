@@ -45,6 +45,17 @@ export async function forgetRelayTab(jobId: string): Promise<void> {
   await writeRelayTabMap(map);
 }
 
+// CHANGED: added clearAllRelayTabs for SW startup purge
+// WHY: SW boot always kills the offscreen doc (closeOffscreenDocumentIfPresent), so every in-flight
+//      relay entry from a previous SW lifetime is stale — clear them to prevent misrouted relays
+export async function clearAllRelayTabs(): Promise<void> {
+  try {
+    await browser.storage.session.remove(RELAY_TAB_SESSION_KEY);
+  } catch {
+    // Session storage may be unavailable in some test harnesses.
+  }
+}
+
 export async function lookupRelayTab(jobId: string): Promise<number | undefined> {
   const map = await readRelayTabMap();
   return map[jobId]?.tabId;

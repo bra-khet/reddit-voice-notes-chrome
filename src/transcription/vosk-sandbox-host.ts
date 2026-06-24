@@ -46,13 +46,23 @@ function segmentFromVoskWords(text: string, words: VoskWordToken[]): TranscriptS
 function waitForVoskModel(model: Model): Promise<Model> {
   return new Promise((resolve, reject) => {
     model.on('load', (message) => {
-      if (message.result) {
-        resolve(model);
+      // BUG FIX: ModelMessage discriminated union accessed without narrowing (TS2339)
+      // Fix: guard on message.event before accessing .result or .error; mirrors recognizer.on() pattern in runVoskOnPcm
+      if (message.event === 'error') {
+        reject(new Error(message.error || 'Vosk model load error'));
         return;
       }
-      reject(new Error('Vosk model failed to load'));
+      // Narrowed to ServerMessageLoadResult; result is boolean (true = loaded)
+      if (message.result) {
+        resolve(model);
+      } else {
+        reject(new Error('Vosk model failed to load'));
+      }
     });
     model.on('error', (message) => {
+      // BUG FIX: ModelMessage discriminated union accessed without narrowing (TS2339)
+      // Fix: guard before accessing .error; mirrors recognizer.on('error') pattern
+      if (message.event !== 'error') return;
       reject(new Error(message.error || 'Vosk model error'));
     });
   });
