@@ -705,6 +705,19 @@ a `StylizedGraph` through ffmpeg.wasm — linear `-af` AND complex `-filter_comp
 Additive — legacy `processAudioBytes(config)` path untouched; tsc clean (only the 4
 pre-existing error files remain). Harness-testable now.
 
+### Harness OOB fix + graph-mode QA (2026-06-24)
+**Symptom:** voice-harness crashed `RuntimeError: memory access out of bounds` on every
+`processAudioBytes` run (process-audio.ts catch). **Root cause:** the isolated processor
+encoded `-c:a libopus`, but libopus is absent/broken in the shipped `@ffmpeg/core ^0.12.10`
+— a missing encoder crashes ffmpeg.wasm as a generic OOB. (No-op runs skip `exec` → didn't
+crash; the shipped transcode uses `-c:a aac` → always worked.) **Fix:** encode AAC/M4A in
+`process-audio.ts` (both legacy + graph paths; OUTPUT_PATH `.m4a`, mimeType `audio/mp4`).
+Also: export+attach `attachLogCollector` in `execWithTimeout` so ffmpeg stderr (the real
+filter/encoder error) shows in console; **voice-harness rewired** with a Pipeline toggle
+(Graph v5 / Legacy) + per-fragment checkboxes (from `FRAGMENT_DEFS`) so the new stylized
+graph is actually testable. tsc clean; build passes. **Re-test needed:** confirm AAC fixes
+the OOB and which stylized filters run in the core (watch `[ffmpeg]` console lines).
+
 ### Next: Sub-Phase 1.3 (remainder)
 - Wire the LIVE transcode (`ffmpeg-runner.ts:462`): thread `-filter_complex` + aux
   `-i` into the muxed WebM→MP4 strategies (alongside the waveform video) — riskier;

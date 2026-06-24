@@ -1,5 +1,10 @@
 import type { FFmpeg } from '@ffmpeg/ffmpeg';
-import { disposeFfmpeg, loadFfmpeg, type FfmpegProgressCallback } from '@/src/ffmpeg/ffmpeg-runner';
+import {
+  attachLogCollector,
+  disposeFfmpeg,
+  loadFfmpeg,
+  type FfmpegProgressCallback,
+} from '@/src/ffmpeg/ffmpeg-runner';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import { buildFfmpegAudioFilter } from './filter-graphs';
 import {
@@ -21,7 +26,12 @@ const VOICE_PROCESS_TIMEOUT_MS = 45_000;
 const WASM_SETTLE_MS = 200;
 
 const INPUT_PATH = 'voice-input.webm';
-const OUTPUT_PATH = 'voice-output.webm';
+// BUG FIX: voice exec OOB ("memory access out of bounds") on every harness run
+// Fix: libopus is absent/broken in the shipped @ffmpeg/core 0.12 build, so the
+// encoder init crashed as a generic OOB. Encode AAC/M4A instead — the same proven
+// encoder the shipped WebM→MP4 transcode uses (ffmpeg-runner TRANSCODE_STRATEGIES).
+// Sync: buildVoiceProcessArgs + buildGraphProcessArgs codec; success-return mimeType.
+const OUTPUT_PATH = 'voice-output.m4a';
 
 export interface ProcessAudioResult {
   blob: Blob;
@@ -62,6 +72,16 @@ async function safeDeleteFile(ffmpeg: FFmpeg, path: string): Promise<void> {
 }
 
 async function execWithTimeout(ffmpeg: FFmpeg, args: string[], timeoutMs: number): Promise<number> {
+  // Surface ffmpeg's own stderr (filter/encoder errors) — a bare exec OOB is otherwise opaque.
+  const { detach } = attachLogCollector(ffmpeg);
+  try {
+    return await execWithTimeoutInner(ffmpeg, args, timeoutMs);
+  } finally {
+    detach();
+  }
+}
+
+function execWithTimeoutInner(ffmpeg: FFmpeg, args: string[], timeoutMs: number): Promise<number> {
   return new Promise((resolve, reject) => {
     let settled = false;
 
@@ -100,7 +120,7 @@ function buildVoiceProcessArgs(audioFilter: string): string[] {
     '-af',
     audioFilter,
     '-c:a',
-    'libopus',
+    'aac',
     '-b:a',
     '128k',
     OUTPUT_PATH,
@@ -190,7 +210,7 @@ export async function processAudioBytes(
 
     return {
       bytes: output.slice(),
-      mimeType: 'audio/webm;codecs=opus',
+      mimeType: 'audio/mp4',
       applied: true,
       fallback: false,
       stage,
@@ -257,7 +277,7 @@ function buildGraphProcessArgs(result: FfmpegGraphResult, auxPaths: string[]): s
     args.push('-vn');
   }
 
-  args.push('-c:a', 'libopus', '-b:a', '128k', OUTPUT_PATH);
+  args.push('-c:a', 'aac', '-b:a', '128k', OUTPUT_PATH);
   return args;
 }
 
@@ -339,7 +359,7 @@ export async function processAudioBytesWithGraph(
 
     return {
       bytes: output.slice(),
-      mimeType: 'audio/webm;codecs=opus',
+      mimeType: 'audio/mp4',
       applied: true,
       fallback: false,
       stage,

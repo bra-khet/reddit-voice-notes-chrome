@@ -86,7 +86,7 @@ function shouldAbortDupStorm(line: string): boolean {
   return progress !== null && isDupStormProgress(progress.frame, progress.dup);
 }
 
-function attachLogCollector(
+export function attachLogCollector(
   ffmpeg: FFmpeg,
   onLine?: (line: string) => void,
 ): { lines: string[]; detach: () => void } {
