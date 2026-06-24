@@ -689,9 +689,17 @@ in `ffmpeg-renderer.ts`; `ringMod` implemented (sine × signal via `amultiply`).
 16/21 kinds emit. Smoke-verified graph threading for linear+parallel chains; tsc clean.
 **IR decision (user):** procedural/synthesized JS IRs for convReverb (no sampled assets).
 
-### Next: Sub-Phase 1.2b (remainder) + 1.3
-- **1.2b:** convReverb (procedural JS IR generator → WAV → `afir` via `auxInputs`
-  hook), granular, hybridLayer (vocoder-style), spectralCarve (`afftfilt`).
+### Sub-Phase 1.2b — DONE (all 21 kinds emit)
+New `ir-generator.ts` (procedural reverb IR + WAV encoder; reused by Branch 3 preview
+ConvolverNode). Emitters added: convReverb (IR→WAV aux→`afir`, mixDuration longest to
+keep tail), hybridLayer (parallel synth layer *derived from voice* → finite, no
+infinite source), granular (linear `aecho` multi-tap smear — approximation; true
+per-grain = future WASM), spectralCarve (resonant EQ peaks vocal→metallic). Added
+per-`ParallelSpec` `mixDuration`. Kitchen-sink graph (pitch→sat→carve→ringMod→
+granular→convReverb) smoke-verified; tsc clean. **Sub-Phase 1.2 COMPLETE.**
+
+### Next: Sub-Phase 1.3
+- **1.2b (done):** see above.
 - **1.3:** wire graph into export (replace `buildFfmpegAudioFilter` call sites at
   `ffmpeg-runner.ts:462` / `process-audio.ts:141`; consume `result.auxInputs` +
   `-filter_complex`/`-map` for complex graphs), **non-linear per-primitive intensity

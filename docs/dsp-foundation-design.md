@@ -176,11 +176,15 @@ and the build stays green.
   response. Strength (depth/mix/amount) folds with intensity; LFO rate stays raw.
 - **1.2b-i DONE:** `-filter_complex` assembler + parallel-node model
   (`ParallelSpec`: in-graph `sources`, `auxInputs` for extra `-i` files, dry/wet
-  `amix`, mono normalization at the graph head) + `ringMod` (sine × signal via
-  `amultiply`). 16/21 kinds emit. Smoke-verified graph threading (linear+parallel).
-- **1.2b next:** `convReverb` (procedural JS IR generator → WAV → `afir` via the
-  `auxInputs` hook), `granular`, `hybridLayer` (vocoder-style), `spectralCarve`
-  (`afftfilt`).
+  `amix` with per-spec `mixDuration`, mono normalization at the graph head) +
+  `ringMod` (sine × signal via `amultiply`).
+- **1.2b DONE:** **all 21 kinds now emit.** `convReverb` (procedural JS IR via
+  `ir-generator.ts` → WAV aux input → `afir`, `mixDuration: longest` to keep the
+  tail); `hybridLayer` (parallel synth layer *derived from the voice* — finite, no
+  infinite-source bounding); `granular` (linear `aecho` multi-tap smear — first-pass
+  approximation; true per-grain is future AudioWorklet/WASM, `randomization`/
+  `pitchScatter` unmapped); `spectralCarve` (resonant EQ peaks tilting vocal→metallic
+  — robust approximation of `afftfilt`). Kitchen-sink graph smoke-verified.
 - **1.3:** wire into export, non-linear intensity curves, native fragment presets.
 
 ### filter_complex model

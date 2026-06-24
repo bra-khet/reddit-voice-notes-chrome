@@ -22,6 +22,7 @@ import type {
   FragmentKind,
   FragmentParamMap,
 } from './fragment-types';
+import { encodeWavMono16, generateImpulseResponse } from './ir-generator';
 import type { FragmentRenderer, RenderContext } from './renderer';
 
 /** An extra input file (e.g. a generated IR WAV) the complex graph references as `-i`. */
@@ -55,6 +56,12 @@ export interface ParallelSpec {
   ): { statements: string[]; wet: string };
   /** Wet mix 0..1 (0 = dry only; emitters should skip rather than emit 0). */
   wetMix: number;
+  /**
+   * `amix` duration policy for the dry/wet blend. `'first'` (default) bounds the
+   * output to the voice length; `'longest'` preserves a wet tail past the voice
+   * (reverb). `'shortest'` ends at whichever branch ends first.
+   */
+  mixDuration?: 'first' | 'longest' | 'shortest';
 }
 
 /** One fragment's contribution to the FFmpeg graph: linear `-af` or a parallel spec. */
@@ -316,12 +323,109 @@ const emitRingMod: Emitter<'ringMod'> = (p, ctx) => {
   };
 };
 
+/** Convolution reverb: procedural IR → WAV aux input → `afir`. Keeps the wet tail. */
+const emitConvReverb: Emitter<'convReverb'> = (p, ctx) => {
+  const wet = ctx.scale(p.mix);
+  if (wet <= 0) return null;
+  const ir = generateImpulseResponse(
+    { space: p.space, decay: p.decay, preDelay: p.preDelay },
+    ctx.sampleRate,
+  );
+  const wav = encodeWavMono16(ir, ctx.sampleRate);
+  return {
+    stage: 'conv-reverb',
+    parallel: {
+      auxInputs: [{ bytes: wav, ext: '.wav' }],
+      build: (input, _sources, aux, prefix) => ({
+        // afir convolves the voice branch with the IR (input 1 = aux[0]).
+        statements: [`[${input}][${aux[0]}]afir=gtype=peak[${prefix}_wet]`],
+        wet: `${prefix}_wet`,
+      }),
+      wetMix: Math.min(1, wet),
+      mixDuration: 'longest', // preserve the reverb tail past the voice
+    },
+  };
+};
+
 /**
- * Emitter registry. Kinds absent here are valid fragments whose FFmpeg emitter
- * is planned for later in Sub-Phase 1.2b — `emit()` skips them (returns `null`):
- * `convReverb` (procedural IR + `afir`), `granular`, `hybridLayer`, and
- * `spectralCarve` (`afftfilt`).
+ * Granular texture — first-pass FFmpeg approximation via a multi-tap echo smear
+ * (the supplemental's suggested starting point). True per-grain windowing /
+ * pitch-scatter is future AudioWorklet/WASM work, so `randomization` and
+ * `pitchScatter` are not yet mapped. Linear (`aecho` carries its own wet/dry).
  */
+const emitGranular: Emitter<'granular'> = (p, ctx) => {
+  const mix = ctx.scale(p.mix);
+  if (mix <= 0) return null;
+  const spacing = Math.round(lerp(15, 60, p.grainSize / 100));
+  const taps = Math.max(2, Math.round(lerp(2, 5, p.density / 100)));
+  const delays: number[] = [];
+  const decays: number[] = [];
+  for (let i = 1; i <= taps; i++) {
+    delays.push(spacing * i);
+    decays.push(round(0.7 ** i, 2));
+  }
+  const outGain = round(clamp(0.5 + mix * 0.5, 0.3, 1), 2);
+  return { af: [`aecho=0.9:${outGain}:${delays.join('|')}:${decays.join('|')}`], stage: 'granular' };
+};
+
+/**
+ * Hybrid voice — a parallel synth-like layer DERIVED from the voice (finite, so
+ * no infinite-source bounding needed). Carrier flavor picks the processing; the
+ * user's performance still drives timing/level. Closest robust FFmpeg analogue
+ * of the vocoder/"second processed stream" idea.
+ */
+const emitHybridLayer: Emitter<'hybridLayer'> = (p, ctx) => {
+  const wet = ctx.scale(p.layerMix);
+  if (wet <= 0) return null;
+  const drive = round(lerp(1, 3, p.harmonicEmphasis / 100), 2);
+  const carrier = p.carrier;
+  return {
+    stage: 'hybrid-layer',
+    parallel: {
+      build: (input, _sources, _aux, prefix) => {
+        const chain: string[] = [];
+        if (carrier === 'oscillator' || carrier === 'osc-bank') {
+          // Octave-down synth double (duration-preserving).
+          chain.push(`asetrate=${Math.round(ctx.sampleRate * 0.5)}`, `aresample=${ctx.sampleRate}`, 'atempo=2');
+        } else if (carrier === 'noise') {
+          chain.push('highpass=f=2000');
+        } else if (carrier === 'granular') {
+          chain.push('tremolo=f=18:d=0.7');
+        }
+        chain.push(`asoftclip=type=tanh:param=${drive}`);
+        if (carrier === 'osc-bank') {
+          chain.push('chorus=0.6:0.8:55|75:0.4|0.3:0.3|0.5:2|3');
+        }
+        return { statements: [`[${input}]${chain.join(',')}[${prefix}_wet]`], wet: `${prefix}_wet` };
+      },
+      wetMix: Math.min(1, wet),
+      mixDuration: 'first',
+    },
+  };
+};
+
+/**
+ * Spectral carving via resonant EQ peaks (robust approximation of `afftfilt`
+ * sculpting). `character` tilts the resonances from vocal formants → metallic
+ * highs; `amount` sets peak gain.
+ */
+const emitSpectralCarve: Emitter<'spectralCarve'> = (p, ctx) => {
+  const amount = ctx.scale(p.amount);
+  if (amount <= 0) return null;
+  const c = p.character / 100; // 0 = vocal formants, 1 = metallic highs
+  const f1 = Math.round(lerp(700, 2500, c));
+  const f2 = Math.round(lerp(1200, 5500, c));
+  const g = round(lerp(2, 10, amount), 1);
+  return {
+    af: [
+      `equalizer=f=${f1}:width_type=q:width=5:g=${g}`,
+      `equalizer=f=${f2}:width_type=q:width=5:g=${g}`,
+    ],
+    stage: 'spectral-carve',
+  };
+};
+
+/** Emitter registry — all 21 fragment kinds now emit. */
 const EMITTERS: { [K in FragmentKind]?: Emitter<K> } = {
   pitchFormant: emitPitchFormant,
   eq: emitEq,
@@ -340,6 +444,10 @@ const EMITTERS: { [K in FragmentKind]?: Emitter<K> } = {
   deEsser: emitDeEsser,
   deClick: emitDeClick,
   ringMod: emitRingMod,
+  convReverb: emitConvReverb,
+  granular: emitGranular,
+  hybridLayer: emitHybridLayer,
+  spectralCarve: emitSpectralCarve,
 };
 
 /** Kinds with a working FFmpeg emitter today (the rest are 1.2 TODO). */
@@ -416,8 +524,9 @@ export const ffmpegRenderer: FragmentRenderer<FfmpegNode, FfmpegGraphResult> = {
 
       const wet = clamp(spec.wetMix, 0, 1);
       const dry = round(1 - wet, 3);
+      const duration = spec.mixDuration ?? 'first';
       statements.push(
-        `[${prefix}_dry][${built.wet}]amix=inputs=2:weights=${dry} ${wet}:normalize=0[${prefix}]`,
+        `[${prefix}_dry][${built.wet}]amix=inputs=2:weights=${dry} ${wet}:normalize=0:duration=${duration}[${prefix}]`,
       );
       cur = prefix;
     });

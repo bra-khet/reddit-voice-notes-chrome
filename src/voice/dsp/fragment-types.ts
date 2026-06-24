@@ -432,7 +432,9 @@ export const FRAGMENT_DEFS: { [K in FragmentKind]: FragmentDef<K> } = {
     label: 'Granular Texture',
     blurb: 'Chops the voice into glitchy, stuttering, video-game-unit textures.',
     defaults: { grainSize: 40, density: 50, randomization: 30, pitchScatter: 20, mix: 50 },
-    parallel: true,
+    // First-pass FFmpeg approximation is a linear multi-tap echo; richer granular
+    // (true parallel/per-grain) is future AudioWorklet/WASM work.
+    parallel: false,
   },
   hybridLayer: {
     kind: 'hybridLayer',
