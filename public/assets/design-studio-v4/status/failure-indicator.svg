@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+  <defs>
+    <linearGradient id="failBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e05050"/>
+      <stop offset="50%" stop-color="#ff6b6b"/>
+      <stop offset="100%" stop-color="#a02020"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer pulse ring -->
+  <circle cx="12" cy="12" r="10" fill="none" stroke="#ff6b6b" stroke-width="1.5" opacity="0.35"/>
+  <!-- Shadow -->
+  <circle cx="12" cy="13" r="7" fill="#000000" opacity="0.4"/>
+  <!-- LED body -->
+  <circle cx="12" cy="11" r="7" fill="url(#failBevel)" stroke="#801818" stroke-width="1"/>
+  <!-- Inner highlight -->
+  <circle cx="10" cy="9" r="2" fill="#ffffff" opacity="0.3"/>
+</svg>

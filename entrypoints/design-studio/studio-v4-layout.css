@@ -276,6 +276,20 @@ body:has(.studio-v4) {
   font-weight: 700;
 }
 
+@keyframes studio-failure-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.studio-v4 .studio-v4__status-value--no-speech {
+  color: var(--studio-negate-text, #ff7b7b);
+  font-weight: 700;
+}
+
+.studio-v4 .studio-v4__status-value--no-speech img {
+  animation: studio-failure-pulse 1.4s ease-in-out infinite;
+}
+
 .studio-v4 .studio-v4__status-row--not-ready .studio-v4__status-value--no {
   padding: 5px 10px;
   border: 1px solid rgba(255, 193, 7, 0.55);

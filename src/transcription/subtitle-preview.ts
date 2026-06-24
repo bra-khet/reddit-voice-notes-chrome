@@ -19,6 +19,18 @@ export interface SubtitlePreviewOptions {
 const PREVIEW_PLACEHOLDER = 'Your caption here';
 const DEFAULT_THEME_BAR = '#00e5ff';
 
+// Maps opaque picker keys to browser CSS fonts that visually approximate the baked DejaVu face.
+const PREVIEW_CSS_FONTS: Readonly<Record<string, string>> = {
+  'dejavu-sans': 'system-ui, sans-serif',
+  'dejavu-serif': "Georgia, 'Times New Roman', serif",
+  'dejavu-mono': "'Courier New', Courier, monospace",
+  'dejavu-bold': "Impact, 'Arial Black', sans-serif",
+};
+
+function previewCssFontFamily(key: string): string {
+  return PREVIEW_CSS_FONTS[key] ?? 'system-ui, sans-serif';
+}
+
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
@@ -109,7 +121,7 @@ export function drawSubtitlePreview(
   const displayText = options.text.trim() || PREVIEW_PLACEHOLDER;
   const style = options.style;
   const fontSize = style.fontSize ?? 22;
-  const fontFamily = style.fontFamily ?? 'system-ui, sans-serif';
+  const fontFamily = previewCssFontFamily(style.fontFamily ?? 'dejavu-sans');
   const lineHeight = Math.round(fontSize * 1.25);
   const maxWidth = Math.round(canvas.width * 0.88);
   const paddingX = 14;

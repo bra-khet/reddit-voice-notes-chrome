@@ -836,7 +836,7 @@ export function mountSubtitleControls(
     syncing = true;
     const style = draftConfig.style;
     positionSelect.value = style.position ?? 'bottom';
-    fontFamilySelect.value = style.fontFamily ?? 'system-ui, sans-serif';
+    fontFamilySelect.value = style.fontFamily ?? 'dejavu-sans';
     const fontSize = style.fontSize ?? 22;
     fontSizeInput.value = String(fontSize);
     fontSizeValueEl.textContent = `${fontSize}px`;

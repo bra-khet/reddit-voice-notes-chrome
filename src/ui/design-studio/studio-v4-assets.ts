@@ -53,6 +53,7 @@ export const STUDIO_V4_ASSETS = {
     warning: `${BASE}/status/warning-indicator.svg`,
     complete: `${BASE}/status/complete-check.svg`,
     info: `${BASE}/status/info-indicator.svg`,
+    failure: `${BASE}/status/failure-indicator.svg`,
   },
   knobs: {
     housing: `${BASE}/knobs/knob-housing.svg`,
