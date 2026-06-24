@@ -334,7 +334,60 @@ export class RecorderPanel {
           }
           .studio-first-hint__caution { color: #9a7210; }
           .studio-first-hint__arrow { color: #7a5a00; }
+          .how-it-works {
+            border-color: rgba(100, 105, 200, 0.2);
+            background: rgba(107, 112, 196, 0.06);
+          }
+          .how-it-works__summary { color: #5a5faa; }
+          .how-it-works__num { background: rgba(100, 105, 200, 0.15); color: #5a5faa; }
+          .how-it-works__step-text { color: #3d3d3d; }
+          .how-it-works__step-text strong { color: #1a1a1b; }
         }
+        /* ── 3-phase how-it-works intro card ── */
+        .how-it-works {
+          margin: 6px 0 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(148, 152, 232, 0.2);
+          background: rgba(26, 31, 110, 0.22);
+          overflow: hidden;
+        }
+        .how-it-works[hidden] { display: none !important; }
+        .how-it-works__summary {
+          padding: 7px 10px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #9498e8;
+          cursor: pointer;
+          list-style: none;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          user-select: none;
+        }
+        .how-it-works__summary::-webkit-details-marker { display: none; }
+        .how-it-works__summary::marker { content: ''; }
+        .how-it-works__summary::before {
+          content: '▶';
+          font-size: 8px;
+          transition: transform 0.15s ease;
+          display: inline-block;
+        }
+        .how-it-works[open] .how-it-works__summary::before { transform: rotate(90deg); }
+        .how-it-works__summary:focus-visible { outline: 2px solid #9498e8; outline-offset: -2px; border-radius: 6px; }
+        .how-it-works__body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 5px; }
+        .how-it-works__step { display: flex; align-items: flex-start; gap: 8px; margin: 0; }
+        .how-it-works__num {
+          flex-shrink: 0;
+          width: 18px; height: 18px;
+          border-radius: 50%;
+          background: rgba(148, 152, 232, 0.22);
+          color: #9498e8;
+          font-size: 10px; font-weight: 700;
+          display: flex; align-items: center; justify-content: center;
+          margin-top: 2px;
+        }
+        .how-it-works__step-text { font-size: 12px; color: #c9cdf5; margin: 0; }
+        .how-it-works__step-text strong { color: #e0e2f8; }
       </style>
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rvn-title" tabindex="-1">
         <div class="header">
@@ -354,6 +407,23 @@ export class RecorderPanel {
             </button>
           </div>
         </div>
+        <details class="how-it-works" data-how-it-works hidden>
+          <summary class="how-it-works__summary">How this works</summary>
+          <div class="how-it-works__body">
+            <p class="how-it-works__step">
+              <span class="how-it-works__num" aria-hidden="true">1</span>
+              <span class="how-it-works__step-text"><strong>Design</strong> — pick clip style, background &amp; voice in Design Studio.</span>
+            </p>
+            <p class="how-it-works__step">
+              <span class="how-it-works__num" aria-hidden="true">2</span>
+              <span class="how-it-works__step-text"><strong>Capture</strong> — return here and record your voice comment.</span>
+            </p>
+            <p class="how-it-works__step">
+              <span class="how-it-works__num" aria-hidden="true">3</span>
+              <span class="how-it-works__step-text"><strong>Polish &amp; Bake</strong> — go back to Studio to edit subtitles and bake your final MP4.</span>
+            </p>
+          </div>
+        </details>
         <div class="timer-wrap" aria-live="polite" aria-atomic="true">
           <p class="timer" data-timer>0:00<span class="timer__cap">/ 2:00 max</span></p>
         </div>
@@ -404,6 +474,11 @@ export class RecorderPanel {
     this.tertiaryBtn.addEventListener('click', () => this.onTertiaryClick());
     this.closeBtn.addEventListener('click', () => this.requestClose());
     this.studioCtaBtn.addEventListener('click', () => openDesignStudioWindow());
+
+    // Mark the 3-phase intro card as seen on any interaction so it stays collapsed on future opens.
+    this.shadow.querySelector('[data-how-it-works]')?.addEventListener('toggle', () => {
+      try { localStorage.setItem('rvn.wf.how-seen', '1'); } catch { /* sandboxed env */ }
+    });
 
     this.host.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -684,6 +759,18 @@ export class RecorderPanel {
           '<strong>Go here first</strong>';
         this.studioCtaBtn.textContent = 'Open Design Studio';
         studioFlowEl.removeAttribute('aria-label');
+      }
+    }
+
+    // 3-phase intro card: visible only in Phase 1 (design, pre-recording); auto-expands on first visit.
+    const howItWorks = this.shadow.querySelector<HTMLDetailsElement>('[data-how-it-works]');
+    if (howItWorks) {
+      const showCard = !isPostRecording && this.workflowPhase === 'design';
+      howItWorks.hidden = !showCard;
+      if (showCard && !howItWorks.open) {
+        try {
+          if (!localStorage.getItem('rvn.wf.how-seen')) howItWorks.open = true;
+        } catch { /* sandboxed env */ }
       }
     }
 
