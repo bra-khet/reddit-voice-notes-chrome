@@ -205,7 +205,7 @@ export function syncStudioStatusStrip(root: HTMLElement, input: StudioStatusStri
       <div class="studio-v4__status-row">
         <span class="studio-v4__status-label">
           <img class="studio-v4__icon studio-v4__icon--16" src="${subtitlesIconUrl}" alt="" width="16" height="16" />
-          Subtitles?
+          Subtitles:
         </span>
         <span class="studio-v4__status-value studio-v4__status-value--${snapshot.subtitles.state}">
           <img class="studio-v4__icon studio-v4__icon--16" src="${studioV4AssetUrl(snapshot.subtitles.icon)}" alt="" width="16" height="16" />

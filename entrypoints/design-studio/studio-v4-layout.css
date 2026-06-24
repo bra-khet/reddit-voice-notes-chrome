@@ -317,6 +317,21 @@ body:has(.studio-v4) {
   font-weight: 600;
 }
 
+@keyframes studio-incoming-flash {
+  0%, 100% {
+    filter: sepia(1) saturate(4) hue-rotate(10deg) brightness(1.1);
+    opacity: 1;
+  }
+  50% {
+    filter: grayscale(1) brightness(0.45);
+    opacity: 0.45;
+  }
+}
+
+.studio-v4 .studio-v4__status-value--incoming img {
+  animation: studio-incoming-flash 2.2s ease-in-out infinite;
+}
+
 .studio-v4 .studio-v4__status-link {
   margin: 0;
   padding: 0;

@@ -643,8 +643,9 @@ export function mountSubtitleControls(
 
   function canBakeNow(): boolean {
     if (baking || !draftConfig.transcriptionEnabled) return false;
-    if (!hasTranscriptCues() || !transcriptMatchesCurrentRecording()) return false;
-    if (segmentEditor.getTranscriptDeliveryStatus() !== 'ready') return false;
+    // Only require cues + confirmed edits — delivery status no longer gates the bake.
+    // If Vosk never arrives the user can still manually enter/edit cues and bake.
+    if (!hasTranscriptCues()) return false;
     const { dirty, confirmed } = segmentEditor.getState();
     if (dirty || !confirmed) return false;
     return true;
@@ -666,13 +667,13 @@ export function mountSubtitleControls(
   }
 
   function resolveUnavailableBakeLabel(): string {
-    const delivery = segmentEditor.getTranscriptDeliveryStatus();
-    if (!transcriptMatchesCurrentRecording()) {
-      return delivery === 'pending' ? 'Transcription in progress…' : 'Record on Reddit first';
+    if (!hasTranscriptCues()) {
+      const delivery = segmentEditor.getTranscriptDeliveryStatus();
+      if (delivery === 'pending') return 'Waiting for transcript — or add cues manually';
+      if (delivery === 'timeout' || delivery === 'ready') return 'No transcript — add cues manually to bake';
+      if (!transcriptMatchesCurrentRecording()) return 'Record on Reddit first';
+      return 'No transcript to bake';
     }
-    if (delivery === 'pending') return 'Transcription in progress…';
-    if (delivery === 'timeout') return 'Transcription failed — record again';
-    if (!hasTranscriptCues()) return 'No transcript to bake';
     const { dirty } = segmentEditor.getState();
     if (dirty) return 'Confirm transcript edits first';
     return 'Not ready to bake';
@@ -683,11 +684,14 @@ export function mountSubtitleControls(
     if (label === 'Confirm transcript edits first') {
       return 'Confirm & save your transcript edits before baking.';
     }
-    if (label === 'Transcription in progress…') {
-      return 'Transcription is still running — bake unlocks when cues arrive.';
+    if (label.startsWith('Waiting for transcript')) {
+      return 'Transcription is still running. You can also open the Subtitles panel and add cues manually.';
+    }
+    if (label.startsWith('No transcript — add')) {
+      return 'Vosk found no speech. Open the Subtitles panel to add cues manually, then bake.';
     }
     if (label === 'Record on Reddit first') {
-      return 'Record a voice note on Reddit, then reopen Design Studio when transcription finishes.';
+      return 'Record a voice note on Reddit, then reopen Design Studio.';
     }
     return label;
   }
