@@ -80,12 +80,14 @@ const POSITION_OPTIONS: { value: SubtitleStyleConfig['position']; label: string 
   { value: 'bottom', label: 'Bottom' },
 ];
 
+// Values must match FONT_ASSETS keys in subtitle-burnin.ts exactly.
+// Preview uses browser CSS fonts; bake uses the mapped TTF from public/assets/fonts/.
 const FONT_FAMILY_OPTIONS: { value: string; label: string }[] = [
-  { value: 'system-ui, sans-serif', label: 'System Sans (default)' },
-  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
-  { value: "Georgia, 'Times New Roman', serif", label: 'Georgia' },
-  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
-  { value: 'Impact, Haettenschweiler, sans-serif', label: 'Impact' },
+  { value: 'system-ui, sans-serif', label: 'Sans (DejaVu Sans)' },
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial (DejaVu Sans)' },
+  { value: "Georgia, 'Times New Roman', serif", label: 'Serif (DejaVu Serif)' },
+  { value: "'Courier New', Courier, monospace", label: 'Mono (DejaVu Mono)' },
+  { value: 'Impact, Haettenschweiler, sans-serif', label: 'Impact (DejaVu Condensed Bold)' },
 ];
 
 function formatSavedAt(ms: number): string {
