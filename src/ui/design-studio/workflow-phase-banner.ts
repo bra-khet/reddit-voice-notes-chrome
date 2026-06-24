@@ -42,7 +42,7 @@ function ctaText(phase: WorkflowPhase, status: WorkflowBannerStatus): string {
       return 'Recording ready — subtitles are loading. Edit & bake once they arrive.';
     }
     if (status.transcriptDelivery === 'timeout') {
-      return 'Recording ready — subtitles timed out. Bake without captions or record again.';
+      return 'Recording ready — subtitles timed out. Poor audio? Add captions manually in the Subtitles panel, or record again.';
     }
     if (status.hasTranscriptCues) {
       return 'Recording ready — review subtitles in the Subtitles panel, then Bake.';

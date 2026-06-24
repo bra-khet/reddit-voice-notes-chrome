@@ -93,12 +93,14 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
     subtitlesIcon = STUDIO_V4_ASSETS.status.pending;
   } else if (transcriptDelivery === 'timeout') {
     subtitlesState = 'error';
-    subtitlesLabel = 'Error — try recording again';
+    subtitlesLabel = 'Timed out — add subs manually or re-record';
     subtitlesIcon = STUDIO_V4_ASSETS.status.warning;
+    showOpenPanel = true;
   } else if (transcriptDelivery === 'ready' && !hasCues) {
     subtitlesState = 'no-speech';
-    subtitlesLabel = 'No speech detected';
+    subtitlesLabel = 'No speech — check audio or add subs manually';
     subtitlesIcon = STUDIO_V4_ASSETS.status.failure;
+    showOpenPanel = true;
   } else if (transcriptDirty) {
     subtitlesState = 'edits-pending';
     subtitlesLabel = 'Confirm edits in Subtitles panel';
@@ -125,8 +127,8 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
   if (subtitlesEnabled) {
     if (!hasSessionRecording) blockers.push('Record a clip on Reddit');
     else if (transcriptDelivery === 'pending') blockers.push('Wait for subtitles');
-    else if (transcriptDelivery === 'timeout') blockers.push('Fix subtitle error');
-    else if (transcriptDelivery === 'ready' && !hasCues) blockers.push('No speech detected — try again');
+    else if (transcriptDelivery === 'timeout') blockers.push('Add subs manually or record again');
+    else if (transcriptDelivery === 'ready' && !hasCues) blockers.push('No speech — check audio or add subs manually');
     else if (transcriptDirty) blockers.push('Confirm subtitle edits');
     else if (!bakedForSession) blockers.push('Bake subtitles into MP4');
   }

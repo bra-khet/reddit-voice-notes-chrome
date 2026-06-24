@@ -23,13 +23,18 @@ const ASSET_FOR_FAMILY: Readonly<Record<string, string>> = {
 let loadPromise: Promise<void> | null = null;
 
 async function loadOneFont(family: string, assetPath: string): Promise<void> {
-  const url = browser.runtime.getURL(assetPath as never);
-  const face = new FontFace(family, `url("${url}")`);
-  await face.load();
-  document.fonts.add(face);
+  try {
+    const url = browser.runtime.getURL(assetPath as never);
+    const face = new FontFace(family, `url("${url}")`);
+    await face.load();
+    document.fonts.add(face);
+  } catch (err) {
+    // Non-fatal: canvas preview falls back to browser default for this face.
+    console.warn(`[RVN] Preview font load failed: ${family}`, err);
+  }
 }
 
-/** Idempotent — safe to call multiple times; resolves when all four faces are in document.fonts. */
+/** Idempotent — safe to call multiple times; resolves when all four faces are attempted. */
 export function loadDejaVuPreviewFonts(): Promise<void> {
   if (!loadPromise) {
     loadPromise = Promise.all(

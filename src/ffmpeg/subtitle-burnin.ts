@@ -383,7 +383,8 @@ export function burnInLogIndicatesFailure(lines: string[]): string | null {
     'unable to parse option',
     'failed to set value',
     'error when evaluating the expression',
-    'missing',
+    'required option is missing',
+    'no output streams',
   ];
   for (const needle of needles) {
     if (text.includes(needle)) return needle;
