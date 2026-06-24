@@ -22,7 +22,9 @@ export interface SubtitleBurnInInput {
   themeBarColor?: string;
 }
 
-export const BURNIN_FONT_FS_PATH = 'burnin-font.ttf';
+// BUG FIX: drawtext fontfile= with relative path fails silently in Emscripten MEMFS on some builds
+// Fix: Use absolute path so FreeType open() doesn't depend on FFmpeg's CWD matching the FS CWD.
+export const BURNIN_FONT_FS_PATH = '/burnin-font.ttf';
 export const BURNIN_FONT_ASSET = 'assets/fonts/DejaVuSans.ttf';
 
 // Map font-family picker values → bundled font assets.
@@ -369,6 +371,12 @@ export function burnInLogIndicatesFailure(lines: string[]): string | null {
     'error reinitializing filters',
     'unable to load',
     'cannot find a valid font',
+    // FreeType font-load failures (exit 0 in some builds, so we catch them here)
+    'error while loading freetype font',
+    'could not load freetype',
+    'no font filename provided',
+    'cannot open stream',
+    'cannot open resource',
     'failed to parse',
     'invalid argument',
     'fontconfig error',

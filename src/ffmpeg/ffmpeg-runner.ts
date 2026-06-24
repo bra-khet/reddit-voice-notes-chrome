@@ -1,4 +1,5 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile } from '@ffmpeg/util';
 import {
   BURNIN_FONT_ASSET,
   BURNIN_FONT_FS_PATH,
@@ -509,15 +510,24 @@ export async function runWebmToMp4(
   }
 }
 
+// BUG FIX: drawtext font not rendering in WASM offscreen context
+// Fix: Use fetchFile (@ffmpeg/util pattern) + absolute FS path + read-back verification.
+// Sync: BURNIN_FONT_FS_PATH in subtitle-burnin.ts (must be absolute to avoid CWD ambiguity in FreeType)
 async function writeBurnInFont(ffmpeg: FFmpeg, fontAsset: string = BURNIN_FONT_ASSET): Promise<void> {
   await safeDeleteFile(ffmpeg, BURNIN_FONT_FS_PATH);
-  const url = browser.runtime.getURL(fontAsset as never);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Burn-in font not reachable (${response.status}): ${url}`);
+  const url = extensionAsset(fontAsset);
+  console.log(`${EXTENSION_LOG_PREFIX} Burn-in font: fetching ${url}`);
+  const bytes = await fetchFile(url);
+  console.log(`${EXTENSION_LOG_PREFIX} Burn-in font: ${bytes.byteLength} bytes loaded`);
+  if (bytes.byteLength === 0) {
+    throw new Error(`Burn-in font fetched 0 bytes — asset missing or unreachable: ${url}`);
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  await ffmpeg.writeFile(BURNIN_FONT_FS_PATH, bytes);
+  await ffmpeg.writeFile(BURNIN_FONT_FS_PATH, bytes.slice());
+  const verify = (await ffmpeg.readFile(BURNIN_FONT_FS_PATH)) as Uint8Array;
+  console.log(`${EXTENSION_LOG_PREFIX} Burn-in font: ${verify.byteLength} bytes in WASM FS at ${BURNIN_FONT_FS_PATH}`);
+  if (verify.byteLength === 0) {
+    throw new Error(`Burn-in font write failed — 0 bytes at ${BURNIN_FONT_FS_PATH} after writeFile`);
+  }
 }
 
 async function writeBurnInExtras(
