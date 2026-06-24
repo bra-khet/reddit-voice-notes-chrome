@@ -56,6 +56,7 @@ import {
 } from '@/src/ui/design-studio/background-layout-controls';
 import { subtitlePreviewNeedsAnimation } from '@/src/transcription/subtitle-effects';
 import { drawSubtitleTextOnlyPreview } from '@/src/transcription/subtitle-preview';
+import { loadDejaVuPreviewFonts } from '@/src/ui/design-studio/preview-font-loader';
 import {
   mountSubtitleControls,
   renderSubtitleControlFields,
@@ -758,6 +759,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     },
     getThemeBarColor: () => resolvedTheme().colors.bar,
   });
+
+  // Load DejaVu TTFs into browser font registry so the preview canvas is WYSIWYG with the bake.
+  void loadDejaVuPreviewFonts().then(() => refreshSubtitleTextPreview());
 
   workflowBanner = mountWorkflowBanner(
     root,

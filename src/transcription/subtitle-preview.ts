@@ -3,6 +3,7 @@ import {
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
 import type { SubtitleStyleConfig, TranscriptSegment } from './types';
+import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
 
 export interface SubtitlePreviewOptions {
   enabled: boolean;
@@ -19,16 +20,10 @@ export interface SubtitlePreviewOptions {
 const PREVIEW_PLACEHOLDER = 'Your caption here';
 const DEFAULT_THEME_BAR = '#00e5ff';
 
-// Maps opaque picker keys to browser CSS fonts that visually approximate the baked DejaVu face.
-const PREVIEW_CSS_FONTS: Readonly<Record<string, string>> = {
-  'dejavu-sans': 'system-ui, sans-serif',
-  'dejavu-serif': "Georgia, 'Times New Roman', serif",
-  'dejavu-mono': "'Courier New', Courier, monospace",
-  'dejavu-bold': "Impact, 'Arial Black', sans-serif",
-};
-
+// Resolve picker key → registered DejaVu family name (loaded via FontFace in preview-font-loader.ts).
+// Falls back to system-ui only during the brief window before fonts finish loading.
 function previewCssFontFamily(key: string): string {
-  return PREVIEW_CSS_FONTS[key] ?? 'system-ui, sans-serif';
+  return PREVIEW_FAMILY_FOR_KEY[key] ?? 'RVN-DejaVu-Sans';
 }
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
