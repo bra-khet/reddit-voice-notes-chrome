@@ -509,9 +509,9 @@ export async function runWebmToMp4(
   }
 }
 
-async function writeBurnInFont(ffmpeg: FFmpeg): Promise<void> {
+async function writeBurnInFont(ffmpeg: FFmpeg, fontAsset: string = BURNIN_FONT_ASSET): Promise<void> {
   await safeDeleteFile(ffmpeg, BURNIN_FONT_FS_PATH);
-  const url = browser.runtime.getURL(BURNIN_FONT_ASSET as never);
+  const url = browser.runtime.getURL(fontAsset as never);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Burn-in font not reachable (${response.status}): ${url}`);
@@ -549,7 +549,7 @@ async function burnInWithStrategies(
     await safeDeleteFile(ffmpeg, BURNIN_OUTPUT_MP4);
     await ffmpeg.writeFile(BURNIN_INPUT_MP4, inputBytes.slice());
     if (strategy.requiresFont) {
-      await writeBurnInFont(ffmpeg);
+      await writeBurnInFont(ffmpeg, strategy.fontAsset);
     }
     await writeBurnInExtras(ffmpeg, strategy.extraFiles);
 

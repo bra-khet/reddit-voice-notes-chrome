@@ -25,6 +25,21 @@ export interface SubtitleBurnInInput {
 export const BURNIN_FONT_FS_PATH = 'burnin-font.ttf';
 export const BURNIN_FONT_ASSET = 'assets/fonts/DejaVuSans.ttf';
 
+// Map font-family picker values → bundled font assets.
+// All options currently resolve to DejaVuSans.ttf — add new TTF files to
+// public/assets/fonts/ and update this table to activate them in baked output.
+const FONT_ASSETS: Readonly<Record<string, string>> = {
+  'system-ui, sans-serif': 'assets/fonts/DejaVuSans.ttf',
+  'Arial, Helvetica, sans-serif': 'assets/fonts/DejaVuSans.ttf',
+  "Georgia, 'Times New Roman', serif": 'assets/fonts/DejaVuSans.ttf',
+  "'Courier New', Courier, monospace": 'assets/fonts/DejaVuSans.ttf',
+  'Impact, Haettenschweiler, sans-serif': 'assets/fonts/DejaVuSans.ttf',
+};
+
+export function resolveBurnInFontAsset(fontFamily?: string): string {
+  return (fontFamily && FONT_ASSETS[fontFamily]) ?? BURNIN_FONT_ASSET;
+}
+
 const INPUT_MP4 = 'base.mp4';
 const OUTPUT_MP4 = 'final.mp4';
 
@@ -375,6 +390,8 @@ export interface BurnInStrategy {
   args: string[];
   extraFiles?: Record<string, string | Uint8Array>;
   requiresFont?: boolean;
+  /** Which extension-relative font asset to write to WASM FS when requiresFont is true. */
+  fontAsset?: string;
 }
 
 export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
@@ -385,6 +402,7 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
 
   const themeBarColor = input.themeBarColor ?? DEFAULT_THEME_BAR;
   const cueTextFiles = buildCueTextFiles(segments);
+  const fontAsset = resolveBurnInFontAsset(input.style?.fontFamily);
   const drawtextFilter = buildDrawtextFilter(segments, input.style, BURNIN_FONT_FS_PATH, themeBarColor);
 
   // BUG FIX: silent burn-in success with no visible subs (BUG-025 / BUG-030)
@@ -394,6 +412,7 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
     {
       name: 'drawtext-font',
       requiresFont: true,
+      fontAsset,
       extraFiles: cueTextFiles,
       args: [
         '-i',

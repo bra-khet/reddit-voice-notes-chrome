@@ -83,7 +83,7 @@ export function renderSubtitleSegmentEditorFields(): string {
         </button>
         <button
           type="button"
-          class="popup__profile-btn popup__profile-btn--save"
+          class="popup__profile-btn popup__profile-btn--amber"
           data-transcript-save
           hidden
         >
@@ -108,6 +108,9 @@ export function renderSubtitleSegmentEditorFields(): string {
           </header>
           <p class="studio__transcript-dialog-copy popup__field-desc">
             Adjust each cue’s text and timing. Confirm &amp; save in the main panel when you are done.
+          </p>
+          <p class="studio__transcript-dialog-copy popup__field-desc" style="margin-top:4px;opacity:0.65;">
+            Keep each cue to 1–2 short phrases to avoid text overflow in the baked video.
           </p>
           <div class="studio__transcript-segments" data-transcript-segments></div>
           <button
