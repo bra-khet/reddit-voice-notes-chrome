@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="94" height="56" viewBox="0 0 94 56" aria-hidden="true">
+<!--
+  Design Studio v4 — Sub-panel header bar (5-slice horizontal)
+  Segments (left → right, fixed px in source art):
+    1. 40px — static left square (chip slot recess; NO baked chevron — HTML nav-chip overlays)
+    2.  8px — left inner clear-bar cap
+    3. 24px — middle stripe (stretches horizontally via top/bottom border strips)
+    4.  8px — right inner clear-bar cap
+    5. 14px — right end cap
+
+  border-image-slice: 10 14 10 48 fill
+  border-width: 10px 14px 10px 48px
+  See panels/5-slice-usage.md
+-->
+  <defs>
+    <linearGradient id="barBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="40%" stop-color="#1d1f6e"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+    <linearGradient id="barHighlight" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Center fill -->
+  <rect x="0" y="0" width="94" height="56" fill="#12001f"/>
+
+  <!-- Segment 3 — middle stripe body (repeats on stretch) -->
+  <rect x="48" y="10" width="24" height="36" fill="url(#barBevel)" stroke="#0a0014" stroke-width="1"/>
+  <rect x="50" y="12" width="20" height="6" rx="1" fill="url(#barHighlight)"/>
+
+  <!-- Segment 1 — static left chip slot (outline only) -->
+  <rect x="0" y="0" width="40" height="56" fill="url(#barBevel)" stroke="#0a0014" stroke-width="1.5"/>
+  <rect x="2" y="2" width="36" height="8" rx="2" fill="#ffffff" opacity="0.08"/>
+  <rect x="8" y="14" width="24" height="28" rx="6" ry="6" fill="#12001f" stroke="#2a2a44" stroke-width="1" opacity="0.65"/>
+
+  <!-- Segment 2 — left inner cap -->
+  <rect x="40" y="10" width="8" height="36" fill="#1d1f6e" stroke="#0a0014" stroke-width="0.5"/>
+
+  <!-- Segment 4 — right inner cap -->
+  <rect x="72" y="10" width="8" height="36" fill="#1d1f6e" stroke="#0a0014" stroke-width="0.5"/>
+
+  <!-- Segment 5 — right end cap -->
+  <rect x="80" y="0" width="14" height="56" fill="url(#barBevel)" stroke="#0a0014" stroke-width="1.5"/>
+  <rect x="82" y="2" width="10" height="8" rx="2" fill="#ffffff" opacity="0.06"/>
+</svg>

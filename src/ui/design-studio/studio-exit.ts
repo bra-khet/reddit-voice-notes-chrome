@@ -1,4 +1,9 @@
-import { clipProfileMatchesLiveState, getClipProfileById } from '@/src/settings/clip-profiles';
+import {
+  clipProfileMatchesLiveState,
+  clipProfileMatchesLiveStateForStudioExit,
+  getClipProfileById,
+} from '@/src/settings/clip-profiles';
+import { normalizeTranscriptConfig } from '@/src/transcription/types';
 import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import { isCustomStyleDirty } from '@/src/settings/custom-styles';
 import {
@@ -6,6 +11,7 @@ import {
   applyCustomClipStyle,
   loadUserPreferences,
   saveAppearancePreferences,
+  saveTranscriptPreferences,
   updateActiveClipProfile,
   updateActiveCustomStyle,
   type AppearancePreferences,
@@ -15,7 +21,16 @@ import {
 export function hasStudioUnsavedChanges(prefs: UserPreferencesV1): boolean {
   if (prefs.appearance.activeProfileId) {
     const profile = getClipProfileById(prefs, prefs.appearance.activeProfileId);
-    if (profile && !clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile)) {
+    // BUG FIX: subtitle toggle reverts on studio exit (BUG-017)
+    // Fix: exit modal / discard ignore transcript drift — global transcriptConfig persists until Update profile.
+    if (
+      profile &&
+      !clipProfileMatchesLiveStateForStudioExit(
+        prefs.appearance,
+        prefs.voiceEffect,
+        profile,
+      )
+    ) {
       return true;
     }
   }
@@ -34,11 +49,22 @@ export async function discardStudioUnsavedChanges(
 ): Promise<UserPreferencesV1> {
   const current = await loadUserPreferences();
   const profileId = current.appearance.activeProfileId;
+  // BUG FIX: subtitle toggle reverts on studio exit (BUG-017)
+  // Fix: preserve live transcript prefs when reverting a dirty profile snapshot on discard.
+  const preservedTranscript = normalizeTranscriptConfig(current.transcriptConfig);
 
   if (profileId) {
     const profile = getClipProfileById(current, profileId);
-    if (profile && !clipProfileMatchesLiveState(current.appearance, current.voiceEffect, profile)) {
-      return applyClipProfile(profileId);
+    if (
+      profile &&
+      !clipProfileMatchesLiveStateForStudioExit(
+        current.appearance,
+        current.voiceEffect,
+        profile,
+      )
+    ) {
+      await applyClipProfile(profileId);
+      return saveTranscriptPreferences(preservedTranscript);
     }
   }
 
@@ -88,7 +114,15 @@ export async function saveStudioUnsavedChanges(): Promise<UserPreferencesV1> {
   if (prefs.appearance.activeProfileId) {
     const profileId = prefs.appearance.activeProfileId;
     const profile = getClipProfileById(prefs, profileId);
-    if (profile && !clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile)) {
+    if (
+      profile &&
+      !clipProfileMatchesLiveState(
+        prefs.appearance,
+        prefs.voiceEffect,
+        prefs.transcriptConfig,
+        profile,
+      )
+    ) {
       if (isPresetProfileId(profileId)) {
         return prefs;
       }

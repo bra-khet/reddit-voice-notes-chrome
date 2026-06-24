@@ -4,7 +4,7 @@
 **Target release:** v3.0.0 on `main` after merge from `dulcet`.  
 **Baseline:** `main` v2.0.1 (Design Studio + hardened transcode pipeline).
 
-**Related docs:** `docs/engineering-principles.md`, `pretty-branch.md`, `docs/bug-archive.md`, `claude-progress.md`
+**Related docs:** `docs/design-studio.md` (Voice section semantics), `docs/engineering-principles.md`, `pretty-branch.md`, `docs/bug-archive.md`, `claude-progress.md`
 
 ## Goal
 

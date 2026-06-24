@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="52" height="28" viewBox="0 0 52 28" aria-hidden="true">
+/*
+  Design Studio v4 — Defeat Toggle (on/off for effects, voice, backdrop, glow etc.)
+  Physical switch look with depth. "On" state can glow theme color.
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Place the comments INSIDE the <svg> ... </svg> tags.
+*/
+  <defs>
+    <linearGradient id="toggleTrack" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1d1f6e"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+
+  /* Track */
+  <rect x="2" y="4" width="48" height="20" rx="10" ry="10"
+        fill="url(#toggleTrack)" stroke="#0a0014" stroke-width="1.5"/>
+
+  /* "On" glow region (shown when active via class or separate file) */
+  <rect x="2" y="4" width="28" height="20" rx="10" ry="10"
+        fill="#ffd54f" opacity="0.15"/>
+
+  /* Thumb */
+  <circle cx="14" cy="14" r="8" fill="#3a3a5a" stroke="#0a0014" stroke-width="1"/>
+  /* Tiny top highlight on thumb */
+  <circle cx="13" cy="12" r="3" fill="#ffffff" opacity="0.25"/>
+
+  /* Off state hint (move the circle to the right for "on") */
+  /* For "on" version duplicate and translate the thumb + increase amber glow */
+</svg>

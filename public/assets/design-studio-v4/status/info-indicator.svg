@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+/*
+  Design Studio v4 — Info / guidance status (indigo plate, cyan glyph)
+  For neutral status strip hints (not warning, not pending spin).
+*/
+  <defs>
+    <linearGradient id="infoBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="50%" stop-color="#1d1f6e"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+  <circle cx="12" cy="12" r="9" fill="url(#infoBevel)" stroke="#0a0014" stroke-width="1.5"/>
+  <rect x="11" y="10" width="2" height="7" fill="#5ec8e8"/>
+  <circle cx="12" cy="7" r="1.5" fill="#5ec8e8"/>
+</svg>

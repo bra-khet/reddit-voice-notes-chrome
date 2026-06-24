@@ -6,10 +6,13 @@ import { getCustomStyleById } from '@/src/settings/custom-styles';
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 import { formatVoiceEffectSummary } from '@/src/voice/voice-summary';
 import type { VoiceEffectConfig } from '@/src/voice/types';
+import { formatSubtitleSummary } from '@/src/transcription/transcript-summary';
+import type { TranscriptConfig } from '@/src/transcription/types';
 
 export interface StudioSummaryContext {
   prefs: UserPreferencesV1;
   voiceDraft?: VoiceEffectConfig;
+  subtitleDraft?: TranscriptConfig;
 }
 
 const ALIGNMENT_TITLES: Record<BarAlignment, string> = {
@@ -110,12 +113,22 @@ export function renderVoiceSummaryHtml(ctx: StudioSummaryContext): string {
   return `<span class="studio__meta-plain">${summary}</span>`;
 }
 
+export function renderSubtitleSummaryHtml(ctx: StudioSummaryContext): string {
+  if (!ctx.subtitleDraft) {
+    return '<span class="studio__meta-plain">Off</span>';
+  }
+  const summary = formatSubtitleSummary(ctx.subtitleDraft);
+  return `<span class="studio__meta-plain">${summary}</span>`;
+}
+
 export function syncStudioSectionSummaries(root: HTMLElement, ctx: StudioSummaryContext): void {
   const barStyleEl = root.querySelector<HTMLElement>('[data-summary-bar-style]');
   const backgroundEl = root.querySelector<HTMLElement>('[data-summary-background]');
   const voiceEl = root.querySelector<HTMLElement>('[data-summary-voice]');
+  const subtitleEl = root.querySelector<HTMLElement>('[data-summary-subtitles]');
 
   if (barStyleEl) barStyleEl.innerHTML = renderBarStyleSummaryHtml(ctx);
   if (backgroundEl) backgroundEl.innerHTML = renderBackgroundSummaryHtml(ctx);
   if (voiceEl) voiceEl.innerHTML = renderVoiceSummaryHtml(ctx);
+  if (subtitleEl) subtitleEl.innerHTML = renderSubtitleSummaryHtml(ctx);
 }

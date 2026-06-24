@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" aria-hidden="true">
+<!--
+  Design Studio v4 — Live Preview Window Frame
+  Scalable 16:9 proportional frame with pseudo-3D pillowing and tactile borders.
+  Matches button/slider style: multi-layer bevels, gradients for depth, subtle inner highlight.
+  Use as container for the waveform/preview content. Scale via CSS or width/height.
+  Theming: override fills/strokes with currentColor or CSS vars for barColor.
+-->
+  <defs>
+    <linearGradient id="previewBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="40%" stop-color="#1d1f6e"/>
+      <stop offset="60%" stop-color="#12001f"/>
+      <stop offset="100%" stop-color="#0a0014"/>
+    </linearGradient>
+    <linearGradient id="previewHighlight" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="innerInset" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0014" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer drop shadow for lift / pseudo-3D -->
+  <rect x="6" y="6" width="628" height="348" rx="12" ry="12" fill="#000000" opacity="0.5"/>
+
+  <!-- Main outer body with pillowing bevel -->
+  <rect x="0" y="0" width="628" height="348" rx="12" ry="12"
+        fill="url(#previewBevel)" stroke="#0a0014" stroke-width="3"/>
+
+  <!-- Inner highlight rim for tactile edge -->
+  <rect x="4" y="4" width="620" height="340" rx="9" ry="9"
+        fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.08"/>
+
+  <!-- Content area inset (the actual preview viewport) -->
+  <rect x="12" y="12" width="604" height="324" rx="6" ry="6"
+        fill="url(#innerInset)" stroke="#2a2a44" stroke-width="1.5"/>
+
+  <!-- Subtle inner top highlight for depth on the glass -->
+  <rect x="16" y="16" width="596" height="8" rx="3" ry="3"
+        fill="url(#previewHighlight)"/>
+
+  <!-- Title bar area (for "LIVE PREVIEW" text overlay) -->
+  <rect x="16" y="20" width="140" height="22" rx="4" ry="4"
+        fill="#12001f" stroke="#3a3a5a" stroke-width="1" opacity="0.7"/>
+
+  <!-- Placeholder for content (waveform etc. would go here) -->
+  <!-- Keep transparent so user can composite -->
+</svg>

@@ -1,0 +1,65 @@
+/* Design Studio v4 — 9-slice chrome utilities (apply paths via inline style or TS helper).
+   WHY: Asset-based shell; slice values must match panels/9-slice-usage.md */
+
+.studio-v4__surface {
+  border-style: solid;
+  box-sizing: border-box;
+}
+
+.studio-v4__surface--panel {
+  border-width: 10px;
+}
+
+.studio-v4__surface--button {
+  border-width: 8px;
+}
+
+.studio-v4__surface--card-footer {
+  border-width: 6px 10px;
+}
+
+.studio-v4__surface--subpanel-header {
+  border-width: 10px 14px;
+}
+
+.studio-v4__surface--subpanel-header-bar {
+  border-width: 10px 14px 10px 48px;
+}
+
+.studio-v4__nav-chip {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.studio-v4__nav-chip--negate {
+  width: 40px;
+  height: 40px;
+  border-image: var(--studio-v4-border-nav-chip-negate);
+}
+
+.studio-v4__icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.studio-v4__icon--32 {
+  width: 32px;
+  height: 32px;
+}
+
+.studio-v4__icon--16 {
+  width: 16px;
+  height: 16px;
+}
+
+.studio-v4__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--studio-text-muted);
+}

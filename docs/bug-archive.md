@@ -3,6 +3,8 @@
 Structured record of confirmed bugs, mitigations, and deferred architectural fixes.
 Read this before changing the recording cap, binary transport, or FFmpeg pipeline.
 
+**Design Studio behavior (current semantics):** `docs/design-studio.md` — canonical reference; this archive is authoritative for bug history only.
+
 ---
 
 ## BUG-001 — Cap-stop transcode hang / permanent failure (2026-06)
@@ -332,3 +334,598 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - `src/voice/resolve-config.ts`
 - `src/ui/design-studio/voice-controls.ts`
 - `src/voice/filter-graphs.ts`, `src/voice/preview-chain.ts`
+
+---
+
+## BUG-010 — Vosk sandbox blob worker blocked by CSP (2026-06)
+
+### Symptoms
+
+- Transcribe harness reaches decode (~10%) then fails; console shows repeated:
+  `Creating a worker from 'blob:null/…' violates the following Content Security Policy directive: "child-src 'self'". Note that 'worker-src' was not explicitly set, so 'child-src' is used as a fallback.`
+- `transcribe-audio.ts`: `Vosk sandbox failed to become ready` or model load never completes.
+- Error originates in bundled `vosk.js` `WorkerFactory` (vosk-browser).
+
+### Root cause (confirmed)
+
+1. **vosk-browser spawns Emscripten workers from blob URLs** — `createBase64WorkerFactory()` decodes embedded worker code into a `Blob`, calls `URL.createObjectURL(blob)`, then `new Worker(blobUrl)`. In a manifest sandbox iframe (opaque/null origin), the URL is `blob:null/<uuid>`.
+2. **Default sandbox CSP only allows `child-src 'self'`** — Chrome falls back to `child-src` when `worker-src` is omitted. Blob workers are **not** `'self'` extension scripts; they are blocked even though `'unsafe-eval'` is present for the main thread.
+3. **Distinct from prior eloquent-0 CSP failures** — BUG-010 is the *third* layer after (a) extension_pages `unsafe-eval` forbidden → manifest sandbox, and (b) WXT dev HMR localhost CORS on null-origin sandbox → static `public/vosk-sandbox.*`. Each layer must be solved independently; see `docs/transcription-architecture.md`.
+
+### Fix (2026-06, `eloquent`)
+
+- `wxt.config.ts` sandbox CSP: add `worker-src blob: 'self'` and `child-src blob: 'self'`.
+- Sandbox pages **can** relax CSP beyond extension_pages minimum; blob workers stay confined to the sandbox iframe (no `chrome.*` APIs).
+
+### Design lesson (compare BUG-001–009)
+
+| Prior bug class | What it taught | Transcription parallel |
+|-----------------|----------------|------------------------|
+| BUG-001/002 — base64 + buffer transfer | MV3 messaging and WASM buffer lifetime are sharp edges | PCM uses `postMessage` transferables (~8 MB for 2:00 mono), not base64 |
+| BUG-003/006 — heartbeats vs semantic progress | Stall detection must track real work | Vosk progress stages: loading-model → inference → finalizing |
+| Personal-bg relay — Reddit **page** CSP | `createImageBitmap` / blob URLs on reddit.com | **Extension** CSP eval — needs manifest sandbox, not content-script relay |
+| FFmpeg worker (BUG-002 adj.) | Dedicated worker + dispose on failure | Vosk internal worker inside sandbox only; separate `enqueueTranscribeJob` queue |
+
+### Related files
+
+- `wxt.config.ts` — `content_security_policy.sandbox`
+- `public/vosk-sandbox.html`, `public/vosk-sandbox.js` — sandbox host
+- `src/transcription/vosk-sandbox-client.ts`, `vosk-sandbox-host.ts`
+- `docs/transcription-architecture.md`
+
+---
+
+## BUG-011 — Vosk IDBFS blocked in blob:null workers (2026-06)
+
+### Symptoms
+
+- After BUG-010 (`worker-src blob:`), console shows:
+  `Failed to sync file system: SecurityError: Failed to execute 'open' on 'IDBFactory': access to the Indexed Database API is denied in this context.`
+- Error originates in `blob:null/<uuid>` worker (vosk Emscripten `syncFilesystem` / IDBFS).
+- Model load stalls or fails after decode progress (~10–12%).
+
+### Root cause (confirmed)
+
+1. **vosk-browser ships worker code as a blob URL** — `createBase64WorkerFactory()` → `blob:null/…` worker origin.
+2. **Emscripten IDBFS caches unpacked models in IndexedDB** — `syncFilesystem()` calls `FS.syncfs()` against IDB on load/save.
+3. **Blob-origin workers cannot open IndexedDB** in Chrome extension contexts (manifest sandbox and extension pages). This is separate from BUG-010 (CSP allowed creating the worker; storage is still denied by origin).
+4. **Manifest sandbox parent also lacks durable storage** — even main-thread IDB in opaque sandbox is unreliable; worker must run as packaged `'self'` script (`chrome-extension://…`) for IDBFS.
+
+### Fix (2026-06, `eloquent`) — superseded by BUG-013
+
+Packaged `chrome-extension://` workers **cannot be constructed from null-origin manifest sandbox** (see BUG-013). Extraction script removed; blob worker retained with non-fatal IDBFS sync.
+
+### Design lesson
+
+| Approach | eval (main) | Worker spawn from sandbox | IndexedDB cache |
+|----------|-------------|---------------------------|-----------------|
+| extension_pages (offscreen) | **Blocked** | N/A | N/A |
+| sandbox + blob worker | Allowed | **Yes** (`worker-src blob:`) | **No** — sync skipped |
+| sandbox + packaged worker | Allowed | **No** — origin null blocks `chrome-extension://` worker URL | Would work if spawn worked |
+
+### Related files
+
+- `scripts/build-vosk-sandbox.mjs` — `patchVoskEmbeddedWorker()`
+- `docs/transcription-architecture.md`
+
+---
+
+## BUG-013 — Sandbox null-origin cannot spawn chrome-extension:// workers (2026-06)
+
+### Symptoms
+
+- After BUG-011 packaged-worker fix: `(void 0) is not a function` resolved, then:
+  `Failed to construct 'Worker': Script at 'chrome-extension://…/vosk-emscripten-worker.js' cannot be accessed from origin 'null'.`
+- Fails in ~500ms at model construction (same fallback empty transcript path as BUG-012).
+
+### Root cause (confirmed)
+
+Manifest **sandbox iframe = opaque/null origin**. It may load `chrome-extension://` scripts as **documents**, but **cannot construct `Worker(chrome-extension://…)`** from that context — cross-origin worker script access is blocked.
+
+BUG-011 traded BUG-010 blob CSP for extension-origin IDBFS, but packaged workers are unreachable from sandbox. **No single worker URL satisfies both sandbox eval and extension IDB.**
+
+### Fix (2026-06, `eloquent`)
+
+- **Revert to vosk-browser `WorkerFactory()` blob workers** (requires BUG-010 `worker-src blob:`).
+- **`patchVoskEmbeddedWorker()`** in `build-vosk-sandbox.mjs` — patch embedded worker so `syncFilesystem()` **logs and resolves** on IDBFS error instead of rejecting (model loads via `downloadAndExtract` into MEMFS each session; no persistent IDB cache in sandbox).
+- Removed `public/vosk-emscripten-worker.js` extraction.
+
+### Accepted tradeoff (eloquent-0 spike)
+
+- First model load re-downloads/unpacks ~40 MB tar.gz per session (slower, more memory) until a future architecture moves inference to extension-origin offscreen with a different Vosk packaging strategy.
+
+### Related files
+
+- `scripts/build-vosk-sandbox.mjs`
+- `wxt.config.ts` — sandbox `worker-src blob: 'self'`
+- `docs/transcription-architecture.md`
+
+---
+
+## BUG-014 — Vosk worker invalid URL base in blob:null context (2026-06)
+
+### Symptoms
+
+- After BUG-013 blob worker restore: `TypeError: Failed to construct 'URL': Invalid base URL` in `blob:null/<uuid>` worker (~line 240).
+- Sandbox posts error to harness; fallback empty transcript.
+
+### Root cause (confirmed)
+
+vosk-browser worker resolves model download URL as:
+
+```js
+new URL(modelUrl, location.href.replace(/^blob:/, ""))
+```
+
+In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yields `null/<uuid>` — **not a valid base URL**. Chrome throws even when `modelUrl` is absolute `chrome-extension://…`.
+
+### Fix (2026-06, `eloquent`)
+
+- `patchVoskEmbeddedWorker()` — if `modelUrl` contains `://`, use `new URL(modelUrl)` only (no blob base).
+- `normalizeAbsoluteExtensionUrl()` in `constants.ts` — parent validates `chrome-extension://` before `postMessage`.
+- `vosk/*` remains in `web_accessible_resources` for worker fetch.
+
+### Related files
+
+- `scripts/build-vosk-sandbox.mjs`
+- `src/transcription/constants.ts`, `vosk-sandbox-client.ts`
+- `wxt.config.ts` — `web_accessible_resources`
+
+---
+
+## BUG-015 — Empty Vosk transcript despite successful model load (2026-06)
+
+### Symptoms
+
+- Harness: model extracts/loads (verbose VoskAPI logs), then `Done — 0 segment(s), 0 chars` in ~2–3s.
+- `applied: true` path with empty `text` / `segments` — pipeline “succeeds” with no speech.
+- Inference stage completes faster than audio duration suggests.
+
+### Root causes (confirmed)
+
+1. **Worker pacing race** — `acceptWaveformFloat()` only `postMessage`s chunks to the blob worker; eloquent-0 loop fed all chunks synchronously then immediately called `retrieveFinalResult()`. Final request could run **before** worker consumed audio → no `result` events.
+2. **Fixed 300ms finalize timeout** — collected `segments` from streaming `result` events only; if final text arrived after timeout, transcript stayed empty.
+3. **Silent success on empty text** — no error when Vosk returned zero speech; harness showed “Done” instead of failure.
+4. **Possible PCM relay edge cases** — `postMessage` transfer + `AudioBuffer` views without copy; zero/silent PCM not validated before inference.
+
+### Fix (2026-06, `eloquent`)
+
+- `src/transcription/pcm-stats.ts` — `analyzePcm`, `assertPcmUsable`, `coerceFloat32Samples`, `formatPcmStats`.
+- `decode-webm-audio.ts` — copy PCM to owned `Float32Array`; assert after decode.
+- `vosk-sandbox-client.ts` — assert before transfer.
+- `vosk-sandbox-host.ts` — coerce relayed samples; yield between chunks; drain worker (~35% realtime, capped); wait for post-`retrieveFinalResult` results; **fail** if still empty (include PCM summary in error).
+- Progress stages now include PCM stats: `decode-done:…`, `pcm-received:…`, `inference-drain:…ms`.
+
+### Related files
+
+- `src/transcription/pcm-stats.ts`, `decode-webm-audio.ts`, `vosk-sandbox-host.ts`, `transcribe-audio.ts`
+- `entrypoints/transcribe-harness/main.ts`
+
+---
+
+## BUG-012 — vosk-browser UMD import undefined under esbuild (2026-06)
+
+### Symptoms
+
+- Transcribe harness reaches decode (~10%) then fails in ~500ms with `(void 0) is not a function`.
+- Sandbox posts `VOSK_SANDBOX_RESULT` with `ok: false`; harness shows fallback empty JSON (`text: ""`, `segments: []`).
+- Built `public/vosk-sandbox.js` contains `modelPromise = (void 0)(modelUrl)` instead of `createModel(modelUrl)`.
+- esbuild warning: `Import "createModel" will always be undefined because the file "vosk-browser/dist/vosk.js" has no exports`.
+
+### Root cause (confirmed)
+
+1. **vosk-browser ships UMD only** — no real ESM `export`; esbuild bundles the IIFE but does not wire named imports to the UMD `exports` object.
+2. **`import { createModel } from 'vosk-browser'` compiles to `undefined(modelUrl)`** — classic CJS/ESM interop failure (compare BUG-008 circular imports: different failure mode, same “module init/export” class).
+3. **Upstream `createModel()` is also buggy** — always calls `reject()` after `resolve()` on load success; we avoid it and use `new Model()` + explicit load wait.
+
+### Fix (2026-06, `eloquent`)
+
+- `scripts/build-vosk-sandbox.mjs` — `voskBrowserToEsm()` unwraps UMD to `export const Model` / `createModel`.
+- `vosk-sandbox-host.ts` — `new Model(modelUrl)` + `waitForVoskModel()` instead of `createModel()`.
+
+### Related files
+
+- `scripts/build-vosk-sandbox.mjs`
+- `src/transcription/vosk-sandbox-host.ts`
+- `public/vosk-sandbox.js` (generated)
+
+---
+
+## BUG-016 — Subtitle prefs lost between Design Studio sessions (2026-06)
+
+### Symptoms
+
+- Subtitles toggle reverts to Off after closing and reopening Design Studio.
+
+### Fix (`eloquent`, `3bf833d`)
+
+- Persist `transcriptConfig` through normal prefs save paths on studio mount/unmount.
+
+### Related files
+
+- `src/ui/design-studio/subtitle-controls.ts`, `src/settings/user-preferences.ts`
+
+---
+
+## BUG-017 — Subtitle toggle reverts on studio exit / discard (2026-06)
+
+### Symptoms
+
+- Enabling subtitles, clicking Done or Discard, reopening studio → toggle Off.
+
+### Root cause
+
+- Exit modal discard reapplied profile snapshot including default `transcriptConfig`; async `chrome.storage.local.set` on tab close lost in-flight writes.
+
+### Fix (`eloquent`, `22fc616` + `c997fa4` + `eaeba08`)
+
+- `clipProfileMatchesLiveStateForStudioExit` excludes transcript from dirty match.
+- `discardStudioUnsavedChanges` preserves live transcript prefs.
+- Atomic `rvnSubtitlesEnabled` + localStorage mirror; `pagehide` flush.
+
+### Related files
+
+- `src/ui/design-studio/studio-exit.ts`, `src/settings/user-preferences.ts`, `src/ui/design-studio/subtitle-controls.ts`
+
+---
+
+## BUG-018 — Transcribe 120s timeout / empty segments (2026-06)
+
+### Symptoms
+
+- `timeout-120s`, 0 segments; transcode finishes first (expected).
+
+### Root cause
+
+- Offscreen called `transcribeWebmBlob` (harness wrapper) which re-enqueued on the same queue → deadlock.
+
+### Fix (`eloquent`, `a61f3f1`)
+
+- Offscreen uses `runTranscribeWebmBlob` (core) only.
+
+### Related files
+
+- `entrypoints/offscreen/main.ts`, `src/transcription/transcribe-audio.ts`
+
+---
+
+## BUG-019 — Subtitle flag lost in rvnUserPrefs read-modify-write races (2026-06)
+
+### Symptoms
+
+- Toggle flips Off when other prefs writes race (studio close, profile apply).
+
+### Fix (`eloquent`, `c997fa4`)
+
+- `rvnSubtitlesEnabled` atomic key; `mergeSubtitlesEnabledIntoPrefs` on every `writeUserPreferences`.
+
+### Related files
+
+- `src/settings/user-preferences.ts`
+
+---
+
+## BUG-020 — Stale session transcript respawns / profile always dirty (2026-06)
+
+### Symptoms
+
+- Cleared transcript refills from IDB; profile permanently “unsaved”; old text in editor.
+
+### Fix (`eloquent`, `eaeba08`)
+
+- Session transcript in extension IDB only; `transcriptConfigForProfileStorage` strips `result` from profile blobs; Clear transcript + dismissal watermark.
+
+### Related files
+
+- `src/storage/session-transcript-db.ts`, `src/ui/design-studio/subtitle-controls.ts`, `src/transcription/types.ts`
+
+---
+
+## BUG-021 — Profile UI regression after dirty-match fix (2026-06)
+
+### Symptoms
+
+- Saved profiles disappear from dropdown; UI stuck on Custom (unsaved); Clone hidden; HSV missing; Save as profile no-op.
+
+### Root cause (confirmed partial)
+
+- `flushPersist()` before profile saves fired storage listeners outside `ignoreStoragePrefs`.
+- Subtitle init + coupled profile dirty refresh raced before prefs loaded.
+- Legacy transcript compare always dirty (addressed in same commit but bundled with risky changes).
+
+### Fix status
+
+- **Reverted in BUG-022** except legacy `transcriptConfig: null` dirty skip.
+
+### Related files
+
+- `3dcd917` — commit to avoid re-applying wholesale
+
+---
+
+## BUG-022 — Profile style not applied on select (2026-06)
+
+### Symptoms
+
+- Profile names visible but bar style / HSV / clip style select wrong after selecting profile.
+
+### Root cause
+
+- `applyClipProfile` used `profile.themeId` instead of linked style `baseThemeId`; color picker skipped sync during interaction; `mergePendingColorState` stomped profile appearance.
+
+### Fix (`eloquent`, checkpoint `eloquent-semi-fixed`)
+
+- `resolveProfileStyleApplyState()`; `syncStyleControlsFromPrefs(force)`; `colorPicker.endInteraction()`; profile-id guard in `mergePendingColorState`.
+
+### Related files
+
+- `src/settings/clip-profiles.ts`, `src/settings/user-preferences.ts`, `src/ui/design-studio/mount-clip-studio.ts`, `src/ui/design-studio/color-picker.ts`
+
+---
+
+## BUG-023 — Design Studio UI stale while rvnUserPrefs correct (2026-06)
+
+### Symptoms
+
+- `rvnUserPrefs` in Extension Storage has `activeProfileId`, `customBackgroundId`, custom styles — but studio stuck on default Neon Glow.
+- Profile names in dropdown; selecting profiles/presets does nothing; Save as profile (no Clone); backgrounds not drawn.
+- `rvnImageDb` + `rvnLastRecording` still work (direct IDB reads).
+
+### Root cause
+
+- Concurrent read-modify-write: `saveTranscriptPreferences` / `setSubtitlesEnabled` could overwrite in-flight `applyClipProfile` writes.
+- Boot race: `mountClipStudio` and `reconcileBackgroundPreferences` loaded prefs in parallel; `onUserPreferencesChanged` could `applyPrefs` before hydration with stale in-memory state; `entryAppearance` captured on first listener pass.
+
+### Fix (`eloquent`)
+
+- Serialized prefs queue (`enqueuePrefsOp`) with atomic read+commit for `applyClipProfile`, `saveAppearancePreferences`, `saveTranscriptPreferences`.
+- Design Studio boot: load → reconcile → mount with `initialPrefs`; `prefsHydrated` gate on storage listener.
+- `runStudioPersist` surfaces errors on profile/style/alignment changes.
+
+### Related files
+
+- `src/settings/user-preferences.ts`, `entrypoints/design-studio/main.ts`, `src/ui/design-studio/mount-clip-studio.ts`
+- `docs/eloquent-profile-checkpoint.md`
+
+### Checkpoint tag
+
+- **`eloquent-prefs-hydrated`** (`7c11796`) — profiles switch; canvas bg works; BUG-024 throw still open. See `docs/eloquent-profile-checkpoint-hydrated.md`.
+
+---
+
+## BUG-024 — getDraftConfig ReferenceError aborts applyPrefs (2026-06)
+
+### Symptoms
+
+- Profile select alert: `getDraftConfig is not defined`; console stack through `getProfileSnapshotConfig` → `isProfileDirty` → `syncProfileActions` → `applyPrefs`.
+- Canvas may partially update (prefs write succeeds) but **background library dropdown** empty — `personalBackground.sync` never runs after throw.
+
+### Root cause
+
+- `getProfileSnapshotConfig` called bare `getDraftConfig()` inside returned object literal; only a sibling **method** existed, not a closure.
+
+### Fix (`eloquent`, `8834d4e`)
+
+- Local `buildDraftConfig()` inside `mountSubtitleControls`; shared by persist paths and returned handle.
+
+### Checkpoint tag
+
+- **`eloquent-profile-nominal`** (`8834d4e`) — includes BUG-024 fix; user-verified profile UI.
+
+### Related files
+
+- `src/ui/design-studio/subtitle-controls.ts`
+
+---
+
+## BUG-025 (2026-06): burn-in reports success but no visible subs
+
+### Symptom
+
+Recorder/offscreen logs show `Subtitle burn-in succeeded (subtitles-srt)` and full pipeline completes, but attached MP4 has no readable captions.
+
+### Root cause
+
+1. **ffmpeg.wasm has no system fonts / libass** — `subtitles` filter can exit 0 while rendering nothing; was tried first.
+2. **`drawtext` without `fontfile`** — same silent no-op in offscreen WASM.
+3. **Wrong `enable` escaping** — `between(t\,start\,end)` breaks timed cues in drawtext fallback.
+4. **Zero-length Vosk word timings** — segments with `start=end=0` only flash at t≈0.
+
+### Fix
+
+- Primary strategy: **`drawtext` + bundled `DejaVuSans.ttf`** in extension package (`public/assets/fonts/`).
+- Reject exit-0 attempts when FFmpeg logs indicate filter/font failure (`burnInLogIndicatesFailure`).
+- Normalize segment timings across clip duration when word timestamps missing.
+- `subtitles`+SRT retained as secondary fallback only (removed in BUG-030 — see below).
+
+### Postmortem — libass vs drawtext vs “no fonts” (sanity check)
+
+Three separate issues were bundled in the original symptom; they are **not** the same failure mode:
+
+| Path | Renderer | Font need | Observed in ffmpeg.wasm |
+|------|----------|-----------|-------------------------|
+| `subtitles=srt:force_style=…` | **libass** (via `subtitles` filter) | `FontName` must resolve — no OS fontconfig | Often **exit 0, no visible text** (eloquent-3 primary) |
+| `drawtext` without `fontfile=` | FFmpeg built-in | Default font lookup | Same silent no-op |
+| `drawtext` + `fontfile=` (DejaVu in package) | FFmpeg drawtext | Bundled TTF in wasm FS | **Reliable** — current production path |
+
+**Was libass “broken” or assumed?** Empirically broken **as shipped**: eloquent-3 tried `subtitles-srt` first; logs reported success while MP4 had no captions. That is consistent with missing libass/fonts in the wasm build, not a logic bug in our SRT. We did **not** prove libass could never work — it would need wasm libass enabled **and** bundled fonts/fontsdir **and** harness validation.
+
+**Why drawtext won:** Bundled font is explicit; glow/border/rainbow map to stacked drawtext layers we control. ASS `\t()` animation would need a **working** libass path.
+
+**The overreaction risk (BUG-028 / BUG-030):** Keeping `subtitles-srt` as **fallback** was the real hazard — when **drawtext** failed (invalid `fontcolor`, BAD-029 plate color), the runner fell through to libass, which **always** “succeeded” silently → false confidence. BUG-030 removed that fallback so drawtext failures surface as errors. Dropping libass as fallback ≠ proving drawtext is the only possible renderer forever.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/ffmpeg/ffmpeg-runner.ts`, `wxt.config.ts`
+- `docs/transcription-architecture.md` § Subtitle burn-in render paths
+
+---
+
+## BUG-026 (2026-06): recorder panel stuck at “Transcribing… 80%”
+
+### Symptom
+
+After record stop (subtitles enabled), Reddit composer popup stays in **processing** at ~80% even though transcode finished and Design Studio bake can succeed. Attach/Download unavailable.
+
+### Root cause
+
+1. **Transcribe progress mapped to recorder bar (56–80%)** while transcode had already finished — UI showed STT stage though export was done.
+2. **`await relaySaveLastBaseMp4()` before `setPhase('stopped')`** — multi-MB base64 `sendMessage` relay blocked the stopped transition; bar froze at last transcribe %.
+
+### Fix
+
+- Transcribe fork runs **without** recorder progress updates (background for Studio only).
+- **`setPhase('stopped')` before** async base-MP4 relay.
+- `applyBakedMp4` / `tryApplyBakedMp4` can recover **processing → stopped** when base MP4 exists and baked relay lands.
+
+### Related files
+
+- `src/recorder/voice-recorder.ts`, `src/ui/recorder-panel.ts`, `src/storage/last-base-mp4-relay.ts`
+
+---
+
+## BUG-027 (2026-06): false **Update profile** highlight on Design Studio open
+
+### Symptom
+
+Opening Design Studio with a saved profile selected, **Update profile** appears active (not muted) even though nothing was edited. Clicking it does nothing visible (early return because dirty is false). Expanding the **Subtitles** panel sometimes clears the highlight or makes save appear to work without any subtitle dirty state.
+
+### Root cause
+
+`applyPrefs()` called `syncProfileActions()` → `isProfileDirty()` → `subtitleControls.getProfileSnapshotConfig()` **before** `subtitleControls.syncFromPreferences()`. On boot the subtitle draft was still default / `readSubtitlesEnabledLocal()` state, so transcript style/toggle mismatched the profile snapshot and spuriously marked the profile dirty. The button state was not re-synced after the draft caught up.
+
+A second race: `mountSubtitleControls` async `loadUserPreferences()` updated the draft without `notifySettingsChange()`, so the profile bar could stay stale until another subtitle event (e.g. opening the panel).
+
+### Fix (`v3.3.1`)
+
+- Reorder `applyPrefs`: sync voice + subtitle drafts, **then** `syncProfileActions`.
+- After async subtitle prefs hydration, call `notifySettingsChange()` so profile buttons refresh.
+
+### Related files
+
+- `src/ui/design-studio/mount-clip-studio.ts` (`applyPrefs`)
+- `src/ui/design-studio/subtitle-controls.ts`
+
+---
+
+## BUG-028 (2026-06): glow burn-in regressed — success but no visible subs + halo misalignment
+
+### Symptom
+
+After composable glow/shadow work (`8619bac`), Design Studio bake reports success and recorder accepts the baked MP4, but opened video has **no captions**. Preview shows halo glow with a **mis-scaled duplicate** text offset from the main caption.
+
+### Root cause
+
+1. **Invalid `drawtext` `fontcolor`** — main layer used `0xFFFFFF@1.00`. FFmpeg drawtext accepts `white`/`black` or `0xRRGGBBAA`, not `0xRRGGBB@opacity`. The entire `-vf` chain failed to apply; runner fell through to **`subtitles-srt`** (BUG-025 silent no-op in wasm) which still exited 0 → false success.
+2. **Halo core at 1.14× font size** — oversized duplicate used the same `y` expression; `text_h` scales with `fontsize`, so the glow core did not align with the main caption in preview or bake.
+
+### Fix
+
+- Restore **BUG-025 simple path** when theme glow is off: one `drawtext` per cue, `fontcolor=white|black`, built-in `shadowcolor` on main layer.
+- Glow-on path: main layer uses `white`/`black`; glow/shadow duplicates use `black@opacity`, `white@opacity`, or `0xRRGGBBAA`.
+- Halo uses **same font size** as main text + offset ring copies only (no scaled core).
+- Expanded `burnInLogIndicatesFailure` needles for filter parse errors.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/transcription/subtitle-effects.ts`, `src/transcription/subtitle-preview.ts`
+
+---
+
+## BUG-030 (2026-06): backdrop plate fix regressed burn-in (BUG-029 → BUG-025 loop)
+
+### Symptom
+
+After BUG-029 (separate backdrop drawtext layer), bake reports success but MP4 has no captions again. Console shows `Burn-in tab relay failed: Could not establish connection` from Design Studio (red herring).
+
+### Root cause
+
+1. **Backdrop plate used `fontcolor=black@0.00`** — same invalid drawtext color family as BUG-028 (`0xFFFFFF@1.00`). Entire `-vf` chain failed; runner fell through to **`subtitles-srt`** (wasm silent no-op).
+2. **Tab relay noise** — `relayBurnInBroadcast` called `tabs.sendMessage` on the Design Studio extension tab (no content script). Offscreen `runtime.sendMessage` already reaches Studio listeners; relay failure was unrelated to encode.
+
+### Fix
+
+- Backdrop plate fontcolor → **`0x00000000`** (`DRAWTEXT_BACKDROP_PLATE_FONT_COLOR`).
+- **Removed `subtitles-srt` fallback** — drawtext-font only; failed burns surface as errors instead of fake success.
+- Skip `tabs.sendMessage` relay for `chrome-extension://` tabs.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/transcription/subtitle-effects.ts`, `entrypoints/background.ts`
+
+---
+
+## BUG-031 (2026-06): drawtext burn-in fails on apostrophes / commas in transcript
+
+### Symptom
+
+Bake fails with FFmpeg errors such as `No such filter: 'this is just my normal voice:enable=between(t'` or `text=what the hell\s going on for:enable=between(t` — transcript words appear inside the filter graph string.
+
+### Root cause
+
+`drawtext=text='…'` embeds cue text directly in the comma-separated `-vf` chain. Apostrophes break single-quote wrapping; commas and colons split filters/options. Unrelated to preset style — any cue with `'` or `,` can fail. Saving edits appeared to “fix” it only when wording changed.
+
+### Fix
+
+- Write each cue to a WASM virtual FS file (`burnin-cue-N.txt`) and reference `textfile=` in drawtext layers.
+- `buildBurnInStrategies` passes cue files via `extraFiles`.
+- Studio: unsaved-transcript bake guard (Save & bake / Edit / Cancel); pending transcript badge (`Pending` → `Ready` / `Timed out`).
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts`, `src/ui/design-studio/subtitle-controls.ts`, `src/ui/design-studio/subtitle-segment-editor.ts`
+
+---
+
+## BUG-032 (2026-06): “No tab registered for transcribe relay”
+
+### Symptom
+
+After record stop (often during WXT dev reload), background logs:
+
+`No tab registered for transcribe relay <jobId>` via `relayTranscribeFailure` → `relayTranscribeBroadcast`.
+
+Transcode may still proceed; transcribe fork may miss `MSG_TRANSCRIBE_COMPLETE` on the Reddit tab.
+
+### Root cause
+
+1. **Premature map delete** — on offscreen dispatch failure after ACK, handlers deleted `transcribeTabByJobId` (and transcode/burn-in maps) **before** calling `relay*Failure`, so failure could not reach the content script.
+2. **MV3 service worker restart** — in-memory `transcribeTabByJobId` cleared on HMR/SW recycle while offscreen jobs continue; relay had no fallback.
+3. **Related origin** — tab relay pattern added for BUG-003 (transcode progress stuck at 0%); transcribe relay added in eloquent-1 without session persistence.
+
+### Fix
+
+- `src/messaging/relay-registry.ts` — `browser.storage.session` jobId→tabId registry (`rememberRelayTab` / `lookupRelayTab` / `forgetRelayTab`).
+- `resolveRelayTabId()` — memory → session → active Reddit tab late-bind.
+- **Never** delete relay maps before `relay*Failure`.
+- Offscreen-originated progress/complete only (`sender.url` includes `offscreen.html`) for transcode/transcribe/burn-in.
+
+### Hardening — do not regress
+
+| Rule | Why |
+|------|-----|
+| Register tab with `rememberRelayTab` in every `register*Tab` | Survives SW restart |
+| `relay*Failure` before map cleanup | Content script must hear dispatch errors |
+| No `transcribeTabByJobId.delete` in catch blocks | Cleanup belongs in `relay*Broadcast` on COMPLETE |
+| Filter relays to offscreen sender | Avoid duplicate/spurious relays |
+
+### Related files
+
+- `entrypoints/background.ts`, `src/messaging/relay-registry.ts`, `src/transcription/transcribe-client.ts`
+
+---
+
+## Open — subtitle edits vs profiles (2026-06) — not fixed
+
+Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.
+
+| Gap | Notes |
+|-----|-------|
+| Legacy `transcriptConfig: null` on profiles | Subtitle dirty match skipped until **Update profile** embeds settings once |
+| Session transcript text | Extension IDB only; not stored in profile blobs |
+| Live subtitle draft vs profile dirty label | BUG-021 live-draft coupling **reverted** |
+| eloquent-4 remainder | Profile subtitle UX polish; segment-aware canvas preview; font picker | `docs/design-studio.md` §11 |
+| Canvas subtitle preview | `drawSubtitlePreview()` uses flat `previewText()` — segments in IDB but not timed on canvas | eloquent-4b |
+| Voice preview stale while studio open | Only `visibilitychange` reload — fixed via `LAST_RECORDING_READY_KEY` + IDB poll (post `eloquent-profile-nominal`) | Fixed |
+
+**Do not** re-add BUG-021 `flushPersist` before profile saves or `transcriptDraft` params without queue + hydration review.

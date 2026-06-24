@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200" aria-hidden="true">
+/*
+  Design Studio v4 — Knob Radial Speedometer / Backlight Decal
+  Purpose: Glowing intensity lines that radiate around a knob like a speedometer or analog meter backlight.
+  The lines use the user's theme color (example: amber #ffd54f) and provide layered depth + glow.
+  
+  Usage:
+  - Place behind a knob housing (lower z / opacity).
+  - Theme via CSS:
+      .speedo-decal { --theme-color: #ffd54f; }
+      .speedo-decal .glow-line { stroke: var(--theme-color); }
+  - Control "intensity" by toggling .level-1 / .level-2 / .level-3 groups or via JS adding classes.
+  - For very soft real-time glow, combine with CSS filter: drop-shadow(0 0 8px var(--theme-color)).
+  
+  Vector notes:
+  - Pure paths + groups.
+  - Optional SVG filter for extra blur/glow (see defs also do not use the def tag inside of SVG with the angled brackets please!!! It escapes the comment.... AGAIN....!!! I know escapes are hard but I will keep trying to help you with it). Disable in high-count UIs and use CSS instead.
+  - Easily duplicated / rotated for different knob sizes.
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Comments must be placed INSIDE the <svg> ... </svg> tags for GIMP compatibility.
+*/
+  <defs>
+    /* Soft glow filter - use sparingly or replace with CSS drop-shadow for perf */
+    <filter id="radialGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    /* Theme color stops for the lines */
+    <linearGradient id="lineGrad" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd54f" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ffd54f" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+
+  <g id="speedo-decal" class="speedo-decal" fill="none" stroke-linecap="round">
+    /* Outer faint halo ring (backlight) */
+    <circle cx="100" cy="100" r="78" stroke="#ffd54f" stroke-width="18" opacity="0.08"/>
+
+    /* Base radial lines (lowest intensity layer) */
+    <g id="level-1" class="glow-line level-1" stroke="#ffd54f" stroke-width="1.5" opacity="0.35">
+      /* 12 major ticks */
+      <line x1="100" y1="22" x2="100" y2="38"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(30 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(60 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(90 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(120 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(150 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(180 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(210 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(240 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(270 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(300 100 100)"/>
+      <line x1="100" y1="22" x2="100" y2="38" transform="rotate(330 100 100)"/>
+    </g>
+
+    /* Medium intensity layer */
+    <g id="level-2" class="glow-line level-2" stroke="#ffd54f" stroke-width="2.25" opacity="0.55">
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(15 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(45 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(75 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(105 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(135 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(165 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(195 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(225 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(255 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(285 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(315 100 100)"/>
+      <line x1="100" y1="18" x2="100" y2="42" transform="rotate(345 100 100)"/>
+    </g>
+
+    /* Highest intensity / brightest spokes (fewer, used when knob is high) */
+    <g id="level-3" class="glow-line level-3" stroke="#ffd54f" stroke-width="3" opacity="0.85" filter="url(#radialGlow)">
+      <line x1="100" y1="12" x2="100" y2="48" transform="rotate(0 100 100)"/>
+      <line x1="100" y1="12" x2="100" y2="48" transform="rotate(60 100 100)"/>
+      <line x1="100" y1="12" x2="100" y2="48" transform="rotate(120 100 100)"/>
+      <line x1="100" y1="12" x2="100" y2="48" transform="rotate(180 100 100)"/>
+      <line x1="100" y1="12" x2="100" y2="48" transform="rotate(240 100 100)"/>
+      <line x1="100" y1="12" x2="100" y2="48" transform="rotate(300 100 100)"/>
+    </g>
+
+    /* Very subtle outer rim highlight for depth */
+    <circle cx="100" cy="100" r="82" stroke="#1d1f6e" stroke-width="4" opacity="0.25"/>
+  </g>
+
+  /* Usage hint (remove in production) */
+  <text x="100" y="195" font-family="monospace" font-size="9" fill="#666" text-anchor="middle">theme via --theme-color + .level-*</text>
+</svg>

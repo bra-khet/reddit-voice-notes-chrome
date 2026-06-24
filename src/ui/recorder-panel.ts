@@ -15,9 +15,18 @@ import {
   onUserPreferencesChanged,
   type AppearancePreferences,
 } from '@/src/settings/user-preferences';
+import {
+  getWorkflowPhase,
+  onWorkflowPhaseChanged,
+  setWorkflowPhase,
+  type WorkflowPhase,
+} from '@/src/workflow/workflow-state';
 import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
 import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
+import { fetchBakedMp4FromExtension } from '@/src/storage/baked-mp4-fetch';
+import { BAKED_MP4_READY_KEY } from '@/src/settings/user-preferences';
+import { openDesignStudioWindow } from '@/src/ui/design-studio/open-design-studio';
 import { showToast } from './toast';
 
 const PANEL_HOST_ATTR = 'data-rvn-recorder-host';
@@ -44,6 +53,7 @@ export class RecorderPanel {
 
   private panelEl!: HTMLElement;
   private statusEl!: HTMLElement;
+  private studioCtaBtn!: HTMLButtonElement;
   private timerEl!: HTMLElement;
   private timeProgressEl!: HTMLElement;
   private timeProgressBar!: HTMLElement;
@@ -59,6 +69,9 @@ export class RecorderPanel {
   private lastNotifiedPhase: RecorderState['phase'] | null = null;
   private lastNotifiedError = '';
   private attaching = false;
+  private bakedMp4Listener: ((changes: Record<string, unknown>, area: string) => void) | null = null;
+  private workflowPhase: WorkflowPhase = 'design';
+  private unsubWorkflowPhase: (() => void) | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -111,6 +124,70 @@ export class RecorderPanel {
         .status--error { color: ${RVN_COLORS.error}; }
         .status--success { color: ${RVN_COLORS.success}; }
         .status--warning { color: ${RVN_COLORS.warning}; }
+        .status-studio {
+          margin: 0 0 10px;
+        }
+        .status-studio[hidden] { display: none !important; }
+        .studio-flow {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px 10px;
+          margin-top: 8px;
+        }
+
+        .studio-first-hint {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin: 0;
+          padding: 6px 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 213, 79, 0.55);
+          background: rgba(212, 160, 32, 0.16);
+          color: #ffd54f;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.03em;
+          line-height: 1.2;
+          box-shadow: 0 0 12px rgba(255, 193, 7, 0.18);
+        }
+        .studio-first-hint__caution {
+          flex-shrink: 0;
+          font-size: 16px;
+          line-height: 1;
+          color: #ffb84d;
+        }
+        .studio-first-hint__arrow {
+          flex-shrink: 0;
+          font-size: 22px;
+          font-weight: 800;
+          line-height: 1;
+          color: #ffd54f;
+          transform: translateY(-1px);
+        }
+        .studio-cta {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 7px 14px;
+          border: 1px solid #6b70c4;
+          border-radius: 999px;
+          background: #9498e8;
+          color: #f4f3ff;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          box-shadow: 0 0 0 1px rgba(107, 112, 196, 0.35), 0 2px 8px rgba(107, 112, 196, 0.3);
+        }
+        .studio-cta:hover {
+          filter: brightness(1.08);
+        }
+        .studio-cta:focus-visible {
+          outline: 2px solid #9498e8;
+          outline-offset: 2px;
+        }
         .timer-wrap { margin: 0 0 8px; }
         .timer {
           font-variant-numeric: tabular-nums;
@@ -249,14 +326,104 @@ export class RecorderPanel {
           .action--secondary:hover { background: #edeff1; }
           .tertiary { color: #576f76; }
           .tertiary:hover { color: #1a1a1b; }
+          .studio-first-hint {
+            color: #7a5a00;
+            border-color: rgba(201, 166, 61, 0.65);
+            background: rgba(255, 213, 79, 0.28);
+            box-shadow: none;
+          }
+          .studio-first-hint__caution { color: #9a7210; }
+          .studio-first-hint__arrow { color: #7a5a00; }
+          .how-it-works {
+            border-color: rgba(100, 105, 200, 0.2);
+            background: rgba(107, 112, 196, 0.06);
+          }
+          .how-it-works__summary { color: #5a5faa; }
+          .how-it-works__num { background: rgba(100, 105, 200, 0.15); color: #5a5faa; }
+          .how-it-works__step-text { color: #3d3d3d; }
+          .how-it-works__step-text strong { color: #1a1a1b; }
         }
+        /* ── 3-phase how-it-works intro card ── */
+        .how-it-works {
+          margin: 6px 0 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(148, 152, 232, 0.2);
+          background: rgba(26, 31, 110, 0.22);
+          overflow: hidden;
+        }
+        .how-it-works[hidden] { display: none !important; }
+        .how-it-works__summary {
+          padding: 7px 10px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #9498e8;
+          cursor: pointer;
+          list-style: none;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          user-select: none;
+        }
+        .how-it-works__summary::-webkit-details-marker { display: none; }
+        .how-it-works__summary::marker { content: ''; }
+        .how-it-works__summary::before {
+          content: '▶';
+          font-size: 8px;
+          transition: transform 0.15s ease;
+          display: inline-block;
+        }
+        .how-it-works[open] .how-it-works__summary::before { transform: rotate(90deg); }
+        .how-it-works__summary:focus-visible { outline: 2px solid #9498e8; outline-offset: -2px; border-radius: 6px; }
+        .how-it-works__body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 5px; }
+        .how-it-works__step { display: flex; align-items: flex-start; gap: 8px; margin: 0; }
+        .how-it-works__num {
+          flex-shrink: 0;
+          width: 18px; height: 18px;
+          border-radius: 50%;
+          background: rgba(148, 152, 232, 0.22);
+          color: #9498e8;
+          font-size: 10px; font-weight: 700;
+          display: flex; align-items: center; justify-content: center;
+          margin-top: 2px;
+        }
+        .how-it-works__step-text { font-size: 12px; color: #c9cdf5; margin: 0; }
+        .how-it-works__step-text strong { color: #e0e2f8; }
       </style>
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rvn-title" tabindex="-1">
         <div class="header">
           <h2 class="title" id="rvn-title">Voice Note</h2>
           <button class="close" type="button" aria-label="Close recorder">×</button>
         </div>
-        <p class="status" data-status role="status" aria-live="polite">Initializing microphone…</p>
+        <div class="status-studio" data-status-studio>
+          <p class="status" data-status role="status" aria-live="polite">Initializing microphone…</p>
+          <div class="studio-flow" data-studio-flow>
+            <p class="studio-first-hint" id="rvn-studio-first-hint">
+              <span class="studio-first-hint__caution" aria-hidden="true">⚠</span>
+              <span class="studio-first-hint__arrow" aria-hidden="true">→</span>
+              <strong>Go here first</strong>
+            </p>
+            <button type="button" class="studio-cta" data-open-design-studio aria-describedby="rvn-studio-first-hint">
+              Open Design Studio
+            </button>
+          </div>
+        </div>
+        <details class="how-it-works" data-how-it-works hidden>
+          <summary class="how-it-works__summary">How this works</summary>
+          <div class="how-it-works__body">
+            <p class="how-it-works__step">
+              <span class="how-it-works__num" aria-hidden="true">1</span>
+              <span class="how-it-works__step-text"><strong>Design</strong> — pick clip style, background &amp; voice in Design Studio.</span>
+            </p>
+            <p class="how-it-works__step">
+              <span class="how-it-works__num" aria-hidden="true">2</span>
+              <span class="how-it-works__step-text"><strong>Capture</strong> — return here and record your voice comment.</span>
+            </p>
+            <p class="how-it-works__step">
+              <span class="how-it-works__num" aria-hidden="true">3</span>
+              <span class="how-it-works__step-text"><strong>Polish &amp; Bake</strong> — go back to Studio to edit subtitles and bake your final MP4.</span>
+            </p>
+          </div>
+        </details>
         <div class="timer-wrap" aria-live="polite" aria-atomic="true">
           <p class="timer" data-timer>0:00<span class="timer__cap">/ 2:00 max</span></p>
         </div>
@@ -279,6 +446,7 @@ export class RecorderPanel {
 
     this.panelEl = this.shadow.querySelector('.panel')!;
     this.statusEl = this.shadow.querySelector('[data-status]')!;
+    this.studioCtaBtn = this.shadow.querySelector('[data-open-design-studio]')!;
     this.timerEl = this.shadow.querySelector('[data-timer]')!;
     this.timeProgressEl = this.shadow.querySelector('[data-time-progress]')!;
     this.timeProgressBar = this.shadow.querySelector('[data-time-progress-bar]')!;
@@ -305,6 +473,12 @@ export class RecorderPanel {
     this.secondaryBtn.addEventListener('click', () => this.onSecondaryClick());
     this.tertiaryBtn.addEventListener('click', () => this.onTertiaryClick());
     this.closeBtn.addEventListener('click', () => this.requestClose());
+    this.studioCtaBtn.addEventListener('click', () => openDesignStudioWindow());
+
+    // Mark the 3-phase intro card as seen on any interaction so it stays collapsed on future opens.
+    this.shadow.querySelector('[data-how-it-works]')?.addEventListener('toggle', () => {
+      try { localStorage.setItem('rvn.wf.how-seen', '1'); } catch { /* sandboxed env */ }
+    });
 
     this.host.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -351,21 +525,51 @@ export class RecorderPanel {
       this.applyThemeChrome(prefs.appearance);
     });
 
+    this.bakedMp4Listener = (changes, area) => {
+      if (area !== 'local' || !(BAKED_MP4_READY_KEY in changes)) return;
+      void this.tryApplyBakedMp4();
+    };
+    browser.storage.onChanged.addListener(this.bakedMp4Listener);
+
+    this.unsubWorkflowPhase?.();
+    this.unsubWorkflowPhase = onWorkflowPhaseChanged((phase) => {
+      this.workflowPhase = phase;
+      this.render(this.currentState);
+    });
+
     try {
-      const prefs = await loadUserPreferences();
+      const [prefs, phase] = await Promise.all([loadUserPreferences(), getWorkflowPhase()]);
+      this.workflowPhase = phase;
       this.syncClipStyleSelect(prefs);
       this.applyThemeChrome(prefs.appearance);
       await this.session.prepare();
       this.panelEl.focus();
+      void this.tryApplyBakedMp4();
     } catch {
       // Error state rendered via subscription.
       this.panelEl.focus();
     }
   }
 
+  private async tryApplyBakedMp4(): Promise<void> {
+    if (!this.session) return;
+    const phase = this.currentState.phase;
+    if (phase !== 'stopped' && phase !== 'processing') return;
+    const blob = await fetchBakedMp4FromExtension();
+    if (!blob) return;
+    this.session.applyBakedMp4(blob);
+    showToast('Captioned MP4 ready — attach or download.', 'info', 5000);
+  }
+
   close(): void {
+    if (this.bakedMp4Listener) {
+      browser.storage.onChanged.removeListener(this.bakedMp4Listener);
+      this.bakedMp4Listener = null;
+    }
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = null;
+    this.unsubWorkflowPhase?.();
+    this.unsubWorkflowPhase = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.session?.dispose();
@@ -452,6 +656,8 @@ export class RecorderPanel {
   private onTertiaryClick(): void {
     if (!this.session || this.currentState.phase !== 'stopped') return;
     void this.session.resetForNewRecording();
+    // Re-enter capture phase so Design Studio banner reflects a new recording in progress.
+    void setWorkflowPhase('capture');
   }
 
   private async attachToReddit(): Promise<void> {
@@ -478,6 +684,8 @@ export class RecorderPanel {
         this.statusEl.textContent = result.message;
         this.statusEl.classList.remove('status--error');
         this.statusEl.classList.add('status--success');
+        // Full loop closure: return to Phase 1 so Design Studio is ready for the next clip.
+        void setWorkflowPhase('design');
       }
     } finally {
       this.attaching = false;
@@ -525,6 +733,46 @@ export class RecorderPanel {
     this.tertiaryBtn.hidden = state.phase !== 'stopped';
 
     this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
+    // Phase-aware studio flow label — before recording: "Go here first"; after: "Return to studio"
+    const studioFlowEl = this.shadow.querySelector<HTMLElement>('[data-studio-flow]');
+    const studioHintEl = this.shadow.querySelector<HTMLElement>('.studio-first-hint');
+    const isPostRecording = state.phase === 'stopped' || state.phase === 'processing';
+    if (studioFlowEl && studioHintEl) {
+      if (isPostRecording) {
+        studioHintEl.innerHTML =
+          '<span class="studio-first-hint__caution" aria-hidden="true">★</span>' +
+          '<span class="studio-first-hint__arrow" aria-hidden="true">→</span>' +
+          '<strong>Phase 3</strong>';
+        this.studioCtaBtn.textContent = 'Edit & Bake in Design Studio';
+        studioFlowEl.setAttribute('aria-label', 'Phase 3 — return to Design Studio to edit subtitles and bake');
+      } else if (this.workflowPhase === 'capture') {
+        studioHintEl.innerHTML =
+          '<span class="studio-first-hint__caution" aria-hidden="true">●</span>' +
+          '<strong>Phase 2 — Ready to record</strong>';
+        studioFlowEl.setAttribute('aria-label', 'Phase 2 — recording phase');
+        // Keep CTA available in case user wants to go back
+        this.studioCtaBtn.textContent = 'Open Design Studio';
+      } else {
+        studioHintEl.innerHTML =
+          '<span class="studio-first-hint__caution" aria-hidden="true">⚠</span>' +
+          '<span class="studio-first-hint__arrow" aria-hidden="true">→</span>' +
+          '<strong>Go here first</strong>';
+        this.studioCtaBtn.textContent = 'Open Design Studio';
+        studioFlowEl.removeAttribute('aria-label');
+      }
+    }
+
+    // 3-phase intro card: visible only in Phase 1 (design, pre-recording); auto-expands on first visit.
+    const howItWorks = this.shadow.querySelector<HTMLDetailsElement>('[data-how-it-works]');
+    if (howItWorks) {
+      const showCard = !isPostRecording && this.workflowPhase === 'design';
+      howItWorks.hidden = !showCard;
+      if (showCard && !howItWorks.open) {
+        try {
+          if (!localStorage.getItem('rvn.wf.how-seen')) howItWorks.open = true;
+        } catch { /* sandboxed env */ }
+      }
+    }
 
     switch (state.phase) {
       case 'idle':
@@ -555,19 +803,23 @@ export class RecorderPanel {
         this.secondaryBtn.textContent = 'Discard';
         break;
       case 'processing':
-        this.statusEl.textContent =
-          state.processingProgress <= 5
-            ? `Loading FFmpeg WASM… ${state.processingProgress}%`
-            : `Converting to MP4… ${state.processingProgress}%`;
+        if (state.processingProgress <= 5) {
+          this.statusEl.textContent = `Loading FFmpeg WASM… ${state.processingProgress}%`;
+        } else {
+          this.statusEl.textContent = `Converting to MP4… ${state.processingProgress}%`;
+        }
         this.primaryBtn.textContent = 'Processing…';
         this.primaryBtn.disabled = true;
         this.secondaryBtn.textContent = 'Cancel';
         break;
       case 'stopped':
-        if (state.stoppedAtCap) {
+        if (state.subtitleStudioPending) {
+          this.statusEl.textContent =
+            'MP4 ready — open Design Studio to edit subtitles, bake, then attach. (Phase 3)';
+        } else if (state.stoppedAtCap) {
           this.statusEl.textContent = `${formatRecordingCapProse()} limit reached — your MP4 is ready.`;
         } else {
-          this.statusEl.textContent = 'MP4 ready for Reddit video comments.';
+          this.statusEl.textContent = 'MP4 ready — download or attach your clip.';
         }
         this.statusEl.classList.add('status--success');
         this.primaryBtn.textContent = 'Download MP4';
@@ -577,12 +829,21 @@ export class RecorderPanel {
           this.attaching || !state.mp4Blob || !this.composer || !document.contains(this.composer);
         this.tertiaryBtn.textContent = 'Record again';
         if (this.lastNotifiedPhase !== 'stopped') {
+          // Advance workflow phase to 'polish' so Design Studio banner updates.
+          void setWorkflowPhase('polish');
           if (state.stoppedAtCap) {
             showToast(`${formatRecordingCapProse()} limit reached — processing complete.`, 'info', 5000);
           }
           if (state.voiceEffectFallback) {
             showToast(
               'Voice effect could not be applied — your clip used the original audio.',
+              'info',
+              6000,
+            );
+          }
+          if (state.subtitleBurnInFallback) {
+            showToast(
+              'Subtitles could not be burned in — your clip exported without captions.',
               'info',
               6000,
             );

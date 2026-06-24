@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="12" height="30" viewBox="0 0 12 30" aria-hidden="true">
+<!--
+  Design Studio v4 — SRT Editor: Playhead
+  Sharp triangle with line, amber glow.
+-->
+  <defs>
+    <linearGradient id="headBevel" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#c9a63d"/>
+      <stop offset="50%" stop-color="#ffd54f"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Glow -->
+  <line x1="6" y1="2" x2="6" y2="28" stroke="#ffd54f" stroke-width="3" opacity="0.3"/>
+
+  <!-- Head -->
+  <polygon points="6,2 2,8 10,8" fill="url(#headBevel)" stroke="#8a6f1a" stroke-width="0.5"/>
+
+  <!-- Stem -->
+  <line x1="6" y1="8" x2="6" y2="28" stroke="#ffd54f" stroke-width="1.5"/>
+</svg>

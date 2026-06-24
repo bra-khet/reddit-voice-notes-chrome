@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160" viewBox="0 0 200 160" aria-hidden="true">
+<!--
+  Design Studio v4 — Status Panel Frame (for BarStyle, Background, Voice, Subtitle)
+  Scalable with pseudo-3D pillowing/bordering matching existing assets.
+  Header area for title (e.g. "BAR STYLE"), content area for status indicators/chrome.
+  For 9-slice: can derive from panel-frame-9slice.svg base.
+  Use border-image on square base for variable sizes.
+  Theming with theme-color etc.
+-->
+  <defs>
+    <linearGradient id="panelBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="40%" stop-color="#1d1f6e"/>
+      <stop offset="60%" stop-color="#12001f"/>
+      <stop offset="100%" stop-color="#0a0014"/>
+    </linearGradient>
+    <linearGradient id="panelHighlight" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="contentInset" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0014" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer shadow -->
+  <rect x="4" y="4" width="192" height="152" rx="10" ry="10" fill="#000000" opacity="0.45"/>
+
+  <!-- Main frame body -->
+  <rect x="0" y="0" width="192" height="152" rx="10" ry="10"
+        fill="url(#panelBevel)" stroke="#0a0014" stroke-width="2.5"/>
+
+  <!-- Bevel highlight -->
+  <rect x="2" y="2" width="188" height="148" rx="8" ry="8"
+        fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.1"/>
+
+  <!-- Header bar for title/status -->
+  <rect x="8" y="8" width="176" height="28" rx="4" ry="4"
+        fill="#1d1f6e" stroke="#3a3a5a" stroke-width="1"/>
+
+  <!-- Header inner bevel -->
+  <rect x="10" y="10" width="172" height="8" rx="2" ry="2"
+        fill="url(#panelHighlight)"/>
+
+  <!-- Content area inset -->
+  <rect x="8" y="42" width="176" height="100" rx="6" ry="6"
+        fill="url(#contentInset)" stroke="#2a2a44" stroke-width="1.5"/>
+
+  <!-- Subtle content highlight -->
+  <rect x="10" y="44" width="172" height="6" rx="2" ry="2"
+        fill="url(#panelHighlight)"/>
+</svg>

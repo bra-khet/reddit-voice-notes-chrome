@@ -1,0 +1,222 @@
+/* Design Studio v4 — button palette overrides (scoped to .studio-v4).
+   WHY: Replace legacy red/green/blue popup buttons with indigo/amber/charcoal scheme. */
+
+.studio-v4 .popup__profile-btn {
+  font-size: var(--studio-font-body);
+  font-weight: var(--studio-font-weight-value);
+  letter-spacing: var(--studio-letter-meta);
+}
+
+.studio-v4 .popup__profile-btn:focus-visible {
+  outline-color: var(--studio-violet-confirm);
+}
+
+/* Confirm / save / apply — light indigo-violet */
+.studio-v4 .popup__profile-btn--save,
+.studio-v4 .popup__profile-btn--confirm {
+  background: var(--studio-violet-confirm);
+  color: #f4f3ff;
+  box-shadow:
+    0 0 0 1px var(--studio-violet-confirm-edge),
+    0 2px 8px rgba(107, 112, 196, 0.35);
+}
+
+.studio-v4 .popup__profile-btn--save:hover,
+.studio-v4 .popup__profile-btn--confirm:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    0 0 0 1px var(--studio-violet-confirm-edge),
+    0 3px 12px rgba(107, 112, 196, 0.45);
+}
+
+.studio-v4 .popup__profile-btn--confirm {
+  box-shadow:
+    0 0 0 2px rgba(148, 152, 232, 0.45),
+    0 2px 10px rgba(107, 112, 196, 0.4);
+}
+
+/* Clone / save-to-new — softer darker amber action */
+.studio-v4 .popup__profile-btn--save-new {
+  background: var(--studio-amber-action);
+  color: #1a1000;
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 2px 8px rgba(212, 160, 32, 0.3);
+}
+
+.studio-v4 .popup__profile-btn--save-new:hover {
+  filter: brightness(1.06);
+}
+
+.studio-v4 .popup__profile-btn--save-new:focus-visible {
+  outline-color: var(--studio-amber-action);
+}
+
+/* Delete / discard — charcoal with red text and glow (not disabled gray) */
+.studio-v4 .popup__profile-btn--delete {
+  background: var(--studio-negate-bg);
+  color: var(--studio-negate-text);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 107, 107, 0.35),
+    0 0 10px var(--studio-negate-glow);
+}
+
+.studio-v4 .popup__profile-btn--delete:hover {
+  filter: brightness(1.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 107, 107, 0.5),
+    0 0 14px rgba(255, 107, 107, 0.5);
+}
+
+.studio-v4 .popup__profile-btn--delete:focus-visible {
+  outline-color: var(--studio-negate-edge);
+}
+
+.studio-v4 .popup__profile-btn--muted {
+  background: #3a3a44;
+  color: var(--studio-text-muted);
+}
+
+/* Cancel / secondary — muted charcoal, left-aligned guard actions */
+.studio-v4 .popup__button--secondary {
+  background: #35353f;
+  color: var(--studio-text-muted);
+  border: 1px solid rgba(138, 134, 176, 0.35);
+}
+
+.studio-v4 .popup__button--secondary:hover {
+  background: #3f3f4a;
+  color: var(--studio-text);
+  border-color: rgba(138, 134, 176, 0.55);
+}
+
+.studio-v4 .popup__button--secondary:focus-visible {
+  outline-color: var(--studio-indigo-muted);
+}
+
+/* Sub-panel Done — violet confirm (not legacy cyan border) */
+.studio-v4 .studio__subpanel-done-btn {
+  border-color: var(--studio-violet-confirm-edge);
+  background: rgba(148, 152, 232, 0.18);
+  color: var(--studio-violet-confirm);
+  box-shadow:
+    0 0 0 1px rgba(148, 152, 232, 0.35),
+    0 2px 8px rgba(107, 112, 196, 0.25);
+}
+
+.studio-v4 .studio__subpanel-done-btn:hover {
+  background: rgba(148, 152, 232, 0.28);
+  filter: brightness(1.05);
+}
+
+.studio-v4 .studio__subpanel-done-btn:focus-visible {
+  outline-color: var(--studio-violet-confirm);
+}
+
+/* Bake — frame via border-image edges; state gradients paint the padding box (no SVG fill). */
+.studio-v4 .studio-v4__bake-btn {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  border-style: solid;
+  border-width: 8px;
+  border-image: var(--studio-v4-border-bake-btn);
+  background-origin: padding-box;
+  background-clip: padding-box;
+  color: #1a1000;
+  font-size: var(--studio-font-body);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease,
+    filter 0.18s ease;
+}
+
+.studio-v4 .studio-v4__bake-btn:focus-visible {
+  outline: 2px solid var(--studio-amber-action);
+  outline-offset: 2px;
+}
+
+/* Unavailable — muted, non-interactive */
+.studio-v4 .studio-v4__bake-btn--unavailable {
+  background: linear-gradient(180deg, rgba(90, 78, 48, 0.55) 0%, rgba(58, 50, 32, 0.72) 100%);
+  color: rgba(220, 190, 120, 0.75);
+  opacity: 0.75;
+  filter: grayscale(0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  cursor: not-allowed;
+}
+
+/* Ready — full amber export CTA */
+.studio-v4 .studio-v4__bake-btn--ready {
+  background: linear-gradient(180deg, rgba(255, 196, 64, 0.95) 0%, var(--studio-amber-action) 100%);
+  opacity: 1;
+  filter: none;
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 0 18px rgba(255, 196, 64, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.studio-v4 .studio-v4__bake-btn--ready:hover {
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 0 24px rgba(255, 196, 64, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* Baking — stays amber while disabled (no grayed :disabled bleed) */
+.studio-v4 .studio-v4__bake-btn--baking {
+  background: linear-gradient(180deg, rgba(255, 210, 96, 0.98) 0%, var(--studio-amber-action) 100%);
+  opacity: 1;
+  filter: none;
+  cursor: wait;
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 0 22px rgba(255, 196, 64, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  animation: studio-v4-bake-pulse 1.35s ease-in-out infinite;
+}
+
+/* Complete — softer amber with success edge glow; rebake still allowed */
+.studio-v4 .studio-v4__bake-btn--complete {
+  background: linear-gradient(180deg, rgba(196, 220, 140, 0.92) 0%, rgba(212, 175, 72, 0.95) 100%);
+  opacity: 1;
+  filter: none;
+  box-shadow:
+    0 0 0 1px rgba(140, 196, 96, 0.55),
+    0 0 16px rgba(140, 196, 96, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.studio-v4 .studio-v4__bake-btn--complete:hover {
+  filter: brightness(1.05);
+  box-shadow:
+    0 0 0 1px rgba(140, 196, 96, 0.65),
+    0 0 22px rgba(140, 196, 96, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+@keyframes studio-v4-bake-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--studio-amber-action-edge),
+      0 0 18px rgba(255, 196, 64, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 1px var(--studio-amber-action-edge),
+      0 0 28px rgba(255, 196, 64, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+}

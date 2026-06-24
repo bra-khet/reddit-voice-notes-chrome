@@ -18,6 +18,10 @@ import {
 import type { DrawableBackgroundImage } from '@/src/storage/background-loader';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { DEFAULT_THEME_ID, getThemeById } from '@/src/theme/presets';
+import {
+  drawSubtitlePreview,
+  type SubtitlePreviewOptions,
+} from '@/src/transcription/subtitle-preview';
 
 const FRAME_INTERVAL_MS = 1000 / WAVEFORM_TARGET_FPS;
 const BAR_COUNT = 32;
@@ -419,6 +423,7 @@ export async function renderThemePreview(
   timeMs: number = performance.now(),
   customBackgroundId: string | null = null,
   userBackgroundLayout: UserBackgroundLayout = userBackgroundLayoutFromAppearance({}),
+  subtitlePreview?: SubtitlePreviewOptions,
 ): Promise<void> {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -444,4 +449,7 @@ export async function renderThemePreview(
     userBackgroundLayout,
   );
   drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);
+  if (subtitlePreview) {
+    drawSubtitlePreview(ctx, canvas, { ...subtitlePreview, previewTimeMs: timeMs });
+  }
 }

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32" viewBox="0 0 48 32" aria-hidden="true">
+/*
+  Design Studio v4 — Wide Physical Analog Slider Tab / Handle
+  - Wide "thumb" that feels physical (not a tiny dot)
+  - Center area that can faintly glow the user's theme color
+  - Layered bevels + top catch-light for depth
+  - Designed to sit inside physical-slider-track.svg
+
+  The center glow region is a separate group so you can:
+  - Fill it with low-opacity theme color
+  - Or drive via CSS: .tab .center-glow { fill: var(--theme-color); opacity: 0.25; }
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Comments must be placed INSIDE the <svg> ... </svg> tags.
+*/
+  <defs>
+    /* Bevel on the main body */
+    <linearGradient id="tabBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="40%" stop-color="#1d1f6e"/>
+      <stop offset="60%" stop-color="#12001f"/>
+      <stop offset="100%" stop-color="#0a0014"/>
+    </linearGradient>
+
+    /* Subtle top highlight */
+    <linearGradient id="tabHighlight" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="40%" stop-color="#ffffff" stop-opacity="0.0"/>
+    </linearGradient>
+  </defs>
+
+  /* Main wide tab body */
+  <rect x="2" y="4" width="44" height="24" rx="5" ry="5"
+        fill="url(#tabBevel)" stroke="#0a0014" stroke-width="2"/>
+
+  /* Inner "machined" surface */
+  <rect x="6" y="7" width="36" height="18" rx="3" ry="3"
+        fill="#1a1a2e" stroke="#2a2a44" stroke-width="1"/>
+
+  /* Center faint glow area (this is the key "faintly glow the UI user color" region) */
+  <g id="center-glow" class="center-glow">
+    <rect x="12" y="9" width="24" height="14" rx="2" ry="2"
+          fill="#ffd54f" opacity="0.18"/>
+    /* Extra soft center hotspot */
+    <rect x="16" y="11" width="16" height="10" rx="1" ry="1"
+          fill="#ffd54f" opacity="0.32"/>
+  </g>
+
+  /* Top catch light / physical edge highlight */
+  <rect x="4" y="5" width="40" height="4" rx="2" ry="2"
+        fill="url(#tabHighlight)"/>
+
+  /* Small side bevel accents */
+  <rect x="3" y="6" width="2" height="20" rx="1" ry="1" fill="#3a3a5a" opacity="0.4"/>
+  <rect x="43" y="6" width="2" height="20" rx="1" ry="1" fill="#0a0014" opacity="0.6"/>
+</svg>

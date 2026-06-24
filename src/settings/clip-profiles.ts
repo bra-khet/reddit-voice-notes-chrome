@@ -10,9 +10,20 @@ import {
 } from '@/src/theme/background-layout';
 import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
-import { designOverridesMatch, normalizeDesignOverrides } from '@/src/theme/design-overrides';
+import {
+  designOverridesMatch,
+  normalizeDesignOverrides,
+  type DesignOverrides,
+} from '@/src/theme/design-overrides';
+import type { CustomClipStyle } from '@/src/settings/custom-styles';
 import { isKnownThemeId, normalizeThemeId } from '@/src/theme/presets';
 import type { AppearancePreferences, UserPreferencesV1 } from '@/src/settings/user-preferences';
+import {
+  normalizeTranscriptConfig,
+  transcriptConfigForProfileStorage,
+  transcriptSettingsEqual,
+  type TranscriptConfig,
+} from '@/src/transcription/types';
 import { voiceEffectConfigsEqual } from '@/src/voice/resolve-config';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
@@ -39,6 +50,8 @@ export interface ClipProfile {
   designOverrides?: import('@/src/theme/design-overrides').DesignOverrides | null;
   /** dulcet-4: voice effect snapshot — absent on legacy profiles means voice-off. */
   voiceEffectConfig?: VoiceEffectConfig | null;
+  /** eloquent-2: subtitle snapshot — absent on legacy profiles means subtitles-off. */
+  transcriptConfig?: TranscriptConfig | null;
 }
 
 const VALID_BAR_ALIGNMENTS: readonly BarAlignment[] = ['center', 'bottom', 'top'];
@@ -91,6 +104,10 @@ export function normalizeClipProfiles(
         raw.voiceEffectConfig != null
           ? normalizeVoiceEffectConfig(raw.voiceEffectConfig)
           : null,
+      transcriptConfig:
+        raw.transcriptConfig != null
+          ? normalizeTranscriptConfig(raw.transcriptConfig)
+          : null,
     });
 
     if (normalized.length >= MAX_CLIP_PROFILES) break;
@@ -109,6 +126,36 @@ export function normalizeActiveProfileId(
     return isKnownThemeId(themeId) ? activeId : null;
   }
   return profiles.some((profile) => profile.id === activeId) ? activeId : null;
+}
+
+/** Live appearance fields to apply when selecting a saved profile. */
+export function resolveProfileStyleApplyState(
+  profile: ClipProfile,
+  savedCustomStyles: CustomClipStyle[] | undefined,
+): {
+  activeThemeId: string;
+  activeCustomStyleId: string | null;
+  designOverrides: DesignOverrides | null;
+} {
+  const linkedStyle = profile.customStyleId
+    ? savedCustomStyles?.find((style) => style.id === profile.customStyleId)
+    : undefined;
+
+  // CHANGED: linked styles apply baseThemeId + saved colors (mirror applyCustomClipStyle).
+  // WHY: profile.themeId alone left clip-style select / HSV panel out of sync (BUG-022).
+  if (linkedStyle) {
+    return {
+      activeThemeId: linkedStyle.baseThemeId,
+      activeCustomStyleId: linkedStyle.id,
+      designOverrides: { ...linkedStyle.designOverrides },
+    };
+  }
+
+  return {
+    activeThemeId: profile.themeId,
+    activeCustomStyleId: null,
+    designOverrides: normalizeDesignOverrides(profile.designOverrides),
+  };
 }
 
 export function getClipProfileById(
@@ -138,7 +185,45 @@ export function voiceEffectMatchesProfile(
   return voiceEffectConfigsEqual(liveNorm, snapshotNorm);
 }
 
+/** Compare subtitle settings (not session transcript text) against a profile snapshot. */
+export function transcriptConfigMatchesProfile(
+  live: TranscriptConfig | undefined,
+  profile: ClipProfile,
+): boolean {
+  if (isPresetProfileId(profile.id)) {
+    return true;
+  }
+
+  // BUG FIX: profile UI stuck dirty / fork buttons no-op (BUG-021)
+  // Fix: legacy profiles without a transcript snapshot do not participate in dirty match —
+  // use Update profile once to embed subtitle settings, then comparisons apply.
+  if (profile.transcriptConfig == null) {
+    return true;
+  }
+
+  return transcriptSettingsEqual(
+    transcriptConfigForProfileStorage(live),
+    transcriptConfigForProfileStorage(profile.transcriptConfig),
+  );
+}
+
 export function clipProfileMatchesLiveState(
+  appearance: AppearancePreferences,
+  voiceEffect: VoiceEffectConfig | undefined,
+  transcriptConfig: TranscriptConfig | undefined,
+  profile: ClipProfile,
+): boolean {
+  return (
+    appearanceMatchesProfile(appearance, profile) &&
+    voiceEffectMatchesProfile(voiceEffect, profile) &&
+    transcriptConfigMatchesProfile(transcriptConfig, profile)
+  );
+}
+
+/**
+ * Studio exit / discard — subtitle prefs persist globally until Update profile (BUG-017).
+ */
+export function clipProfileMatchesLiveStateForStudioExit(
   appearance: AppearancePreferences,
   voiceEffect: VoiceEffectConfig | undefined,
   profile: ClipProfile,
@@ -182,7 +267,12 @@ export function appearanceMatchesProfile(
 export function findMatchingClipProfile(prefs: UserPreferencesV1): ClipProfile | undefined {
   const profiles = prefs.appearance.savedProfiles ?? [];
   return profiles.find((profile) =>
-    clipProfileMatchesLiveState(prefs.appearance, prefs.voiceEffect, profile),
+    clipProfileMatchesLiveState(
+      prefs.appearance,
+      prefs.voiceEffect,
+      prefs.transcriptConfig,
+      profile,
+    ),
   );
 }
 

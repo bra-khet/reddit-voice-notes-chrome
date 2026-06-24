@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+<!--
+  Design Studio v4 — Status: Warning / Attention indicator
+  Amber triangle with bevel.
+-->
+  <defs>
+    <linearGradient id="warnBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c9a63d"/>
+      <stop offset="50%" stop-color="#ffd54f"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Triangle -->
+  <polygon points="12,4 3,20 21,20" fill="url(#warnBevel)" stroke="#8a6f1a" stroke-width="1.5"/>
+
+  <!-- Exclaim -->
+  <rect x="11" y="8" width="2" height="6" fill="#12001f"/>
+  <circle cx="12" cy="17" r="1.5" fill="#12001f"/>
+</svg>

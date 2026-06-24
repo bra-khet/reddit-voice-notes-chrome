@@ -2,6 +2,8 @@
 
 **Design Studio refresh** — a focused UX release on top of v3.0 voice effects. No changes to the recording or transcode pipeline; this is all about making personalization easier to navigate.
 
+**Current Studio reference:** `docs/design-studio.md` (canonical semantics as of v3.6.0). This release note documents the v3.1.0 UX milestone only.
+
 ## Highlights
 
 ### Collapsible Design Studio panels

@@ -1,0 +1,40 @@
+/* Design Studio v4 chrome tokens — CVD-friendly indigo + amber anchor.
+   WHY: Shared palette for UI refresh; pair hue with icon/label per design-studio.md §10.3. */
+
+:root {
+  --studio-bg-deep: #12001f;
+  --studio-panel: #1d1f6e;
+  --studio-panel-edge: #0a0014;
+  --studio-amber: #ffd54f;
+  --studio-amber-dim: #c9a63d;
+  --studio-amber-edge: #8a6f1a;
+  --studio-cyan-ready: #5ec8e8;
+  --studio-indigo-accent: #4a4a8a;
+  --studio-indigo-muted: #8a86b0;
+  --studio-text: #e8e6f0;
+  --studio-text-primary: #e8e6f0;
+  --studio-text-muted: #a8a4c0;
+  --studio-warning: #ffb84d;
+  --studio-theme-color: var(--studio-amber);
+  --studio-theme-glow: var(--studio-amber);
+  /* v4 action palette — confirm violet, action amber, negation charcoal+red */
+  --studio-violet-confirm: #9498e8;
+  --studio-violet-confirm-edge: #6b70c4;
+  --studio-amber-action: #d4a020;
+  --studio-amber-action-edge: #9a7210;
+  --studio-negate-bg: #2e2e38;
+  --studio-negate-text: #ff7b7b;
+  --studio-negate-edge: #ff6b6b;
+  --studio-negate-glow: rgba(255, 107, 107, 0.38);
+  /* v4 typography scale */
+  --studio-font-caption: 0.625rem;
+  --studio-font-meta: 0.6875rem;
+  --studio-font-body: 0.75rem;
+  --studio-font-title: 0.8125rem;
+  --studio-font-display: 1.05rem;
+  --studio-font-weight-label: 700;
+  --studio-font-weight-value: 600;
+  --studio-font-weight-strong: 800;
+  --studio-letter-label: 0.08em;
+  --studio-letter-meta: 0.04em;
+}

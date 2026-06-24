@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" aria-hidden="true">
+<!--
+  LEGACY — preview-window-frame (even-odd bezel + shadow).
+  Superseded by mask-cutout frame; kept for reference / rollback.
+-->
+  <defs>
+    <linearGradient id="previewBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="40%" stop-color="#1d1f6e"/>
+      <stop offset="60%" stop-color="#12001f"/>
+      <stop offset="100%" stop-color="#0a0014"/>
+    </linearGradient>
+    <linearGradient id="previewHighlight" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="6" y="6" width="628" height="348" rx="12" ry="12" fill="#000000" opacity="0.5"/>
+
+  <path
+    fill="url(#previewBevel)"
+    fill-rule="evenodd"
+    stroke="#0a0014"
+    stroke-width="3"
+    d="M 0 12 A 12 12 0 0 1 12 0 H 616 A 12 12 0 0 1 628 12 V 336 A 12 12 0 0 1 616 348 H 12 A 12 12 0 0 1 0 336 Z
+       M 12 12 H 616 V 336 H 12 Z"
+  />
+
+  <rect x="4" y="4" width="620" height="340" rx="9" ry="9"
+        fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.08"/>
+
+  <rect x="12" y="12" width="604" height="324" rx="8" ry="8"
+        fill="none" stroke="#2a2a44" stroke-width="2"/>
+
+  <rect x="16" y="16" width="596" height="10" rx="4" ry="4"
+        fill="url(#previewHighlight)"/>
+</svg>

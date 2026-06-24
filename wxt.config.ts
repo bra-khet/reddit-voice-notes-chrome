@@ -12,7 +12,18 @@ export default defineConfig({
   srcDir: '.',
   manifest: {
     content_security_policy: {
+      // MV3 extension_pages: wasm-unsafe-eval only (FFmpeg). No unsafe-eval — Chrome forbids it.
       extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+      // Manifest sandbox (vosk-sandbox.html): allows Vosk Emscripten eval. Built via esbuild, not WXT HMR.
+      // BUG FIX: vosk-browser blob workers blocked by default child-src 'self' (BUG-010).
+      // Fix: worker-src blob: 'self' — vosk Emscripten creates Workers from blob:null/… URLs.
+      sandbox:
+        "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; worker-src blob: 'self'; child-src blob: 'self';",
+    },
+    // CHANGED: static public sandbox page — WXT sandbox entrypoints break in dev (null-origin + localhost CORS).
+    // WHY: vosk-sandbox.html loads self-contained public/vosk-sandbox.js from extension package in dev and prod.
+    sandbox: {
+      pages: ['vosk-sandbox.html'],
     },
     name: 'Reddit Voice Notes',
     description:
@@ -32,7 +43,7 @@ export default defineConfig({
         // Fix: expose both the core files and the full nested esm tree.
         // CHANGED: expose theme background SVGs for canvas drawImage in content scripts.
         // WHY: loadBackgroundImage() sets img.src to chrome-extension://… from Reddit pages.
-        resources: ['ffmpeg/*', 'ffmpeg/esm/*', 'assets/backgrounds/*'],
+        resources: ['ffmpeg/*', 'ffmpeg/esm/*', 'assets/backgrounds/*', 'assets/fonts/*', 'vosk/*'],
         matches: ['<all_urls>'],
       },
     ],

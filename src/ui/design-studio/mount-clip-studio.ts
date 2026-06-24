@@ -54,6 +54,13 @@ import {
   mountBackgroundLayoutControls,
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
+import { subtitlePreviewNeedsAnimation } from '@/src/transcription/subtitle-effects';
+import { drawSubtitleTextOnlyPreview } from '@/src/transcription/subtitle-preview';
+import { loadDejaVuPreviewFonts } from '@/src/ui/design-studio/preview-font-loader';
+import {
+  mountSubtitleControls,
+  renderSubtitleControlFields,
+} from '@/src/ui/design-studio/subtitle-controls';
 import {
   mountVoiceControls,
   renderVoiceControlFields,
@@ -67,7 +74,21 @@ import {
   populateDesignStudioStyleSelect,
 } from '@/src/ui/style-select';
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
+import { renderStudioV4PanelCard } from '@/src/ui/design-studio/studio-v4-panel-summary';
+import { applyStudioV4ShellChrome } from '@/src/ui/design-studio/studio-v4-shell';
+import {
+  mountWorkflowBanner,
+  type WorkflowBannerHandle,
+} from '@/src/ui/design-studio/workflow-phase-banner';
+import type { WorkflowPhase } from '@/src/workflow/workflow-state';
+import {
+  mountStudioV4SubpanelShell,
+  renderStudioV4SubpanelChrome,
+  renderStudioV4SubpanelShell,
+  type StudioSubpanelShellHandle,
+} from '@/src/ui/design-studio/studio-v4-subpanel-shell';
 import { syncStudioSectionSummaries } from '@/src/ui/design-studio/studio-section-summaries';
+import { syncStudioStatusStrip } from '@/src/ui/design-studio/studio-status-strip';
 import {
   discardStudioUnsavedChanges,
   hasStudioUnsavedChanges,
@@ -93,10 +114,17 @@ const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
 
 const COLOR_SAVE_DEBOUNCE_MS = 200;
 
-export function mountClipStudio(root: HTMLElement): () => void {
+export type MountClipStudioOptions = {
+  /** Reconciled prefs from boot — avoids racing storage listeners before first paint (BUG-023). */
+  initialPrefs?: UserPreferencesV1;
+  /** Workflow phase from boot — avoids banner flash on first paint. */
+  initialWorkflowPhase?: WorkflowPhase;
+};
+
+export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOptions): () => void {
   root.innerHTML = `
-    <main class="studio">
-      <header class="studio__header">
+    <main class="studio studio-v4">
+      <header class="studio__header" data-studio-main-header>
         <div class="studio__header-row">
           <div>
             <h1 class="studio__title">Design Studio</h1>
@@ -107,56 +135,66 @@ export function mountClipStudio(root: HTMLElement): () => void {
           </button>
         </div>
       </header>
+      ${renderStudioV4SubpanelChrome()}
+      <div class="studio__workflow-banner" role="region" data-workflow-banner aria-label="Workflow guidance"></div>
       <div class="studio__exit-modal" data-exit-modal hidden>
         <div class="studio__exit-dialog" role="dialog" aria-labelledby="studio-exit-title">
           <h2 class="studio__exit-title" id="studio-exit-title">Unsaved changes</h2>
           <p class="studio__exit-copy">
             Your profile, voice, or custom style has edits that are not saved. Save them before leaving?
           </p>
-          <div class="studio__exit-actions">
-            <button type="button" class="popup__profile-btn popup__profile-btn--save" data-exit-save>
-              Save changes
+          <div class="studio__exit-actions studio-v4__guard-actions">
+            <button type="button" class="popup__button popup__button--secondary studio__exit-cancel studio-v4__guard-cancel" data-exit-cancel>
+              Keep editing
             </button>
-            <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-exit-discard>
+            <button type="button" class="popup__profile-btn popup__profile-btn--delete studio-v4__guard-discard" data-exit-discard>
               Discard
             </button>
-            <button type="button" class="popup__button popup__button--secondary studio__exit-cancel" data-exit-cancel>
-              Keep editing
+            <button type="button" class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply" data-exit-save>
+              Save changes
             </button>
           </div>
         </div>
       </div>
-      <section class="studio__profile-bar">
-        <label class="studio__profile-bar-field">
-          <span class="studio__profile-bar-label">Profile</span>
-          <select class="popup__select studio__profile-bar-select" data-profile-select aria-label="Saved profile"></select>
-        </label>
-        <div class="studio__profile-bar-actions">
-          <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>
-            Save as profile
-          </button>
-          <button
-            type="button"
-            class="popup__profile-btn popup__profile-btn--save-new"
-            data-save-profile-new
-            hidden
-          >
-            ${CLONE_LABEL}
-          </button>
-          <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
-            Delete
-          </button>
+      <div class="studio__layout">
+        <div class="studio__layout-main" data-studio-layout-main>
+        <div class="studio__hero">
+          <div class="studio__profile-cluster">
+            <div class="studio__profile-cluster-head">
+              <img class="studio__profile-cluster-icon studio-v4__icon studio-v4__icon--32" alt="" width="32" height="32" />
+              <h2 class="studio__profile-cluster-title">Profile &amp; status</h2>
+            </div>
+            <section class="studio__profile-bar">
+              <label class="studio__profile-bar-field">
+                <span class="studio__profile-bar-label">Profile</span>
+                <select class="popup__select studio__profile-bar-select" data-profile-select aria-label="Saved profile"></select>
+              </label>
+              <div class="studio__profile-bar-actions">
+                <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>
+                  Save as profile
+                </button>
+                <button
+                  type="button"
+                  class="popup__profile-btn popup__profile-btn--save-new"
+                  data-save-profile-new
+                  hidden
+                >
+                  ${CLONE_LABEL}
+                </button>
+                <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
+                  Delete
+                </button>
+              </div>
+            </section>
+            <div class="studio__status-strip" data-studio-status-strip aria-live="polite"></div>
+          </div>
+          ${renderPreviewBlock('primary')}
         </div>
-      </section>
-      ${renderPreviewBlock('primary')}
-      <!-- V4 NOTE: Collapsible panels below — Subtitles/Captions panel will sit in this stack as topmost foreground layer. -->
-      <details class="studio__panel" data-studio-panel="bar-style">
-        <summary class="studio__panel-summary">
-          <span class="studio__panel-title">Bar style</span>
-          <span class="studio__panel-meta" data-summary-bar-style></span>
-          <span class="studio__panel-chevron" aria-hidden="true"></span>
-        </summary>
-        <div class="studio__panel-body">
+        <div class="studio__panel-strip">
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">
+        ${renderStudioV4PanelCard('Bar style', 'data-summary-bar-style', 'bar-style')}
+        <div class="studio__panel-body" hidden>
+          ${renderPreviewBlock('subpanel')}
           <label class="popup__field studio__field--compact">
             <span class="popup__field-label">Clip style</span>
             <select class="popup__select" data-theme-select aria-label="Clip style"></select>
@@ -190,38 +228,50 @@ export function mountClipStudio(root: HTMLElement): () => void {
             ${renderBackgroundFlairFields()}
           </div>
         </div>
-      </details>
-      <details class="studio__panel" data-studio-panel="background">
-        <summary class="studio__panel-summary">
-          <span class="studio__panel-title">Background</span>
-          <span class="studio__panel-meta" data-summary-background></span>
-          <span class="studio__panel-chevron" aria-hidden="true"></span>
-        </summary>
-        <div class="studio__panel-body">
+      </section>
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
+        ${renderStudioV4PanelCard('Background', 'data-summary-background', 'background')}
+        <div class="studio__panel-body" hidden>
+          ${renderPreviewBlock('subpanel')}
           ${renderPersonalBackgroundFields()}
           ${renderBackgroundLayoutFields()}
         </div>
-      </details>
-      <details class="studio__panel" data-studio-panel="voice">
-        <summary class="studio__panel-summary">
-          <span class="studio__panel-title">Voice</span>
-          <span class="studio__panel-meta" data-summary-voice></span>
-          <span class="studio__panel-chevron" aria-hidden="true"></span>
-        </summary>
-        <div class="studio__panel-body">
+      </section>
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="voice">
+        ${renderStudioV4PanelCard('Voice', 'data-summary-voice', 'voice')}
+        <div class="studio__panel-body" hidden>
           ${renderVoiceControlFields()}
         </div>
-      </details>
+      </section>
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="subtitles">
+        ${renderStudioV4PanelCard('Subtitles', 'data-summary-subtitles', 'subtitles')}
+        <div class="studio__panel-body" hidden>
+          ${renderSubtitleControlFields()}
+        </div>
+      </section>
+        </div>
       <p class="studio__footer-note">
         Changes apply live to the recorder. <strong>Clone</strong> then edit, or edit then
         <strong>Save to new</strong> — both reach the same fork. <strong>Update</strong> overwrites
         the selected saved profile or style.
       </p>
+        </div>
+        ${renderStudioV4SubpanelShell()}
+      </div>
     </main>
   `;
 
+  const studioShell = root.querySelector<HTMLElement>('.studio-v4')!;
+  applyStudioV4ShellChrome(studioShell);
+
   const previewCanvases = () =>
-    [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')];
+    [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')].filter(
+      (canvas) => canvas.dataset.previewKind !== 'subtitle-text',
+    );
+  const subtitleTextPreviewCanvases = () =>
+    [...root.querySelectorAll<HTMLCanvasElement>(
+      '[data-preview-canvas][data-preview-kind="subtitle-text"]',
+    )];
   const profileSelect = root.querySelector<HTMLSelectElement>('[data-profile-select]')!;
   const themeSelect = root.querySelector<HTMLSelectElement>('[data-theme-select]')!;
   const alignmentSelect = root.querySelector<HTMLSelectElement>('[data-alignment-select]')!;
@@ -257,7 +307,11 @@ export function mountClipStudio(root: HTMLElement): () => void {
   let colorSaveTimer = 0;
   let entryAppearance: AppearancePreferences | null = null;
   let allowStudioExit = false;
+  let prefsHydrated = false;
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
+  let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
+  let subpanelShell!: StudioSubpanelShellHandle;
+  let workflowBanner!: WorkflowBannerHandle;
   const PREVIEW_ANIM_FPS = 12;
 
   function cancelPendingColorSave(): void {
@@ -270,6 +324,17 @@ export function mountClipStudio(root: HTMLElement): () => void {
   function invalidateInFlightSaves(): void {
     studioSaveGeneration += 1;
     cancelPendingColorSave();
+  }
+
+  function runStudioPersist(
+    label: string,
+    saveFn: () => Promise<UserPreferencesV1>,
+  ): void {
+    void studioPersist(saveFn).catch((error: unknown) => {
+      console.error(`[Reddit Voice Notes] ${label}`, error);
+      const message = error instanceof Error ? error.message : 'Could not save changes.';
+      window.alert(message);
+    });
   }
 
   async function studioPersist(
@@ -322,9 +387,14 @@ export function mountClipStudio(root: HTMLElement): () => void {
   function isProfileDirty(): boolean {
     const profile = activeProfile();
     if (!profile || !activePrefs) return false;
+    const transcriptForMatch =
+      typeof subtitleControls?.getProfileSnapshotConfig === 'function'
+        ? subtitleControls.getProfileSnapshotConfig()
+        : activePrefs.transcriptConfig;
     return !clipProfileMatchesLiveState(
       activePrefs.appearance,
       activePrefs.voiceEffect,
+      transcriptForMatch,
       profile,
     );
   }
@@ -392,11 +462,21 @@ export function mountClipStudio(root: HTMLElement): () => void {
     deleteStyleBtn.disabled = false;
   }
 
+  function refreshSubtitleTextPreview(timeMs?: number): void {
+    const subtitlePreview = subtitleControls?.getPreviewOptions();
+    const now = timeMs ?? performance.now();
+    for (const canvas of subtitleTextPreviewCanvases()) {
+      drawSubtitleTextOnlyPreview(canvas, subtitlePreview, now);
+    }
+  }
+
   function syncPreviewLoop(): void {
     const theme = resolvedTheme();
     const presetBokeh = backgroundIsBokeh(theme.background);
     const animatedOverlay = themeHasAnimatedOverlay(theme);
-    const shouldAnimate = presetBokeh || animatedOverlay;
+    const subtitlePreview = subtitleControls?.getPreviewOptions();
+    const rainbowPreview = subtitlePreview?.enabled && subtitlePreviewNeedsAnimation(subtitlePreview.style);
+    const shouldAnimate = presetBokeh || animatedOverlay || rainbowPreview;
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
       return;
@@ -411,6 +491,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
       previewRaf = requestAnimationFrame(tick);
       if (now - lastPreviewFrame < 1000 / PREVIEW_ANIM_FPS) return;
       lastPreviewFrame = now;
+      const subtitlePreview = subtitleControls?.getPreviewOptions();
       for (const canvas of previewCanvases()) {
         void renderThemePreview(
           canvas,
@@ -419,14 +500,17 @@ export function mountClipStudio(root: HTMLElement): () => void {
           now,
           activeCustomBackgroundId(),
           activeBackgroundLayout(),
+          subtitlePreview,
         );
       }
+      refreshSubtitleTextPreview(now);
     };
     previewRaf = requestAnimationFrame(tick);
   }
 
   async function refreshPreview(timeMs?: number): Promise<void> {
     const generation = ++renderGeneration;
+    const subtitlePreview = subtitleControls?.getPreviewOptions();
     for (const canvas of previewCanvases()) {
       await renderThemePreview(
         canvas,
@@ -435,8 +519,10 @@ export function mountClipStudio(root: HTMLElement): () => void {
         timeMs,
         activeCustomBackgroundId(),
         activeBackgroundLayout(),
+        subtitlePreview,
       );
     }
+    refreshSubtitleTextPreview(timeMs);
     if (generation !== renderGeneration) return;
     syncPreviewLoop();
   }
@@ -462,6 +548,13 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   function mergePendingColorState(prefs: UserPreferencesV1): UserPreferencesV1 {
     if (!activePrefs || !hasPendingColorEdit()) return prefs;
+    // BUG FIX: profile switch showed wrong / missing custom colors (BUG-022)
+    // Fix: never keep a color draft when storage already points at a different profile.
+    if (prefs.appearance.activeProfileId !== activePrefs.appearance.activeProfileId) {
+      cancelPendingColorSave();
+      colorPicker.endInteraction();
+      return prefs;
+    }
     return {
       ...prefs,
       appearance: {
@@ -471,6 +564,18 @@ export function mountClipStudio(root: HTMLElement): () => void {
         designOverrides: activePrefs.appearance.designOverrides,
       },
     };
+  }
+
+  function syncStyleControlsFromPrefs(prefs: UserPreferencesV1, forceColorSync = false): void {
+    backgroundFlairControls.sync(prefs.appearance.designOverrides);
+
+    if (!isStylePanelVisible(prefs)) return;
+
+    if (forceColorSync || !colorPicker.isUserAdjusting()) {
+      colorPicker.endInteraction();
+      colorPicker.sync(prefs.appearance.designOverrides);
+      barGlowControl.sync(prefs.appearance.designOverrides);
+    }
   }
 
   function applyLocalDesignOverrides(overrides: DesignOverrides): void {
@@ -536,6 +641,7 @@ export function mountClipStudio(root: HTMLElement): () => void {
 
   async function attemptStudioExit(): Promise<void> {
     await flushPendingDesignPersist();
+    await subtitleControls.flushPersist();
     if (!activePrefs || !hasStudioUnsavedChanges(activePrefs)) {
       allowStudioExit = true;
       window.close();
@@ -549,28 +655,44 @@ export function mountClipStudio(root: HTMLElement): () => void {
     syncStudioSectionSummaries(root, {
       prefs: activePrefs,
       voiceDraft: voiceControls.getDraftConfig(),
+      subtitleDraft: subtitleControls.getDraftConfig(),
+    });
+    syncStudioStatusStrip(root, {
+      prefs: activePrefs,
+      transcriptForMatch: subtitleControls.getProfileSnapshotConfig(),
+      transcriptDirty: subtitleControls.isTranscriptDirty(),
+      transcriptDelivery: subtitleControls.getTranscriptDeliveryStatus(),
+      hasSessionRecording: subtitleControls.hasSessionRecording(),
+      hasTranscriptCues: subtitleControls.hasTranscriptCues(),
+      bakedForSession: subtitleControls.isBakedForCurrentSession(),
+    });
+    workflowBanner?.update({
+      hasSessionRecording: subtitleControls.hasSessionRecording(),
+      hasTranscriptCues: subtitleControls.hasTranscriptCues(),
+      bakedForSession: subtitleControls.isBakedForCurrentSession(),
+      transcriptDelivery: subtitleControls.getTranscriptDeliveryStatus(),
     });
   }
 
-  function applyPrefs(prefs: UserPreferencesV1): void {
+  function applyPrefs(prefs: UserPreferencesV1, opts?: { captureEntry?: boolean }): void {
     activePrefs = prefs;
-    if (!entryAppearance) {
+    // BUG FIX: profile UI stale while rvnUserPrefs correct (BUG-023)
+    // Fix: capture exit baseline only after reconciled boot prefs — not a racing first listener pass.
+    if (!entryAppearance || opts?.captureEntry) {
       entryAppearance = structuredClone(prefs.appearance);
     }
     syncSelectControls(prefs);
-    syncProfileActions(prefs);
-    syncStyleButton(prefs);
-
-    backgroundFlairControls.sync(prefs.appearance.designOverrides);
-
-    if (isStylePanelVisible(prefs) && !colorPicker.isUserAdjusting()) {
-      colorPicker.sync(prefs.appearance.designOverrides);
-      barGlowControl.sync(prefs.appearance.designOverrides);
-    }
 
     void personalBackground.sync(prefs);
     backgroundLayout.sync(prefs);
     voiceControls.syncFromPreferences(prefs);
+    subtitleControls.syncFromPreferences(prefs);
+
+    // BUG FIX: false Update profile highlight on Studio open (BUG-027)
+    // Fix: profile dirty uses subtitle draft — sync draft before syncProfileActions.
+    syncProfileActions(prefs);
+    syncStyleButton(prefs);
+    syncStyleControlsFromPrefs(prefs, true);
     syncSectionSummaries();
     stopPreviewLoop();
     void refreshPreview();
@@ -619,16 +741,79 @@ export function mountClipStudio(root: HTMLElement): () => void {
     syncSectionSummaries();
   });
 
+  subtitleControls = mountSubtitleControls(root, {
+    onSettingsChange: () => {
+      syncSectionSummaries();
+      if (activePrefs) {
+        syncProfileActions(activePrefs);
+      }
+    },
+    onPreviewChange: () => {
+      stopPreviewLoop();
+      void refreshPreview();
+      // CHANGED: transcript text edits refresh preview only — not profile dirty state.
+      // WHY: session transcript is IDB-scoped; profile tracks style/toggle fields only.
+      if (activePrefs) {
+        syncSectionSummaries();
+      }
+    },
+    getThemeBarColor: () => resolvedTheme().colors.bar,
+  });
+
+  // Load DejaVu TTFs into browser font registry so the preview canvas is WYSIWYG with the bake.
+  void loadDejaVuPreviewFonts().then(() => refreshSubtitleTextPreview());
+
+  workflowBanner = mountWorkflowBanner(
+    root,
+    options?.initialWorkflowPhase ?? 'design',
+    {
+      hasSessionRecording: false,
+      hasTranscriptCues: false,
+      bakedForSession: false,
+      transcriptDelivery: 'idle',
+    },
+  );
+
+  subpanelShell = mountStudioV4SubpanelShell(studioShell, {
+    isPanelDirty: (panelId) => {
+      if (panelId === 'bar-style') return hasPendingColorEdit();
+      if (panelId === 'subtitles') return subtitleControls.isTranscriptDirty();
+      return false;
+    },
+    onApplyPanel: async (panelId) => {
+      if (panelId === 'bar-style') {
+        await flushPendingDesignPersist();
+        return;
+      }
+      if (panelId === 'subtitles') {
+        await subtitleControls.confirmTranscriptEdits();
+      }
+    },
+    onDiscardPanel: async (panelId) => {
+      if (panelId === 'bar-style') {
+        cancelPendingColorSave();
+        if (activePrefs) {
+          syncStyleControlsFromPrefs(activePrefs, true);
+          syncSectionSummaries();
+        }
+        return;
+      }
+      if (panelId === 'subtitles') {
+        await subtitleControls.discardTranscriptEdits();
+      }
+    },
+  });
+
   profileSelect.addEventListener('change', () => {
     invalidateInFlightSaves();
     resetProfileUpdateConfirm();
     resetStyleUpdateConfirm();
     const value = profileSelect.value;
     if (value === PROFILE_SELECT_CUSTOM) {
-      void studioPersist(() => saveAppearancePreferences({ activeProfileId: null }));
+      runStudioPersist('Profile custom mode', () => saveAppearancePreferences({ activeProfileId: null }));
       return;
     }
-    void studioPersist(() => applyClipProfile(value));
+    runStudioPersist('Apply profile', () => applyClipProfile(value));
   });
 
   themeSelect.addEventListener('change', () => {
@@ -637,21 +822,21 @@ export function mountClipStudio(root: HTMLElement): () => void {
     resetStyleUpdateConfirm();
     const parsed = parseStyleSelectValue(themeSelect.value);
     if (parsed.kind === 'custom') {
-      void studioPersist(() => enterCustomStyleMode());
+      runStudioPersist('Enter custom style', () => enterCustomStyleMode());
       return;
     }
     if (parsed.kind === 'saved') {
-      void studioPersist(() => applyCustomClipStyle(parsed.styleId));
+      runStudioPersist('Apply custom style', () => applyCustomClipStyle(parsed.styleId));
       return;
     }
-    void studioPersist(() => applyPresetClipStyle(parsed.themeId));
+    runStudioPersist('Apply clip preset', () => applyPresetClipStyle(parsed.themeId));
   });
 
   alignmentSelect.addEventListener('change', () => {
     invalidateInFlightSaves();
     resetProfileUpdateConfirm();
     const alignment = alignmentSelect.value as BarAlignment;
-    void studioPersist(() =>
+    runStudioPersist('Bar alignment', () =>
       saveAppearancePreferences({
         barAlignment: alignment,
       }),
@@ -791,6 +976,12 @@ export function mountClipStudio(root: HTMLElement): () => void {
   });
 
   doneBtn.addEventListener('click', () => {
+    // CHANGED: when a section sub-panel is open, main Done must not exit Design Studio.
+    // WHY: users follow the top Done affordance; sub-panel chrome replaces this header slot.
+    if (subpanelShell.isOpen()) {
+      subpanelShell.closeActive();
+      return;
+    }
     void attemptStudioExit();
   });
 
@@ -824,6 +1015,9 @@ export function mountClipStudio(root: HTMLElement): () => void {
   };
 
   const pageHideHandler = (): void => {
+    // CHANGED: flush global subtitle prefs before the studio tab is torn down.
+    // WHY: chrome.storage.local.set is async; unload alone is not reliable (BUG-017).
+    void subtitleControls.flushPersist();
     if (allowStudioExit || !entryAppearance || !activePrefs) return;
     if (!hasStudioUnsavedChanges(activePrefs)) return;
     void discardStudioUnsavedChanges(entryAppearance);
@@ -832,10 +1026,19 @@ export function mountClipStudio(root: HTMLElement): () => void {
   window.addEventListener('beforeunload', beforeUnloadHandler);
   window.addEventListener('pagehide', pageHideHandler);
 
-  void loadUserPreferences().then(applyPrefs);
+  async function hydratePrefs(prefs: UserPreferencesV1): Promise<void> {
+    applyPrefs(prefs, { captureEntry: true });
+    prefsHydrated = true;
+  }
+
+  if (options?.initialPrefs) {
+    void hydratePrefs(options.initialPrefs);
+  } else {
+    void loadUserPreferences().then((prefs) => hydratePrefs(prefs));
+  }
 
   const unsubscribe = onUserPreferencesChanged((prefs) => {
-    if (ignoreStoragePrefs) return;
+    if (!prefsHydrated || ignoreStoragePrefs) return;
     resetProfileUpdateConfirm();
     resetStyleUpdateConfirm();
     applyPrefs(mergePendingColorState(prefs));
@@ -844,7 +1047,10 @@ export function mountClipStudio(root: HTMLElement): () => void {
   return () => {
     cancelPendingColorSave();
     stopPreviewLoop();
+    workflowBanner.dispose();
+    subpanelShell.dispose();
     voiceControls.dispose();
+    subtitleControls.dispose();
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('pagehide', pageHideHandler);
     unsubscribe();

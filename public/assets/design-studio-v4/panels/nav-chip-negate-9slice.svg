@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" aria-hidden="true">
+<!--
+  Design Studio v4 — Negation nav chip (cancel / back / discard affordance)
+  Charcoal body with warm-red edge glow — distinct from amber action chips.
+  border-image: url(...) 10 10 10 10 fill; border-width: 10px;
+-->
+  <defs>
+    <linearGradient id="negateBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a4a54"/>
+      <stop offset="45%" stop-color="#2e2e38"/>
+      <stop offset="100%" stop-color="#1a1a22"/>
+    </linearGradient>
+    <linearGradient id="negateGlow" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff7b7b" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ff7b7b" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="94" height="94" rx="12" ry="12" fill="#000000" opacity="0.5"/>
+  <rect x="0" y="0" width="100" height="100" rx="12" ry="12"
+        fill="url(#negateBevel)" stroke="#ff6b6b" stroke-width="2" stroke-opacity="0.55"/>
+  <rect x="4" y="4" width="92" height="92" rx="10" ry="10" fill="none" stroke="#ff8a8a" stroke-width="1" opacity="0.22"/>
+  <rect x="8" y="8" width="84" height="18" rx="6" ry="6" fill="url(#negateGlow)"/>
+  <rect x="10" y="10" width="80" height="80" rx="8" ry="8" fill="#1e1e26" opacity="0.72"/>
+</svg>

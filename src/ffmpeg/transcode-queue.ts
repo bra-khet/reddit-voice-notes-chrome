@@ -20,3 +20,8 @@ export function enqueueTranscodeJob<T>(job: () => Promise<T>): Promise<T> {
   );
   return run;
 }
+
+/** Resolves when the FFmpeg queue has no in-flight or queued jobs (eloquent-1 memory gate). */
+export function whenTranscodeQueueIdle(): Promise<void> {
+  return chain;
+}

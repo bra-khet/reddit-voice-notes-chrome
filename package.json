@@ -2,21 +2,23 @@
   "name": "reddit-voice-notes",
   "description": "Record voice notes with animated waveform for Reddit video comments",
   "private": true,
-  "version": "3.1.0",
+  "version": "4.0.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
-    "build": "wxt build",
+    "build": "npm run build:vosk-sandbox && wxt build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "postinstall": "wxt prepare && node scripts/copy-ffmpeg-core.mjs"
+    "build:vosk-sandbox": "node scripts/build-vosk-sandbox.mjs",
+    "postinstall": "wxt prepare && node scripts/copy-ffmpeg-core.mjs && node scripts/fetch-vosk-model.mjs && node scripts/build-vosk-sandbox.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2"
+    "@ffmpeg/util": "^0.12.2",
+    "vosk-browser": "^0.0.8"
   },
   "devDependencies": {
     "@ffmpeg/core": "^0.12.10",

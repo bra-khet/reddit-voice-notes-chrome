@@ -1,10 +1,11 @@
 # `eloquent` branch — automated subtitles & transcription (Vosk WASM)
 
-**Status:** Not started — branch from **`main` v3.1.0** (2026-06).  
-**Target release:** v4.0.0 on `main` after merge from `eloquent`.  
-**Baseline:** `main` v3.1.0 (Design Studio collapsible UX, voice effects, hardened transcode pipeline).
+**Status:** **Merged to `main` as v4.0.0 Eloquent I** (2026-06-24).  
+**Stable tag:** `v4.0.0` · **Release:** `docs/release-notes-v4.0.0.md`  
+**Handoff:** `docs/eloquent-4-handoff.md` · **Studio reference:** `docs/design-studio.md` · **Restore:** `git checkout v4.0.0 && npm install && npm run dev`  
+**Prior stable:** `v3.1.0` (main baseline) · `v3.7.0` (eloquent pre-merge UI shell)
 
-**Related docs:** `.ignore/transcript-design-notes.txt`, `docs/engineering-principles.md`, `dulcet-branch.md`, `claude-progress.md`
+**Related docs:** `docs/design-studio.md` (Subtitles section + shell semantics), `docs/eloquent-4-handoff.md`, `.ignore/transcript-design-notes.txt`, `docs/engineering-principles.md`, `dulcet-branch.md`, `claude-progress.md`
 
 ## Goal
 
@@ -211,21 +212,53 @@ Session-scoped `lastTranscriptResult` may live outside profiles until the user s
 
 | Phase | Name | Scope | Status |
 |-------|------|-------|--------|
-| **eloquent-0** | Spike & types | Vosk WASM isolated on WebM blob; freeze `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig`; worker/queue decision; manual harness page | Pending |
-| **eloquent-1** | Parallel wire | `stopRecording()` clones WebM; fire `TRANSCODE_*` + `TRANSCRIBE_*` in parallel; log/store result; no Studio UI yet | Pending |
-| **eloquent-2** | Studio editor | Subtitles panel in Design Studio; editable transcript; style + backdrop preview on master canvas; collapsed summary chips | Pending |
-| **eloquent-3** | Burn-in export | `.srt` generation; second FFmpeg pass `base.mp4` → `final.mp4`; full E2E when user confirms subs | Pending |
-| **eloquent-4** | Profiles & polish | `transcriptConfig` on `ClipProfile`; Update/Clone/Save to new + exit guard; opt-in toggle copy; progress indicators; timing nudge | Pending |
-| **eloquent-5** | Harden & release | Memory/perf budget, error surfaces, Reddit upload QA, docs, prod zip, merge `eloquent` → `main`, tag **v4.0.0** | Pending |
+| **eloquent-0** | Spike & types | Vosk WASM isolated on WebM blob; freeze `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig`; worker/queue decision; manual harness page | **Done** |
+| **eloquent-1** | Parallel wire | `stopRecording()` clones WebM; fire `TRANSCODE_*` + `TRANSCRIBE_*` in parallel; log/store result; no Studio UI yet | **Done** |
+| **eloquent-2** | Studio editor | Subtitles panel in Design Studio; editable transcript; style + backdrop preview on master canvas; collapsed summary chips | **Done** |
+| **eloquent-3** | Burn-in export | `.srt` generation; second FFmpeg pass `base.mp4` → `final.mp4`; full E2E when subtitles enabled | **Done** |
+| **eloquent-4** | Profiles & polish | Per-segment subtitle editor (YouTube-style text + timing nudge); segment-aware canvas preview; `transcriptConfig` profile UX; Update/Clone/Save; opt-in toggle copy; progress indicators | **4a done** (`v3.3.0`); **4b partial** (`v3.5.0`–`v3.6.0` editor/relay/burn-in hardening) — canvas preview + fonts + profile subtitle UX remain |
+| **eloquent-5** | Harden & release | Memory/perf budget, error surfaces, Reddit upload QA, docs, prod zip, merge `eloquent` → `main`, tag **v4.0.0** | **Done** |
 
 ### eloquent-0 — audit checklist
 
-- [ ] Trace WebM blob from `voice-recorder.ts` `stopRecording()` — identify clone point before `transcodeWebmToMp4()`
-- [ ] Profile FFmpeg offscreen heap usage at 2:00 cap; estimate headroom for Vosk model + inference buffers
-- [ ] Spike: load Vosk WASM + English model in isolation; feed WebM audio; return segments
-- [ ] Decide offscreen extension vs second offscreen document; document queue isolation
-- [ ] Freeze types in `src/transcription/types.ts` (no UI, no recorder wire)
-- [ ] Optional harness: `entrypoints/transcribe-harness/` — file picker, model load button, JSON result dump
+- [x] Trace WebM blob from `voice-recorder.ts` `stopRecording()` — clone after `validateWebmRecording()`, before `transcodeToMp4()` (line ~330 `this.webmBlob`)
+- [x] Memory budget note: FFmpeg ~32 MB WASM heap + Vosk model ~40 MB + inference — **do not run concurrent jobs** until eloquent-1 profiles; separate `enqueueTranscribeJob` queue
+- [x] Spike: `transcribeWebmBlob()` — WebM → mono 16 kHz PCM → Vosk segments + word timestamps
+- [x] **Worker decision:** extend existing offscreen doc in eloquent-1 with `MSG_TRANSCRIBE_*`; **separate transcription queue** (not `enqueueTranscodeJob`)
+- [x] Frozen types in `src/transcription/types.ts`; `MSG_TRANSCRIBE_*` contracts in `messaging/types.ts`
+- [x] Harness: `entrypoints/transcribe-harness/` — file picker, model URL, JSON + SRT dump
+
+#### eloquent-0 — implementation notes (2026-06)
+
+| Artifact | Role |
+|----------|------|
+| `src/transcription/types.ts` | Frozen `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig` + normalizers |
+| `src/transcription/decode-webm-audio.ts` | Muxed WebM → mono 16 kHz PCM; owned copy + `assertPcmUsable` |
+| `src/transcription/pcm-stats.ts` | PCM frame/duration/peak/rms; relay coerce (BUG-015) |
+| `src/transcription/vosk-sandbox-*.ts` | iframe bridge + sandbox host inference pacing |
+| `src/transcription/transcribe-audio.ts` | `transcribeWebmBlob()` — decode → sandbox → result |
+| `src/transcription/transcribe-queue.ts` | Serialized transcription jobs (isolated from FFmpeg queue) |
+| `src/transcription/srt-builder.ts` | `buildSrtFromSegments()` for eloquent-3 |
+| `scripts/fetch-vosk-model.mjs` | Postinstall download → `public/vosk/model.tar.gz` (skip via `SKIP_VOSK_MODEL=1`) |
+| `public/vosk-sandbox.html` + `public/vosk-sandbox.js` | Manifest sandbox host (esbuild bundle, **not** WXT HMR entry) |
+| `scripts/build-vosk-sandbox.mjs` | Builds vosk-sandbox.js — required for dev and prod |
+| `docs/transcription-architecture.md` | CSP / sandbox / postMessage audit |
+| `entrypoints/transcribe-harness/` | Manual QA — `transcribe-harness.html` |
+
+**Harness:** `npm install` → `npm run dev` → `transcribe-harness.html` → WebM → Transcribe. After editing sandbox host: `npm run build:vosk-sandbox` + reload extension.
+
+**Dependency:** `vosk-browser@0.0.8` (embedded WASM worker; model ~40 MB in `public/vosk/`).
+
+**CSP / sandbox (2026 MV3 audit):**
+
+1. **extension_pages** — `wasm-unsafe-eval` only; **`unsafe-eval` forbidden** by Chrome (adding it to manifest has no effect in dev).
+2. **Vosk Emscripten** — requires `new Function()` → must run in **manifest `sandbox.pages`**.
+3. **Vosk blob workers (BUG-010)** — vosk-browser spawns `new Worker(blob:null/…)`; sandbox CSP needs `worker-src blob: 'self'` (default `child-src 'self'` blocks them).
+3b. **Vosk worker origin (BUG-011/013)** — blob:null workers lack IDBFS; packaged `chrome-extension://` workers cannot spawn from null-origin sandbox → blob worker + non-fatal IDBFS sync (MEMFS per session).
+4. **WXT `entrypoints/vosk.sandbox`** — breaks in dev: sandbox iframe has **opaque/null origin**, cannot load `localhost:3000` Vite HMR scripts (CORS). Replaced by static `public/vosk-sandbox.*` + esbuild.
+5. **postMessage** — sandbox opaque origin → use `targetOrigin: '*'` + validate `event.source` (not `event.origin`).
+6. **Not image-relay** — personal backgrounds needed chunked base64 for Reddit page CSP + MV3 size; transcription needs sandbox for extension eval CSP.
+7. **Inference pacing (BUG-015)** — pace `acceptWaveformFloat` + drain worker before `retrieveFinalResult`; PCM stats in progress stages; fail if empty transcript.
 
 #### eloquent-0 — target handoff diagram
 
@@ -262,7 +295,9 @@ User confirms subtitles → export runs burn-in pass → final MP4 contains read
 
 ### eloquent-4 — definition of done
 
-Subtitle settings persist on named clip profiles with same branching save behavior as visual/voice fields. Opt-in toggle prevents model load until enabled. Non-blocking status for transcription in progress / failed.
+Subtitle settings persist on named clip profiles with same branching save behavior as visual/voice fields. Per-segment editor shows Vosk cues with editable text and fine timing adjustment (not just a flat textarea). Canvas preview reflects active segment or full timed overlay. Opt-in toggle prevents model load until enabled. Non-blocking status for transcription in progress / failed.
+
+**Deferred from eloquent-3:** Burn-in only needs correct `TranscriptResult.segments` JSON — preview/editor polish can ship after `final.mp4` works.
 
 ### eloquent-5 — definition of done
 

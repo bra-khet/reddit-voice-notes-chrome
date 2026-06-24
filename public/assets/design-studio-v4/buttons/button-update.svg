@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="36" viewBox="0 0 120 36" aria-hidden="true">
+/*
+  Design Studio v4 — Button: Update / Save (bright indigo/purple accent)
+  Layered depth: outer dark, mid fill, inner highlight, subtle bevel.
+  Colors tuned around indigo/purple family.
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Place the comments INSIDE the <svg> ... </svg> tags.
+*/
+  <defs>
+    <linearGradient id="btnPurple" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a2a6e"/>
+      <stop offset="50%" stop-color="#1d1f6e"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+
+  /* Outer shadow for lift */
+  <rect x="3" y="4" width="114" height="28" rx="6" ry="6" fill="#000000" opacity="0.45"/>
+
+  /* Main button body */
+  <rect x="1" y="2" width="114" height="28" rx="6" ry="6"
+        fill="url(#btnPurple)" stroke="#0a0014" stroke-width="1.5"/>
+
+  /* Inner highlight */
+  <rect x="3" y="3" width="110" height="10" rx="3" ry="3" fill="#ffffff" opacity="0.08"/>
+
+  /* Text area hint (replace with real text or keep as chrome) */
+  <text x="58" y="22" font-family="system-ui, sans-serif" font-size="13" font-weight="600"
+        fill="#e0d4ff" text-anchor="middle" dominant-baseline="middle">Update</text>
+</svg>

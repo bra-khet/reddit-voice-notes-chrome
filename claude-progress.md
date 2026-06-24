@@ -132,7 +132,8 @@ Offscreen FFmpeg logs show the failure mode is **dup ≈ frame count**, not WASM
 
 | Branch | Role |
 |--------|------|
-| `main` | **v3.1.0** stable — Design Studio UX polish on v3 (2026-06) |
+| `main` | **v4.0.0** stable — **Eloquent I** subtitles + Design Studio v4 (2026-06-24) |
+| `eloquent` | **Merged** into `main` as **v4.0.0** (2026-06-24); branch retained for history |
 | `pretty` | **Merged** into `main` as **v2.0.0** (2026-06-21); branch retained for history |
 | `dulcet` | **Merged** into `main` as **v3.0.0** (2026-06); branch retained for history |
 
@@ -296,4 +297,343 @@ Pre-v4 Design Studio UX release — no pipeline changes.
 | Voice import graph | No `@/src/voice` barrel from popup/settings; `types.ts` leaf guard intact |
 | Manifest version | `3.1.0` via `package.json` → `wxt.config.ts` |
 
-**Next:** branch **`eloquent`** (v4 transcription) from `main` after push — phase plan in `eloquent-branch.md`.
+**Next:** eloquent-1 — parallel transcribe wire from `stopRecording()` (see `eloquent-branch.md`).
+
+## eloquent branch — v4 transcription (2026-06) — compaction handoff
+
+**Branch:** `eloquent` from `main` v3.1.0 · **Plan:** `eloquent-branch.md` · **Architecture:** `docs/transcription-architecture.md` · **Bugs:** `docs/bug-archive.md` BUG-010…015
+
+| Phase | Status |
+|-------|--------|
+| **eloquent-0** | **Done** — harness QA verified (JSON + SRT); tag **`eloquent-0-vosk-spike`** |
+| **eloquent-1** | **Done** — parallel `MSG_TRANSCRIBE_*` wire from `stopRecording()`; session transcript store |
+| **eloquent-2** | **Done** — Design Studio Subtitles panel + canvas preview overlay |
+| **eloquent-3** | **Done** — FFmpeg subtitle burn-in (`base.mp4` → burned `final.mp4` when subtitles enabled) |
+| eloquent-4 … eloquent-5 | Pending |
+
+### eloquent-0 — what shipped
+
+| Area | Files / notes |
+|------|----------------|
+| Types | `src/transcription/types.ts` — frozen `TranscriptResult`, `TranscriptConfig`, `SubtitleStyleConfig` |
+| Decode | `decode-webm-audio.ts` — WebM → mono 16 kHz; copy + `assertPcmUsable` (BUG-015) |
+| PCM QA | `pcm-stats.ts` — frame count, duration, peak, rms; relay coerce |
+| API | `transcribe-audio.ts` — `transcribeWebmBlob()` + `enqueueTranscribeJob` |
+| Sandbox bridge | `vosk-sandbox-client.ts` / `vosk-sandbox-host.ts` / `vosk-sandbox-protocol.ts` |
+| Sandbox bundle | `public/vosk-sandbox.html` + `scripts/build-vosk-sandbox.mjs` → `public/vosk-sandbox.js` |
+| Model | `scripts/fetch-vosk-model.mjs` → `public/vosk/model.tar.gz` (~40 MB, gitignored) |
+| Harness | `entrypoints/transcribe-harness/` |
+| SRT | `srt-builder.ts` |
+| Messages | `MSG_TRANSCRIBE_*` frozen in `messaging/types.ts` (wire in eloquent-1) |
+
+### Sandbox / CSP stack (each layer separate — do not regress)
+
+| Bug | Problem | Fix |
+|-----|---------|-----|
+| BUG-010 | blob worker blocked by `child-src 'self'` | `worker-src blob: 'self'` in `wxt.config.ts` sandbox CSP |
+| BUG-011 | IDBFS denied in blob:null worker | Non-fatal `syncFilesystem` patch in embedded worker |
+| BUG-012 | vosk UMD → `createModel` undefined | UMD→ESM unwrap; `new Model()` + load wait |
+| BUG-013 | `chrome-extension://` worker spawn blocked from null sandbox | Revert to blob worker (BUG-011 patch retained) |
+| BUG-014 | `new URL(modelUrl, "null/uuid")` invalid | Absolute model URL from parent; worker URL patch |
+| BUG-015 | Empty transcript — worker race + no PCM validate | Pace chunks, drain, wait for final; PCM asserts |
+
+**Working architecture:**
+
+```
+transcribe-harness (extension origin)
+  → decodeWebmToMonoPcm (Web Audio, owned Float32Array)
+  → hidden iframe vosk-sandbox.html (manifest sandbox, null origin)
+  → postMessage(transferable PCM + chrome-extension:// model URL)
+  → vosk-sandbox.js → blob worker → Vosk WASM
+  ← postMessage(TranscriptResult)
+```
+
+### Dev workflow (transcription QA)
+
+```bash
+npm install                    # model + vosk-sandbox.js
+npm run build:vosk-sandbox     # after host/build script changes
+npm run dev                    # load .output/chrome-mv3-dev at chrome://extensions
+# transcribe-harness.html — WebM from recorder (not MP4)
+```
+
+Progress stages to watch: `decode-done:<pcm stats>` → `pcm-received:<pcm stats>` → `loading-model` → `inference-drain:<ms>` → `finalizing` → transcript JSON.
+
+### Known limitations (eloquent-0)
+
+- No IDBFS model cache in sandbox — re-download/unpack ~40 MB per cold session (MEMFS).
+- Inference pacing is heuristic (~35% realtime drain) — may need tuning for long clips.
+- Do not run FFmpeg + Vosk concurrently until memory profiled (separate queues exist).
+- Popup/settings must not import `@/src/transcription` barrel (pulls Vosk).
+
+### Commit chain (eloquent, CSP + inference)
+
+`6f4b390` plan · `1898277` eloquent-0 spike · `915ce96` sandbox attempt · `f58996a` static sandbox · `f96248b` BUG-010 · `2e786ce` BUG-011 · `1413376` BUG-012 · `179f345` BUG-013 · `bf34b59` BUG-014 · `84862f9` BUG-015 PCM + inference pacing · tag **`eloquent-0-vosk-spike`**
+
+### eloquent-1 — parallel wire (2026-06)
+
+- `voice-recorder.ts` — non-blocking `webmClone.slice()` + `forkTranscribeWebm()` alongside `transcodeToMp4()`
+- `transcribe-client.ts` — content-script `MSG_TRANSCRIBE_*` client (mirrors transcode relay)
+- `background.ts` / `offscreen/main.ts` — transcribe relay + `enqueueTranscribeJob`; Vosk deferred via `whenTranscodeQueueIdle()` (memory gate)
+- `session-transcript.ts` — in-memory + `sessionStorage` for latest `TranscriptResult`
+- Cancel: `transcribeGeneration` + `AbortController` on session bump (BUG-005 pattern)
+
+**QA:** Record on Reddit → console shows `Sending WebM for transcribe` + `Transcribe complete` with segment count; MP4 export unchanged on transcribe failure.
+
+### eloquent-2 — Studio editor (2026-06)
+
+- **Subtitles panel** in Design Studio (after Voice) — toggle, editable transcript textarea, position/font/backdrop controls
+- **Canvas preview** — `drawSubtitlePreview()` topmost over bars in `renderThemePreview()`
+- **Transcript relay** — `relaySaveSessionTranscript` → background → extension IDB (`session-transcript-db.ts`); Studio reloads on `visibilitychange`
+- **Summary chip** — `formatSubtitleSummary()` in collapsed panel header
+- Session-only draft (profile persistence = eloquent-4); export still `base.mp4` only until eloquent-3
+
+**QA:** Record on Reddit → wait for `Transcribe complete` in console → Design Studio → enable Subtitles → edit text → preview updates live.
+
+### eloquent-3 — burn-in export (2026-06-21)
+
+- **Pipeline:** `stopRecording()` → transcode (`0–55%`) → await transcribe when subtitles enabled (`56–80%`) → second FFmpeg pass via `MSG_BURNIN_*` (`82–100%`)
+- **Strategies:** `subtitles` filter + SRT (`buildSrtFromSegments`) → `drawtext` chain fallback
+- **Fallback:** Subtitles off, transcribe fail, or burn-in fail → `base.mp4` unchanged semantics; toast on burn-in fallback
+- **Files:** `subtitle-burnin.ts`, `burnin-client.ts`, `ffmpeg-runner.ts` (`runSubtitleBurnIn`), `voice-recorder.ts`, `background.ts`, `offscreen/main.ts`
+
+**QA:** Enable Subtitles in Design Studio → record on Reddit → wait through Transcribing + Burning subtitles → attach MP4 → verify hard subs in player.
+
+### eloquent-4a — edit before bake (2026-06-22) — **v3.3.0**
+
+**Handoff:** `docs/eloquent-4-handoff.md` · **Tag:** `v3.3.0` (`fc50797`+)
+
+- Studio: YouTube-style cue preview + segment editor + Confirm & save + Bake button
+- Record stop delivers **base.mp4** only; burn-in deferred to user-confirmed Studio bake
+- Session transcript: `originalResult` / `editedResult` in `rvnSessionTranscript` IDB
+- **BUG-026:** recorder popup stuck at processing ~80% — fixed: stopped before base-MP4 relay; transcribe off progress bar
+
+**QA verified (user):** edit → confirm → bake → recorder **stopped** → attach on Reddit; **edited SRT burns correctly**.
+
+### v3.3.1 — BUG-027 UI fix
+
+False **Update profile** highlight on Design Studio open — subtitle draft synced after profile dirty check; see `docs/bug-archive.md` BUG-027.
+
+### v3.6.0 stable — eloquent subtitle pipeline hardened (2026-06-22)
+
+**Tag:** `v3.6.0` · **Branch:** `eloquent` · **Handoff:** `docs/eloquent-4-handoff.md`  
+**Release zip:** `.output/reddit-voice-notes-3.6.0-chrome.zip`
+
+**Why this is stable:** User-verified multi-run edit→bake→attach (with and without cue edits). Burn-in loop BUG-028…032 closed: valid drawtext colors, backdrop plate compositing, no silent SRT fallback, offscreen recycle + code stamp on HMR, per-cue `textfile=` for punctuation, session-persisted transcribe relay registry. Pending → Ready transcript badges give honest delivery UX while Vosk runs in parallel.
+
+| Sprint | Scope |
+|--------|-------|
+| v3.5.0 | Segment editor polish, cue preview, OOB badge, recorder Design Studio CTA |
+| v3.5.1 (BUG-031) | `textfile=` burn-in; unsaved bake guard; Pending/Ready/Timed out badges |
+| v3.5.2 (BUG-032) | `relay-registry.ts`; never delete relay maps before `relay*Failure` |
+| BUG-028…030 | drawtext color fixes, backdrop layer order, offscreen stale-worker hardening |
+
+**QA verified (user, 2026-06-22):** Repeat recordings seamless; edits optional; pending badges accurate; no transcribe relay console warnings after reload.
+
+**Design Studio reference:** `docs/design-studio.md` — canonical semantic framework for the four sections (Bar style, Background, Voice, Subtitles), dirty-state taxonomy, storage map, and UI refresh guardrails.
+
+**Restore:**
+```bash
+git checkout v3.6.0 && npm install && npm run dev
+```
+
+### Next: eloquent-4b remainder + eloquent-5
+
+Segment-aware canvas preview, font picker, optional chunked base-MP4 relay, profile subtitle UX polish, then eloquent-5 harden → merge `main` → **v4.0.0**.
+
+## HANDOFF — eloquent profile nominal (2026-06-21)
+
+**Tag:** `eloquent-profile-nominal` (`8834d4e`) — **user-verified:** profiles, backgrounds, Save/Update/Clone working  
+**Handoff doc:** `docs/eloquent-profile-handoff.md` (root cause, what changed vs failed attempts, race rules, open subtitle issues)
+
+### Why it works (one paragraph)
+
+`rvnUserPrefs` was always correct in Extension Storage; Design Studio `activePrefs` was stale due to **concurrent subtitle/appearance RMW writes**, **parallel boot loads**, and a **subtitle `getDraftConfig` throw** that aborted `applyPrefs` before background/button sync. Fixed with `enqueuePrefsOp`, `load→reconcile→mount(initialPrefs)`, `prefsHydrated` gate, and `buildDraftConfig()` closure.
+
+### Verified working
+
+Profiles, HSV/styles, canvas + library backgrounds, Save/Update/Clone, voice preview, transcription, global subtitle toggle.
+
+### Open (subtitle edits — not blocking profile UI)
+
+Legacy profiles lack `transcriptConfig` snapshot until **Update profile** once; session transcript text stays in IDB not profile blobs; profile dirty labels don't use live subtitle draft (BUG-021 reverted). See handoff doc § Open / unfixed.
+
+### Do not regress
+
+Serialized prefs queue, studio boot order, `prefsHydrated`, no `flushPersist` before profile saves (BUG-021). Full rules: `docs/design-studio.md` §3. Tags: `v3.6.0` (Studio stable) · `eloquent-profile-nominal` (profile baseline).
+
+### Post-nominal — voice preview refresh + eloquent-3/4 call (2026-06-21)
+
+**Sprint:** Voice preview auto-updates when a new WebM lands in `rvnLastRecording` while Design Studio stays open (`LAST_RECORDING_READY_KEY` + 2s IDB poll, same pattern as transcript refresh).
+
+**Priority call:** Ship **eloquent-3** burn-in from `TranscriptResult.segments` JSON (`srt-builder.ts`) before fixing canvas segment preview or building a YouTube-style segment editor (**eloquent-4**). Transcription pipeline is correct; preview ingests flat full-text only (`subtitle-preview.ts` / `previewText()`).
+
+**Open (non-blocking for burn-in):** Canvas subtitle preview does not show per-segment cues; Subtitles panel is far below Live preview; segment timing nudge UI tabled to eloquent-4. See `docs/eloquent-profile-handoff.md` § Open / unfixed.
+
+## eloquent profile checkpoint — prefs hydrated (2026-06-21) [intermediate]
+
+**Tag:** `eloquent-prefs-hydrated` (`7c11796`) — BUG-023 only; BUG-024 still open at tag  
+**Doc:** `docs/eloquent-profile-checkpoint-hydrated.md`
+
+## eloquent profile checkpoint — semi-fixed (2026-06-21) [superseded]
+
+**Tag:** `eloquent-semi-fixed` (annotated WIP checkpoint — not a release)  
+**Full audit:** `docs/eloquent-profile-checkpoint.md`  
+**Superseded by:** `eloquent-prefs-hydrated` for profile apply behavior
+
+### Working at checkpoint
+
+| Area | Status |
+|------|--------|
+| Transcription pipeline | ✅ BUG-018 fix holds (`runTranscribeWebmBlob`) |
+| Subtitles toggle persist | ✅ BUG-017/019/020 |
+| Profile dropdown + names | ✅ |
+| Bar styles / HSV / clip style on profile select | ✅ BUG-022 |
+| Backgrounds + previews | ✅ |
+| Design Studio panels / summaries | ✅ |
+
+### Broken at checkpoint
+
+| Area | Status |
+|------|--------|
+| **Clone / Save to new** button | ❌ hidden |
+| **Update profile / Sure?** | ❌ stuck on **Save as profile** |
+| Root UI condition | `activeProfileId` null or preset at `syncProfileButton` time (BUG-023) |
+
+### Commit arc (do not re-apply BUG-021 wholesale)
+
+`3bf833d` BUG-016 → `22fc616` BUG-017 → `a61f3f1` BUG-018 → `c997fa4` BUG-019 → `eaeba08` BUG-020 → `3dcd917` BUG-021 (**regression**) → checkpoint BUG-022 revert+style fix
+
+### Storage audit (2026-06-21)
+
+No profile migration from Local Storage → Extension Storage ever happened. Profiles in `rvnUserPrefs` (`chrome.storage.local`) since pretty-6 (`6541575`). DevTools **Extension Storage → Reddit Voice Notes** is normal manifest labeling. Only `localStorage` key: `rvn.subtitles.enabled` (BUG-019). Blobs: `rvnImageDb` IDB; session transcript: `rvnSessionTranscript` IDB. Full table (current): `docs/design-studio.md` §3.2. Historical audit: `docs/eloquent-profile-checkpoint.md`.
+
+### Next sprint (proposed)
+
+Fix **BUG-023 only** — verify `activeProfileId` persistence on profile `<select>` change before any new subtitle/profile dirty logic.
+
+---
+
+## v4 Safety Net & Streamlined Principles (2026-06-22)
+
+After the BUG-017…024 cluster (concurrent prefs RMW, boot races, throw-aborted syncs), the following artifacts were added to make v4 development resilient:
+
+- **`docs/design-studio.md`** — **Canonical Design Studio reference** — four sections, dirty-state taxonomy, storage map, UI refresh guardrails.
+- **`docs/code-review.md`** — The canonical `/code-review` gate. **Mandatory**: name a stable fallback tag first (`v3.1.0` for main baseline; **`v3.7.0`** for eloquent UI shell + subtitles; `v3.6.0` for pipeline-only baseline; `eloquent-profile-nominal` for profile-only regressions), run build/zip gate, and re-verify the race rules before touching prefs/profile/subtitle code.
+- **`docs/v4-development-principles.md`** — Cross-branch pipeline law (fork-at-stop, compositing, WASM queues, prefs discipline). Studio UI semantics: `docs/design-studio.md`.
+- Stable restore tags (confirmed):
+  - `v3.1.0` (main) — release baseline without subtitles.
+  - `v3.7.0` (eloquent) — v4 UI shell + subtitle pipeline (**current**).
+  - `v3.6.0` (eloquent) — subtitle pipeline; pre–v4 shell.
+  - `eloquent-profile-nominal` (8834d4e on eloquent) — profile + background + voice + subtitle toggle (pre–burn-in hardening).
+- All future eloquent work (eloquent-3 burn-in onward) and any prefs/storage changes must pass the `/code-review` checklist before landing.
+
+**Sprint contract reminder:** one well-defined phase/integration per exchange. Record the fallback tag used for the sprint.
+
+Restore from known-good (example):
+```bash
+git checkout eloquent-profile-nominal && npm install && npm run dev
+```
+
+See also: `docs/design-studio.md`, `docs/engineering-principles.md`, `docs/eloquent-profile-handoff.md`, and the individual branch plans.
+
+## v3.7.0 stable — Design Studio v4 UI shell (2026-06-23)
+
+**Tag:** `v3.7.0` · **Branch:** `eloquent` · **Release:** `docs/release-notes-v3.7.0.md`  
+**Restore:** `git checkout v3.7.0 && npm install && npm run dev`  
+**Prior:** `v3.6.0` (subtitle pipeline; legacy `<details>` layout)
+
+### Shipped (condensed)
+
+- **Shell:** `.studio-v4` — hero row + 1×4 status cards + sub-panel navigation (`5217d55`…`519c098`)
+- **Profile status:** Subtitles? + Ready? strip; sub-panel exit guard + v4 button palette
+- **Live preview:** Shared 628×348 box; canvas `clip-path` + mask-cutout bezel overlay (**logic verified** — see below)
+- **Recorder:** Always-visible **Go here first** + Open Design Studio CTA
+
+### Hero preview layering (canonical — do not regress)
+
+1. One shared preview box (`aspect-ratio` = frame artboard **628×348**).
+2. Canvas fills box; `clip-path: inset(...)` punches WYSIWYG viewport hole.
+3. Bezel SVG mask overlay (`::after`, `z-index: 3`, `0 0 / 100% 100%`).
+4. No translucent center fill over canvas. Artboard must match drawn frame (no dead viewBox margin).
+
+**Assets:** `preview-window-frame.svg` · `preview-window-frame.legacy.svg`
+
+### Next (post–v3.7)
+
+Sub-panel control chrome (knobs/sliders), main Done asset, eloquent-4b remainder → eloquent-5 → merge `main` → v4.0.0.
+
+## v3.7.1 — sub-panel previews (2026-06-23, in progress toward v3.8)
+
+**Version:** `3.7.1` · **Branch:** `eloquent`
+
+## UX Refresh Sprint — 3-Phase Workflow Guidance (2026-06-23, in progress toward v3.8)
+
+**Branch:** `eloquent` · **Fallback tag:** `v3.7.1`
+
+### Guiding principles source
+`.ignore/ux-guiding-principles.txt` + `.ignore/ux-refresh-sprint.txt`
+
+### Goal
+Add a clear, professional **3-Phase Creative Workflow** guidance layer on top of the existing eloquent UI so users always know where they are and what to do next across the Reddit↔Studio tab split.
+
+| Phase | Tab | Status |
+|-------|-----|--------|
+| **Phase 1: Design** | Design Studio | Shown on banner when no recording exists |
+| **Phase 2: Capture** | Reddit tab | Set when user clicks "Switch to Reddit"; recorder label changes |
+| **Phase 3: Polish & Bake** | Design Studio | Auto-promoted when recording exists; banner CTAs surface bake flow |
+
+### Shipped (commit `66752f2`)
+
+| File | Change |
+|------|--------|
+| `src/workflow/workflow-state.ts` (NEW) | `WorkflowPhase` type; `rvn.workflow.phase` CRUD; `activateRedditTab()` |
+| `src/ui/design-studio/workflow-phase-banner.ts` (NEW) | 3-step stepper + contextual CTA + "Why the switch?" disclosure |
+| `entrypoints/design-studio/style.css` | `.wf-banner` / `.wf-stepper` / `.wf-step` / `.wf-cta` — CVD palette |
+| `entrypoints/design-studio/main.ts` | Load phase in parallel with prefs at boot |
+| `src/ui/design-studio/mount-clip-studio.ts` | Inject `data-workflow-banner`; mount/sync/dispose banner |
+| `src/ui/recorder-panel.ts` | Phase-aware hint labels; `setWorkflowPhase('polish')` on stop |
+
+**Design principles checklist:**
+- ✅ Visibility of System Status — 3-step indicator always visible; phase label contextual
+- ✅ Match Between System and Real World — Design→Capture→Polish framing mirrors film production
+- ✅ User Control & Freedom — "Switch to Reddit" / "Switch to Reddit to attach" CTAs on banner
+- ✅ Consistency — same phase names in both tabs; same `rvn.workflow.phase` key
+- ✅ Reduce Cognitive Load — "Why the switch?" is collapsed by default; CTA changes per phase
+- ✅ Minimal & High-Impact — 6 files changed; no existing feature removed or refactored
+
+### Shipped (prev)
+
+- **Bar style / Background sub-panels:** Compact framed WYSIWYG live preview at top (same 628×348 clip-path + bezel, max-width ~280px) — shares `renderThemePreview` RAF loop with hero canvas.
+- **Subtitles sub-panel:** Caption text preview at top (`drawSubtitleTextOnlyPreview` — style fidelity without full bars/bg); **Bake** moved from bottom to top with amber 9-slice chrome (`studio-v4__bake-btn`).
+- **Preview kinds:** `subpanel` + `subtitle-text` in `preview-block.ts`.
+- **Bake button states:** `unavailable` / `ready` / `baking` / `complete` — class-driven visuals aligned with `canBakeNow()` (requires transcript matched to current recording + delivery ready + confirmed edits).
+- **Bake compositing fix:** `button-frame-9slice` must use border-image **edges only** (no `fill`) — SVG center is dark `#12001f`; `fill` painted over CSS amber gradients (flash-then-gray symptom). See `studioV4BorderImageEdgesOnly()`.
+- **Bake UX:** “Repeatable” hint under bake status; disable-subtitles guard clears IDB transcript only after confirm (no accidental wipe on re-enable).
+
+## v4.0.0 stable — **Eloquent I** merged to `main` (2026-06-24)
+
+**Tag:** `v4.0.0` · **Codename:** Eloquent I · **Release:** `docs/release-notes-v4.0.0.md`  
+**Merge:** `eloquent` → `main` (92 commits from v3.1.0)  
+**Release zip:** `.output/reddit-voice-notes-4.0.0-chrome.zip` (~57 MB)
+
+### Pre-merge gate (passed)
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | Pass |
+| `npm run zip` | Pass |
+| `npm run compile` | Pre-existing strictness warnings only (non-blocking) |
+| eloquent-5 hardening | H1–H4 resolved; relay SW-restart; font loader resilience |
+| User-verified | Edit → bake → attach; repeatable rebake; disable guard |
+
+### What shipped (condensed)
+
+- **Subtitles:** Vosk WASM STT, parallel transcribe wire, edit-before-bake, FFmpeg burn-in, DejaVu fonts
+- **Design Studio v4:** Hero preview, status cards, sub-panels, segment editor, workflow phase banner
+- **Architecture:** `docs/architecture/` map + hardening backlog; `docs/v4-development-principles.md`
+
+**Restore:**
+```bash
+git checkout v4.0.0 && npm install && npm run dev
+```

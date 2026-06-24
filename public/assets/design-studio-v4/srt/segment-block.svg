@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60" viewBox="0 0 200 60" aria-hidden="true">
+<!--
+  Design Studio v4 — SRT Subtitles Editor: Segment Block
+  For subtitles panel editor. Timecode + text area.
+  Pillowed frame, with space for segmented time display.
+  Tactile style.
+-->
+  <defs>
+    <linearGradient id="segBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="40%" stop-color="#1d1f6e"/>
+      <stop offset="60%" stop-color="#12001f"/>
+      <stop offset="100%" stop-color="#0a0014"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Shadow -->
+  <rect x="3" y="3" width="194" height="54" rx="4" ry="4" fill="#000000" opacity="0.4"/>
+
+  <!-- Main block -->
+  <rect x="0" y="0" width="194" height="54" rx="4" ry="4"
+        fill="url(#segBevel)" stroke="#0a0014" stroke-width="1.5"/>
+
+  <!-- Timecode area (left, for amber segmented) -->
+  <rect x="6" y="6" width="50" height="42" rx="2" ry="2"
+        fill="#0a0014" stroke="#2a2a44" stroke-width="1"/>
+
+  <!-- Text area -->
+  <rect x="60" y="6" width="128" height="42" rx="2" ry="2"
+        fill="#12001f" stroke="#2a2a44" stroke-width="1"/>
+
+  <!-- Play cue button area hint -->
+  <rect x="172" y="14" width="16" height="16" rx="2" ry="2"
+        fill="#1d1f6e" stroke="#3a3a5a" stroke-width="1"/>
+</svg>

@@ -6,6 +6,7 @@ import {
 import { friendlyRecorderError, type RecorderErrorCode } from '@/src/utils/errors';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { transcodeWebmToMp4 } from '@/src/ffmpeg';
+import { relaySaveLastBaseMp4 } from '@/src/storage/last-base-mp4-relay';
 import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
 import { resolveAppearanceTheme, userBackgroundLayoutFromAppearance } from '@/src/theme';
@@ -15,6 +16,11 @@ import {
   shouldReduceMotion,
 } from '@/src/settings/user-preferences';
 import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
+import { forkTranscribeWebm } from '@/src/transcription/transcribe-client';
+
+import { relaySaveSessionTranscript } from '@/src/storage/session-transcript-relay';
+import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
+import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -45,6 +51,10 @@ export interface RecorderState {
   stoppedAtCap: boolean;
   /** dulcet-3: voice -af failed; MP4 exported with raw audio. */
   voiceEffectFallback?: boolean;
+  /** eloquent-3: subtitle burn-in failed; MP4 delivered without hard subs. */
+  subtitleBurnInFallback?: boolean;
+  /** eloquent-4: subtitles on this take — recorder shows Design Studio CTA until bake. */
+  subtitleStudioPending?: boolean;
   errorCode?: RecorderErrorCode;
   errorMessage?: string;
   webmBlob?: Blob;
@@ -96,6 +106,8 @@ export class VoiceRecorderSession {
   private criticalLimit = false;
   private stoppedAtCap = false;
   private voiceEffectFallback = false;
+  private subtitleBurnInFallback = false;
+  private subtitleStudioPending = false;
   private phase: RecorderPhase = 'idle';
   private errorCode?: RecorderErrorCode;
   private errorMessage?: string;
@@ -105,7 +117,10 @@ export class VoiceRecorderSession {
   private disposed = false;
   private sessionEpoch = 0;
   private transcodeGeneration = 0;
+  private transcribeGeneration = 0;
   private transcodeAbort: AbortController | null = null;
+  private transcribeAbort: AbortController | null = null;
+  private processingAbort: AbortController | null = null;
   private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stopInFlight = false;
   private prefsUnsubscribe: (() => void) | null = null;
@@ -129,6 +144,8 @@ export class VoiceRecorderSession {
       criticalLimit: this.criticalLimit,
       stoppedAtCap: this.stoppedAtCap,
       voiceEffectFallback: this.voiceEffectFallback,
+      subtitleBurnInFallback: this.subtitleBurnInFallback,
+      subtitleStudioPending: this.subtitleStudioPending,
       errorCode: this.errorCode,
       errorMessage: this.errorMessage,
       webmBlob: this.webmBlob,
@@ -153,6 +170,12 @@ export class VoiceRecorderSession {
     if (extra?.stoppedAtCap !== undefined) this.stoppedAtCap = extra.stoppedAtCap;
     if (extra?.voiceEffectFallback !== undefined) {
       this.voiceEffectFallback = extra.voiceEffectFallback;
+    }
+    if (extra?.subtitleBurnInFallback !== undefined) {
+      this.subtitleBurnInFallback = extra.subtitleBurnInFallback;
+    }
+    if (extra?.subtitleStudioPending !== undefined) {
+      this.subtitleStudioPending = extra.subtitleStudioPending;
     }
 
     for (const listener of this.listeners) {
@@ -181,6 +204,8 @@ export class VoiceRecorderSession {
         criticalLimit: false,
         stoppedAtCap: false,
         voiceEffectFallback: false,
+        subtitleBurnInFallback: false,
+        subtitleStudioPending: false,
         errorCode: undefined,
         errorMessage: undefined,
         webmBlob: undefined,
@@ -287,10 +312,18 @@ export class VoiceRecorderSession {
     this.transcodeAbort = null;
   }
 
+  private abortTranscribe(): void {
+    this.transcribeAbort?.abort();
+    this.transcribeAbort = null;
+  }
+
   private bumpSession(): void {
     this.sessionEpoch += 1;
     this.transcodeGeneration += 1;
+    this.transcribeGeneration += 1;
     this.abortTranscode();
+    this.abortTranscribe();
+    clearSessionTranscript();
   }
 
   private isSuperseded(stopEpoch: number): boolean {
@@ -350,7 +383,40 @@ export class VoiceRecorderSession {
       try {
         await validateWebmRecording(this.webmBlob);
         if (this.isSuperseded(stopEpoch)) return;
-        await this.transcodeToMp4(stopEpoch);
+
+        const prefs = await loadUserPreferences();
+        const subtitlesEnabled = prefs.transcriptConfig.transcriptionEnabled;
+
+        // CHANGED: parallel transcription only — burn-in deferred to Design Studio (eloquent-4).
+        // WHY: users review and edit segment JSON before confirming subtitle bake.
+        const webmClone = this.webmBlob.slice(0, this.webmBlob.size, this.webmBlob.type);
+        if (subtitlesEnabled) {
+          // CHANGED: transcribe is background-only for Studio — no recorder progress bar (eloquent-4).
+          // WHY: STT can outlast transcode; mapping it to 56–80% left the panel stuck at 80%.
+          void this.forkTranscribe(webmClone, stopEpoch, false);
+        }
+
+        const transcodeOutcome = await this.transcodeToMp4(stopEpoch);
+        // BUG FIX: dead phase === 'error' branch in stop path
+        // Fix: transcodeToMp4 throws on error (caught by outer try/catch); phase cannot be 'error' here
+        if (this.isSuperseded(stopEpoch)) return;
+
+        this.setPhase('stopped', {
+          processingProgress: 100,
+          stoppedAtCap: this.stoppedAtCap,
+          voiceEffectFallback: transcodeOutcome.voiceEffectFallback === true,
+          subtitleBurnInFallback: false,
+          subtitleStudioPending: subtitlesEnabled,
+        });
+        this.processingAbort = null;
+
+        // BUG FIX: recorder stuck at processing 80% (BUG-026)
+        // Fix: reach stopped before async base-MP4 relay — large single-message relay must not gate UI.
+        if (this.mp4Blob) {
+          void relaySaveLastBaseMp4(this.mp4Blob, this.elapsedSeconds).catch((error: unknown) => {
+            console.warn(`${EXTENSION_LOG_PREFIX} Base MP4 relay for subtitle bake failed`, error);
+          });
+        }
       } catch (error) {
         if (this.isSuperseded(stopEpoch)) return;
         if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -361,13 +427,90 @@ export class VoiceRecorderSession {
     }
   }
 
-  private async transcodeToMp4(stopEpoch: number): Promise<void> {
-    if (!this.webmBlob || this.isSuperseded(stopEpoch)) return;
+  private forkTranscribe(
+    webm: Blob,
+    stopEpoch: number,
+    reportProgress: boolean,
+  ): Promise<Awaited<ReturnType<typeof forkTranscribeWebm>>> {
+    const generation = this.transcribeGeneration;
+    this.abortTranscribe();
+    const controller = new AbortController();
+    this.transcribeAbort = controller;
+
+    return forkTranscribeWebm(webm, {
+      signal: controller.signal,
+      onProgress: (ratio, stage) => {
+        if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
+        // BUG FIX: recorder stuck at "Transcribing… 80%" after MP4 ready (eloquent-4a)
+        // Fix: late transcribe progress must not regress phase from stopped → processing.
+        if (this.phase !== 'processing') return;
+        if (reportProgress) {
+          const pct = 56 + Math.round(ratio * 24);
+          this.setPhase('processing', { processingProgress: Math.min(80, pct) });
+        }
+        console.log(`${EXTENSION_LOG_PREFIX} Transcribe progress`, {
+          ratio: Math.round(ratio * 100),
+          stage,
+        });
+      },
+    })
+      .then((outcome) => {
+        if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return null;
+        if (!outcome) return null;
+
+        if (outcome.applied) {
+          setSessionTranscript(outcome.result, outcome.jobId);
+          void relaySaveSessionTranscript(outcome.result, outcome.jobId);
+        }
+
+        console.log(`${EXTENSION_LOG_PREFIX} Transcribe complete`, {
+          jobId: outcome.jobId,
+          segments: outcome.result.segments.length,
+          chars: outcome.result.text.length,
+          applied: outcome.applied,
+          fallback: outcome.fallback,
+          stage: outcome.stage,
+          elapsedMs: outcome.elapsedMs,
+        });
+        return outcome;
+      })
+      .catch((error: unknown) => {
+        if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return null;
+        if (error instanceof DOMException && error.name === 'AbortError') return null;
+        console.warn(`${EXTENSION_LOG_PREFIX} Transcribe fork failed (non-blocking):`, error);
+        return null;
+      })
+      .finally(() => {
+        if (this.transcribeAbort === controller) {
+          this.transcribeAbort = null;
+        }
+      });
+  }
+
+  /** Apply MP4 with burned subtitles after Design Studio bake (eloquent-4). */
+  applyBakedMp4(blob: Blob): void {
+    if (this.disposed) return;
+    const canApply =
+      this.phase === 'stopped' || (this.phase === 'processing' && Boolean(this.mp4Blob));
+    if (!canApply) return;
+    this.mp4Blob = blob;
+    this.setPhase('stopped', {
+      processingProgress: 100,
+      subtitleBurnInFallback: false,
+      subtitleStudioPending: false,
+    });
+  }
+
+  private async transcodeToMp4(stopEpoch: number): Promise<{ voiceEffectFallback?: boolean }> {
+    if (!this.webmBlob || this.isSuperseded(stopEpoch)) {
+      return {};
+    }
 
     const generation = this.transcodeGeneration;
     this.abortTranscode();
     const controller = new AbortController();
     this.transcodeAbort = controller;
+    this.processingAbort = controller;
 
     let lastProgress = 0;
 
@@ -377,7 +520,7 @@ export class VoiceRecorderSession {
         this.webmBlob,
         (ratio) => {
           if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
-          const pct = Math.max(lastProgress, Math.round(ratio * 100));
+          const pct = Math.max(lastProgress, Math.round(ratio * 55));
           lastProgress = pct;
           this.setPhase('processing', { processingProgress: pct });
         },
@@ -385,18 +528,19 @@ export class VoiceRecorderSession {
         prefs.voiceEffect,
       );
 
-      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) {
+        return {};
+      }
 
       this.mp4Blob = transcodeResult.mp4;
-      this.setPhase('stopped', {
-        processingProgress: 100,
-        stoppedAtCap: this.stoppedAtCap,
-        voiceEffectFallback: transcodeResult.voiceEffectFallback === true,
-      });
+      return { voiceEffectFallback: transcodeResult.voiceEffectFallback };
     } catch (error) {
-      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) return;
-      if (error instanceof DOMException && error.name === 'AbortError') return;
+      if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) {
+        return {};
+      }
+      if (error instanceof DOMException && error.name === 'AbortError') throw error;
       this.setError(error);
+      return {};
     } finally {
       if (this.transcodeAbort === controller) {
         this.transcodeAbort = null;
@@ -431,11 +575,14 @@ export class VoiceRecorderSession {
       criticalLimit: false,
       stoppedAtCap: false,
       voiceEffectFallback: false,
+      subtitleBurnInFallback: false,
+      subtitleStudioPending: false,
       webmBlob: undefined,
       mp4Blob: undefined,
       errorCode: undefined,
       errorMessage: undefined,
     });
+    this.processingAbort = null;
   }
 
   dispose(): void {

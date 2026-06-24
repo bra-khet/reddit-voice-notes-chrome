@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" aria-hidden="true">
+/*
+  Design Studio v4 — Knob Tick Marks (amber bright indicators)
+  Hard-coded amber #ffd54f for non-themed ticks.
+  Major ticks are longer/thicker. Designed to sit on the housing rim.
+
+  Theming note: In real use, swap stroke to var(--theme-color) or currentColor.
+  12 major + 36 minor = nice 30° resolution for volume 0-100 feel.
+
+  NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
+  in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
+  Comments must be placed INSIDE the <svg> ... </svg> tags.
+*/
+  <g fill="none" stroke="#ffd54f" stroke-linecap="round">
+    /* Major ticks (every 30°) */
+    <g stroke-width="3.5">
+      <line x1="80" y1="18" x2="80" y2="30"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(30 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(60 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(90 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(120 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(150 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(180 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(210 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(240 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(270 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(300 80 80)"/>
+      <line x1="80" y1="18" x2="80" y2="30" transform="rotate(330 80 80)"/>
+    </g>
+
+    /* Minor ticks */
+    <g stroke-width="1.5" opacity="0.75">
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(15 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(45 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(75 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(105 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(135 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(165 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(195 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(225 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(255 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(285 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(315 80 80)"/>
+      <line x1="80" y1="20" x2="80" y2="28" transform="rotate(345 80 80)"/>
+      /* second set for finer 10° steps if desired */
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(5 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(25 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(35 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(55 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(65 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(85 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(95 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(115 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(125 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(145 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(155 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(175 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(185 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(205 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(215 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(235 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(245 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(265 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(275 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(295 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(305 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(325 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(335 80 80)"/>
+      <line x1="80" y1="21" x2="80" y2="27" transform="rotate(355 80 80)"/>
+    </g>
+  </g>
+</svg>

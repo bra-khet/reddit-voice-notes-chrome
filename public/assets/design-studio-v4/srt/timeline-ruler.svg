@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="30" viewBox="0 0 300 30" aria-hidden="true">
+<!--
+  Design Studio v4 — SRT Editor: Timeline Ruler
+  With tick marks, clean futuristic.
+  Matches overall style.
+-->
+  <defs>
+    <linearGradient id="rulerBevel" gradientTransform="rotate(90)" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Track -->
+  <rect x="0" y="8" width="300" height="14" rx="2" ry="2"
+        fill="url(#rulerBevel)" stroke="#0a0014" stroke-width="1"/>
+
+  <!-- Ticks (major/minor) -->
+  <g stroke="#ffd54f" stroke-width="1" opacity="0.7">
+    <!-- Major every 50 -->
+    <line x1="0" y1="6" x2="0" y2="24"/>
+    <line x1="50" y1="6" x2="50" y2="24"/>
+    <line x1="100" y1="6" x2="100" y2="24"/>
+    <line x1="150" y1="6" x2="150" y2="24"/>
+    <line x1="200" y1="6" x2="200" y2="24"/>
+    <line x1="250" y1="6" x2="250" y2="24"/>
+    <line x1="300" y1="6" x2="300" y2="24"/>
+    <!-- Minor -->
+    <line x1="25" y1="10" x2="25" y2="20" stroke-width="0.5"/>
+    <line x1="75" y1="10" x2="75" y2="20" stroke-width="0.5"/>
+    <!-- etc. -->
+  </g>
+
+  <!-- Playhead hint -->
+  <polygon points="148,4 152,4 150,28" fill="#ffd54f" opacity="0.8"/>
+</svg>
