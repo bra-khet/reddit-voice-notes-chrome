@@ -135,7 +135,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         </div>
       </header>
       ${renderStudioV4SubpanelChrome()}
-      <div class="studio__workflow-banner" data-workflow-banner aria-label="Workflow guidance"></div>
+      <div class="studio__workflow-banner" role="region" data-workflow-banner aria-label="Workflow guidance"></div>
       <div class="studio__exit-modal" data-exit-modal hidden>
         <div class="studio__exit-dialog" role="dialog" aria-labelledby="studio-exit-title">
           <h2 class="studio__exit-title" id="studio-exit-title">Unsaved changes</h2>

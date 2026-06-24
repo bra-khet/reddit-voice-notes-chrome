@@ -581,6 +581,8 @@ export class RecorderPanel {
   private onTertiaryClick(): void {
     if (!this.session || this.currentState.phase !== 'stopped') return;
     void this.session.resetForNewRecording();
+    // Re-enter capture phase so Design Studio banner reflects a new recording in progress.
+    void setWorkflowPhase('capture');
   }
 
   private async attachToReddit(): Promise<void> {
@@ -607,6 +609,8 @@ export class RecorderPanel {
         this.statusEl.textContent = result.message;
         this.statusEl.classList.remove('status--error');
         this.statusEl.classList.add('status--success');
+        // Full loop closure: return to Phase 1 so Design Studio is ready for the next clip.
+        void setWorkflowPhase('design');
       }
     } finally {
       this.attaching = false;

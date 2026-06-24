@@ -1131,6 +1131,17 @@ body {
   margin-bottom: 14px;
 }
 
+/* Screen-reader-only live region — visually hidden but readable by assistive tech */
+.wf-sr-announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* Hidden when a sub-panel is open so it doesn't fight the panel header */
 .studio-v4--subpanel-open .studio__workflow-banner {
   display: none;
@@ -1261,6 +1272,13 @@ body {
 .wf-cta__btn:focus-visible {
   outline: 2px solid var(--studio-violet-confirm);
   outline-offset: 2px;
+}
+
+.wf-cta__btn--loading,
+.wf-cta__btn[disabled] {
+  opacity: 0.65;
+  cursor: not-allowed;
+  filter: none;
 }
 
 /* Post-bake: switch-to-Reddit uses amber accent */

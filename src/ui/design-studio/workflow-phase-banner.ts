@@ -93,13 +93,17 @@ function stepperHtml(eff: WorkflowPhase): string {
   return `<div class="wf-stepper" role="list" aria-label="3-phase workflow progress">${steps.join('')}</div>`;
 }
 
-function bannerHtml(phase: WorkflowPhase, status: WorkflowBannerStatus): string {
+function bannerHtml(phase: WorkflowPhase, status: WorkflowBannerStatus, isSwitching: boolean): string {
   const eff = effectivePhase(phase, status);
   const text = ctaText(phase, status);
   const btnLabel = ctaButtonLabel(phase, status);
-  const btnHtml = btnLabel
-    ? `<button type="button" class="wf-cta__btn" data-wf-switch-reddit>${btnLabel} →</button>`
-    : '';
+  let btnHtml = '';
+  if (btnLabel) {
+    const disabledAttr = isSwitching ? ' disabled aria-busy="true"' : '';
+    const loadingClass = isSwitching ? ' wf-cta__btn--loading' : '';
+    const btnText = isSwitching ? 'Switching…' : `${btnLabel} →`;
+    btnHtml = `<button type="button" class="wf-cta__btn${loadingClass}" data-wf-switch-reddit${disabledAttr}>${btnText}</button>`;
+  }
 
   return `
     <div class="wf-banner" data-wf-effective="${eff}">
@@ -123,16 +127,35 @@ export function mountWorkflowBanner(
   const el = root.querySelector<HTMLElement>('[data-workflow-banner]');
   if (!el) return { update: () => {}, dispose: () => {} };
 
+  // Persistent ARIA live region — must survive innerHTML re-renders to announce phase changes.
+  // Kept as a sibling rather than inside the banner so it isn't blown away by innerHTML =.
+  const announcer = document.createElement('div');
+  announcer.className = 'wf-sr-announcer';
+  announcer.setAttribute('aria-live', 'polite');
+  announcer.setAttribute('aria-atomic', 'true');
+  el.insertAdjacentElement('beforebegin', announcer);
+
   let phase = initialPhase;
   let status = initialStatus;
+  let isSwitching = false;
 
   function render(): void {
-    el!.innerHTML = bannerHtml(phase, status);
+    el!.innerHTML = bannerHtml(phase, status, isSwitching);
+    // Update the persistent live region so screen readers announce guidance changes.
+    announcer.textContent = ctaText(effectivePhase(phase, status), status);
 
     const switchBtn = el!.querySelector<HTMLButtonElement>('[data-wf-switch-reddit]');
     if (switchBtn) {
       switchBtn.addEventListener('click', () => {
-        void setWorkflowPhase('capture').then(() => activateRedditTab());
+        if (isSwitching) return;
+        isSwitching = true;
+        render();
+        void setWorkflowPhase('capture')
+          .then(() => activateRedditTab())
+          .finally(() => {
+            isSwitching = false;
+            render();
+          });
       });
     }
   }
@@ -151,6 +174,7 @@ export function mountWorkflowBanner(
     },
     dispose() {
       unsubPhase();
+      announcer.remove();
     },
   };
 }
