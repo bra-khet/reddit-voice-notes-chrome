@@ -19,6 +19,9 @@ lerna-debug.log*
 
 node_modules
 .output
+# Global required ignores (WXT builds to .output; dist/ build/ kept for rule compliance)
+dist/
+build/
 stats.html
 stats-*.json
 .wxt

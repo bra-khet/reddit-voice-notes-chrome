@@ -89,7 +89,9 @@ export function resolveGlowColorHex(
   if (source === 'black') return '#000000';
   if (source === 'white') return '#ffffff';
   if (source === 'special') {
-    const base = normalizeHexColor(specialHue) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
+    // BUG FIX: undefined arg to normalizeHexColor when specialHue is not set
+    // Fix: guard argument with ?? so normalizeHexColor always receives a string; keep result fallback for invalid hex
+    const base = normalizeHexColor(specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
     if (rainbowEnabled && timeSeconds !== undefined) {
       return rainbowHueHexAtTime(timeSeconds, base);
     }
@@ -111,7 +113,9 @@ export function resolveTextColorHex(
     return normalizeHexColor(themeBarColor) ?? '#00e5ff';
   }
   if (style.textColor === 'special') {
-    const base = normalizeHexColor(style.specialHue) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
+    // BUG FIX: undefined arg to normalizeHexColor when style.specialHue is not set
+    // Fix: guard argument with ?? so normalizeHexColor always receives a string; keep result fallback for invalid hex
+    const base = normalizeHexColor(style.specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
     if (style.specialHueRainbow && timeSeconds !== undefined) {
       return rainbowHueHexAtTime(timeSeconds, base);
     }

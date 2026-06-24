@@ -732,6 +732,7 @@ Card faces remain non-interactive except **enter**; all apply/discard lives insi
 | `claude-progress.md` | Session timeline and release tags |
 | `docs/eloquent-profile-checkpoint.md` | **Historical** profile bug cluster audit (superseded for semantics) |
 | `docs/eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint |
+| `docs/architecture/` | Architecture map, extension-points registry, hardening backlog — cross-cutting view (`/architecture-hardening`) |
 
 ---
 

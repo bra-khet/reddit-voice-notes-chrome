@@ -397,7 +397,9 @@ export class VoiceRecorderSession {
         }
 
         const transcodeOutcome = await this.transcodeToMp4(stopEpoch);
-        if (this.isSuperseded(stopEpoch) || this.phase === 'error') return;
+        // BUG FIX: dead phase === 'error' branch in stop path
+        // Fix: transcodeToMp4 throws on error (caught by outer try/catch); phase cannot be 'error' here
+        if (this.isSuperseded(stopEpoch)) return;
 
         this.setPhase('stopped', {
           processingProgress: 100,
