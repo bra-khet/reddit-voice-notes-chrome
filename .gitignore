@@ -1,5 +1,10 @@
 # User specified
 .ignore/
+.env*
+.venv*
+*.log
+coverage/
+.claude/settings.local.json
 mcps/
 terminals/
 

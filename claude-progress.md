@@ -566,7 +566,42 @@ Sub-panel control chrome (knobs/sliders), main Done asset, eloquent-4b remainder
 
 **Version:** `3.7.1` · **Branch:** `eloquent`
 
-### Shipped
+## UX Refresh Sprint — 3-Phase Workflow Guidance (2026-06-23, in progress toward v3.8)
+
+**Branch:** `eloquent` · **Fallback tag:** `v3.7.1`
+
+### Guiding principles source
+`.ignore/ux-guiding-principles.txt` + `.ignore/ux-refresh-sprint.txt`
+
+### Goal
+Add a clear, professional **3-Phase Creative Workflow** guidance layer on top of the existing eloquent UI so users always know where they are and what to do next across the Reddit↔Studio tab split.
+
+| Phase | Tab | Status |
+|-------|-----|--------|
+| **Phase 1: Design** | Design Studio | Shown on banner when no recording exists |
+| **Phase 2: Capture** | Reddit tab | Set when user clicks "Switch to Reddit"; recorder label changes |
+| **Phase 3: Polish & Bake** | Design Studio | Auto-promoted when recording exists; banner CTAs surface bake flow |
+
+### Shipped (commit `66752f2`)
+
+| File | Change |
+|------|--------|
+| `src/workflow/workflow-state.ts` (NEW) | `WorkflowPhase` type; `rvn.workflow.phase` CRUD; `activateRedditTab()` |
+| `src/ui/design-studio/workflow-phase-banner.ts` (NEW) | 3-step stepper + contextual CTA + "Why the switch?" disclosure |
+| `entrypoints/design-studio/style.css` | `.wf-banner` / `.wf-stepper` / `.wf-step` / `.wf-cta` — CVD palette |
+| `entrypoints/design-studio/main.ts` | Load phase in parallel with prefs at boot |
+| `src/ui/design-studio/mount-clip-studio.ts` | Inject `data-workflow-banner`; mount/sync/dispose banner |
+| `src/ui/recorder-panel.ts` | Phase-aware hint labels; `setWorkflowPhase('polish')` on stop |
+
+**Design principles checklist:**
+- ✅ Visibility of System Status — 3-step indicator always visible; phase label contextual
+- ✅ Match Between System and Real World — Design→Capture→Polish framing mirrors film production
+- ✅ User Control & Freedom — "Switch to Reddit" / "Switch to Reddit to attach" CTAs on banner
+- ✅ Consistency — same phase names in both tabs; same `rvn.workflow.phase` key
+- ✅ Reduce Cognitive Load — "Why the switch?" is collapsed by default; CTA changes per phase
+- ✅ Minimal & High-Impact — 6 files changed; no existing feature removed or refactored
+
+### Shipped (prev)
 
 - **Bar style / Background sub-panels:** Compact framed WYSIWYG live preview at top (same 628×348 clip-path + bezel, max-width ~280px) — shares `renderThemePreview` RAF loop with hero canvas.
 - **Subtitles sub-panel:** Caption text preview at top (`drawSubtitleTextOnlyPreview` — style fidelity without full bars/bg); **Bake** moved from bottom to top with amber 9-slice chrome (`studio-v4__bake-btn`).

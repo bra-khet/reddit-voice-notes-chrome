@@ -20,6 +20,25 @@ Treat Design Studio as a **self-contained suite** (extension-origin app) that:
 
 Future UI refreshes must preserve the **semantic contracts** in this document even when layout, components, or styling change.
 
+### 1.0 3-Phase Creative Workflow (canonical mental model)
+
+The extension's UX is framed as a deliberate 3-phase creative workflow. Use this exact terminology everywhere — in UI copy, documentation, and commit messages.
+
+| Phase | Tab | Description |
+|-------|-----|-------------|
+| **Phase 1: Design** | Design Studio | Choose clip style, voice effects, background, subtitle style. |
+| **Phase 2: Capture** | Reddit tab | Record voice inside the comment composer. |
+| **Phase 3: Polish & Bake** | Design Studio | Review/edit subtitles, bake captions into MP4, finalize. |
+
+**Shared state key:** `rvn.workflow.phase` in `chrome.storage.local` (`'design' | 'capture' | 'polish'`). This carries the user's *intent* phase cross-tab. Authoritative recording/transcript state remains in IDB and subtitle controls as before.
+
+**Phase transitions (automatic):**
+- Design Studio "Switch to Reddit" CTA → sets `'capture'`
+- Recorder panel recording stops → sets `'polish'`
+- Banner auto-promotes to Phase 3 UI when `hasSessionRecording()` is true, regardless of stored phase
+
+**Helpful one-liner for UI copy:** "Recording happens inside Reddit for a native feel. Design and post-production happen here in the Studio for full controls and real-time preview."
+
 ### 1.1 Entry points
 
 | Entry | Mechanism | File |
@@ -124,6 +143,7 @@ pagehide
 | `chrome.storage.local` | `rvn.lastRecording.ready` | Signal new WebM for voice preview poll | Voice + subtitle polls | — (recorder writes) |
 | `chrome.storage.local` | `rvn.sessionTranscript.ready` | Signal new transcript IDB row | Subtitle poll | — (background writes) |
 | `chrome.storage.local` | `rvn.bakedMp4.ready` | Signal baked MP4 for recorder | — | Bake completion |
+| `chrome.storage.local` | `rvn.workflow.phase` | 3-phase intent: `'design' \| 'capture' \| 'polish'` | Workflow banner (boot + listener) | Banner CTA, recorder stop |
 | IndexedDB | `rvnImageDb` | Personal background blobs | Direct (extension origin) | Upload/delete UI |
 | IndexedDB | `rvnLastRecording` | Last WebM for voice preview | Voice controls | — (recorder relay) |
 | IndexedDB | `rvnSessionTranscript` | Vosk + edited transcript | Subtitle controls | Confirm & save |
@@ -676,6 +696,7 @@ Card faces remain non-interactive except **enter**; all apply/discard lives insi
 
 | Item | Section | Notes |
 |------|---------|-------|
+| 3-phase workflow banner | Shell | `workflow-phase-banner.ts` wired; `rvn.workflow.phase` key live |
 | Segment-aware canvas preview | Subtitles | `previewText()` flat today |
 | Rainbow speed / slice fineness | Subtitles | Tunable `RAINBOW_CYCLES_PER_SECOND` + `RAINBOW_BAKE_SLICE_SECONDS`; user slider optional |
 | In-Studio recording (optional) | Shell / Voice | Extension page mic + unified canvas; Reddit tab keeps attach-only — see §13 |
@@ -763,6 +784,7 @@ src/ui/design-studio/
   studio-exit.ts           Done / exit modal logic
   studio-save-pathways.ts  Clone / fork prompts
   open-design-studio.ts    tabs.create relay
+  workflow-phase-banner.ts 3-phase stepper + CTA; reads rvn.workflow.phase + live status
   preview-block.ts         Canvas markup
   color-picker.ts          Bar style colors
   effect-controls.ts       Glow + flair
@@ -772,6 +794,11 @@ src/ui/design-studio/
   subtitle-segment-editor.ts
   subtitle-bake.ts
   radial-knob.ts
+```
+
+```
+src/workflow/
+  workflow-state.ts        WorkflowPhase type; rvn.workflow.phase CRUD; activateRedditTab()
 ```
 
 **Supersedes (semantics only, not history):** scattered Studio layout/behavior notes in branch plans, handoffs, and checkpoints. Those docs remain authoritative for bug timelines, commit chains, and sprint QA. When a older doc disagrees with this file on *current* Studio behavior, **this file wins**.
