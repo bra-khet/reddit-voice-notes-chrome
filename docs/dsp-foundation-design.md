@@ -154,15 +154,22 @@ kind skips to `none` (no crash).
 The legacy export path (`ffmpeg-runner.ts:462`, `process-audio.ts:141`) still calls
 `buildFfmpegAudioFilter(config) → { filter, stage }`. 1.3 swaps the source:
 
-1. Store `StylizedGraph` (migrate legacy on read) instead of `VoiceEffectConfig`.
-2. Replace `buildFfmpegAudioFilter` call sites with
-   `buildStylizedGraph(graph).af` + a `stylizedGraphIsActive(graph)` guard.
-3. Refactor `resolve-config.ts` intensity scaling into the renderer (`RenderContext`)
-   and add the **non-linear, per-primitive** curve the roadmap calls for.
-4. Refresh `presets.ts` to author presets natively as fragment graphs.
+1. **DONE (step 1):** `process-audio.ts` `processAudioBytesWithGraph()` /
+   `processAudioWithGraph()` run a `StylizedGraph` through ffmpeg.wasm — both the
+   linear `-af` chain and the complex `-filter_complex` path (writes aux IR WAVs as
+   extra `-i`, `-map`s the output pad, longer timeout for convolution). Additive: the
+   legacy `processAudioBytes(config)` path is untouched. **Harness-testable now;
+   pending runtime QA of filter availability + convolution perf.**
+2. Wire the live transcode (`ffmpeg-runner.ts`) — needs `-filter_complex` + aux `-i`
+   threaded into the muxed WebM→MP4 strategies alongside the waveform video stream.
+3. Store `StylizedGraph` (migrate legacy on read) instead of `VoiceEffectConfig`
+   across prefs/profiles/Design Studio (~24 files; do with the app running for QA).
+4. Refactor `resolve-config.ts` intensity scaling into `RenderContext` with the
+   **non-linear, per-primitive** curve (user decision); refresh `presets.ts` as
+   native fragment graphs.
 
-Until then this module is **additive and unwired** — existing export is untouched
-and the build stays green.
+The dsp module + the `process-audio` graph runner are additive; the live recorder /
+export / storage paths are still on the legacy config.
 
 ## Status / next
 

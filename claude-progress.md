@@ -698,12 +698,21 @@ per-grain = future WASM), spectralCarve (resonant EQ peaks vocal→metallic). Ad
 per-`ParallelSpec` `mixDuration`. Kitchen-sink graph (pitch→sat→carve→ringMod→
 granular→convReverb) smoke-verified; tsc clean. **Sub-Phase 1.2 COMPLETE.**
 
-### Next: Sub-Phase 1.3
-- **1.2b (done):** see above.
-- **1.3:** wire graph into export (replace `buildFfmpegAudioFilter` call sites at
-  `ffmpeg-runner.ts:462` / `process-audio.ts:141`; consume `result.auxInputs` +
-  `-filter_complex`/`-map` for complex graphs), **non-linear per-primitive intensity
-  curve** (user decision), native fragment presets, resolve-config refactor.
+### Sub-Phase 1.3 — step 1 DONE (graph runs in ffmpeg.wasm)
+`process-audio.ts`: `processAudioBytesWithGraph()` / `processAudioWithGraph()` execute
+a `StylizedGraph` through ffmpeg.wasm — linear `-af` AND complex `-filter_complex`
+(writes aux IR WAVs as extra `-i`, `-map`s output pad, 120s timeout for convolution).
+Additive — legacy `processAudioBytes(config)` path untouched; tsc clean (only the 4
+pre-existing error files remain). Harness-testable now.
+
+### Next: Sub-Phase 1.3 (remainder)
+- Wire the LIVE transcode (`ffmpeg-runner.ts:462`): thread `-filter_complex` + aux
+  `-i` into the muxed WebM→MP4 strategies (alongside the waveform video) — riskier;
+  do with the app running.
+- Swap stored `VoiceEffectConfig` → `StylizedGraph` across prefs/profiles/Design
+  Studio (~24 files; migrate on read).
+- **Non-linear per-primitive intensity curve** (user decision) replacing the linear
+  `RenderContext.scale`; native fragment presets; resolve-config refactor.
 - **QA gate:** confirm `asoftclip`/`aexciter`/`deesser`/`adeclick`/`afir`/`amultiply`/
-  `sine` in shipped core; make per-fragment skip resilient (today a missing filter
-  fails the whole graph → raw-audio fallback).
+  `sine` in shipped `@ffmpeg/core`; make per-fragment skip resilient (today a missing
+  filter fails the whole graph → raw-audio fallback).
