@@ -2,16 +2,22 @@ import {
   buildGlowLayerSpecs,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
-import type { SubtitleStyleConfig } from './types';
+import type { SubtitleStyleConfig, TranscriptSegment } from './types';
 
 export interface SubtitlePreviewOptions {
   enabled: boolean;
   text: string;
+  /** Segment timing data — when present, preview cycles through active cues instead of full text. */
+  segments?: TranscriptSegment[];
   style: SubtitleStyleConfig;
   /** Active theme bar color — resolves theme-hue glow in preview. */
   themeBarColor?: string;
   /** Wall-clock ms for animated special-hue rainbow (from preview RAF). */
   previewTimeMs?: number;
+}
+
+function activeSegmentText(segments: TranscriptSegment[], timeSec: number): string {
+  return segments.find((s) => s.start <= timeSec && timeSec < s.end)?.text.trim() ?? '';
 }
 
 const PREVIEW_PLACEHOLDER = 'Your caption here';
@@ -103,7 +109,23 @@ export function drawSubtitlePreview(
 ): void {
   if (!options.enabled) return;
 
-  const displayText = options.text.trim() || PREVIEW_PLACEHOLDER;
+  const previewTimeSec = (options.previewTimeMs ?? performance.now()) / 1000;
+
+  // Segment-aware mode: cycle through cue timings using wall-clock time so the
+  // preview animates like a playback scrub without requiring audio/video sync.
+  let displayText: string;
+  const segs = options.segments;
+  if (segs && segs.length > 0) {
+    const totalDuration = segs[segs.length - 1]!.end;
+    const cycleSec = totalDuration > 0 ? (previewTimeSec % totalDuration) : 0;
+    displayText = activeSegmentText(segs, cycleSec);
+    if (!displayText) {
+      // Gap between cues — nothing to render.
+      return;
+    }
+  } else {
+    displayText = options.text.trim() || PREVIEW_PLACEHOLDER;
+  }
   const style = options.style;
   const fontSize = style.fontSize ?? 22;
   const fontFamily = style.fontFamily ?? 'system-ui, sans-serif';
@@ -112,7 +134,6 @@ export function drawSubtitlePreview(
   const paddingX = 14;
   const paddingY = 10;
   const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
-  const previewTimeSec = (options.previewTimeMs ?? performance.now()) / 1000;
   const palette = resolveSubtitleEffectPalette(style, themeBarColor, previewTimeSec);
 
   ctx.save();

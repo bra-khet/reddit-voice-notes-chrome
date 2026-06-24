@@ -80,6 +80,14 @@ const POSITION_OPTIONS: { value: SubtitleStyleConfig['position']; label: string 
   { value: 'bottom', label: 'Bottom' },
 ];
 
+const FONT_FAMILY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'system-ui, sans-serif', label: 'System Sans (default)' },
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+  { value: "Georgia, 'Times New Roman', serif", label: 'Georgia' },
+  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
+  { value: 'Impact, Haettenschweiler, sans-serif', label: 'Impact' },
+];
+
 function formatSavedAt(ms: number): string {
   try {
     return new Date(ms).toLocaleString(undefined, {
@@ -153,6 +161,13 @@ export function renderSubtitleControlFields(): string {
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Position</span>
           <select class="popup__select" data-subtitle-position aria-label="Subtitle position"></select>
+        </label>
+        <label class="popup__field studio__field--compact">
+          <span class="popup__field-label">
+            Font
+            <span class="popup__micro" title="Baked MP4 always uses DejaVu Sans">preview only</span>
+          </span>
+          <select class="popup__select" data-subtitle-font-family aria-label="Subtitle font family (preview only)"></select>
         </label>
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">
@@ -335,6 +350,7 @@ export function mountSubtitleControls(
   const bodyEl = panel.querySelector<HTMLElement>('[data-subtitle-body]')!;
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-subtitle-enabled]')!;
   const positionSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-position]')!;
+  const fontFamilySelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-font-family]')!;
   const fontSizeInput = panel.querySelector<HTMLInputElement>('[data-subtitle-font-size]')!;
   const fontSizeValueEl = panel.querySelector<HTMLElement>('[data-subtitle-font-size-value]')!;
   const backdropInput = panel.querySelector<HTMLInputElement>('[data-subtitle-backdrop]')!;
@@ -409,6 +425,13 @@ export function mountSubtitleControls(
     el.value = option.value ?? 'bottom';
     el.textContent = option.label;
     positionSelect.append(el);
+  }
+
+  for (const option of FONT_FAMILY_OPTIONS) {
+    const el = document.createElement('option');
+    el.value = option.value;
+    el.textContent = option.label;
+    fontFamilySelect.append(el);
   }
 
   const specialHuePicker = mountColorPickerControls(specialHuePanel, (overrides) => {
@@ -812,6 +835,7 @@ export function mountSubtitleControls(
     syncing = true;
     const style = draftConfig.style;
     positionSelect.value = style.position ?? 'bottom';
+    fontFamilySelect.value = style.fontFamily ?? 'system-ui, sans-serif';
     const fontSize = style.fontSize ?? 22;
     fontSizeInput.value = String(fontSize);
     fontSizeValueEl.textContent = `${fontSize}px`;
@@ -860,6 +884,7 @@ export function mountSubtitleControls(
       ...draftConfig.style,
       enabled: draftConfig.transcriptionEnabled,
       position: positionSelect.value as SubtitleStyleConfig['position'],
+      fontFamily: fontFamilySelect.value,
       fontSize: Number(fontSizeInput.value),
       textColor: textColorSelect.value as SubtitleTextColor,
       backdrop: {
@@ -1009,6 +1034,13 @@ export function mountSubtitleControls(
   });
 
   positionSelect.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  fontFamilySelect.addEventListener('change', () => {
     if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
@@ -1185,6 +1217,7 @@ export function mountSubtitleControls(
       return {
         enabled: true,
         text: previewText(),
+        segments: segmentEditor.getEditedResult()?.segments,
         style: config.style,
         themeBarColor: handlers?.getThemeBarColor?.(),
       };
