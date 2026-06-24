@@ -85,7 +85,7 @@ export interface TranscriptConfig {
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
   enabled: false,
-  fontFamily: 'system-ui, sans-serif',
+  fontFamily: 'dejavu-sans',
   fontSize: 22,
   position: 'bottom',
   textColor: 'white',
