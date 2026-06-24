@@ -573,3 +573,4 @@ Sub-panel control chrome (knobs/sliders), main Done asset, eloquent-4b remainder
 - **Preview kinds:** `subpanel` + `subtitle-text` in `preview-block.ts`.
 - **Bake button states:** `unavailable` / `ready` / `baking` / `complete` — class-driven visuals aligned with `canBakeNow()` (requires transcript matched to current recording + delivery ready + confirmed edits).
 - **Bake compositing fix:** `button-frame-9slice` must use border-image **edges only** (no `fill`) — SVG center is dark `#12001f`; `fill` painted over CSS amber gradients (flash-then-gray symptom). See `studioV4BorderImageEdgesOnly()`.
+- **Bake UX:** “Repeatable” hint under bake status; disable-subtitles guard clears IDB transcript only after confirm (no accidental wipe on re-enable).

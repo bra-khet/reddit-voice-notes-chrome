@@ -784,3 +784,25 @@ body:has(.studio-v4) {
 .studio-v4 .studio__exit-copy {
   color: var(--studio-text-muted);
 }
+
+.studio-v4 .studio__bake-repeatable-hint {
+  color: var(--studio-amber);
+  opacity: 0.88;
+}
+
+.studio-v4 .studio__subtitle-disable-dialog {
+  border-style: solid;
+  border-width: 10px;
+  border-image: var(--studio-v4-border-dialog);
+  background: var(--studio-bg-deep);
+  color: var(--studio-text);
+  box-sizing: border-box;
+}
+
+.studio-v4 .studio__subtitle-disable-title {
+  color: var(--studio-text);
+}
+
+.studio-v4 .studio__subtitle-disable-copy {
+  color: var(--studio-text-muted);
+}

@@ -144,6 +144,9 @@ export function renderSubtitleControlFields(): string {
             <p class="popup__field-desc studio__bake-status" data-subtitle-bake-status>
               Confirm your transcript edits, then bake. The Reddit recorder will pick up the captioned MP4.
             </p>
+            <p class="popup__field-desc studio__bake-repeatable-hint" data-subtitle-bake-repeatable>
+              Repeatable — rebake anytime after transcript edits or a fresh recording.
+            </p>
           </div>
         </div>
         ${renderSubtitleSegmentEditorFields()}
@@ -282,6 +285,37 @@ export function renderSubtitleControlFields(): string {
           </button>
         </div>
       </div>
+      <div class="studio__subtitle-disable-guard" data-subtitle-disable-guard hidden>
+        <div
+          class="studio__subtitle-disable-dialog"
+          role="dialog"
+          aria-labelledby="subtitle-disable-guard-title"
+        >
+          <h3 class="studio__subtitle-disable-title" id="subtitle-disable-guard-title">
+            Turn off subtitles?
+          </h3>
+          <p class="popup__field-desc studio__subtitle-disable-copy">
+            Disabling subtitles clears your current transcript from Design Studio. Record again
+            anytime to transcribe fresh — you can rebake as often as you like.
+          </p>
+          <div class="popup__profile-actions studio__inline-actions studio-v4__guard-actions">
+            <button
+              type="button"
+              class="popup__button popup__button--secondary studio-v4__guard-cancel"
+              data-subtitle-disable-cancel
+            >
+              Keep subtitles on
+            </button>
+            <button
+              type="button"
+              class="popup__profile-btn popup__profile-btn--delete studio-v4__guard-discard"
+              data-subtitle-disable-confirm
+            >
+              Turn off &amp; clear
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -326,6 +360,9 @@ export function mountSubtitleControls(
   const bakeSaveContinueBtn = panel.querySelector<HTMLButtonElement>('[data-bake-save-continue]')!;
   const bakeEditBackBtn = panel.querySelector<HTMLButtonElement>('[data-bake-edit-back]')!;
   const bakeUnsavedCancelBtn = panel.querySelector<HTMLButtonElement>('[data-bake-unsaved-cancel]')!;
+  const disableGuardEl = panel.querySelector<HTMLElement>('[data-subtitle-disable-guard]')!;
+  const disableCancelBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-disable-cancel]')!;
+  const disableConfirmBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-disable-confirm]')!;
 
   let draftConfig: TranscriptConfig = normalizeTranscriptConfig(DEFAULT_TRANSCRIPT_CONFIG);
   let lastSnapshot: SessionTranscriptSnapshot | null = null;
@@ -493,6 +530,20 @@ export function mountSubtitleControls(
 
   function hasTranscriptCues(): boolean {
     return (segmentEditor.getEditedResult()?.segments?.length ?? 0) > 0;
+  }
+
+  function hasStoredTranscript(): boolean {
+    if ((lastSnapshot?.editedResult?.segments?.length ?? 0) > 0) return true;
+    return hasTranscriptCues();
+  }
+
+  function showDisableGuard(): void {
+    disableGuardEl.hidden = false;
+    disableCancelBtn.focus();
+  }
+
+  function hideDisableGuard(): void {
+    disableGuardEl.hidden = true;
   }
 
   function hideBakeUnsavedDialog(): void {
@@ -835,9 +886,15 @@ export function mountSubtitleControls(
     await refreshTranscriptDeliveryStatus();
   }
 
-  enabledInput.addEventListener('change', () => {
-    if (syncing) return;
-    const enabled = enabledInput.checked;
+  async function applySubtitlesEnabled(enabled: boolean, clearTranscript: boolean): Promise<void> {
+    if (!enabled && clearTranscript) {
+      await clearSessionTranscriptStore();
+      lastSnapshot = null;
+      dismissedSnapshotCapturedAt = Date.now();
+      dismissCurrentSessionTranscript();
+      updateSourceCopy();
+    }
+
     draftConfig = {
       ...draftConfig,
       transcriptionEnabled: enabled,
@@ -848,14 +905,51 @@ export function mountSubtitleControls(
     };
     syncEnabledUi();
     if (enabled) {
-      void loadTranscriptSource().then(() => {
-        dismissCurrentSessionTranscript();
-      });
+      await loadTranscriptSource();
     }
     writeSubtitlesEnabledLocal(enabled);
-    void setSubtitlesEnabled(enabled).then(() => persistNow());
+    await setSubtitlesEnabled(enabled);
+    await persistNow();
     notifyDraftChange();
+  }
+
+  enabledInput.addEventListener('change', () => {
+    if (syncing) return;
+    const enabled = enabledInput.checked;
+
+    if (!enabled && hasStoredTranscript()) {
+      syncing = true;
+      enabledInput.checked = true;
+      syncing = false;
+      showDisableGuard();
+      return;
+    }
+
+    void applySubtitlesEnabled(enabled, false);
   });
+
+  disableCancelBtn.addEventListener('click', () => {
+    hideDisableGuard();
+    syncing = true;
+    enabledInput.checked = true;
+    syncing = false;
+  });
+
+  disableConfirmBtn.addEventListener('click', () => {
+    hideDisableGuard();
+    void applySubtitlesEnabled(false, true);
+  });
+
+  const onDisableGuardKeydown = (event: KeyboardEvent): void => {
+    if (disableGuardEl.hidden || event.key !== 'Escape') return;
+    event.preventDefault();
+    hideDisableGuard();
+    syncing = true;
+    enabledInput.checked = true;
+    syncing = false;
+  };
+
+  document.addEventListener('keydown', onDisableGuardKeydown);
 
   resetBtn.addEventListener('click', () => {
     void (async () => {
@@ -1067,7 +1161,9 @@ export function mountSubtitleControls(
     },
     dispose(): void {
       bakeAbort?.abort();
+      hideDisableGuard();
       clearPendingTranscriptTimer();
+      document.removeEventListener('keydown', onDisableGuardKeydown);
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onTranscriptReady);
       window.clearInterval(pollTimer);

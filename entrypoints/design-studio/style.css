@@ -967,6 +967,47 @@ body {
   min-height: 1.2em;
 }
 
+.studio__bake-repeatable-hint {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.studio__subtitle-disable-guard {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 0, 18, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.studio__subtitle-disable-guard[hidden] {
+  display: none;
+}
+
+.studio__subtitle-disable-dialog {
+  width: min(100%, 380px);
+  padding: 14px 12px 12px;
+  border-radius: 10px;
+  background: #272729;
+  border: 1px solid #343536;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.studio__subtitle-disable-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.studio__subtitle-disable-copy {
+  margin: 0 0 12px;
+}
+
 .studio__effect-toggle {
   margin-bottom: 0;
 }
