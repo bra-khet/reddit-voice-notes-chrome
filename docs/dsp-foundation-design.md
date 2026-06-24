@@ -174,15 +174,26 @@ and the build stays green.
   `aexciter`, presenceAir via `equalizer`+`treble`), clarity (deEsser via `deesser`,
   deClick via `adeclick`). 15 of 21 kinds now emit; smoke-verified syntax + intensity
   response. Strength (depth/mix/amount) folds with intensity; LFO rate stays raw.
-- **1.2b:** the `-filter_complex` promotion path + parallel kinds — `ringMod`
-  (sine carrier × signal via `amultiply`), `convReverb` (`afir` + IR bundle),
-  `granular`, `hybridLayer` (vocoder-style) — plus `spectralCarve` (`afftfilt`).
+- **1.2b-i DONE:** `-filter_complex` assembler + parallel-node model
+  (`ParallelSpec`: in-graph `sources`, `auxInputs` for extra `-i` files, dry/wet
+  `amix`, mono normalization at the graph head) + `ringMod` (sine × signal via
+  `amultiply`). 16/21 kinds emit. Smoke-verified graph threading (linear+parallel).
+- **1.2b next:** `convReverb` (procedural JS IR generator → WAV → `afir` via the
+  `auxInputs` hook), `granular`, `hybridLayer` (vocoder-style), `spectralCarve`
+  (`afftfilt`).
 - **1.3:** wire into export, non-linear intensity curves, native fragment presets.
 
+### filter_complex model
+All-linear graphs → one `-af` chain (stereo preserved). Any parallel fragment →
+`-filter_complex`, mono-normalized at the head; each parallel node does
+`asplit` → wet branch (from `build()`, optionally pulling lavfi sources or aux `-i`
+files) → `amix` against dry per `wetMix`. Result carries `outputLabel` (for `-map`)
+and ordered `auxInputs` (files 1.3's wiring writes + adds as `-i`).
+
 ### Open decisions
-- **IR bundle** for `convReverb` (1.2b): count/size/format/licensing of impulse
-  responses. Blocks `convReverb` only — the rest of 1.2b (ringMod, granular,
-  hybridLayer, the filter_complex scaffold) is independent.
+- **IR generation** for `convReverb`: **RESOLVED** — procedural/synthesized in JS
+  (exponential-decay noise + early reflections + damping), AudioBuffer→ConvolverNode
+  for preview, generated WAV→`afir` for export. CC0 sampled IRs optional later.
 - **Non-linear per-primitive intensity curve** shape (1.3) — replaces the linear
   `RenderContext.scale`.
 - Runtime QA gate: confirm `asoftclip`/`aexciter`/`deesser`/`adeclick` exist in the

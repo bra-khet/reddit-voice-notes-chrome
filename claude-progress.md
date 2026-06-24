@@ -682,13 +682,20 @@ tremolo, vibrato; saturation (`asoftclip`), harmonicExciter (`aexciter`), presen
 (`equalizer`+`treble`); deEsser (`deesser`), deClick (`adeclick`). Strength scales with
 intensity, LFO rate stays raw. Smoke-verified syntax + scaling; tsc clean.
 
-### Next: Sub-Phase 1.2b + 1.3 (need user input)
-- **1.2b:** `-filter_complex` path + parallel kinds: ringMod (`amultiply` carrier),
-  convReverb (`afir`), granular, hybridLayer; + spectralCarve (`afftfilt`).
-  **Blocked on:** IR bundle decision for convReverb (count/size/licensing) — affects
-  convReverb only; ringMod/granular/hybridLayer/scaffold are independent.
+### Sub-Phase 1.2b-i — DONE
+`-filter_complex` assembler + parallel-node model (`ParallelSpec`: lavfi `sources`,
+`auxInputs` for extra `-i` files, dry/wet `amix`, mono normalization at graph head)
+in `ffmpeg-renderer.ts`; `ringMod` implemented (sine × signal via `amultiply`).
+16/21 kinds emit. Smoke-verified graph threading for linear+parallel chains; tsc clean.
+**IR decision (user):** procedural/synthesized JS IRs for convReverb (no sampled assets).
+
+### Next: Sub-Phase 1.2b (remainder) + 1.3
+- **1.2b:** convReverb (procedural JS IR generator → WAV → `afir` via `auxInputs`
+  hook), granular, hybridLayer (vocoder-style), spectralCarve (`afftfilt`).
 - **1.3:** wire graph into export (replace `buildFfmpegAudioFilter` call sites at
-  `ffmpeg-runner.ts:462` / `process-audio.ts:141`), **non-linear per-primitive
-  intensity curve** (user decision), native fragment presets, resolve-config refactor.
-- **QA gate:** confirm `asoftclip`/`aexciter`/`deesser`/`adeclick` in shipped core;
-  make per-fragment skip resilient (today a missing filter fails the whole `-af`).
+  `ffmpeg-runner.ts:462` / `process-audio.ts:141`; consume `result.auxInputs` +
+  `-filter_complex`/`-map` for complex graphs), **non-linear per-primitive intensity
+  curve** (user decision), native fragment presets, resolve-config refactor.
+- **QA gate:** confirm `asoftclip`/`aexciter`/`deesser`/`adeclick`/`afir`/`amultiply`/
+  `sine` in shipped core; make per-fragment skip resilient (today a missing filter
+  fails the whole graph → raw-audio fallback).

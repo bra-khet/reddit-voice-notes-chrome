@@ -24,29 +24,61 @@ import type {
 } from './fragment-types';
 import type { FragmentRenderer, RenderContext } from './renderer';
 
-/** One fragment's contribution to the FFmpeg graph. */
-export interface FfmpegNode {
-  /** Linear `-af` segments (the common case). */
-  af: string[];
-  /** Human-readable progress label. */
-  stage: string;
-  /**
-   * Set by parallel kinds (convReverb / granular / hybridLayer) to force
-   * `-filter_complex`. Unused in 1.1 — populated in 1.2.
-   */
-  parallel?: true;
+/** An extra input file (e.g. a generated IR WAV) the complex graph references as `-i`. */
+export interface ParallelAuxInput {
+  /** Encoded audio bytes written to the FFmpeg FS and added as an extra `-i` input. */
+  bytes: Uint8Array;
+  /** File extension including the dot, e.g. `'.wav'`. */
+  ext: string;
 }
 
-/** Final assembled FFmpeg artifact. Shape mirrors the legacy filter result. */
+/**
+ * A parallel (split → process → mix) fragment. The assembler splits the current
+ * stream into dry + processing branches, runs `build()` on the processing branch,
+ * then `amix`es wet against dry per `wetMix`. Used by ring-mod, convolution, etc.
+ */
+export interface ParallelSpec {
+  /** lavfi in-graph source filters (e.g. `sine=frequency=200:sample_rate=48000`). */
+  sources?: string[];
+  /** Extra input files (e.g. a procedural IR WAV for `afir`). */
+  auxInputs?: ParallelAuxInput[];
+  /**
+   * Build the wet branch. Receives the processing-branch input label, the labels
+   * of declared sources and aux inputs, and a unique prefix; returns filter
+   * statements plus the resulting wet label.
+   */
+  build(
+    input: string,
+    sources: string[],
+    auxInputs: string[],
+    prefix: string,
+  ): { statements: string[]; wet: string };
+  /** Wet mix 0..1 (0 = dry only; emitters should skip rather than emit 0). */
+  wetMix: number;
+}
+
+/** One fragment's contribution to the FFmpeg graph: linear `-af` or a parallel spec. */
+export interface FfmpegNode {
+  /** Human-readable progress label. */
+  stage: string;
+  /** Linear `-af` segments (the common case). */
+  af?: string[];
+  /** Present for parallel kinds — forces the whole graph to `-filter_complex`. */
+  parallel?: ParallelSpec;
+}
+
+/** Final assembled FFmpeg artifact. The linear shape mirrors the legacy filter result. */
 export interface FfmpegGraphResult {
-  /** `'none'` = no-op; `'af'` = linear chain; `'complex'` = `-filter_complex` (1.2). */
+  /** `'none'` = no-op; `'af'` = linear chain; `'complex'` = `-filter_complex`. */
   mode: 'none' | 'af' | 'complex';
   /** Comma-joined `-af` string when `mode === 'af'`, else `null`. */
   af: string | null;
-  /** `-filter_complex` graph when `mode === 'complex'` (1.2), else `null`. */
+  /** `-filter_complex` graph when `mode === 'complex'`, else `null`. */
   filterComplex: string | null;
-  /** Audio output pad to `-map` in complex mode (1.2), else `null`. */
+  /** Audio output pad to `-map` in complex mode, else `null`. */
   outputLabel: string | null;
+  /** Extra input files (in order) the complex graph references; empty for linear. */
+  auxInputs: ParallelAuxInput[];
   /** Per-fragment stage labels for semantic progress UX. */
   stages: string[];
 }
@@ -264,11 +296,31 @@ const emitDeClick: Emitter<'deClick'> = (p, ctx) => {
   return { af: [`adeclick=threshold=${threshold}`], stage: 'de-click' };
 };
 
+/* ------------------------- 1.2b parallel emitters (filter_complex) ------------------------- */
+
+/** True ring modulation: signal × sine carrier via `amultiply` (needs the complex path). */
+const emitRingMod: Emitter<'ringMod'> = (p, ctx) => {
+  const wet = ctx.scale(p.mix);
+  if (wet <= 0) return null;
+  const freq = Math.round(clamp(p.frequency, 1, 20_000));
+  return {
+    stage: 'ring-mod',
+    parallel: {
+      sources: [`sine=frequency=${freq}:sample_rate=${ctx.sampleRate}`],
+      build: (input, sources, _aux, prefix) => ({
+        statements: [`[${input}][${sources[0]}]amultiply[${prefix}_wet]`],
+        wet: `${prefix}_wet`,
+      }),
+      wetMix: Math.min(1, wet),
+    },
+  };
+};
+
 /**
  * Emitter registry. Kinds absent here are valid fragments whose FFmpeg emitter
- * is planned for Sub-Phase 1.2b — `emit()` skips them (returns `null`) for now:
- * the parallel kinds (ringMod, convReverb, granular, hybridLayer) need the
- * `-filter_complex` path, and spectralCarve needs `afftfilt` expressions.
+ * is planned for later in Sub-Phase 1.2b — `emit()` skips them (returns `null`):
+ * `convReverb` (procedural IR + `afir`), `granular`, `hybridLayer`, and
+ * `spectralCarve` (`afftfilt`).
  */
 const EMITTERS: { [K in FragmentKind]?: Emitter<K> } = {
   pitchFormant: emitPitchFormant,
@@ -287,6 +339,7 @@ const EMITTERS: { [K in FragmentKind]?: Emitter<K> } = {
   presenceAir: emitPresenceAir,
   deEsser: emitDeEsser,
   deClick: emitDeClick,
+  ringMod: emitRingMod,
 };
 
 /** Kinds with a working FFmpeg emitter today (the rest are 1.2 TODO). */
@@ -301,24 +354,81 @@ export const ffmpegRenderer: FragmentRenderer<FfmpegNode, FfmpegGraphResult> = {
     return emitter(fragment.params, ctx);
   },
 
-  assemble(nodes: FfmpegNode[], _ctx: RenderContext): FfmpegGraphResult {
-    const af: string[] = [];
-    const stages: string[] = [];
-    let needsComplex = false;
-    for (const node of nodes) {
-      af.push(...node.af);
-      stages.push(node.stage);
-      if (node.parallel) needsComplex = true;
+  assemble(nodes: FfmpegNode[], ctx: RenderContext): FfmpegGraphResult {
+    const stages = nodes.map((node) => node.stage);
+    const hasParallel = nodes.some((node) => node.parallel);
+
+    // Fast path: all-linear → a single comma-joined `-af` chain (stereo preserved).
+    if (!hasParallel) {
+      const af: string[] = [];
+      for (const node of nodes) af.push(...(node.af ?? []));
+      if (af.length === 0) {
+        return { mode: 'none', af: null, filterComplex: null, outputLabel: null, auxInputs: [], stages };
+      }
+      return {
+        mode: 'af',
+        af: af.join(','),
+        filterComplex: null,
+        outputLabel: null,
+        auxInputs: [],
+        stages,
+      };
     }
 
-    // 1.2: when a parallel node appears, build a -filter_complex graph instead.
-    if (needsComplex) {
-      throw new Error('filter_complex assembly is not implemented until Sub-Phase 1.2');
-    }
+    // Complex path: thread ONE mono stream through linear chains and parallel splits.
+    const statements: string[] = [];
+    const auxInputs: ParallelAuxInput[] = [];
+    let auxIndex = 1; // input 0 = main audio; generated/aux files start at 1.
 
-    if (af.length === 0) {
-      return { mode: 'none', af: null, filterComplex: null, outputLabel: null, stages };
-    }
-    return { mode: 'af', af: af.join(','), filterComplex: null, outputLabel: null, stages };
+    // Mono-normalize once so sine carriers, IRs, and amix branches share a layout.
+    statements.push(`[0:a]aformat=channel_layouts=mono:sample_rates=${ctx.sampleRate}[main]`);
+    let cur = 'main';
+
+    nodes.forEach((node, i) => {
+      const prefix = `n${i}`;
+
+      if (!node.parallel) {
+        const af = (node.af ?? []).join(',');
+        if (af) {
+          statements.push(`[${cur}]${af}[${prefix}]`);
+          cur = prefix;
+        }
+        return;
+      }
+
+      const spec = node.parallel;
+      const sourceLabels = (spec.sources ?? []).map((src, si) => {
+        const label = `${prefix}_src${si}`;
+        statements.push(`${src}[${label}]`);
+        return label;
+      });
+      const auxLabels = (spec.auxInputs ?? []).map((aux) => {
+        const label = `${auxIndex}:a`;
+        auxInputs.push(aux);
+        auxIndex += 1;
+        return label;
+      });
+
+      // Split dry / processing, build the wet branch, then mix wet against dry.
+      statements.push(`[${cur}]asplit=2[${prefix}_dry][${prefix}_pre]`);
+      const built = spec.build(`${prefix}_pre`, sourceLabels, auxLabels, prefix);
+      statements.push(...built.statements);
+
+      const wet = clamp(spec.wetMix, 0, 1);
+      const dry = round(1 - wet, 3);
+      statements.push(
+        `[${prefix}_dry][${built.wet}]amix=inputs=2:weights=${dry} ${wet}:normalize=0[${prefix}]`,
+      );
+      cur = prefix;
+    });
+
+    return {
+      mode: 'complex',
+      af: null,
+      filterComplex: statements.join(';'),
+      outputLabel: cur,
+      auxInputs,
+      stages,
+    };
   },
 };
