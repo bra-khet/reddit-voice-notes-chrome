@@ -57,7 +57,7 @@ import {
   markTranscribeCancelled,
   setRunningTranscribeJob,
 } from '@/src/transcription/transcribe-cancel';
-import { enqueueTranscribeJob } from '@/src/transcription/transcribe-queue';
+import { enqueueTranscribeJob, whenTranscribeQueueIdle } from '@/src/transcription/transcribe-queue';
 import { resolveVoskModelUrl } from '@/src/transcription/constants';
 import { BURNIN_PIPELINE_STAMP, EXTENSION_LOG_PREFIX, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
 
@@ -331,6 +331,12 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     broadcastBurnInProgress(burnInRequest.jobId, 0.01, 'queued');
 
     void enqueueTranscodeJob(async () => {
+      // BUG FIX: BUG-033 split-view Vosk + burn-in memory race
+      // Fix: Vosk (~40MB WASM) and FFmpeg burn-in (~32MB WASM) must not overlap;
+      //      wait for any in-flight transcription to drain before starting burn-in.
+      // Sync: background.ts dispatchToOffscreen skips recycle when transcription pending.
+      await whenTranscribeQueueIdle();
+
       const startedAt = Date.now();
       setRunningTranscodeJob(burnInRequest.jobId);
 

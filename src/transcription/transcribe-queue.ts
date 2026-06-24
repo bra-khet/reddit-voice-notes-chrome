@@ -13,6 +13,10 @@ function settleGap(): Promise<void> {
   });
 }
 
+export function whenTranscribeQueueIdle(): Promise<void> {
+  return chain;
+}
+
 export function enqueueTranscribeJob<T>(job: () => Promise<T>): Promise<T> {
   const run = chain.then(() => job()).finally(() => settleGap());
   chain = run.then(

@@ -543,7 +543,12 @@ async function dispatchToOffscreen(
 ): Promise<void> {
   // BUG FIX: partial WXT HMR leaves stale subtitle-burnin chunk (BUG-030 loop)
   // Fix: full offscreen recycle before burn-in so all JS chunks reload together.
-  if (request.type === MSG_BURNIN_OFFSCREEN) {
+  // BUG FIX: BUG-033 split-view transcription kill
+  // Fix: unconditional recycle kills any in-flight Vosk job silently; skip when a
+  //      transcription relay is registered — ensureFreshOffscreenWorker() handles
+  //      stale-stamp recycling, so BUG-030 protection is not lost.
+  // Sync: offscreen/main.ts burn-in job awaits whenTranscribeQueueIdle() for same race.
+  if (request.type === MSG_BURNIN_OFFSCREEN && transcribeTabByJobId.size === 0) {
     await recycleOffscreenDocument();
   }
 

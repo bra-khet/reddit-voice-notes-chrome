@@ -140,7 +140,12 @@ export function mountWorkflowBanner(
   let isSwitching = false;
 
   function render(): void {
+    // BUG FIX: wf-why auto-close
+    // Fix: bannerHtml() rebuilds via innerHTML, destroying the open attribute; capture and restore it.
+    const wasWhyOpen = el!.querySelector<HTMLDetailsElement>('.wf-why')?.open ?? false;
     el!.innerHTML = bannerHtml(phase, status, isSwitching);
+    const whyEl = el!.querySelector<HTMLDetailsElement>('.wf-why');
+    if (whyEl && wasWhyOpen) whyEl.open = true;
     // Update the persistent live region so screen readers announce guidance changes.
     announcer.textContent = ctaText(effectivePhase(phase, status), status);
 
