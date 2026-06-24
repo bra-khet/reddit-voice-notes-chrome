@@ -695,9 +695,19 @@ body {
 }
 
 .studio__transcript-cue-time {
-  color: #818384;
+  /* CHANGED: amber segmented-display treatment (ref: assets/design-studio-v4/srt/timecode-display.svg) */
+  display: inline-block;
+  color: #ffd54f;
+  background: #0a0014;
+  border: 1px solid #2a2a44;
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-family: 'Courier New', Courier, monospace;
   font-variant-numeric: tabular-nums;
+  font-size: 11px;
   white-space: nowrap;
+  text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
+  align-self: start;
 }
 
 .studio__transcript-oob-badge {
@@ -871,11 +881,13 @@ body {
 .studio__transcript-time-field input {
   width: 6.5rem;
   padding: 6px 8px;
-  border-radius: 6px;
-  border: 1px solid #343536;
-  background: #272729;
-  color: #d7dadc;
-  font: inherit;
+  border-radius: 4px;
+  border: 1px solid #2a2a44;
+  background: #0a0014;
+  color: #ffd54f;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.8rem;
+  text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
 }
 
 .studio__transcript-segment-text-field {

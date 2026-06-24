@@ -65,10 +65,15 @@ Prefer `button-frame-9slice.svg` + HTML text when label length varies.
 | `sliders/` | physical track + tab |
 | `chrome/` | dropdown, defeat toggle, 3×3 grid, bg thumbnail |
 
-## Deprecated
+## SRT / Timecode visuals
 
-- `displays/amber-futuristic-segmented.svg`
-- `srt/timeline-ruler.svg`, `playhead.svg`, `segment-block.svg` (optional only)
+| File | Status | Notes |
+|------|--------|-------|
+| `srt/timecode-display.svg` | **Reference only** | Defines amber timecode aesthetic (dark pill, `#ffd54f`, monospace, glow). Implemented in CSS on `.studio__transcript-cue-time` and `.studio__transcript-time-field input` — do not embed as SVG (static, can't show dynamic values). |
+| `displays/amber-futuristic-segmented.svg` | **Reference only** | Same amber segmented-digit style, higher fidelity. CSS is the live implementation. |
+| `srt/timeline-ruler.svg` | **Unused / future** | Auto-generated; no timeline scrubber planned. |
+| `srt/playhead.svg` | **Unused / future** | Auto-generated; no scrub playhead planned. |
+| `srt/segment-block.svg` | **Unused / future** | Auto-generated; segment rows use HTML not this SVG frame. |
 
 ## Theming
 
