@@ -10,9 +10,7 @@ import {
  *
  * Dulcet II (v5 / Branch 4): reads the GRAPH world (resolveVoiceGraph +
  * stylizedGraphIsActive) — the same resolution the bake uses — so a composed
- * graph or a character preset is described correctly. The legacy flat
- * voiceEffectIsActive is blind to `graph` / `characterPresetId` and reported a
- * live character voice as "Off"; this no longer relies on it.
+ * graph or a character preset is described correctly.
  */
 export function formatVoiceEffectSummary(config: VoiceEffectConfig | undefined): string {
   const normalized = normalizeVoiceEffectConfig(config);

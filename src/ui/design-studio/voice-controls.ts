@@ -16,7 +16,6 @@ import {
   type StylizedGraph,
 } from '@/src/voice/dsp';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
-import { resolveVoiceEffectConfig } from '@/src/voice/resolve-config';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
@@ -109,9 +108,6 @@ export function renderVoiceControlFields(): string {
         <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-test>
           Test character voice
         </button>
-        <button type="button" class="popup__button popup__button--secondary" data-voice-play>
-          Play preview
-        </button>
         <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-voice-stop hidden>
           Stop
         </button>
@@ -162,7 +158,6 @@ export function mountVoiceControls(
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
   const turboInput = panel.querySelector<HTMLInputElement>('[data-voice-turbo]')!;
   const testBtn = panel.querySelector<HTMLButtonElement>('[data-voice-test]')!;
-  const playBtn = panel.querySelector<HTMLButtonElement>('[data-voice-play]')!;
   const stopBtn = panel.querySelector<HTMLButtonElement>('[data-voice-stop]')!;
   const statusEl = panel.querySelector<HTMLElement>('[data-voice-status]')!;
 
@@ -227,14 +222,12 @@ export function mountVoiceControls(
     const hasFragments = nextGraph.fragments.length > 0;
     draftConfig = normalizeVoiceEffectConfig({
       ...mergeLiveToggles(draftConfig),
-      presetId: 'custom',
       characterPresetId: undefined,
       graph: nextGraph,
       enabled: hasFragments ? true : enabledInput.checked,
     });
     updateVoiceIdentity();
     enabledInput.checked = draftConfig.enabled;
-    updatePlayAvailability();
     schedulePersist();
     notifyDraftChange();
     setStatus(
@@ -316,7 +309,9 @@ export function mountVoiceControls(
   }
 
   function resolvedDraft(): VoiceEffectConfig {
-    return resolveVoiceEffectConfig(mergeLiveToggles(draftConfig));
+    // mergeLiveToggles already normalizes; resolveVoiceGraph does the graph/character
+    // resolution itself, so no separate legacy resolve step is needed.
+    return mergeLiveToggles(draftConfig);
   }
 
   function syncControlsFromDraft(): void {
@@ -324,10 +319,9 @@ export function mountVoiceControls(
     enabledInput.checked = draftConfig.enabled;
     updateVoiceIdentity();
     // Seed the composer with whatever the voice currently resolves to (a stored
-    // graph, a character preset's makeup, or a migrated legacy config) for display.
+    // graph or a character preset's makeup) for display.
     composer.setGraph(resolveVoiceGraph(resolvedDraft()));
     updateIntensityUi();
-    updatePlayAvailability();
     notifyDraftChange();
     syncing = false;
   }
@@ -344,31 +338,14 @@ export function mountVoiceControls(
   }
 
   function refreshPlayStopUi(): void {
-    const isPlaying = preview.isPlaying();
-    playBtn.hidden = isPlaying;
-    stopBtn.hidden = !isPlaying;
+    // Stop is shown only while the rendered Test clip is playing back.
+    stopBtn.hidden = !preview.isPlaying();
   }
 
   function setRendering(active: boolean): void {
     rendering = active;
     testBtn.disabled = active;
     testBtn.textContent = active ? 'Rendering…' : 'Test character voice';
-  }
-
-  // 3.3 edge case: the real-time Web Audio chain (legacy pitch/EQ/compressor only) cannot
-  // reproduce a v5 character graph — its renderer ignores characterPresetId. So when a
-  // character voice is active, steer the user to the authoritative one-shot Test instead of
-  // letting "Play preview" play a misleading near-raw approximation.
-  function updatePlayAvailability(): void {
-    // A character preset OR a composed graph is a v5 voice the legacy live
-    // preview can't reproduce — steer the user to the authoritative one-shot Test.
-    const characterActive = Boolean(draftConfig.characterPresetId);
-    const graphActive = Boolean(draftConfig.graph && draftConfig.graph.fragments.length > 0);
-    const useTest = characterActive || graphActive;
-    playBtn.disabled = useTest;
-    playBtn.title = useTest
-      ? 'Live preview can’t reproduce v5 character voices — use “Test character voice”.'
-      : '';
   }
 
   async function loadRecordingSource(): Promise<void> {
@@ -450,7 +427,6 @@ export function mountVoiceControls(
     // Explicitly clear graph so the character takes precedence in resolveVoiceGraph.
     draftConfig = normalizeVoiceEffectConfig({
       ...mergeLiveToggles(draftConfig),
-      presetId: 'custom',
       characterPresetId: id,
       graph: undefined,
       enabled: true,
@@ -511,31 +487,6 @@ export function mountVoiceControls(
         setStatus(`Test failed: ${detail}`);
       } finally {
         setRendering(false);
-      }
-    })();
-  });
-
-  playBtn.addEventListener('click', () => {
-    void (async () => {
-      if (!preview.hasSource()) {
-        setStatus('Record a voice note first, then reopen Design Studio to preview.');
-        return;
-      }
-
-      if (draftConfig.characterPresetId || (draftConfig.graph && draftConfig.graph.fragments.length > 0)) {
-        setStatus('Live preview can’t reproduce v5 character voices — use “Test character voice”.');
-        return;
-      }
-
-      const config = resolveVoiceEffectConfig(mergeLiveToggles(draftConfig));
-      try {
-        setStatus(config.enabled ? 'Playing with voice effects…' : 'Playing original audio…');
-        await preview.play(config);
-        refreshPlayStopUi();
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        setStatus(`Preview failed: ${detail}`);
-        refreshPlayStopUi();
       }
     })();
   });

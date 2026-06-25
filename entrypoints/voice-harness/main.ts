@@ -1,7 +1,6 @@
-import { processAudio, processAudioWithGraph } from '@/src/voice/process-audio';
-import { VOICE_EFFECT_PRESETS, voiceConfigFromPreset } from '@/src/voice/presets';
-import { DEFAULT_VOICE_EFFECT_CONFIG, type VoiceEffectPresetId } from '@/src/voice/types';
+import { processAudioWithGraph } from '@/src/voice/process-audio';
 import {
+  createEmptyGraph,
   createFragment,
   orderFragmentsCanonically,
   characterPresetGraph,
@@ -24,15 +23,6 @@ app.innerHTML = `
     <label class="field">
       <span>Recording (WebM)</span>
       <input type="file" id="file" accept="video/webm,audio/webm,.webm" />
-    </label>
-    <fieldset class="field">
-      <span>Pipeline</span>
-      <label class="radio"><input type="radio" name="pipeline" value="graph" checked /> Graph (v5 fragments)</label>
-      <label class="radio"><input type="radio" name="pipeline" value="legacy" /> Legacy (v3 config)</label>
-    </fieldset>
-    <label class="field" id="preset-field">
-      <span>Preset (legacy)</span>
-      <select id="preset"></select>
     </label>
     <label class="field">
       <span>Pitch (semitones) — drives pitchFormant in graph mode</span>
@@ -106,11 +96,7 @@ style.textContent = `
 document.head.appendChild(style);
 
 const fileInput = document.querySelector<HTMLInputElement>('#file')!;
-const presetSelect = document.querySelector<HTMLSelectElement>('#preset')!;
-const presetField = document.querySelector<HTMLLabelElement>('#preset-field')!;
 const charPresetSelect = document.querySelector<HTMLSelectElement>('#char-preset')!;
-const charPresetField = document.querySelector<HTMLLabelElement>('#char-preset-field')!;
-const fragmentsField = document.querySelector<HTMLFieldSetElement>('#fragments-field')!;
 const fragmentsBox = document.querySelector<HTMLDivElement>('#fragments')!;
 const pitchInput = document.querySelector<HTMLInputElement>('#pitch')!;
 const pitchVal = document.querySelector<HTMLOutputElement>('#pitch-val')!;
@@ -131,13 +117,6 @@ const outputAudio = document.querySelector<HTMLAudioElement>('#output-audio')!;
 let inputBlob: Blob | null = null;
 let inputUrl: string | null = null;
 let outputUrl: string | null = null;
-
-for (const preset of VOICE_EFFECT_PRESETS) {
-  const option = document.createElement('option');
-  option.value = preset.id;
-  option.textContent = `${preset.label} — ${preset.description}`;
-  presetSelect.appendChild(option);
-}
 
 const manualOption = document.createElement('option');
 manualOption.value = '';
@@ -178,34 +157,6 @@ function revokeOutputUrl(): void {
   outputUrl = null;
 }
 
-function usingGraph(): boolean {
-  return (document.querySelector<HTMLInputElement>('input[name="pipeline"]:checked')?.value ?? 'graph') === 'graph';
-}
-
-function syncPipelineUi(): void {
-  const graph = usingGraph();
-  presetField.style.display = graph ? 'none' : 'flex';
-  charPresetField.style.display = graph ? 'flex' : 'none';
-  fragmentsField.style.display = graph ? 'flex' : 'none';
-}
-
-function buildConfig() {
-  const presetId = presetSelect.value as VoiceEffectPresetId;
-  const config = voiceConfigFromPreset(presetId);
-  const semitones = Number.parseInt(pitchInput.value, 10);
-  return {
-    ...config,
-    presetId: 'custom' as const,
-    intensity: Number.parseInt(intensityInput.value, 10),
-    turbo: turboInput.checked,
-    pitchShift: {
-      semitones,
-      preserveDuration: true,
-      exaggerateNatural: config.pitchShift?.exaggerateNatural ?? false,
-    },
-  };
-}
-
 function buildGraph(): StylizedGraph {
   const intensity = Number.parseInt(intensityInput.value, 10);
   const turbo = turboInput.checked;
@@ -234,17 +185,6 @@ function buildGraph(): StylizedGraph {
     fragments: orderFragmentsCanonically(fragments),
   };
 }
-
-document.querySelectorAll('input[name="pipeline"]').forEach((el) => {
-  el.addEventListener('change', syncPipelineUi);
-});
-
-presetSelect.addEventListener('change', () => {
-  const preset = VOICE_EFFECT_PRESETS.find((p) => p.id === presetSelect.value);
-  const semitones = preset?.config.pitchShift?.semitones ?? 0;
-  pitchInput.value = String(semitones);
-  pitchVal.textContent = String(semitones);
-});
 
 pitchInput.addEventListener('input', () => {
   pitchVal.textContent = pitchInput.value;
@@ -292,19 +232,17 @@ async function runProcess(useNoop: boolean): Promise<void> {
 
   const started = performance.now();
   try {
-    let result;
-    if (useNoop) {
-      setStatus('Processing (disabled / no-op)…');
-      result = await processAudio(inputBlob, DEFAULT_VOICE_EFFECT_CONFIG, onProgress);
-    } else if (usingGraph()) {
-      const graph = buildGraph();
-      graphSummary.textContent = `Graph: ${graph.fragments.map((f) => f.kind).join(' → ') || '(empty)'}`;
-      setStatus('Processing (graph)… first run loads FFmpeg WASM.');
-      result = await processAudioWithGraph(inputBlob, graph, onProgress);
-    } else {
-      setStatus(`Processing (${presetSelect.value})… first run loads FFmpeg WASM.`);
-      result = await processAudio(inputBlob, buildConfig(), onProgress);
-    }
+    // No-op uses an empty graph (skips FFmpeg → returns input unchanged).
+    const graph = useNoop ? createEmptyGraph() : buildGraph();
+    graphSummary.textContent = useNoop
+      ? 'Graph: (empty / no-op)'
+      : `Graph: ${graph.fragments.map((f) => f.kind).join(' → ') || '(empty)'}`;
+    setStatus(
+      useNoop
+        ? 'Processing (disabled / no-op)…'
+        : 'Processing (graph)… first run loads FFmpeg WASM.',
+    );
+    const result = await processAudioWithGraph(inputBlob, graph, onProgress);
 
     outputUrl = URL.createObjectURL(result.blob);
     outputAudio.src = outputUrl;
@@ -326,6 +264,5 @@ async function runProcess(useNoop: boolean): Promise<void> {
   }
 }
 
-syncPipelineUi();
 processBtn.addEventListener('click', () => void runProcess(false));
 noopBtn.addEventListener('click', () => void runProcess(true));

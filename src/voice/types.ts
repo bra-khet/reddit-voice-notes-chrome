@@ -1,29 +1,20 @@
 /**
- * Dulcet v3 — frozen voice-effect types (dulcet-0).
- * No processing or pipeline wiring here; see filter-graphs.ts for FFmpeg/Web Audio sketches.
+ * Dulcet II (v5) — voice-effect carrier type.
  *
- * IMPORTANT: Do not re-export resolve-config.ts from this file — creates a circular import
- * (types → resolve-config → presets → types) that breaks the settings popup at load time.
- * Import resolveVoiceEffectConfig / voiceEffectIsActive from resolve-config.ts directly.
+ * Branch 4 (4.3) removed the flat v3/v4 fields (pitchShift / eq / dynamics /
+ * reverb) and the legacy `presetId`: voice authoring is now fully graph-native.
+ * A VoiceEffectConfig carries the global enabled / intensity / Turbo plus EITHER
+ * a user-composed `graph` or a `characterPresetId`; `resolveVoiceGraph` turns
+ * that into the StylizedGraph that previews and bakes.
+ *
+ * Leaf module: imports only fragment-types (itself a dependency-free leaf, no
+ * WASM, no back-import) so the settings popup never pulls FFmpeg through a
+ * circular import.
  */
 
-// fragment-types.ts is a pure, dependency-free leaf (no WASM, no back-import of
-// this file), so importing it here is cycle-safe — unlike resolve-config.ts above.
 import { normalizeStylizedGraph, type StylizedGraph } from './dsp/fragment-types';
 
-/** Bundled voice preset ids — hardcoded like theme presets, not stored in savedProfiles. */
-export type VoiceEffectPresetId =
-  | 'deeper'
-  | 'higher'
-  | 'slight-mask'
-  | 'robot'
-  | 'whisper'
-  | 'custom';
-
-export const VOICE_SEMITONE_MIN = -12;
-export const VOICE_SEMITONE_MAX = 12;
-
-/** dulcet-4: nominal effect strength; 0 = off, Turbo maps to 12. */
+/** dulcet-4: nominal effect strength; 0 = off, Turbo maps to the magic 12. */
 export const VOICE_INTENSITY_MIN = 0;
 export const VOICE_INTENSITY_MAX = 10;
 export const VOICE_INTENSITY_TURBO = 12;
@@ -32,178 +23,54 @@ export const VOICE_INTENSITY_DEFAULT = 10;
 /** Nominal export sample rate — matches AAC transcode path in ffmpeg-runner.ts. */
 export const VOICE_EXPORT_SAMPLE_RATE_HZ = 48_000;
 
-export interface PitchShiftConfig {
-  /** Semitone offset (−12 … +12). */
-  semitones: number;
-  /**
-   * Dulcet II (v5) — formant warp independent of pitch (−12 … +12 semitones;
-   * − = darker/larger throat). Migrates into the pitchFormant fragment.
-   */
-  formantShift?: number;
-  /**
-   * Dulcet II (v5) — 0–100 throat resonance / "produced" emphasis. Migrates into
-   * the pitchFormant fragment's `character`.
-   */
-  character?: number;
-  /** Default true — keeps waveform video in sync without re-timing viz. */
-  preserveDuration: boolean;
-  /**
-   * When true, flip semitone sign to exaggerate perceived natural direction.
-   * Coarse pitch estimate deferred to dulcet-2 preview UI; field reserved here.
-   */
-  exaggerateNatural?: boolean;
-}
-
-export interface EqBandConfig {
-  /** Gain in dB (−12 … +12). */
-  lowGain?: number;
-  midGain?: number;
-  highGain?: number;
-}
-
-export interface DynamicsConfig {
-  normalize?: boolean;
-  compressorEnabled?: boolean;
-}
-
-export interface ReverbConfig {
-  /** Wet mix 0–1. */
-  amount?: number;
-}
-
 export interface VoiceEffectConfig {
   enabled: boolean;
-  /** Effect strength 0–10 (off at 0). Turbo forces magic 12. */
+  /** Effect strength 0–10 (off at 0). Turbo forces the magic 12. */
   intensity?: number;
   /** When true, intensity is VOICE_INTENSITY_TURBO and the slider is bypassed. */
   turbo?: boolean;
-  /** Active bundled preset, or `custom` when user edits sliders. */
-  presetId?: VoiceEffectPresetId;
-  /** v5 character preset id (Dulcet II). When set, export/preview use its native graph. */
+  /** v5 character preset id. When set (and no graph), export/preview use its native graph. */
   characterPresetId?: string;
   /**
-   * Dulcet II (v5 / Branch 4) — user-composed fragment chain. When present and
-   * non-empty this is the AUTHORITATIVE voice: `resolveVoiceGraph` prefers it
-   * over `characterPresetId` and the legacy flat fields below. The global
-   * enabled/intensity/Turbo slider still owns those three values at resolve time.
-   * The flat pitchShift/eq/dynamics/reverb slots are the transitional legacy
-   * authoring path, removed once the Custom composer fully owns voice authoring.
+   * User-composed fragment chain — the AUTHORITATIVE voice when present and
+   * non-empty: `resolveVoiceGraph` prefers it over `characterPresetId`. The
+   * global enabled / intensity / Turbo still own those three values at resolve
+   * time, so the Studio sliders keep modulating a custom voice.
    */
   graph?: StylizedGraph;
-  pitchShift?: PitchShiftConfig;
-  eq?: EqBandConfig;
-  dynamics?: DynamicsConfig;
-  reverb?: ReverbConfig;
 }
 
-export const DEFAULT_PITCH_SHIFT: PitchShiftConfig = {
-  semitones: 0,
-  formantShift: 0,
-  character: 0,
-  preserveDuration: true,
-  exaggerateNatural: false,
-};
-
-/** Voice effects off — backward compatible default for profiles without voiceEffectConfig. */
+/** Voice effects off — backward-compatible default for profiles without voiceEffectConfig. */
 export const DEFAULT_VOICE_EFFECT_CONFIG: VoiceEffectConfig = {
   enabled: false,
   intensity: VOICE_INTENSITY_DEFAULT,
   turbo: false,
-  presetId: 'custom',
-  pitchShift: { ...DEFAULT_PITCH_SHIFT },
 };
-
-const EQ_GAIN_MIN = -12;
-const EQ_GAIN_MAX = 12;
-const REVERB_AMOUNT_MAX = 1;
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function normalizeSemitones(value: number | undefined): number {
-  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
-  return clamp(Math.round(value), VOICE_SEMITONE_MIN, VOICE_SEMITONE_MAX);
-}
-
-/** Dulcet II (v5) — 0–100 "amount" sliders (formant character). */
-function normalizeUnit100(value: number | undefined): number {
-  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
-  return clamp(Math.round(value), 0, 100);
-}
-
-function normalizeEqGain(value: number | undefined): number | undefined {
-  if (typeof value !== 'number' || Number.isNaN(value)) return undefined;
-  return clamp(Math.round(value * 10) / 10, EQ_GAIN_MIN, EQ_GAIN_MAX);
-}
-
-const VALID_PRESET_IDS: readonly VoiceEffectPresetId[] = [
-  'deeper',
-  'higher',
-  'slight-mask',
-  'robot',
-  'whisper',
-  'custom',
-];
-
-export function isVoiceEffectPresetId(value: string): value is VoiceEffectPresetId {
-  return (VALID_PRESET_IDS as readonly string[]).includes(value);
-}
-
-export function semitonesToPitchRatio(semitones: number): number {
-  return 2 ** (semitones / 12);
-}
-
 /**
- * Additive merge for prefs / clip profiles — missing fields inherit defaults; voice-off when absent.
+ * Additive merge for prefs / clip profiles — missing fields inherit defaults;
+ * voice-off when absent. Any legacy flat fields (pitchShift / eq / dynamics /
+ * reverb / presetId) on a stored pre-v5 blob are simply ignored.
  */
 export function normalizeVoiceEffectConfig(
   raw: VoiceEffectConfig | null | undefined,
 ): VoiceEffectConfig {
   if (!raw || typeof raw !== 'object') {
-    return {
-      ...DEFAULT_VOICE_EFFECT_CONFIG,
-      pitchShift: { ...DEFAULT_PITCH_SHIFT },
-    };
+    return { ...DEFAULT_VOICE_EFFECT_CONFIG };
   }
-
-  const presetId =
-    raw.presetId && isVoiceEffectPresetId(raw.presetId) ? raw.presetId : 'custom';
-
-  const pitchRaw = raw.pitchShift;
-  const pitchShift: PitchShiftConfig = {
-    semitones: normalizeSemitones(pitchRaw?.semitones),
-    formantShift: normalizeSemitones(pitchRaw?.formantShift),
-    character: normalizeUnit100(pitchRaw?.character),
-    preserveDuration: pitchRaw?.preserveDuration !== false,
-    exaggerateNatural: pitchRaw?.exaggerateNatural === true,
-  };
-
-  const eqRaw = raw.eq;
-  const eq: EqBandConfig | undefined = eqRaw
-    ? {
-        lowGain: normalizeEqGain(eqRaw.lowGain),
-        midGain: normalizeEqGain(eqRaw.midGain),
-        highGain: normalizeEqGain(eqRaw.highGain),
-      }
-    : undefined;
-
-  const reverbRaw = raw.reverb;
-  const reverb: ReverbConfig | undefined =
-    reverbRaw && typeof reverbRaw.amount === 'number'
-      ? { amount: clamp(reverbRaw.amount, 0, REVERB_AMOUNT_MAX) }
-      : undefined;
 
   const turbo = raw.turbo === true;
   let intensity =
     typeof raw.intensity === 'number' && !Number.isNaN(raw.intensity)
       ? Math.round(raw.intensity)
       : VOICE_INTENSITY_DEFAULT;
-  if (turbo) {
-    intensity = VOICE_INTENSITY_TURBO;
-  } else {
-    intensity = clamp(intensity, VOICE_INTENSITY_MIN, VOICE_INTENSITY_MAX);
-  }
+  intensity = turbo
+    ? VOICE_INTENSITY_TURBO
+    : clamp(intensity, VOICE_INTENSITY_MIN, VOICE_INTENSITY_MAX);
 
   const characterPresetId =
     typeof raw.characterPresetId === 'string' && raw.characterPresetId
@@ -220,13 +87,8 @@ export function normalizeVoiceEffectConfig(
     enabled: raw.enabled === true,
     intensity,
     turbo,
-    presetId,
     characterPresetId,
     graph,
-    pitchShift,
-    eq,
-    dynamics: raw.dynamics,
-    reverb,
   };
 }
 
@@ -236,4 +98,3 @@ export function effectiveVoiceIntensity(config: VoiceEffectConfig): number {
   if (!normalized.enabled) return 0;
   return normalized.intensity ?? VOICE_INTENSITY_DEFAULT;
 }
-
