@@ -120,6 +120,10 @@ export function voiceEffectIsActive(config: VoiceEffectConfig): boolean {
   const semitones = scaled.pitchShift?.semitones ?? 0;
   if (semitones !== 0) return true;
 
+  // Dulcet II (v5): a formant-only / character-only custom voice is still active.
+  if ((scaled.pitchShift?.formantShift ?? 0) !== 0) return true;
+  if ((scaled.pitchShift?.character ?? 0) > 0) return true;
+
   const eq = scaled.eq;
   if (eq?.lowGain || eq?.midGain || eq?.highGain) return true;
 

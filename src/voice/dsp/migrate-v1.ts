@@ -36,9 +36,13 @@ export function migrateVoiceEffectToGraph(config: VoiceEffectConfig): StylizedGr
 
   const fragments: AnyFragment[] = [];
 
+  // Dulcet II (v5): semitones + formantShift + character all drive the one
+  // pitchFormant fragment. formant/character are 0 for any pre-v5 config.
   const semitones = resolved.pitchShift?.semitones ?? 0;
-  if (semitones !== 0) {
-    fragments.push(createFragment('pitchFormant', { semitones }));
+  const formantShift = resolved.pitchShift?.formantShift ?? 0;
+  const character = resolved.pitchShift?.character ?? 0;
+  if (semitones !== 0 || formantShift !== 0 || character > 0) {
+    fragments.push(createFragment('pitchFormant', { semitones, formantShift, character }));
   }
 
   const eq = resolved.eq;
