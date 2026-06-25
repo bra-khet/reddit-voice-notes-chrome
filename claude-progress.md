@@ -801,28 +801,26 @@ sprint (voice-controls.ts + this handoff).
 
 ---
 
-## ⭐ RESUME HERE (post-compaction handoff) — Dulcet II v5, 2026-06-24
+## ⭐ RESUME HERE — Dulcet II v5, 2026-06-25
 
-**One-liner:** Branch 1 (`dulcet-ii/dsp-foundation`) DSP rebuild is functionally complete and
-the new graph system is WIRED INTO THE LIVE EXPORT for linear graphs + selectable character
-presets. Next interactive step = **complex-graph export** (make the real MP4 transcode run
-`-filter_complex` graphs so the parallel presets bake instead of falling back).
+**Status:** Branch 1 (`dulcet-ii/dsp-foundation`) is **COMPLETE and MERGED** to
+`dulcet-ii/integration` (merge `529f6c7`). All 7 character presets bake live:
+Helium Sprite via `-af` (linear); Cyber Oracle / NerdRage / Glitch Beast / Radio Demon /
+Ethereal Singer / Abyssal Titan via `-filter_complex` (parallel/convolution).
 
-**Branches:** working = `dulcet-ii/dsp-foundation`. Integration = `dulcet-ii/integration` (last
-merge `75d99e3` = 1.1/1.2/intensity-curve/presets). The live-export commits (step 1 `cc5ae92`,
-2a `ccc17ea`, 2b pending) are AHEAD of integration on dsp-foundation — merge to integration at
-the next milestone (after complex-export, or on request). Old v3 `dulcet` branch is unrelated
-history; `dulcet-ii` is a git NAMESPACE (can't be a branch itself).
+**Branches:** `dulcet-ii/integration` is the current stable line (merge `529f6c7`).
+Old `dsp-foundation` can be left as history. Namespace: `dulcet-ii/*` (git ref D/F conflict
+prevents `dulcet-ii` itself being a branch).
 
-**What's live & user-confirmed:**
-- Real MP4 bake routes audio through the new renderer: `ffmpeg-runner.ts` (~line 461) resolves
-  `characterPresetId → characterPresetGraph` else `migrateVoiceEffectToGraph`, then
-  `buildStylizedGraph(graph)`; uses `result.af` only when `mode==='af'` (complex → `null` →
-  existing raw-audio fallback + "voice effect fallback" toast).
-- Design Studio has the Character-voice picker (2b). Helium Sprite (the one fully-LINEAR
-  character preset) bakes live. The other 6 presets are parallel/complex → fall back to raw
-  until complex-export lands.
-- Toggling voice off, legacy presets, and Slight-mask all confirmed unchanged.
+**What's live & user-confirmed (all of sub-phase 1.3):**
+- Real MP4 bake routes audio through the graph renderer (`ffmpeg-runner.ts` ~line 465):
+  resolves `characterPresetId → characterPresetGraph` else `migrateVoiceEffectToGraph`.
+  `VoiceFilterPlan` discriminated union: `af` → linear `-af` splice; `complex` → aux IR WAVs
+  written to WASM FS, full `-filter_complex … -map 0:v:0 -map [outputLabel]`, 120s timeout.
+- Design Studio Character-voice picker wired (`voice-controls.ts`); all 7 presets selectable.
+- Timeout: `COMPLEX_STRATEGY_EXEC_TIMEOUT_MS = 120_000` (matches audio-only path; fixes
+  timeout on recordings >~60s with `afir` convolution).
+- Legacy presets, voice-off toggle, Slight-mask: all confirmed unchanged.
 
 **dsp module map (`src/voice/dsp/`, all WASM-free → popup-safe barrel):**
 - `fragment-types.ts` — `StylizedGraph`, 21 `FragmentKind`s/7 categories, `FRAGMENT_DEFS`
@@ -858,38 +856,7 @@ history; `dulcet-ii` is a git NAMESPACE (can't be a branch itself).
   fresh-heap-per-complex in process-audio. Live transcode disposes ffmpeg on failure already.
 - `dsp` barrel is WASM-free; safe to import from popup/Studio (unlike `@/src/voice`).
 
-### NEXT STEP (interactive, app-loaded): complex-graph export
-**Goal:** make the live WebM→MP4 transcode run `-filter_complex` graphs so the 6 parallel
-character presets (Cyber Oracle etc.) BAKE instead of falling back to raw.
-
-**Where:** `src/ffmpeg/ffmpeg-runner.ts`. Today (~line 461) `audioFilter = graphResult.mode==='af'
-? graphResult.af : null`. The linear `-af` is spliced before `-c:a` by `injectAudioFilter`
-(~line 268) inside the strategy builder (~281), and `transcodeWithStrategies` (~line 354) writes
-`input.webm` + execs `TRANSCODE_STRATEGIES` (h264-aac with dup-storm flags `-fps_mode passthrough
--r 24`; + `faststart` remux fallback).
-
-**Plan (propose to user one sub-step at a time, get approval, they live-test):**
-1. Thread the full `graphResult` (not just the `af` string) to the encode path so a `complex`
-   result can be used.
-2. When `mode==='complex'`: in `transcodeWithStrategies`, also write `graphResult.auxInputs`
-   (IR WAVs) to the FFmpeg FS (today only `input.webm` is written); clean them after.
-3. New arg builder for complex (parallel to `injectAudioFilter`): `-i input.webm` + one `-i
-   aux{i}.wav` per aux input + `-filter_complex <graphResult.filterComplex>` + `-map 0:v:0`
-   (video → libx264, KEEP the dup-storm video flags) + `-map [graphResult.outputLabel]` (audio
-   → aac). Implicit stream selection breaks with filter_complex, so explicit `-map` is REQUIRED.
-   The graph references `[0:a]` for the voice and `[1:a]…` for aux in order (assembler already
-   numbers them this way).
-4. **Reference impl:** `process-audio.ts` `buildGraphProcessArgs` already builds the audio-only
-   complex args (write aux, `-i`, `-filter_complex`, `-map [out]`). The transcode version =
-   that + `-map 0:v:0` and the libx264 video flags. Audio in complex mode is mono (graph forces
-   `aformat=channel_layouts=mono`) — fine for voice.
-5. Keep the `faststart` remux strategy filter-free; keep the existing raw-audio fallback as the
-   safety net (so a bad complex graph still produces a usable bake + toast).
-**Test:** pick **Cyber Oracle** in the Studio → record → bake → should now hear the full metallic
-character (not raw). Confirm A/V sync + the waveform video still render; no dup-storm; no console
-errors. Then the other 5 parallel presets.
-
-### After complex-export (later phases, still interactive)
+### NEXT PHASES (in order of priority)
 - Full storage swap `VoiceEffectConfig → StylizedGraph` across prefs/profiles/Studio (~24 files;
   the highest-risk, race-prone area; do last, very carefully).
 - Branch 3 (`dulcet-ii/preview-pipeline`): one-shot offline preview so the Studio Play button
@@ -897,15 +864,18 @@ errors. Then the other 5 parallel presets.
 - Per-primitive (non-global) intensity curves; `resolve-config` cleanup; expose the 21 raw
   fragments in a Custom UI (Branch 4 `character-system`).
 
-### Interactive protocol (STILL IN EFFECT — user on Ask permissions / mode 1)
-Work ONE small change at a time: propose what you'll do (or show the diff), **ask explicit
-approval before any edit or command**, then the user live-tests in the running dev build and
-reports back before the next piece. Ask precisely what you need from each live test. Do not
-batch or race ahead.
+**Interactive protocol:** Pause only for human-in-the-loop QA (things that need live audio
+verification) or genuinely ambiguous decisions. Push ahead autonomously on non-risky changes;
+ask once before each test gate.
+
+**Future idea (non-urgent):** "Chronos indicator" — live FFmpeg time progress (`HH:MM:SS` /
+duration) read from the `progress` event `time` field in the offscreen worker, relayed
+background → content → recording panel DOM. Medium effort (message-relay plumbing exists;
+UI slot doesn't). Flagged as a background task chip.
 
 ### Restore / test
 ```bash
-git checkout dulcet-ii/dsp-foundation && npm install && npm run dev
+git checkout dulcet-ii/integration && npm install && npm run dev
 ```
 - Harness: `voice-harness.html` — Pipeline=Graph, Character preset dropdown or per-fragment toggles.
 - Live: Design Studio → Voice → Character voice (v5) → record on Reddit → bake.
