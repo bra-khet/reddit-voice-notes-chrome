@@ -1,5 +1,18 @@
 # Reddit Voice Notes — Session Progress
 
+## Dulcet II Branch 4 `dulcet-ii/character-system` — ✅ COMPLETE (2026-06-25)
+
+Graph-native voice system, merged to `dulcet-ii/integration`. Six commits 9b4a443 → 5cfa5c1.
+
+- **4.1** — graph-native backbone (`VoiceEffectConfig.graph`), standalone Custom composer (7 fragment categories, curated core + Advanced reveal, seed-then-tweak, blank-slate / reset-order), wired into the Studio voice panel replacing the pitch/formant/character knobs.
+- **4.2** — character **chip picker** as the front door (replaces the legacy preset + character dropdowns); new **Incognito** anonymizer preset (pitch+formant+de-ess, graph-native replacement for the old "slight mask").
+- **4.2b** — voice **state hardening** (surfaced by loading a legacy profile): `formatVoiceEffectSummary` + dirty-check moved onto the graph world (were blind to `graph`/`characterPresetId` → "Off" / phantom names); `voiceEffectUserIntentKey` made id-free (volatile fragment ids caused permanent-dirty); `voiceControls.flushPersist()` contract added + flushed in `studioPersist` (profile snapshot was racing the 250ms voice debounce); dirty-check now reads the live draft. Custom-voice status pill (named after the profile) + helper. Fixed smart-quote class attrs from 4.2.
+- **4.3** — **legacy strip** (−1,117 lines): deleted `presets.ts`, `filter-graphs.ts`, `migrate-v1.ts`, `offscreen-queue.ts`; removed flat fields (pitchShift/eq/dynamics/reverb) + `presetId`/`VoiceEffectPresetId` from `VoiceEffectConfig`; removed `resolveVoiceEffectConfig`/`scaleVoiceEffectByIntensity`/`voiceEffectIsActive` + the legacy `processAudio`/`processAudioBytes`; removed the always-disabled "Play preview" button (preview-chain is now a dry player); voice-harness + offscreen harness are graph-only.
+
+**The bake never changed** — the real export always used `resolveVoiceGraph` → `buildStylizedGraph`. All bugs were in the legacy *state/describe/compare* layer, now removed. Confirmed by user production smoke test. `tsc --noEmit` + `wxt build` clean. Deferred: per-primitive non-linear intensity curves.
+
+**Architecture note:** see memory `project_voice_resolve_worlds.md` and `docs/architecture/extension-points.md` (rewritten for the graph-native model).
+
 ## v2.0.0 stable — `pretty` merged to `main` (2026-06-21)
 
 **Tag:** `v2.0.0` · **Pre-merge checkpoint:** `pretty-profile-style-premerge`

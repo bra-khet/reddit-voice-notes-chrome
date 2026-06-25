@@ -1,24 +1,33 @@
-import { getVoiceEffectPreset } from './presets';
-import { voiceEffectIsActive } from './resolve-config';
+import { getCharacterPreset, resolveVoiceGraph, stylizedGraphIsActive } from './dsp';
 import {
   effectiveVoiceIntensity,
   normalizeVoiceEffectConfig,
   type VoiceEffectConfig,
 } from './types';
 
-/** One-line popup / studio summary for active voice settings. */
+/**
+ * One-line popup / studio summary for active voice settings.
+ *
+ * Dulcet II (v5 / Branch 4): reads the GRAPH world (resolveVoiceGraph +
+ * stylizedGraphIsActive) — the same resolution the bake uses — so a composed
+ * graph or a character preset is described correctly.
+ */
 export function formatVoiceEffectSummary(config: VoiceEffectConfig | undefined): string {
   const normalized = normalizeVoiceEffectConfig(config);
-  if (!voiceEffectIsActive(normalized)) return 'Off';
+  const graph = resolveVoiceGraph(normalized);
+  if (!stylizedGraphIsActive(graph)) return 'Off';
 
-  const presetId = normalized.presetId ?? 'custom';
-  const presetLabel =
-    presetId === 'custom' ? 'Custom' : getVoiceEffectPreset(presetId).label;
-  const intensity = effectiveVoiceIntensity(normalized);
+  const intensityLabel = normalized.turbo
+    ? 'Turbo'
+    : `${effectiveVoiceIntensity(normalized)}/10`;
 
-  if (normalized.turbo) {
-    return `${presetLabel} · Turbo`;
+  // A character preset is authoritative only when no composed graph overrides it
+  // (graph wins in resolveVoiceGraph; mirror that priority here).
+  const hasGraph = (normalized.graph?.fragments.length ?? 0) > 0;
+  if (!hasGraph && normalized.characterPresetId) {
+    const preset = getCharacterPreset(normalized.characterPresetId);
+    if (preset) return `${preset.label} · ${intensityLabel}`;
   }
 
-  return `${presetLabel} · ${intensity}/10`;
+  return `Custom · ${intensityLabel}`;
 }

@@ -3,8 +3,8 @@
  *
  * Implements {@link FragmentRenderer} for the export path. Each emitter maps a
  * fragment's high-level params → FFmpeg filter segments. The orchestrator joins
- * them into the `-af` string consumed by `ffmpeg-runner.ts` (drop-in compatible
- * with the legacy `buildFfmpegAudioFilter` result).
+ * them into the `-af` string (or `-filter_complex` graph) consumed by
+ * `ffmpeg-runner.ts`.
  *
  * ## Status
  * - **1.1 (this commit):** pitch, EQ, compressor, gate, limiter, echo/reverb —

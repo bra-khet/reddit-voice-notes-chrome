@@ -6,28 +6,35 @@ import {
   saveVoiceEffectPreferences,
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
-import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
-import { getVoiceEffectPreset, VOICE_EFFECT_PRESETS } from '@/src/voice/presets';
-import { CHARACTER_PRESETS, resolveVoiceGraph, stylizedGraphIsActive } from '@/src/voice/dsp';
+import { mountVoiceComposer } from '@/src/ui/design-studio/voice-composer';
+import { getClipProfileById } from '@/src/settings/clip-profiles';
+import { isPresetProfileId } from '@/src/settings/preset-profiles';
+import {
+  CHARACTER_PRESETS,
+  resolveVoiceGraph,
+  stylizedGraphIsActive,
+  type StylizedGraph,
+} from '@/src/voice/dsp';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
-import { resolveVoiceEffectConfig } from '@/src/voice/resolve-config';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
   VOICE_INTENSITY_MAX,
   VOICE_INTENSITY_MIN,
   VOICE_INTENSITY_TURBO,
-  VOICE_SEMITONE_MAX,
-  VOICE_SEMITONE_MIN,
-  type PitchShiftConfig,
   type VoiceEffectConfig,
-  type VoiceEffectPresetId,
 } from '@/src/voice/types';
 
 export interface VoiceControlsHandle {
   dispose(): void;
   getDraftConfig(): VoiceEffectConfig;
   syncFromPreferences(prefs: UserPreferencesV1): void;
+  /**
+   * Flush the debounced voice draft to global prefs *now* and resolve when the
+   * write completes. Profile save / studio exit must await this so a profile
+   * snapshot can't capture a stale voice (mirrors subtitleControls.flushPersist).
+   */
+  flushPersist(): Promise<void>;
 }
 
 const VOICE_SAVE_DEBOUNCE_MS = 250;
@@ -59,23 +66,16 @@ export function renderVoiceControlFields(): string {
           aria-label="Enable voice effects"
         />
       </label>
-      <label class="popup__field studio__field--compact">
-        <span class="popup__field-label">Voice preset</span>
-        <select class="popup__select" data-voice-preset aria-label="Voice preset"></select>
-      </label>
-      <p class="studio__voice-preset-tip popup__field-desc" data-voice-preset-tip hidden></p>
-      <label class="popup__field studio__field--compact">
-        <span class="popup__field-label">Character voice (v5)</span>
-        <select class="popup__select" data-character-preset aria-label="Character voice preset"></select>
-      </label>
-      <p class="studio__voice-preset-desc popup__field-desc" data-character-note hidden>
-        Character voice overrides the preset above on bake. Use “Test character voice” to hear
-        the real rendered result; “Play preview” is a quick legacy approximation only.
-      </p>
-      <p class="studio__voice-preset-hint popup__field-desc">
-        Presets include special SFX — intensity modulates the selected preset.
-        The pitch knob switches to Custom for manual pitch only.
-      </p>
+      <div class="studio__char-section">
+        <span class="popup__field-label studio__char-label">Character voice</span>
+        <p class="studio__char-help popup__field-desc">
+          Each profile carries one voice. Pick a character to start, then tweak it
+          below into a custom voice — your changes save with this profile.
+        </p>
+        <div class="studio__char-chips" data-char-chips></div>
+        <span class="studio__char-status" data-char-status hidden></span>
+        <p class="studio__char-note popup__field-desc" data-char-note></p>
+      </div>
       <label class="popup__field studio__field--compact studio__voice-intensity">
         <span class="popup__field-label">
           Intensity <span data-voice-intensity-value>10/10</span>
@@ -103,35 +103,10 @@ export function renderVoiceControlFields(): string {
           aria-label="Turbo voice effect boost"
         />
       </label>
-      <div class="studio__voice-pitch">
-        <div class="studio__knob-host" data-voice-pitch-mount></div>
-        <div class="studio__knob-host" data-voice-formant-mount></div>
-      </div>
-      <label class="popup__field studio__field--compact">
-        <span class="popup__field-label">
-          Character <span data-formant-character-value>0</span>
-        </span>
-        <input
-          class="popup__range"
-          type="range"
-          min="0"
-          max="100"
-          step="5"
-          value="0"
-          data-formant-character
-          aria-label="Voice character resonance"
-        />
-      </label>
-      <p class="studio__voice-preset-hint popup__field-desc">
-        Pitch + Formant + Character define a Custom voice (formant moves the throat
-        independent of pitch). Character presets above override these on bake.
-      </p>
+      <div class="studio__voice-composer" data-voice-composer></div>
       <div class="studio__voice-actions">
         <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-test>
           Test character voice
-        </button>
-        <button type="button" class="popup__button popup__button--secondary" data-voice-play>
-          Play preview
         </button>
         <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-voice-stop hidden>
           Stop
@@ -161,6 +136,13 @@ function formatSavedAt(ms: number): string {
   }
 }
 
+/** Active saved-profile name for the custom-voice status pill (undefined in custom/no-profile mode). */
+function activeProfileNameFrom(prefs: UserPreferencesV1): string | undefined {
+  const profileId = prefs.appearance.activeProfileId;
+  if (!profileId || isPresetProfileId(profileId)) return undefined;
+  return getClipProfileById(prefs, profileId)?.name;
+}
+
 export function mountVoiceControls(
   root: HTMLElement,
   onDraftChange?: () => void,
@@ -168,23 +150,19 @@ export function mountVoiceControls(
   const panel = root.querySelector<HTMLElement>('[data-voice-controls]')!;
   const sourceEl = panel.querySelector<HTMLElement>('[data-voice-source]')!;
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-voice-enabled]')!;
-  const presetSelect = panel.querySelector<HTMLSelectElement>('[data-voice-preset]')!;
-  const presetTipEl = panel.querySelector<HTMLElement>('[data-voice-preset-tip]')!;
-  const characterSelect = panel.querySelector<HTMLSelectElement>('[data-character-preset]')!;
-  const characterNote = panel.querySelector<HTMLElement>('[data-character-note]')!;
-  const pitchMount = panel.querySelector<HTMLElement>('[data-voice-pitch-mount]')!;
-  const formantMount = panel.querySelector<HTMLElement>('[data-voice-formant-mount]')!;
-  const formantCharInput = panel.querySelector<HTMLInputElement>('[data-formant-character]')!;
-  const formantCharValue = panel.querySelector<HTMLElement>('[data-formant-character-value]')!;
+  const chipsHost = panel.querySelector<HTMLElement>('[data-char-chips]')!;
+  const charStatusEl = panel.querySelector<HTMLElement>('[data-char-status]')!;
+  const charNoteEl = panel.querySelector<HTMLElement>('[data-char-note]')!;
+  const composerHost = panel.querySelector<HTMLElement>('[data-voice-composer]')!;
   const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
   const turboInput = panel.querySelector<HTMLInputElement>('[data-voice-turbo]')!;
   const testBtn = panel.querySelector<HTMLButtonElement>('[data-voice-test]')!;
-  const playBtn = panel.querySelector<HTMLButtonElement>('[data-voice-play]')!;
   const stopBtn = panel.querySelector<HTMLButtonElement>('[data-voice-stop]')!;
   const statusEl = panel.querySelector<HTMLElement>('[data-voice-status]')!;
 
   let draftConfig: VoiceEffectConfig = normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
+  let currentProfileName: string | undefined;
   let lastRecording: LastRecordingSnapshot | null = null;
   let loadedSavedAt = 0;
   let syncing = false;
@@ -193,93 +171,79 @@ export function mountVoiceControls(
 
   const preview = createVoicePreviewPlayer();
 
-  for (const preset of VOICE_EFFECT_PRESETS) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.label;
-    presetSelect.appendChild(option);
-  }
-
-  const characterNone = document.createElement('option');
-  characterNone.value = '';
-  characterNone.textContent = '— None (use preset above) —';
-  characterSelect.appendChild(characterNone);
   for (const preset of CHARACTER_PRESETS) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.label;
-    option.title = preset.blurb;
-    characterSelect.appendChild(option);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'studio__char-chip';
+    btn.dataset.charId = preset.id;
+    btn.textContent = preset.label;
+    btn.title = preset.blurb;
+    chipsHost.appendChild(btn);
   }
 
-  // Pitch / Formant / Character all live in pitchShift and fork the voice to Custom.
-  // Patch only the changed field so moving one knob never wipes the others.
-  function forkPitchFormant(patch: Partial<PitchShiftConfig>): void {
-    // BUG FIX: knob edits should fork to Custom without dropping the preset SFX snapshot
-    // Fix: resolve the active preset first, then patch the one field and mark custom
-    const resolved = resolveVoiceEffectConfig({ ...draftConfig, enabled: enabledInput.checked });
+  /**
+   * Reflect the active voice identity in the chip row:
+   *  - highlight the selected character chip (when a character is picked), and
+   *  - light a non-interactive status pill named after the active profile when
+   *    the voice is a *custom* graph (no character) — the "you're on a custom
+   *    voice for this profile" indicator. Profile names are user text, so the
+   *    label is set via textContent (never innerHTML) — no escape hazards.
+   */
+  function updateVoiceIdentity(): void {
+    const characterId = draftConfig.characterPresetId;
+    const isCustomGraph =
+      !characterId && (draftConfig.graph?.fragments.length ?? 0) > 0;
+
+    for (const chip of chipsHost.querySelectorAll<HTMLElement>('.studio__char-chip')) {
+      chip.classList.toggle(
+        'is-selected',
+        characterId !== undefined && chip.dataset.charId === characterId,
+      );
+    }
+
+    if (isCustomGraph) {
+      const name = currentProfileName?.trim();
+      charStatusEl.textContent = name ? `★ ${name} — custom voice` : '★ Custom voice';
+      charStatusEl.hidden = false;
+    } else {
+      charStatusEl.textContent = '';
+      charStatusEl.hidden = true;
+    }
+
+    charNoteEl.textContent = characterId
+      ? 'Editing any effect below makes this a custom voice for this profile.'
+      : '';
+  }
+
+  // Branch 4: the Custom composer is the single editor of the active StylizedGraph.
+  // Seed-then-tweak — picking a character seeds it for display; the first edit
+  // materializes draftConfig.graph and forks the voice to a Custom graph.
+  function onComposerChange(nextGraph: StylizedGraph): void {
+    const hasFragments = nextGraph.fragments.length > 0;
     draftConfig = normalizeVoiceEffectConfig({
-      ...resolved,
-      enabled: enabledInput.checked,
-      presetId: 'custom',
-      pitchShift: {
-        ...resolved.pitchShift,
-        semitones: resolved.pitchShift?.semitones ?? 0,
-        preserveDuration: true,
-        exaggerateNatural: resolved.pitchShift?.exaggerateNatural ?? false,
-        ...patch,
-      },
+      ...mergeLiveToggles(draftConfig),
+      characterPresetId: undefined,
+      graph: nextGraph,
+      enabled: hasFragments ? true : enabledInput.checked,
     });
-    presetSelect.value = 'custom';
+    updateVoiceIdentity();
+    enabledInput.checked = draftConfig.enabled;
     schedulePersist();
     notifyDraftChange();
-    setStatus('');
+    setStatus(
+      hasFragments
+        ? 'Custom voice — Test to hear the rendered result.'
+        : 'Blank slate — toggle effects below to build a voice.',
+    );
   }
 
-  const pitchKnob = mountRadialKnob(pitchMount, {
-    min: VOICE_SEMITONE_MIN,
-    max: VOICE_SEMITONE_MAX,
-    value: 0,
-    label: 'Pitch',
-    ariaLabel: 'Pitch shift in semitones',
-    onChange: (semitones) => {
-      if (syncing) return;
-      forkPitchFormant({ semitones });
-    },
-  });
-
-  const formantKnob = mountRadialKnob(formantMount, {
-    min: VOICE_SEMITONE_MIN,
-    max: VOICE_SEMITONE_MAX,
-    value: 0,
-    label: 'Formant',
-    ariaLabel: 'Formant shift in semitones',
-    onChange: (formantShift) => {
-      if (syncing) return;
-      forkPitchFormant({ formantShift });
-    },
-  });
-
-  formantCharInput.addEventListener('input', () => {
-    if (syncing) return;
-    formantCharValue.textContent = formantCharInput.value;
-    forkPitchFormant({ character: Number(formantCharInput.value) });
+  const composer = mountVoiceComposer(composerHost, {
+    initialGraph: resolveVoiceGraph(resolvedDraft()),
+    onChange: onComposerChange,
   });
 
   function setStatus(message: string): void {
     statusEl.textContent = message;
-  }
-
-  function updatePresetTip(): void {
-    const presetId = (draftConfig.presetId ?? 'custom') as VoiceEffectPresetId;
-    const hint = getVoiceEffectPreset(presetId).usageHint;
-    if (hint) {
-      presetTipEl.textContent = hint;
-      presetTipEl.hidden = false;
-      return;
-    }
-    presetTipEl.textContent = '';
-    presetTipEl.hidden = true;
   }
 
   function notifyDraftChange(): void {
@@ -296,15 +260,22 @@ export function mountVoiceControls(
     }, VOICE_SAVE_DEBOUNCE_MS);
   }
 
-  function persistNow(): void {
+  /** Write the current draft to global prefs immediately; returns the save promise. */
+  function writeDraftNow(): Promise<void> {
     if (saveTimer) {
       window.clearTimeout(saveTimer);
       saveTimer = 0;
     }
     draftConfig.enabled = enabledInput.checked;
-    void saveVoiceEffectPreferences(draftConfig).catch((error: unknown) => {
-      console.warn('[Reddit Voice Notes] Voice prefs save failed', error);
-    });
+    return saveVoiceEffectPreferences(draftConfig)
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        console.warn('[Reddit Voice Notes] Voice prefs save failed', error);
+      });
+  }
+
+  function persistNow(): void {
+    void writeDraftNow();
   }
 
   function updateIntensityUi(): void {
@@ -338,23 +309,19 @@ export function mountVoiceControls(
   }
 
   function resolvedDraft(): VoiceEffectConfig {
-    return resolveVoiceEffectConfig(mergeLiveToggles(draftConfig));
+    // mergeLiveToggles already normalizes; resolveVoiceGraph does the graph/character
+    // resolution itself, so no separate legacy resolve step is needed.
+    return mergeLiveToggles(draftConfig);
   }
 
   function syncControlsFromDraft(): void {
     syncing = true;
     enabledInput.checked = draftConfig.enabled;
-    presetSelect.value = draftConfig.presetId ?? 'custom';
-    characterSelect.value = draftConfig.characterPresetId ?? '';
-    characterNote.hidden = !draftConfig.characterPresetId;
-    const ps = resolvedDraft().pitchShift;
-    pitchKnob.setValue(ps?.semitones ?? 0, true);
-    formantKnob.setValue(ps?.formantShift ?? 0, true);
-    formantCharInput.value = String(ps?.character ?? 0);
-    formantCharValue.textContent = String(ps?.character ?? 0);
+    updateVoiceIdentity();
+    // Seed the composer with whatever the voice currently resolves to (a stored
+    // graph or a character preset's makeup) for display.
+    composer.setGraph(resolveVoiceGraph(resolvedDraft()));
     updateIntensityUi();
-    updatePresetTip();
-    updatePlayAvailability();
     notifyDraftChange();
     syncing = false;
   }
@@ -371,27 +338,14 @@ export function mountVoiceControls(
   }
 
   function refreshPlayStopUi(): void {
-    const isPlaying = preview.isPlaying();
-    playBtn.hidden = isPlaying;
-    stopBtn.hidden = !isPlaying;
+    // Stop is shown only while the rendered Test clip is playing back.
+    stopBtn.hidden = !preview.isPlaying();
   }
 
   function setRendering(active: boolean): void {
     rendering = active;
     testBtn.disabled = active;
     testBtn.textContent = active ? 'Rendering…' : 'Test character voice';
-  }
-
-  // 3.3 edge case: the real-time Web Audio chain (legacy pitch/EQ/compressor only) cannot
-  // reproduce a v5 character graph — its renderer ignores characterPresetId. So when a
-  // character voice is active, steer the user to the authoritative one-shot Test instead of
-  // letting "Play preview" play a misleading near-raw approximation.
-  function updatePlayAvailability(): void {
-    const characterActive = Boolean(draftConfig.characterPresetId);
-    playBtn.disabled = characterActive;
-    playBtn.title = characterActive
-      ? 'Live preview can’t reproduce v5 character voices — use “Test character voice”.'
-      : '';
   }
 
   async function loadRecordingSource(): Promise<void> {
@@ -465,33 +419,21 @@ export function mountVoiceControls(
     setStatus('');
   });
 
-  presetSelect.addEventListener('change', () => {
+  chipsHost.addEventListener('click', (event) => {
     if (syncing) return;
-    const presetId = presetSelect.value as VoiceEffectPresetId;
-    draftConfig = mergeLiveToggles({
-      enabled: enabledInput.checked,
-      presetId,
-      intensity: clampIntensity(Number(intensityInput.value)),
-      turbo: turboInput.checked,
-    });
-    syncControlsFromDraft();
-    schedulePersist();
-    setStatus('');
-  });
-
-  characterSelect.addEventListener('change', () => {
-    if (syncing) return;
-    const id = characterSelect.value || undefined;
+    const chip = (event.target as HTMLElement).closest<HTMLElement>('[data-char-id]');
+    if (!chip) return;
+    const id = chip.dataset.charId!;
+    // Explicitly clear graph so the character takes precedence in resolveVoiceGraph.
     draftConfig = normalizeVoiceEffectConfig({
-      ...draftConfig,
-      enabled: id ? true : draftConfig.enabled,
+      ...mergeLiveToggles(draftConfig),
       characterPresetId: id,
-      intensity: clampIntensity(Number(intensityInput.value)),
-      turbo: turboInput.checked,
+      graph: undefined,
+      enabled: true,
     });
     syncControlsFromDraft();
     schedulePersist();
-    setStatus(id ? 'Character voice set — bake to hear it.' : '');
+    setStatus('Character voice set — Test to hear the rendered result.');
   });
 
   // Dulcet II (v5) one-shot preview: render the ACTIVE graph (character preset or migrated
@@ -549,31 +491,6 @@ export function mountVoiceControls(
     })();
   });
 
-  playBtn.addEventListener('click', () => {
-    void (async () => {
-      if (!preview.hasSource()) {
-        setStatus('Record a voice note first, then reopen Design Studio to preview.');
-        return;
-      }
-
-      if (draftConfig.characterPresetId) {
-        setStatus('Live preview can’t reproduce v5 character voices — use “Test character voice”.');
-        return;
-      }
-
-      const config = resolveVoiceEffectConfig(mergeLiveToggles(draftConfig));
-      try {
-        setStatus(config.enabled ? 'Playing with voice effects…' : 'Playing original audio…');
-        await preview.play(config);
-        refreshPlayStopUi();
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        setStatus(`Preview failed: ${detail}`);
-        refreshPlayStopUi();
-      }
-    })();
-  });
-
   stopBtn.addEventListener('click', () => {
     preview.stop();
     refreshPlayStopUi();
@@ -602,6 +519,7 @@ export function mountVoiceControls(
 
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+    currentProfileName = activeProfileNameFrom(prefs);
     syncControlsFromDraft();
   });
 
@@ -618,8 +536,12 @@ export function mountVoiceControls(
     syncFromPreferences(prefs) {
       syncing = true;
       draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+      currentProfileName = activeProfileNameFrom(prefs);
       syncControlsFromDraft();
       syncing = false;
+    },
+    flushPersist() {
+      return writeDraftNow();
     },
     dispose() {
       window.clearInterval(playPoll);
@@ -628,6 +550,7 @@ export function mountVoiceControls(
       browser.storage.onChanged.removeListener(onRecordingReady);
       if (saveTimer) window.clearTimeout(saveTimer);
       persistNow();
+      composer.dispose();
       preview.dispose();
     },
   };

@@ -124,7 +124,7 @@ export interface SpectralCarveParams {
   /** 0–100. Tilts the shape from hollow/metallic → vocal/formant. */
   character: number;
 }
-/** Classic 3-band EQ — the migration target for the legacy `EqBandConfig`. */
+/** Classic 3-band EQ — low/mid/high shelf tone shaping. */
 export interface EqParams {
   /** Low-shelf gain, dB (−12 … +12). */
   lowGain: number;
@@ -145,7 +145,7 @@ export interface ConvReverbParams {
   /** 0–100. Pre-delay before the tail (sense of distance). */
   preDelay: number;
 }
-/** Cheap algorithmic reverb (`aecho`/`areverb`) — migration target for legacy `ReverbConfig`. */
+/** Cheap algorithmic reverb (`aecho`/`areverb`) — light ambience without convolution. */
 export interface AlgoReverbParams {
   /** 0–100. Wet/dry. */
   mix: number;

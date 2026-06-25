@@ -6,12 +6,6 @@ import {
   type FfmpegProgressCallback,
 } from '@/src/ffmpeg/ffmpeg-runner';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
-import { buildFfmpegAudioFilter } from './filter-graphs';
-import {
-  normalizeVoiceEffectConfig,
-  type VoiceEffectConfig,
-} from './types';
-import { voiceEffectIsActive } from './resolve-config';
 import {
   buildStylizedGraph,
   normalizeStylizedGraph,
@@ -30,7 +24,7 @@ const INPUT_PATH = 'voice-input.webm';
 // Fix: libopus is absent/broken in the shipped @ffmpeg/core 0.12 build, so the
 // encoder init crashed as a generic OOB. Encode AAC/M4A instead — the same proven
 // encoder the shipped WebM→MP4 transcode uses (ffmpeg-runner TRANSCODE_STRATEGIES).
-// Sync: buildVoiceProcessArgs + buildGraphProcessArgs codec; success-return mimeType.
+// Sync: buildGraphProcessArgs codec; success-return mimeType.
 const OUTPUT_PATH = 'voice-output.m4a';
 
 export interface ProcessAudioResult {
@@ -112,151 +106,13 @@ function execWithTimeoutInner(ffmpeg: FFmpeg, args: string[], timeoutMs: number)
   });
 }
 
-function buildVoiceProcessArgs(audioFilter: string): string[] {
-  return [
-    '-i',
-    INPUT_PATH,
-    '-vn',
-    '-af',
-    audioFilter,
-    '-c:a',
-    'aac',
-    '-b:a',
-    '128k',
-    OUTPUT_PATH,
-  ];
-}
-
-/**
- * Isolated Dulcet audio processor (dulcet-1).
- * Extracts audio from a captured WebM, applies voice filters, returns Opus WebM.
- * Disabled configs and failures return the input bytes unchanged (non-destructive).
- */
-export async function processAudioBytes(
-  inputBytes: Uint8Array,
-  config: VoiceEffectConfig,
-  onProgress?: FfmpegProgressCallback,
-): Promise<ProcessAudioBytesResult> {
-  const startedAt = Date.now();
-  const normalized = normalizeVoiceEffectConfig(config);
-  const inputCopy = inputBytes.slice();
-
-  if (!voiceEffectIsActive(normalized)) {
-    return {
-      bytes: inputCopy,
-      mimeType: 'video/webm',
-      applied: false,
-      fallback: false,
-      stage: 'voice-skip',
-      elapsedMs: Date.now() - startedAt,
-    };
-  }
-
-  if (!isValidWebm(inputCopy)) {
-    console.warn(`${EXTENSION_LOG_PREFIX} Voice process skipped — invalid WebM input`);
-    return {
-      bytes: inputCopy,
-      mimeType: 'video/webm',
-      applied: false,
-      fallback: true,
-      stage: 'voice-invalid-input',
-      elapsedMs: Date.now() - startedAt,
-    };
-  }
-
-  const { filter, stage } = buildFfmpegAudioFilter(normalized);
-  if (!filter) {
-    return {
-      bytes: inputCopy,
-      mimeType: 'video/webm',
-      applied: false,
-      fallback: false,
-      stage: 'voice-skip',
-      elapsedMs: Date.now() - startedAt,
-    };
-  }
-
-  onProgress?.(0.05, 'voice-loading-wasm');
-
-  try {
-    const ffmpeg = await loadFfmpeg(onProgress);
-    await safeDeleteFile(ffmpeg, INPUT_PATH);
-    await safeDeleteFile(ffmpeg, OUTPUT_PATH);
-    // BUG FIX: ArrayBuffer detached on Worker postMessage
-    // Fix: ffmpeg.writeFile() transfers the backing buffer; pass a fresh slice per job.
-    await ffmpeg.writeFile(INPUT_PATH, inputCopy.slice());
-
-    onProgress?.(0.2, stage);
-
-    const exitCode = await execWithTimeout(
-      ffmpeg,
-      buildVoiceProcessArgs(filter),
-      VOICE_PROCESS_TIMEOUT_MS,
-    );
-
-    if (exitCode !== 0) {
-      throw new Error(`Voice FFmpeg exited with code ${exitCode}`);
-    }
-
-    const output = (await ffmpeg.readFile(OUTPUT_PATH)) as Uint8Array;
-    if (!output?.byteLength) {
-      throw new Error('Voice FFmpeg produced empty output.');
-    }
-
-    await safeDeleteFile(ffmpeg, INPUT_PATH);
-    await safeDeleteFile(ffmpeg, OUTPUT_PATH);
-
-    onProgress?.(1, 'voice-done');
-
-    return {
-      bytes: output.slice(),
-      mimeType: 'audio/mp4',
-      applied: true,
-      fallback: false,
-      stage,
-      elapsedMs: Date.now() - startedAt,
-    };
-  } catch (error) {
-    disposeFfmpeg();
-    await wasmSettle();
-    const detail = error instanceof Error ? error.message : String(error);
-    console.warn(`${EXTENSION_LOG_PREFIX} Voice process failed — returning raw audio`, detail);
-
-    return {
-      bytes: inputCopy,
-      mimeType: 'video/webm',
-      applied: false,
-      fallback: true,
-      stage: 'voice-fallback',
-      elapsedMs: Date.now() - startedAt,
-    };
-  }
-}
-
-export async function processAudio(
-  input: Blob,
-  config: VoiceEffectConfig,
-  onProgress?: FfmpegProgressCallback,
-): Promise<ProcessAudioResult> {
-  const inputBytes = new Uint8Array(await input.arrayBuffer());
-  const result = await processAudioBytes(inputBytes, config, onProgress);
-
-  return {
-    blob: new Blob([Uint8Array.from(result.bytes)], { type: result.mimeType }),
-    applied: result.applied,
-    fallback: result.fallback,
-    stage: result.stage,
-    elapsedMs: result.elapsedMs,
-  };
-}
-
 /* ------------------------------------------------------------------ *
- * Dulcet II (v5) — StylizedGraph processing path (Sub-Phase 1.3, step 1).
+ * Dulcet II (v5) — StylizedGraph processing path.
  *
- * Runs the new fragment graph through ffmpeg.wasm. Additive: the legacy
- * VoiceEffectConfig path above is untouched; storage / live-export wiring lands
- * in later 1.3 steps. Supports both the linear `-af` chain and the complex
- * `-filter_complex` graph (extra `-i` aux WAVs for convolution + `-map`).
+ * Runs the fragment graph through ffmpeg.wasm. Supports both the linear `-af`
+ * chain and the complex `-filter_complex` graph (extra `-i` aux WAVs for
+ * convolution + `-map`). This is the only voice processor — the legacy flat
+ * VoiceEffectConfig `-af` path was removed in Branch 4 (4.3).
  * ------------------------------------------------------------------ */
 
 const AUX_PATH = (index: number) => `voice-aux-${index}.wav`;
@@ -299,8 +155,7 @@ export interface GraphProcessOptions {
 
 /**
  * Process audio bytes with a {@link StylizedGraph}. Disabled / no-op graphs and
- * any failure return the input bytes unchanged (non-destructive, same contract
- * as {@link processAudioBytes}).
+ * any failure return the input bytes unchanged (non-destructive).
  */
 export async function processAudioBytesWithGraph(
   inputBytes: Uint8Array,
@@ -355,7 +210,6 @@ export async function processAudioBytesWithGraph(
 
     // BUG FIX: ArrayBuffer detached on Worker postMessage
     // Fix: ffmpeg.writeFile() transfers the backing buffer; pass a fresh slice per write.
-    // Sync: same rule as processAudioBytes() input write above.
     await ffmpeg.writeFile(INPUT_PATH, inputCopy.slice());
     for (let i = 0; i < result.auxInputs.length; i++) {
       await ffmpeg.writeFile(auxPaths[i], result.auxInputs[i].bytes.slice());
