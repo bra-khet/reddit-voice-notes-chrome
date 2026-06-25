@@ -65,6 +65,8 @@ export interface VoiceEffectConfig {
   turbo?: boolean;
   /** Active bundled preset, or `custom` when user edits sliders. */
   presetId?: VoiceEffectPresetId;
+  /** v5 character preset id (Dulcet II). When set, export/preview use its native graph. */
+  characterPresetId?: string;
   pitchShift?: PitchShiftConfig;
   eq?: EqBandConfig;
   dynamics?: DynamicsConfig;
@@ -170,11 +172,17 @@ export function normalizeVoiceEffectConfig(
     intensity = clamp(intensity, VOICE_INTENSITY_MIN, VOICE_INTENSITY_MAX);
   }
 
+  const characterPresetId =
+    typeof raw.characterPresetId === 'string' && raw.characterPresetId
+      ? raw.characterPresetId
+      : undefined;
+
   return {
     enabled: raw.enabled === true,
     intensity,
     turbo,
     presetId,
+    characterPresetId,
     pitchShift,
     eq,
     dynamics: raw.dynamics,

@@ -10,7 +10,12 @@ import {
   type SubtitleBurnInInput,
 } from '@/src/ffmpeg/subtitle-burnin';
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
-import { buildStylizedGraph, migrateVoiceEffectToGraph } from '@/src/voice/dsp';
+import {
+  buildStylizedGraph,
+  characterPresetGraph,
+  getCharacterPreset,
+  migrateVoiceEffectToGraph,
+} from '@/src/voice/dsp';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
@@ -458,10 +463,20 @@ export async function runWebmToMp4(
   }
 
   const normalizedVoice = normalizeVoiceEffectConfig(voiceEffect ?? DEFAULT_VOICE_EFFECT_CONFIG);
-  // Dulcet II (v5) step 1: route the live export's audio filtering through the new
-  // graph renderer. Migrate the stored legacy config → StylizedGraph, then build.
-  // Migrated legacy presets are all linear (-af); complex graphs land in step 2.
-  const graphResult = buildStylizedGraph(migrateVoiceEffectToGraph(normalizedVoice));
+  // Dulcet II (v5): route the live export's audio filtering through the graph renderer.
+  // A selected v5 character preset builds its native graph; otherwise migrate the legacy
+  // config. Linear graphs → -af; complex/parallel graphs are wired in a later step.
+  const characterPreset = normalizedVoice.characterPresetId
+    ? getCharacterPreset(normalizedVoice.characterPresetId)
+    : undefined;
+  const voiceGraph = characterPreset
+    ? characterPresetGraph(
+        characterPreset,
+        normalizedVoice.turbo ? 12 : normalizedVoice.intensity ?? 10,
+        normalizedVoice.turbo === true,
+      )
+    : migrateVoiceEffectToGraph(normalizedVoice);
+  const graphResult = buildStylizedGraph(voiceGraph);
   const audioFilter = graphResult.mode === 'af' ? graphResult.af : null;
 
   const runEncode = async (filter: string | null): Promise<Uint8Array> =>

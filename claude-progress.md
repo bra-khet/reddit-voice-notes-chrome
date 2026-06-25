@@ -776,7 +776,19 @@ It's the preset's design (−3 downshift + high cut). Migration does change Robo
 compressor+makeup) and Whisper (loudnorm→compressor) — fine, replaced when basics authored
 natively. Non-linear curve makes higher/whisper gentler at non-10 intensities (expected).
 
-### Next: live-export step 2 + Sub-Phase 1.3 (remainder) — INTERACTIVE, app-loaded, one step at a time
+### Live-export step 2a DONE — character preset storage + export resolution
+Chosen direction (user): expose character presets in Studio via lightweight `characterPresetId`
+(no full StylizedGraph storage swap yet). Step 2a (smoke-verified, not yet live):
+- `types.ts`: `characterPresetId?: string` on VoiceEffectConfig + normalize pass-through (drops empty).
+- `ffmpeg-runner.ts`: if `characterPresetId` resolves to a character preset → `characterPresetGraph`
+  (intensity/turbo from config) → `buildStylizedGraph`; else legacy `migrateVoiceEffectToGraph`.
+  Linear character presets (Helium Sprite) → `-af` bakes; complex ones → null → raw fallback until
+  complex-export step. Unknown id / no id → legacy unchanged (zero regression).
+- **Next 2b:** Studio voice picker → set `characterPresetId` (makes it live-testable). Preview stays
+  legacy-only for character presets until Branch 3 (bake-to-hear; show a note). voice-controls.ts is
+  the race-prone file — read fully + show exact diff before editing.
+
+### Next: live-export step 2b + Sub-Phase 1.3 (remainder) — INTERACTIVE, app-loaded, one step at a time
 User switched to Ask permissions (mode 1). For live-export wiring + storage swap: work
 ONE small change at a time — propose/show diff, ask explicit approval before any edit or
 command, user tests live in the running dev build and reports back before next step.
