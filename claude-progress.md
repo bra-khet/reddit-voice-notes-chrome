@@ -748,7 +748,27 @@ Smoke-verified; build passes. **Merged dulcet-ii/dsp-foundation → dulcet-ii/in
   run. If it recurs, the `[ffmpeg]` log now shows the real cause.
 - tsc clean; build passes. Pending: user re-test + merge to integration.
 
-### Next: Sub-Phase 1.3 (remainder)
+### Preset tuning + README + NerdRage (2026-06-24) — user-confirmed, merged
+User auditioned all 6 presets: all stable, no edge cases; fresh-heap fix held under
+repeated pitch+hybrid hammering. Tunings applied:
+- **NerdRage 🧪** — new preset cloning the ORIGINAL Cyber Oracle voicing as-is (homage
+  to NurdRage YT channel). 🧪 emoji in label for final build.
+- **Cyber Oracle** — retuned much more metallic: ringMod freq 80→320 + mix 16→42,
+  spectralCarve 45/75→58/90, added flanger comb sweep (layering), pitch char 40→55.
+- **Glitch Beast / Radio Demon** — "loud" fix is **makeup-gain only** (pure post-comp
+  level): Glitch makeup 35→15, Radio 45→20. Saturation pre-gain (the grit) + EQ
+  (broadcast tone) are load-bearing and **left intact** per user (volume-only, no
+  effect sacrifice). Confirmed makeup is not necessary for the effect before reducing.
+- **Abyssal Titan** — added subtle granular (mix 20) for edge.
+- **README** — new "Character voice presets (Dulcet II / v5)" section (flagship framing,
+  preset table, "roll your own" from 21 fragments / 7 categories, points to design doc).
+All 7 presets structurally validated; build passes. **Merged to dulcet-ii/integration.**
+
+### Next: Sub-Phase 1.3 (remainder) — INTERACTIVE, app-loaded, one step at a time
+User switched to Ask permissions (mode 1). For live-export wiring + storage swap: work
+ONE small change at a time — propose/show diff, ask explicit approval before any edit or
+command, user tests live in the running dev build and reports back before next step.
+Ask precisely what's needed from each live test. Do not batch or race ahead.
 - Wire the LIVE transcode (`ffmpeg-runner.ts:462`): thread `-filter_complex` + aux
   `-i` into the muxed WebM→MP4 strategies (alongside the waveform video) — riskier;
   do with the app running.

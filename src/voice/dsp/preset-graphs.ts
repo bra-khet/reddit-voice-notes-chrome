@@ -33,7 +33,23 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
   {
     id: 'cyber-oracle',
     label: 'Cyber Oracle',
-    blurb: 'Deep, metallic prophet intoning from a vast digital cathedral.',
+    blurb: 'Clangorous metallic prophet ringing out of a vast digital cathedral.',
+    intensity: 9,
+    build: () => [
+      createFragment('pitchFormant', { semitones: -4, formantShift: -2, character: 55 }),
+      createFragment('presenceAir', { presence: 40, air: 25 }),
+      // Metallic core: aggressive spectral resonances + a higher-carrier ring mod
+      // for inharmonic clang + a flanger comb sweep for layered metallic shimmer.
+      createFragment('spectralCarve', { amount: 58, character: 90 }),
+      createFragment('ringMod', { frequency: 320, mix: 42 }),
+      createFragment('flanger', { rate: 12, depth: 55, mix: 30 }),
+      createFragment('convReverb', { space: 'oracle', mix: 45, decay: 75, preDelay: 35 }),
+    ],
+  },
+  {
+    id: 'nerdrage',
+    label: 'NerdRage 🧪',
+    blurb: 'Homage to the NurdRage YouTube channel — the original Cyber Oracle voicing, preserved as-is.',
     intensity: 9,
     build: () => [
       createFragment('pitchFormant', { semitones: -4, formantShift: -2, character: 40 }),
@@ -50,7 +66,8 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
     intensity: 9,
     build: () => [
       createFragment('pitchFormant', { semitones: -6, formantShift: -3, character: 55 }),
-      createFragment('compressor', { amount: 60, makeup: 35 }),
+      // makeup is pure post-compression level (not the grit) — lowered for loudness only.
+      createFragment('compressor', { amount: 60, makeup: 15 }),
       createFragment('saturation', { warmth: 35, drive: 55, edge: 45 }),
       createFragment('ringMod', { frequency: 140, mix: 28 }),
       createFragment('granular', { grainSize: 30, density: 60, randomization: 50, pitchScatter: 30, mix: 35 }),
@@ -78,7 +95,8 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
     build: () => [
       createFragment('pitchFormant', { semitones: -2, formantShift: -1, character: 25 }),
       createFragment('eq', { lowGain: -6, midGain: 5, highGain: -2 }),
-      createFragment('compressor', { amount: 75, makeup: 45 }),
+      // makeup is pure post-compression level (not the grit/EQ) — lowered for loudness only.
+      createFragment('compressor', { amount: 75, makeup: 20 }),
       createFragment('saturation', { warmth: 20, drive: 45, edge: 60 }),
       createFragment('convReverb', { space: 'phone', mix: 35, decay: 30, preDelay: 10 }),
       createFragment('limiter', { amount: 60 }),
@@ -106,6 +124,8 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
       createFragment('compressor', { amount: 45, makeup: 30 }),
       createFragment('saturation', { warmth: 50, drive: 30, edge: 10 }),
       createFragment('spectralCarve', { amount: 35, character: 20 }),
+      // Subtle granular texture for a little edge without losing the titanic body.
+      createFragment('granular', { grainSize: 50, density: 35, randomization: 25, pitchScatter: 12, mix: 20 }),
       createFragment('convReverb', { space: 'cavern', mix: 50, decay: 85, preDelay: 40 }),
     ],
   },
