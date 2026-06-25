@@ -7,6 +7,11 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { mountVoiceComposer } from '@/src/ui/design-studio/voice-composer';
+import {
+  renderPhysicalSliderHtml,
+  setPhysicalSliderValue,
+  wirePhysicalSliders,
+} from '@/src/ui/design-studio/physical-slider';
 import { getClipProfileById } from '@/src/settings/clip-profiles';
 import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import {
@@ -80,16 +85,14 @@ export function renderVoiceControlFields(): string {
         <span class="popup__field-label">
           Intensity <span data-voice-intensity-value>10/10</span>
         </span>
-        <input
-          class="popup__range"
-          type="range"
-          min="${VOICE_INTENSITY_MIN}"
-          max="${VOICE_INTENSITY_MAX}"
-          step="1"
-          value="10"
-          data-voice-intensity
-          aria-label="Voice effect intensity"
-        />
+        ${renderPhysicalSliderHtml({
+          min: VOICE_INTENSITY_MIN,
+          max: VOICE_INTENSITY_MAX,
+          step: 1,
+          value: VOICE_INTENSITY_MAX,
+          ariaLabel: 'Voice effect intensity',
+          dataAttrs: { 'voice-intensity': '' },
+        })}
       </label>
       <label class="popup__toggle-row studio__voice-toggle">
         <span class="popup__toggle-copy">
@@ -154,7 +157,7 @@ export function mountVoiceControls(
   const charStatusEl = panel.querySelector<HTMLElement>('[data-char-status]')!;
   const charNoteEl = panel.querySelector<HTMLElement>('[data-char-note]')!;
   const composerHost = panel.querySelector<HTMLElement>('[data-voice-composer]')!;
-  const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
+  const intensitySlider = panel.querySelector<HTMLElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
   const turboInput = panel.querySelector<HTMLInputElement>('[data-voice-turbo]')!;
   const testBtn = panel.querySelector<HTMLButtonElement>('[data-voice-test]')!;
@@ -283,8 +286,9 @@ export function mountVoiceControls(
     const intensity = turbo
       ? VOICE_INTENSITY_TURBO
       : (draftConfig.intensity ?? VOICE_INTENSITY_MAX);
-    intensityInput.disabled = turbo;
-    intensityInput.value = String(
+    intensitySlider.classList.toggle('is-disabled', turbo);
+    setPhysicalSliderValue(
+      intensitySlider,
       turbo ? VOICE_INTENSITY_MAX : clampIntensity(intensity),
     );
     intensityValueEl.textContent = turbo
@@ -303,7 +307,7 @@ export function mountVoiceControls(
       enabled: enabledInput.checked,
       intensity: draftConfig.turbo
         ? VOICE_INTENSITY_TURBO
-        : clampIntensity(Number(intensityInput.value)),
+        : clampIntensity(Number(intensitySlider.dataset.value)),
       turbo: turboInput.checked,
     });
   }
@@ -388,20 +392,23 @@ export function mountVoiceControls(
     notifyDraftChange();
   });
 
-  intensityInput.addEventListener('input', () => {
-    if (syncing || turboInput.checked) return;
-    // BUG FIX: intensity slider latched to Custom preset
-    // Fix: keep active bundled presetId — intensity only modulates its SFX at preview/export
-    draftConfig = normalizeVoiceEffectConfig({
-      ...draftConfig,
-      enabled: enabledInput.checked,
-      intensity: clampIntensity(Number(intensityInput.value)),
-      turbo: false,
-    });
-    intensityValueEl.textContent = `${draftConfig.intensity ?? VOICE_INTENSITY_MAX}/${VOICE_INTENSITY_MAX}`;
-    schedulePersist();
-    notifyDraftChange();
-    setStatus('');
+  const unwireIntensitySlider = wirePhysicalSliders(intensitySlider, {
+    isDisabled: () => turboInput.checked,
+    onValueChange(_slider, value, prev) {
+      if (syncing || turboInput.checked || value === prev) return;
+      // BUG FIX: intensity slider latched to Custom preset
+      // Fix: keep active bundled presetId — intensity only modulates its SFX at preview/export
+      draftConfig = normalizeVoiceEffectConfig({
+        ...draftConfig,
+        enabled: enabledInput.checked,
+        intensity: clampIntensity(value),
+        turbo: false,
+      });
+      intensityValueEl.textContent = `${draftConfig.intensity ?? VOICE_INTENSITY_MAX}/${VOICE_INTENSITY_MAX}`;
+      schedulePersist();
+      notifyDraftChange();
+      setStatus('');
+    },
   });
 
   turboInput.addEventListener('change', () => {
@@ -411,7 +418,7 @@ export function mountVoiceControls(
       ...draftConfig,
       enabled: enabledInput.checked,
       turbo,
-      intensity: turbo ? VOICE_INTENSITY_TURBO : clampIntensity(Number(intensityInput.value)),
+      intensity: turbo ? VOICE_INTENSITY_TURBO : clampIntensity(Number(intensitySlider.dataset.value)),
     });
     updateIntensityUi();
     schedulePersist();
@@ -549,6 +556,7 @@ export function mountVoiceControls(
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onRecordingReady);
       if (saveTimer) window.clearTimeout(saveTimer);
+      unwireIntensitySlider();
       persistNow();
       composer.dispose();
       preview.dispose();

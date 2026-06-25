@@ -14,7 +14,7 @@ import {
   type StylizedGraph,
 } from './fragment-types';
 import { ffmpegRenderer, type FfmpegGraphResult } from './ffmpeg-renderer';
-import { createRenderContext, type FragmentRenderer } from './renderer';
+import { createRenderContext, withFragmentGain, type FragmentRenderer } from './renderer';
 
 /** Export-path sample rate (matches the AAC transcode in ffmpeg-runner.ts). */
 export const DSP_EXPORT_SAMPLE_RATE_HZ = 48_000;
@@ -125,7 +125,8 @@ export function buildStylizedGraph<TNode, TResult>(
   const nodes: unknown[] = [];
   for (const fragment of active) {
     if (!fragment.enabled) continue;
-    const node = r.emit(fragment, ctx);
+    // Per-primitive Fine-tune gain weights this fragment's strength (10 = unchanged).
+    const node = r.emit(fragment, withFragmentGain(ctx, fragment.gain));
     if (node != null) nodes.push(node);
   }
 

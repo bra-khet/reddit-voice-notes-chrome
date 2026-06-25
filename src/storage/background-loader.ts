@@ -192,7 +192,9 @@ async function requestBackgroundBlobViaMessage(
 
   const chunks: Array<Uint8Array | undefined> = new Array(meta.chunkCount);
   for (let chunkIndex = 0; chunkIndex < meta.chunkCount!; chunkIndex += 1) {
-    chunks[chunkIndex] = await requestBackgroundBlobChunk(id, chunkIndex);
+    // BUG FIX: tsc TS2322 "'Uint8Array | null' not assignable to 'Uint8Array | undefined'"
+    // Fix: coerce the relay's null miss to undefined to match the chunks array element type.
+    chunks[chunkIndex] = (await requestBackgroundBlobChunk(id, chunkIndex)) ?? undefined;
     if (!chunks[chunkIndex]) return null;
   }
 
@@ -249,7 +251,10 @@ async function requestBackgroundBlobViaPort(
           if (!message.ok || !message.dataBase64 || message.byteLength === undefined) {
             clearTimeout(timeout);
             port.disconnect();
-            fail(message.error ?? 'chunk failed', { chunkIndex: message.chunkIndex });
+            // BUG FIX: tsc TS2339 "Property 'error' does not exist" on the chunk success arm
+            // Fix: narrow on the `ok` discriminant before reading `.error` (only the ok:false arm carries it).
+            const reason = !message.ok ? message.error : undefined;
+            fail(reason ?? 'chunk failed', { chunkIndex: message.chunkIndex });
             return;
           }
           try {
@@ -309,7 +314,11 @@ async function loadBackgroundImageElementViaRelay(id: string): Promise<DrawableB
     (await requestBackgroundBlobViaPort(id)) ?? (await requestBackgroundBlobViaMessage(id));
   if (!payload) return null;
 
-  const blob = new Blob([payload.bytes], { type: payload.mimeType });
+  // BUG FIX: tsc TS2322 "'Uint8Array<ArrayBufferLike>' not assignable to 'BlobPart'" (SharedArrayBuffer vs ArrayBuffer, TS 5.7)
+  // Fix: copy into a fresh ArrayBuffer-backed Uint8Array so the Blob part is guaranteed non-shared.
+  const blobBytes = new Uint8Array(payload.bytes.byteLength);
+  blobBytes.set(payload.bytes);
+  const blob = new Blob([blobBytes], { type: payload.mimeType });
   const image = await decodeBlobToDrawable(blob, id);
   if (!image) {
     console.warn('[Reddit Voice Notes] Personal background image decode returned null for', id);

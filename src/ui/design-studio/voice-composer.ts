@@ -17,6 +17,8 @@
 import {
   createFragment,
   FRAGMENT_DEFS,
+  FRAGMENT_GAIN_MAX,
+  FRAGMENT_GAIN_MIN,
   FRAGMENT_KINDS,
   IR_SPACES,
   normalizeStylizedGraph,
@@ -26,6 +28,11 @@ import {
   type FragmentKind,
   type StylizedGraph,
 } from '@/src/voice/dsp';
+import {
+  renderPhysicalSliderHtml,
+  wirePhysicalSliders,
+} from '@/src/ui/design-studio/physical-slider';
+import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 
 export interface VoiceComposerHandle {
   /** Replace the edited graph (e.g. when the panel seeds from a character). */
@@ -168,6 +175,9 @@ export function mountVoiceComposer(
 ): VoiceComposerHandle {
   let graph = normalizeStylizedGraph(options.initialGraph);
   let showAdvanced = false;
+  // "Fine-tune" disclosure: when on, each active primitive shows a per-effect
+  // strength dial (the per-primitive intensity curve) to the left of its name.
+  let showFineTune = false;
   // Default-expand any category that already carries an effect; the rest stay tidy.
   const expanded = new Set<FragmentCategory>();
   for (const fragment of graph.fragments) {
@@ -182,11 +192,13 @@ export function mountVoiceComposer(
   }
 
   function kindsForCategory(category: FragmentCategory): FragmentKind[] {
-    // Show a kind when it is core, when Advanced is revealed, or when it is
-    // already present (so a seeded preset's advanced effects stay editable).
+    // Show a kind when it is core, when EITHER disclosure (Advanced or Fine-tune)
+    // is open, or when it is already present (so a seeded preset's advanced
+    // effects stay editable). Fine-tune is a nested advanced mode, so it reveals
+    // the same set — otherwise a primitive could show then vanish on first click.
     return FRAGMENT_KINDS.filter((kind) => {
       if (FRAGMENT_DEFS[kind].category !== category) return false;
-      return CORE_KINDS.has(kind) || showAdvanced || Boolean(findFragment(kind));
+      return CORE_KINDS.has(kind) || showAdvanced || showFineTune || Boolean(findFragment(kind));
     });
   }
 
@@ -212,24 +224,57 @@ export function mountVoiceComposer(
           )
           .join('');
         return `
-          <label class="voice-composer__ctrl">
+          <div class="voice-composer__ctrl">
             <span class="voice-composer__ctrl-label">${spec.label}</span>
             <select class="popup__select voice-composer__select" data-action="set-param"
-              data-kind="${fragment.kind}" data-key="${spec.key}">${opts}</select>
-          </label>`;
+              data-kind="${fragment.kind}" data-key="${spec.key}"
+              aria-label="${escapeAttr(`${FRAGMENT_DEFS[fragment.kind].label} ${spec.label}`)}">${opts}</select>
+          </div>`;
       }
       const value = Number(params[spec.key] ?? 0);
       return `
-        <label class="voice-composer__ctrl">
+        <div class="voice-composer__ctrl">
           <span class="voice-composer__ctrl-label">${spec.label}</span>
-          <input class="popup__range voice-composer__range" type="range"
-            min="${spec.min}" max="${spec.max}" step="${spec.step}" value="${value}"
-            data-action="set-param" data-kind="${fragment.kind}" data-key="${spec.key}"
-            aria-label="${escapeAttr(`${FRAGMENT_DEFS[fragment.kind].label} ${spec.label}`)}" />
+          ${renderPhysicalSliderHtml({
+            min: spec.min,
+            max: spec.max,
+            step: spec.step,
+            value,
+            ariaLabel: `${FRAGMENT_DEFS[fragment.kind].label} ${spec.label}`,
+            dataAttrs: { kind: fragment.kind, key: spec.key },
+          })}
           <span class="voice-composer__ctrl-value" data-value-for="${fragment.kind}.${spec.key}">${fmtRange(spec, value)}</span>
-        </label>`;
+        </div>`;
     });
     return rows.join('');
+  }
+
+  /**
+   * Per-primitive Fine-tune dial — a themed mini-knob (value inside) flanked by
+   * up/down chevron steppers, sitting to the LEFT of the effect name. Only shown
+   * for an *enabled* fragment while Fine-tune mode is on.
+   */
+  function renderGainStepper(fragment: AnyFragment): string {
+    const label = FRAGMENT_DEFS[fragment.kind].label;
+    const knobUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.knobs.mini);
+    const upUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.chevronUp16);
+    const downUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.chevronDown16);
+    return `
+      <span class="voice-composer__gain" title="Fine-tune — ${escapeAttr(label)} strength (0–${FRAGMENT_GAIN_MAX})">
+        <span class="voice-composer__gain-knob" style="background-image:url('${knobUrl}')">
+          <span class="voice-composer__gain-val" data-gain-for="${fragment.kind}">${fragment.gain}</span>
+        </span>
+        <span class="voice-composer__gain-steps">
+          <button type="button" class="voice-composer__gain-step" data-action="gain-up" data-kind="${fragment.kind}"
+            aria-label="Increase ${escapeAttr(label)} strength">
+            <img src="${upUrl}" alt="" width="11" height="11" />
+          </button>
+          <button type="button" class="voice-composer__gain-step" data-action="gain-down" data-kind="${fragment.kind}"
+            aria-label="Decrease ${escapeAttr(label)} strength">
+            <img src="${downUrl}" alt="" width="11" height="11" />
+          </button>
+        </span>
+      </span>`;
   }
 
   function renderFragmentRow(kind: FragmentKind): string {
@@ -237,9 +282,11 @@ export function mountVoiceComposer(
     const fragment = findFragment(kind);
     const on = Boolean(fragment?.enabled);
     const isAdvanced = !CORE_KINDS.has(kind);
+    const gainStepper = showFineTune && fragment ? renderGainStepper(fragment) : '';
     return `
-      <div class="voice-composer__frag${on ? ' is-on' : ''}">
+      <div class="voice-composer__frag${on ? ' is-on' : ''}${gainStepper ? ' has-gain' : ''}">
         <div class="voice-composer__frag-head">
+          ${gainStepper}
           <label class="voice-composer__frag-toggle">
             <input class="popup__toggle-input" type="checkbox" data-action="toggle-frag"
               data-kind="${kind}"${on ? ' checked' : ''} aria-label="Enable ${escapeAttr(def.label)}" />
@@ -291,6 +338,10 @@ export function mountVoiceComposer(
         <input class="popup__toggle-input" type="checkbox" data-action="toggle-advanced"${showAdvanced ? ' checked' : ''} />
         <span>Show advanced effects</span>
       </label>
+      <label class="voice-composer__advanced voice-composer__advanced--finetune">
+        <input class="popup__toggle-input" type="checkbox" data-action="toggle-finetune"${showFineTune ? ' checked' : ''} />
+        <span>Fine-tune — per-effect strength dials</span>
+      </label>
       <div class="voice-composer__cats">${cats}</div>`;
   }
 
@@ -312,6 +363,19 @@ export function mountVoiceComposer(
       render();
       emit();
     }
+    // gain-up / gain-down are handled by the press-and-hold pointer logic below.
+  }
+
+  /** Nudge a fragment's Fine-tune gain by ±1 (clamped); update the readout in place. */
+  function adjustGain(kind: FragmentKind, delta: number): void {
+    const fragment = findFragment(kind);
+    if (!fragment) return;
+    const next = Math.max(FRAGMENT_GAIN_MIN, Math.min(FRAGMENT_GAIN_MAX, fragment.gain + delta));
+    if (next === fragment.gain) return;
+    fragment.gain = next;
+    const readout = host.querySelector<HTMLElement>(`[data-gain-for="${kind}"]`);
+    if (readout) readout.textContent = String(next);
+    emit();
   }
 
   function onChangeEvent(event: Event): void {
@@ -319,6 +383,15 @@ export function mountVoiceComposer(
     const action = (target as HTMLElement).dataset?.action;
     if (action === 'toggle-advanced') {
       showAdvanced = (target as HTMLInputElement).checked;
+      // Fine-tune can't outlive Advanced (it's nested under it).
+      if (!showAdvanced) showFineTune = false;
+      render();
+      return;
+    }
+    if (action === 'toggle-finetune') {
+      showFineTune = (target as HTMLInputElement).checked;
+      // Entering Fine-tune auto-opens Advanced so the full primitive set stays disclosed.
+      if (showFineTune) showAdvanced = true;
       render();
       return;
     }
@@ -351,27 +424,75 @@ export function mountVoiceComposer(
     }
   }
 
-  function onInput(event: Event): void {
-    const target = event.target as HTMLElement;
-    if (target.dataset?.action !== 'set-param' || !(target instanceof HTMLInputElement)) return;
-    const kind = target.dataset.kind as FragmentKind;
-    const key = target.dataset.key as string;
-    const value = Number(target.value);
-    applyParam(kind, key, value);
-    const readout = host.querySelector<HTMLElement>(`[data-value-for="${kind}.${key}"]`);
-    if (readout) readout.textContent = value > 0 && Number(target.min) < 0 ? `+${value}` : String(value);
-    emit();
-  }
-
   function applyParam(kind: FragmentKind, key: string, value: number | string): void {
     const fragment = findFragment(kind);
     if (!fragment) return;
     (fragment.params as unknown as Record<string, unknown>)[key] = value;
   }
 
+  const unwireSliders = wirePhysicalSliders(host, {
+    onValueChange(slider, value, prev) {
+      if (value === prev) return;
+      const min = Number(slider.dataset.min);
+      const kind = slider.dataset.kind as FragmentKind;
+      const key = slider.dataset.key as string;
+      const readout = host.querySelector<HTMLElement>(`[data-value-for="${kind}.${key}"]`);
+      if (readout) readout.textContent = value > 0 && min < 0 ? `+${value}` : String(value);
+      applyParam(kind, key, value);
+      emit();
+    },
+  });
+
+  /* ----- Gain stepper press-and-hold (dead-man's switch auto-repeat) ----- */
+
+  let gainHoldTimer = 0;
+  let gainHoldInterval = 0;
+
+  function stopGainHold(): void {
+    if (gainHoldTimer) window.clearTimeout(gainHoldTimer);
+    if (gainHoldInterval) window.clearInterval(gainHoldInterval);
+    gainHoldTimer = 0;
+    gainHoldInterval = 0;
+  }
+
+  function startGainHold(kind: FragmentKind, delta: number): void {
+    stopGainHold();
+    adjustGain(kind, delta); // one step immediately on press
+    // Hold past the pause → auto-repeat; bail at the rail so 0/10 doesn't spin.
+    gainHoldTimer = window.setTimeout(() => {
+      gainHoldInterval = window.setInterval(() => {
+        const before = findFragment(kind)?.gain;
+        adjustGain(kind, delta);
+        if (findFragment(kind)?.gain === before) stopGainHold();
+      }, 110);
+    }, 450);
+  }
+
+  function onPointerDown(event: PointerEvent): void {
+    const el = event.target as HTMLElement;
+    const gainBtn = el.closest<HTMLElement>('[data-action="gain-up"], [data-action="gain-down"]');
+    if (gainBtn) {
+      event.preventDefault();
+      try {
+        gainBtn.setPointerCapture(event.pointerId);
+      } catch {
+        // capture is best-effort; the hold still works via host pointerup
+      }
+      const kind = gainBtn.dataset.kind as FragmentKind;
+      startGainHold(kind, gainBtn.dataset.action === 'gain-up' ? +1 : -1);
+      return;
+    }
+  }
+
+  function onPointerEnd(): void {
+    stopGainHold();
+  }
+
   host.addEventListener('click', onClick);
   host.addEventListener('change', onChangeEvent);
-  host.addEventListener('input', onInput);
+  host.addEventListener('pointerdown', onPointerDown);
+  host.addEventListener('pointerup', onPointerEnd);
+  host.addEventListener('pointercancel', onPointerEnd);
   render();
 
   return {
@@ -386,9 +507,13 @@ export function mountVoiceComposer(
       return cloneGraph(graph);
     },
     dispose() {
+      stopGainHold();
+      unwireSliders();
       host.removeEventListener('click', onClick);
       host.removeEventListener('change', onChangeEvent);
-      host.removeEventListener('input', onInput);
+      host.removeEventListener('pointerdown', onPointerDown);
+      host.removeEventListener('pointerup', onPointerEnd);
+      host.removeEventListener('pointercancel', onPointerEnd);
       host.innerHTML = '';
       host.classList.remove('voice-composer');
     },

@@ -385,7 +385,9 @@ export class VoiceRecorderSession {
         if (this.isSuperseded(stopEpoch)) return;
 
         const prefs = await loadUserPreferences();
-        const subtitlesEnabled = prefs.transcriptConfig.transcriptionEnabled;
+        // BUG FIX: tsc TS18048 "'prefs.transcriptConfig' is possibly 'undefined'"
+        // Fix: optional-chain + default false — matches normalizeTranscriptConfig (absent config ⇒ subtitles off).
+        const subtitlesEnabled = prefs.transcriptConfig?.transcriptionEnabled ?? false;
 
         // CHANGED: parallel transcription only — burn-in deferred to Design Studio (eloquent-4).
         // WHY: users review and edit segment JSON before confirming subtitle bake.

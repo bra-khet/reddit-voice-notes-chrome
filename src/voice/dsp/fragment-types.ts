@@ -28,6 +28,16 @@
 export const STYLIZED_GRAPH_VERSION = 1 as const;
 
 /**
+ * Per-fragment "Fine-tune" gain — the user-exposed per-primitive intensity curve.
+ * 0–10, default 10 (= unchanged, so legacy graphs and presets render identically).
+ * The renderer applies it as a non-linear weight on this fragment's strength; see
+ * `withFragmentGain` in renderer.ts.
+ */
+export const FRAGMENT_GAIN_MIN = 0;
+export const FRAGMENT_GAIN_MAX = 10;
+export const FRAGMENT_GAIN_DEFAULT = 10;
+
+/**
  * The seven primitive families from the supplemental. Drives the accordion
  * grouping in the Branch-4 Custom UI and the default chain ordering.
  */
@@ -223,6 +233,12 @@ export interface GraphFragment<K extends FragmentKind = FragmentKind> {
   kind: K;
   /** Per-fragment toggle (spec: every primitive has an enable/disable). */
   enabled: boolean;
+  /**
+   * Per-primitive Fine-tune gain (0–10, default {@link FRAGMENT_GAIN_DEFAULT}).
+   * 10 = full strength (unchanged); lower attenuates this fragment via a
+   * non-linear curve. See {@link FRAGMENT_GAIN_MAX} and renderer `withFragmentGain`.
+   */
+  gain: number;
   params: FragmentParamMap[K];
 }
 
@@ -474,6 +490,7 @@ export function createFragment<K extends FragmentKind>(
     id: nextFragmentId(kind),
     kind,
     enabled: true,
+    gain: FRAGMENT_GAIN_DEFAULT,
     params: { ...defaults, ...params } as FragmentParamMap[K],
   };
 }
@@ -554,6 +571,8 @@ export function normalizeStylizedGraph(raw: unknown): StylizedGraph {
       id: typeof frag.id === 'string' ? frag.id : nextFragmentId(frag.kind),
       kind: frag.kind,
       enabled: frag.enabled !== false,
+      // Default 10 so pre-Fine-tune graphs stay full-strength (and dirty-stable).
+      gain: clamp(Math.round(num(frag.gain, FRAGMENT_GAIN_DEFAULT)), FRAGMENT_GAIN_MIN, FRAGMENT_GAIN_MAX),
       params: normalizeFragmentParams(frag.kind, frag.params),
     } as AnyFragment);
   }
