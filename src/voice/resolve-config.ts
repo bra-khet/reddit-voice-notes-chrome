@@ -20,10 +20,11 @@ export function voiceEffectUserIntentKey(config: VoiceEffectConfig): string {
     return JSON.stringify({
       ...base,
       kind: 'graph',
-      // Strip ids; order is significant (the chain), params/enabled are the content.
+      // Strip ids; order is significant (the chain), params/enabled/gain are the content.
       fragments: n.graph.fragments.map((fragment) => ({
         kind: fragment.kind,
         enabled: fragment.enabled,
+        gain: fragment.gain,
         params: fragment.params,
       })),
     });

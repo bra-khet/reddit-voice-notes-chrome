@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+/*
+  Design Studio v4 — Up chevron (16px) — variant of chevron-back-16 rotated 90°.
+  Used by the per-primitive Fine-tune stepper (increment).
+*/
+  <path d="M4 10 L8 6 L12 10" fill="none" stroke="#ffd54f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

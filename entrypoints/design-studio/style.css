@@ -796,7 +796,7 @@ body {
 .voice-composer__frag-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -828,6 +828,7 @@ body {
 
 .voice-composer__frag-info {
   flex: none;
+  margin-left: auto;
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -837,6 +838,78 @@ body {
   line-height: 14px;
   text-align: center;
   cursor: help;
+}
+
+/* Dulcet II (v5 / Branch 4) — Fine-tune disclosure + per-primitive gain dial */
+.voice-composer__advanced--finetune {
+  margin-top: -4px;
+  margin-bottom: 12px;
+  padding-left: 14px;
+  border-left: 2px solid #2a2a2b;
+}
+
+.voice-composer__gain {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.voice-composer__gain-knob {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-composer__gain-val {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--studio-amber, #ffd54f);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+  line-height: 1;
+  /* nudge into the knob well (the SVG well is centred slightly above middle) */
+  transform: translateY(-1px);
+  pointer-events: none;
+}
+
+.voice-composer__gain-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.voice-composer__gain-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.voice-composer__gain-step:hover {
+  opacity: 1;
+  background: rgba(255, 213, 79, 0.14);
+}
+
+.voice-composer__gain-step:active {
+  background: rgba(255, 213, 79, 0.26);
+}
+
+.voice-composer__gain-step img {
+  display: block;
 }
 
 .voice-composer__frag-body {
@@ -857,8 +930,63 @@ body {
   min-width: 76px;
 }
 
+/* Physical-slider styling for the primitive controls — uses the design-studio-v4
+   slider assets (tab handle + machined track). appearance:none + a tall grab
+   target also fixes the thumb being fiddly to capture. */
 .voice-composer__range {
   flex: 1;
+  min-width: 0;
+  height: 20px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.voice-composer__range::-webkit-slider-runnable-track {
+  height: 16px;
+  border-radius: 4px;
+  background-image: url('/assets/design-studio-v4/sliders/physical-slider-track.svg');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.voice-composer__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 20px;
+  margin-top: -2px;
+  background-image: url('/assets/design-studio-v4/sliders/physical-slider-tab.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border: none;
+  cursor: grab;
+}
+
+.voice-composer__range:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.voice-composer__range::-moz-range-track {
+  height: 16px;
+  border-radius: 4px;
+  background-image: url('/assets/design-studio-v4/sliders/physical-slider-track.svg');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+.voice-composer__range::-moz-range-thumb {
+  width: 28px;
+  height: 20px;
+  background-image: url('/assets/design-studio-v4/sliders/physical-slider-tab.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border: none;
+  cursor: grab;
 }
 
 .voice-composer__ctrl-value {

@@ -17,6 +17,8 @@
 import {
   createFragment,
   FRAGMENT_DEFS,
+  FRAGMENT_GAIN_MAX,
+  FRAGMENT_GAIN_MIN,
   FRAGMENT_KINDS,
   IR_SPACES,
   normalizeStylizedGraph,
@@ -26,6 +28,7 @@ import {
   type FragmentKind,
   type StylizedGraph,
 } from '@/src/voice/dsp';
+import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 
 export interface VoiceComposerHandle {
   /** Replace the edited graph (e.g. when the panel seeds from a character). */
@@ -168,6 +171,9 @@ export function mountVoiceComposer(
 ): VoiceComposerHandle {
   let graph = normalizeStylizedGraph(options.initialGraph);
   let showAdvanced = false;
+  // "Fine-tune" disclosure: when on, each active primitive shows a per-effect
+  // strength dial (the per-primitive intensity curve) to the left of its name.
+  let showFineTune = false;
   // Default-expand any category that already carries an effect; the rest stay tidy.
   const expanded = new Set<FragmentCategory>();
   for (const fragment of graph.fragments) {
@@ -212,24 +218,56 @@ export function mountVoiceComposer(
           )
           .join('');
         return `
-          <label class="voice-composer__ctrl">
+          <div class="voice-composer__ctrl">
             <span class="voice-composer__ctrl-label">${spec.label}</span>
             <select class="popup__select voice-composer__select" data-action="set-param"
-              data-kind="${fragment.kind}" data-key="${spec.key}">${opts}</select>
-          </label>`;
+              data-kind="${fragment.kind}" data-key="${spec.key}"
+              aria-label="${escapeAttr(`${FRAGMENT_DEFS[fragment.kind].label} ${spec.label}`)}">${opts}</select>
+          </div>`;
       }
       const value = Number(params[spec.key] ?? 0);
+      // NOTE: a <div> wrapper (not <label>) — a wrapping label forwarded clicks on
+      // the readout/label text to the range input and made the slider jump
+      // ("cursor capture"). The input carries its own aria-label.
       return `
-        <label class="voice-composer__ctrl">
+        <div class="voice-composer__ctrl">
           <span class="voice-composer__ctrl-label">${spec.label}</span>
           <input class="popup__range voice-composer__range" type="range"
             min="${spec.min}" max="${spec.max}" step="${spec.step}" value="${value}"
             data-action="set-param" data-kind="${fragment.kind}" data-key="${spec.key}"
             aria-label="${escapeAttr(`${FRAGMENT_DEFS[fragment.kind].label} ${spec.label}`)}" />
           <span class="voice-composer__ctrl-value" data-value-for="${fragment.kind}.${spec.key}">${fmtRange(spec, value)}</span>
-        </label>`;
+        </div>`;
     });
     return rows.join('');
+  }
+
+  /**
+   * Per-primitive Fine-tune dial — a themed mini-knob (value inside) flanked by
+   * up/down chevron steppers, sitting to the LEFT of the effect name. Only shown
+   * for an *enabled* fragment while Fine-tune mode is on.
+   */
+  function renderGainStepper(fragment: AnyFragment): string {
+    const label = FRAGMENT_DEFS[fragment.kind].label;
+    const knobUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.knobs.mini);
+    const upUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.chevronUp16);
+    const downUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.chevronDown16);
+    return `
+      <span class="voice-composer__gain" title="Fine-tune — ${escapeAttr(label)} strength (0–${FRAGMENT_GAIN_MAX})">
+        <span class="voice-composer__gain-knob" style="background-image:url('${knobUrl}')">
+          <span class="voice-composer__gain-val" data-gain-for="${fragment.kind}">${fragment.gain}</span>
+        </span>
+        <span class="voice-composer__gain-steps">
+          <button type="button" class="voice-composer__gain-step" data-action="gain-up" data-kind="${fragment.kind}"
+            aria-label="Increase ${escapeAttr(label)} strength">
+            <img src="${upUrl}" alt="" width="11" height="11" />
+          </button>
+          <button type="button" class="voice-composer__gain-step" data-action="gain-down" data-kind="${fragment.kind}"
+            aria-label="Decrease ${escapeAttr(label)} strength">
+            <img src="${downUrl}" alt="" width="11" height="11" />
+          </button>
+        </span>
+      </span>`;
   }
 
   function renderFragmentRow(kind: FragmentKind): string {
@@ -237,9 +275,11 @@ export function mountVoiceComposer(
     const fragment = findFragment(kind);
     const on = Boolean(fragment?.enabled);
     const isAdvanced = !CORE_KINDS.has(kind);
+    const gainStepper = showFineTune && fragment ? renderGainStepper(fragment) : '';
     return `
-      <div class="voice-composer__frag${on ? ' is-on' : ''}">
+      <div class="voice-composer__frag${on ? ' is-on' : ''}${gainStepper ? ' has-gain' : ''}">
         <div class="voice-composer__frag-head">
+          ${gainStepper}
           <label class="voice-composer__frag-toggle">
             <input class="popup__toggle-input" type="checkbox" data-action="toggle-frag"
               data-kind="${kind}"${on ? ' checked' : ''} aria-label="Enable ${escapeAttr(def.label)}" />
@@ -291,6 +331,10 @@ export function mountVoiceComposer(
         <input class="popup__toggle-input" type="checkbox" data-action="toggle-advanced"${showAdvanced ? ' checked' : ''} />
         <span>Show advanced effects</span>
       </label>
+      <label class="voice-composer__advanced voice-composer__advanced--finetune">
+        <input class="popup__toggle-input" type="checkbox" data-action="toggle-finetune"${showFineTune ? ' checked' : ''} />
+        <span>Fine-tune — per-effect strength dials</span>
+      </label>
       <div class="voice-composer__cats">${cats}</div>`;
   }
 
@@ -311,7 +355,23 @@ export function mountVoiceComposer(
       graph = { ...graph, fragments: [] };
       render();
       emit();
+    } else if (action === 'gain-up') {
+      adjustGain(target.dataset.kind as FragmentKind, +1);
+    } else if (action === 'gain-down') {
+      adjustGain(target.dataset.kind as FragmentKind, -1);
     }
+  }
+
+  /** Nudge a fragment's Fine-tune gain by ±1 (clamped); update the readout in place. */
+  function adjustGain(kind: FragmentKind, delta: number): void {
+    const fragment = findFragment(kind);
+    if (!fragment) return;
+    const next = Math.max(FRAGMENT_GAIN_MIN, Math.min(FRAGMENT_GAIN_MAX, fragment.gain + delta));
+    if (next === fragment.gain) return;
+    fragment.gain = next;
+    const readout = host.querySelector<HTMLElement>(`[data-gain-for="${kind}"]`);
+    if (readout) readout.textContent = String(next);
+    emit();
   }
 
   function onChangeEvent(event: Event): void {
@@ -319,6 +379,11 @@ export function mountVoiceComposer(
     const action = (target as HTMLElement).dataset?.action;
     if (action === 'toggle-advanced') {
       showAdvanced = (target as HTMLInputElement).checked;
+      render();
+      return;
+    }
+    if (action === 'toggle-finetune') {
+      showFineTune = (target as HTMLInputElement).checked;
       render();
       return;
     }

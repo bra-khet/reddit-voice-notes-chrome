@@ -10,7 +10,7 @@
  * the ordered fragments, calls `emit` per fragment, then `assemble`.
  */
 
-import type { AnyFragment } from './fragment-types';
+import { FRAGMENT_GAIN_MAX, type AnyFragment } from './fragment-types';
 
 /**
  * Shared, backend-neutral context handed to every emitter.
@@ -73,5 +73,31 @@ export function createRenderContext(intensity: number, sampleRate: number): Rend
     sampleRate,
     intensityFactor,
     scale: (amount0to100: number) => (amount0to100 / 100) * intensityFactor,
+  };
+}
+
+/**
+ * Per-primitive "Fine-tune" gain → a non-linear weight on a fragment's strength.
+ * gain 10 → 1.0 (unchanged); lower attenuates with the same ease-in shape as the
+ * global curve, so trims stay gentle near the top and bite harder toward 0.
+ */
+export function fragmentGainFactor(gain: number): number {
+  const g = Math.max(0, Math.min(FRAGMENT_GAIN_MAX, gain)) / FRAGMENT_GAIN_MAX;
+  return g ** INTENSITY_CURVE_EXP;
+}
+
+/**
+ * Derive a per-fragment context whose strength (`intensityFactor` + `scale`) is
+ * weighted by the fragment's Fine-tune gain. `intensity` itself stays global so
+ * raw-rate/frequency emitters are untouched. Full gain returns the same context
+ * (fast path → zero behaviour change for graphs that never used Fine-tune).
+ */
+export function withFragmentGain(ctx: RenderContext, gain: number): RenderContext {
+  if (gain >= FRAGMENT_GAIN_MAX) return ctx;
+  const factor = ctx.intensityFactor * fragmentGainFactor(gain);
+  return {
+    ...ctx,
+    intensityFactor: factor,
+    scale: (amount0to100: number) => (amount0to100 / 100) * factor,
   };
 }

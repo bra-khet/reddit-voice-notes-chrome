@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+/*
+  Design Studio v4 — Mini value knob (compact volume-knob variant).
+  Static housing + amber tick ring + dark center well; the numeric value is
+  overlaid by the DOM (a <span> centered on the well), so this is purely the
+  themed bezel for the per-primitive Fine-tune stepper. Theme via .theme-stroke.
+*/
+  <defs>
+    <linearGradient id="mkBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="45%" stop-color="#1d1f6e"/>
+      <stop offset="55%" stop-color="#12001f"/>
+      <stop offset="100%" stop-color="#0a0014"/>
+    </linearGradient>
+    <radialGradient id="mkWell" cx="50%" cy="42%" r="60%">
+      <stop offset="0%" stop-color="#15002a"/>
+      <stop offset="100%" stop-color="#0c0016"/>
+    </radialGradient>
+  </defs>
+  <circle cx="20" cy="20" r="18.5" fill="none" stroke="#000000" stroke-width="2.5" opacity="0.55"/>
+  <circle cx="20" cy="20" r="17" fill="url(#mkBevel)" stroke="#2a2a44" stroke-width="1.5"/>
+  <g fill="none" stroke="#ffd54f" stroke-linecap="round" stroke-width="1.6" class="theme-stroke">
+    <line x1="20" y1="4.5" x2="20" y2="8"/>
+    <line x1="20" y1="4.5" x2="20" y2="8" transform="rotate(45 20 20)"/>
+    <line x1="20" y1="4.5" x2="20" y2="8" transform="rotate(90 20 20)"/>
+    <line x1="20" y1="4.5" x2="20" y2="8" transform="rotate(135 20 20)"/>
+    <line x1="20" y1="4.5" x2="20" y2="8" transform="rotate(180 20 20)"/>
+    <line x1="20" y1="4.5" x2="20" y2="8" transform="rotate(225 20 20)"/>
+    <line x1="20" y1="4.5" x2="20" y2="8" transform="rotate(270 20 20)"/>
+    <line x1="20" y1="4.5" x2="20" y2="8" transform="rotate(315 20 20)"/>
+  </g>
+  <circle cx="20" cy="20" r="12" fill="url(#mkWell)" stroke="#0a0014" stroke-width="1"/>
+  <circle cx="20" cy="20" r="11.5" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.05"/>
+</svg>
