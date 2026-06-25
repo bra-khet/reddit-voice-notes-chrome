@@ -33,17 +33,23 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
   {
     id: 'cyber-oracle',
     label: 'Cyber Oracle',
-    blurb: 'Clangorous metallic prophet ringing out of a vast digital cathedral.',
+    blurb: 'Shimmering digital construct — light and metallic with a granular sheen (not a deep voice).',
     intensity: 9,
     build: () => [
-      createFragment('pitchFormant', { semitones: -4, formantShift: -2, character: 55 }),
-      createFragment('presenceAir', { presence: 40, air: 25 }),
-      // Metallic core: aggressive spectral resonances + a higher-carrier ring mod
-      // for inharmonic clang + a flanger comb sweep for layered metallic shimmer.
-      createFragment('spectralCarve', { amount: 58, character: 90 }),
-      createFragment('ringMod', { frequency: 320, mix: 42 }),
-      createFragment('flanger', { rate: 12, depth: 55, mix: 30 }),
-      createFragment('convReverb', { space: 'oracle', mix: 45, decay: 75, preDelay: 35 }),
+      // Deliberately NOT deep — this is what separates it from NerdRage. The pitch/throat
+      // stay light; the identity comes from metallic shimmer + subtle granular layering.
+      createFragment('pitchFormant', { semitones: -2, formantShift: -1, character: 28 }),
+      // Gentle makeup — nudge the overall level up (read a touch quiet).
+      createFragment('compressor', { amount: 12, makeup: 35 }),
+      createFragment('spectralCarve', { amount: 50, character: 80 }),
+      createFragment('presenceAir', { presence: 35, air: 35 }),
+      // Metallic shimmer: a higher-carrier ring mod (subtle) + a flanger comb sweep.
+      createFragment('ringMod', { frequency: 340, mix: 24 }),
+      createFragment('flanger', { rate: 10, depth: 50, mix: 26 }),
+      // Subtle granular layering — the "digitized" metallic texture, kept gentle.
+      createFragment('granular', { grainSize: 22, density: 50, randomization: 35, pitchScatter: 18, mix: 20 }),
+      // Tight metallic chamber (not the deep oracle hall NerdRage uses).
+      createFragment('convReverb', { space: 'cyber-chamber', mix: 35, decay: 50, preDelay: 20 }),
     ],
   },
   {
@@ -67,11 +73,13 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
     build: () => [
       createFragment('pitchFormant', { semitones: -6, formantShift: -3, character: 55 }),
       // makeup is pure post-compression level (not the grit) — lowered for loudness only.
-      createFragment('compressor', { amount: 60, makeup: 15 }),
+      createFragment('compressor', { amount: 60, makeup: 8 }),
       createFragment('saturation', { warmth: 35, drive: 55, edge: 45 }),
       createFragment('ringMod', { frequency: 140, mix: 28 }),
       createFragment('granular', { grainSize: 30, density: 60, randomization: 50, pitchScatter: 30, mix: 35 }),
       createFragment('convReverb', { space: 'cyber-chamber', mix: 30, decay: 45, preDelay: 15 }),
+      // Output ceiling — tames the loud peaks without touching the growl/grit.
+      createFragment('limiter', { amount: 60 }),
     ],
   },
   {
@@ -81,10 +89,13 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
     intensity: 8,
     build: () => [
       createFragment('pitchFormant', { semitones: 3, formantShift: 2, character: 30 }),
+      // Gentle leveler + makeup — modest lift (halved from the first pass; was too loud).
+      createFragment('compressor', { amount: 20, makeup: 33 }),
       createFragment('presenceAir', { presence: 30, air: 55 }),
       createFragment('chorus', { rate: 30, depth: 55, mix: 50 }),
       createFragment('hybridLayer', { layerMix: 35, carrier: 'noise', followStrength: 60, harmonicEmphasis: 40 }),
       createFragment('convReverb', { space: 'fantasy-hall', mix: 40, decay: 60, preDelay: 25 }),
+      createFragment('limiter', { amount: 45 }),
     ],
   },
   {
@@ -96,10 +107,11 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
       createFragment('pitchFormant', { semitones: -2, formantShift: -1, character: 25 }),
       createFragment('eq', { lowGain: -6, midGain: 5, highGain: -2 }),
       // makeup is pure post-compression level (not the grit/EQ) — lowered for loudness only.
-      createFragment('compressor', { amount: 75, makeup: 20 }),
+      createFragment('compressor', { amount: 75, makeup: 10 }),
       createFragment('saturation', { warmth: 20, drive: 45, edge: 60 }),
       createFragment('convReverb', { space: 'phone', mix: 35, decay: 30, preDelay: 10 }),
-      createFragment('limiter', { amount: 60 }),
+      // Tighter ceiling — radio character is great, just a touch loud.
+      createFragment('limiter', { amount: 70 }),
     ],
   },
   {
@@ -109,24 +121,31 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
     intensity: 8,
     build: () => [
       createFragment('pitchFormant', { semitones: 7, formantShift: 5, character: 20 }),
+      // Gentle leveler + makeup — modest lift (halved from the first pass; was too loud).
+      createFragment('compressor', { amount: 20, makeup: 33 }),
       createFragment('deEsser', { amount: 45 }),
       createFragment('presenceAir', { presence: 40, air: 35 }),
       createFragment('flanger', { rate: 45, depth: 35, mix: 25 }),
+      createFragment('limiter', { amount: 45 }),
     ],
   },
   {
     id: 'abyssal-titan',
     label: 'Abyssal Titan',
-    blurb: 'Colossal, subterranean god-voice from the deep dark.',
+    blurb: 'Colossal, subterranean god-voice — deep and long, clean power over a vast cavern tail.',
     intensity: 10,
     build: () => [
-      createFragment('pitchFormant', { semitones: -8, formantShift: -5, character: 60 }),
-      createFragment('compressor', { amount: 45, makeup: 30 }),
-      createFragment('saturation', { warmth: 50, drive: 30, edge: 10 }),
-      createFragment('spectralCarve', { amount: 35, character: 20 }),
-      // Subtle granular texture for a little edge without losing the titanic body.
-      createFragment('granular', { grainSize: 50, density: 35, randomization: 25, pitchScatter: 12, mix: 20 }),
-      createFragment('convReverb', { space: 'cavern', mix: 50, decay: 85, preDelay: 40 }),
+      // Cross of Glitch Beast (deep growl/power) and NerdRage (deep, clean, resonant).
+      // Deeper + bigger throat than before; the choppy granular + metallic carve are GONE
+      // (they made it muddy), replaced by a longer, larger reverb and a clarity lift.
+      createFragment('pitchFormant', { semitones: -9, formantShift: -6, character: 55 }),
+      createFragment('compressor', { amount: 50, makeup: 20 }),
+      createFragment('saturation', { warmth: 55, drive: 28, edge: 8 }),
+      // Clarity so the depth reads as "huge" rather than "muddy".
+      createFragment('presenceAir', { presence: 35, air: 20 }),
+      // Longer, larger tail — the "god from the deep" space.
+      createFragment('convReverb', { space: 'cavern', mix: 55, decay: 95, preDelay: 50 }),
+      createFragment('limiter', { amount: 48 }),
     ],
   },
 ];

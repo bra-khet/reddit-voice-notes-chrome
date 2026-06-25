@@ -40,6 +40,16 @@ app.innerHTML = `
       <output id="pitch-val">0</output>
     </label>
     <label class="field">
+      <span>Formant shift (semitones) — graph mode; independent of pitch, − = darker/larger throat</span>
+      <input type="range" id="formant" min="-12" max="12" step="1" value="0" />
+      <output id="formant-val">0</output>
+    </label>
+    <label class="field">
+      <span>Character (0–100) — graph mode; throat resonance / "produced" emphasis</span>
+      <input type="range" id="character" min="0" max="100" step="5" value="0" />
+      <output id="character-val">0</output>
+    </label>
+    <label class="field">
       <span>Intensity (1–10) — global strength via the non-linear curve</span>
       <input type="range" id="intensity" min="1" max="10" step="1" value="10" />
       <output id="intensity-val">10</output>
@@ -104,6 +114,10 @@ const fragmentsField = document.querySelector<HTMLFieldSetElement>('#fragments-f
 const fragmentsBox = document.querySelector<HTMLDivElement>('#fragments')!;
 const pitchInput = document.querySelector<HTMLInputElement>('#pitch')!;
 const pitchVal = document.querySelector<HTMLOutputElement>('#pitch-val')!;
+const formantInput = document.querySelector<HTMLInputElement>('#formant')!;
+const formantVal = document.querySelector<HTMLOutputElement>('#formant-val')!;
+const characterInput = document.querySelector<HTMLInputElement>('#character')!;
+const characterVal = document.querySelector<HTMLOutputElement>('#character-val')!;
 const intensityInput = document.querySelector<HTMLInputElement>('#intensity')!;
 const intensityVal = document.querySelector<HTMLOutputElement>('#intensity-val')!;
 const turboInput = document.querySelector<HTMLInputElement>('#turbo')!;
@@ -202,7 +216,11 @@ function buildGraph(): StylizedGraph {
 
   const fragments: AnyFragment[] = [];
   const semitones = Number.parseInt(pitchInput.value, 10);
-  if (semitones !== 0) fragments.push(createFragment('pitchFormant', { semitones }));
+  const formantShift = Number.parseInt(formantInput.value, 10);
+  const character = Number.parseInt(characterInput.value, 10);
+  if (semitones !== 0 || formantShift !== 0 || character > 0) {
+    fragments.push(createFragment('pitchFormant', { semitones, formantShift, character }));
+  }
   for (const kind of FRAGMENT_KINDS) {
     if (kind === 'pitchFormant') continue;
     const cb = document.querySelector<HTMLInputElement>(`#frag-${kind}`);
@@ -230,6 +248,14 @@ presetSelect.addEventListener('change', () => {
 
 pitchInput.addEventListener('input', () => {
   pitchVal.textContent = pitchInput.value;
+});
+
+formantInput.addEventListener('input', () => {
+  formantVal.textContent = formantInput.value;
+});
+
+characterInput.addEventListener('input', () => {
+  characterVal.textContent = characterInput.value;
 });
 
 intensityInput.addEventListener('input', () => {

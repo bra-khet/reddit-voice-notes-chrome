@@ -31,6 +31,16 @@ export const VOICE_EXPORT_SAMPLE_RATE_HZ = 48_000;
 export interface PitchShiftConfig {
   /** Semitone offset (−12 … +12). */
   semitones: number;
+  /**
+   * Dulcet II (v5) — formant warp independent of pitch (−12 … +12 semitones;
+   * − = darker/larger throat). Migrates into the pitchFormant fragment.
+   */
+  formantShift?: number;
+  /**
+   * Dulcet II (v5) — 0–100 throat resonance / "produced" emphasis. Migrates into
+   * the pitchFormant fragment's `character`.
+   */
+  character?: number;
   /** Default true — keeps waveform video in sync without re-timing viz. */
   preserveDuration: boolean;
   /**
@@ -75,6 +85,8 @@ export interface VoiceEffectConfig {
 
 export const DEFAULT_PITCH_SHIFT: PitchShiftConfig = {
   semitones: 0,
+  formantShift: 0,
+  character: 0,
   preserveDuration: true,
   exaggerateNatural: false,
 };
@@ -99,6 +111,12 @@ function clamp(n: number, min: number, max: number): number {
 function normalizeSemitones(value: number | undefined): number {
   if (typeof value !== 'number' || Number.isNaN(value)) return 0;
   return clamp(Math.round(value), VOICE_SEMITONE_MIN, VOICE_SEMITONE_MAX);
+}
+
+/** Dulcet II (v5) — 0–100 "amount" sliders (formant character). */
+function normalizeUnit100(value: number | undefined): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+  return clamp(Math.round(value), 0, 100);
 }
 
 function normalizeEqGain(value: number | undefined): number | undefined {
@@ -142,6 +160,8 @@ export function normalizeVoiceEffectConfig(
   const pitchRaw = raw.pitchShift;
   const pitchShift: PitchShiftConfig = {
     semitones: normalizeSemitones(pitchRaw?.semitones),
+    formantShift: normalizeSemitones(pitchRaw?.formantShift),
+    character: normalizeUnit100(pitchRaw?.character),
     preserveDuration: pitchRaw?.preserveDuration !== false,
     exaggerateNatural: pitchRaw?.exaggerateNatural === true,
   };

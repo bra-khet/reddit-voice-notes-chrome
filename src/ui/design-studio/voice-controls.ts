@@ -19,6 +19,7 @@ import {
   VOICE_INTENSITY_TURBO,
   VOICE_SEMITONE_MAX,
   VOICE_SEMITONE_MIN,
+  type PitchShiftConfig,
   type VoiceEffectConfig,
   type VoiceEffectPresetId,
 } from '@/src/voice/types';
@@ -104,7 +105,27 @@ export function renderVoiceControlFields(): string {
       </label>
       <div class="studio__voice-pitch">
         <div class="studio__knob-host" data-voice-pitch-mount></div>
+        <div class="studio__knob-host" data-voice-formant-mount></div>
       </div>
+      <label class="popup__field studio__field--compact">
+        <span class="popup__field-label">
+          Character <span data-formant-character-value>0</span>
+        </span>
+        <input
+          class="popup__range"
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          value="0"
+          data-formant-character
+          aria-label="Voice character resonance"
+        />
+      </label>
+      <p class="studio__voice-preset-hint popup__field-desc">
+        Pitch + Formant + Character define a Custom voice (formant moves the throat
+        independent of pitch). Character presets above override these on bake.
+      </p>
       <div class="studio__voice-actions">
         <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-test>
           Test character voice
@@ -112,7 +133,7 @@ export function renderVoiceControlFields(): string {
         <button type="button" class="popup__button popup__button--secondary" data-voice-play>
           Play preview
         </button>
-        <button type="button" class="popup__button popup__button--secondary" data-voice-stop hidden>
+        <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-voice-stop hidden>
           Stop
         </button>
       </div>
@@ -152,6 +173,9 @@ export function mountVoiceControls(
   const characterSelect = panel.querySelector<HTMLSelectElement>('[data-character-preset]')!;
   const characterNote = panel.querySelector<HTMLElement>('[data-character-note]')!;
   const pitchMount = panel.querySelector<HTMLElement>('[data-voice-pitch-mount]')!;
+  const formantMount = panel.querySelector<HTMLElement>('[data-voice-formant-mount]')!;
+  const formantCharInput = panel.querySelector<HTMLInputElement>('[data-formant-character]')!;
+  const formantCharValue = panel.querySelector<HTMLElement>('[data-formant-character-value]')!;
   const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
   const turboInput = panel.querySelector<HTMLInputElement>('[data-voice-turbo]')!;
@@ -188,6 +212,30 @@ export function mountVoiceControls(
     characterSelect.appendChild(option);
   }
 
+  // Pitch / Formant / Character all live in pitchShift and fork the voice to Custom.
+  // Patch only the changed field so moving one knob never wipes the others.
+  function forkPitchFormant(patch: Partial<PitchShiftConfig>): void {
+    // BUG FIX: knob edits should fork to Custom without dropping the preset SFX snapshot
+    // Fix: resolve the active preset first, then patch the one field and mark custom
+    const resolved = resolveVoiceEffectConfig({ ...draftConfig, enabled: enabledInput.checked });
+    draftConfig = normalizeVoiceEffectConfig({
+      ...resolved,
+      enabled: enabledInput.checked,
+      presetId: 'custom',
+      pitchShift: {
+        ...resolved.pitchShift,
+        semitones: resolved.pitchShift?.semitones ?? 0,
+        preserveDuration: true,
+        exaggerateNatural: resolved.pitchShift?.exaggerateNatural ?? false,
+        ...patch,
+      },
+    });
+    presetSelect.value = 'custom';
+    schedulePersist();
+    notifyDraftChange();
+    setStatus('');
+  }
+
   const pitchKnob = mountRadialKnob(pitchMount, {
     min: VOICE_SEMITONE_MIN,
     max: VOICE_SEMITONE_MAX,
@@ -196,27 +244,26 @@ export function mountVoiceControls(
     ariaLabel: 'Pitch shift in semitones',
     onChange: (semitones) => {
       if (syncing) return;
-      const resolved = resolveVoiceEffectConfig({
-        ...draftConfig,
-        enabled: enabledInput.checked,
-      });
-      // BUG FIX: pitch knob should fork to Custom without dropping preset SFX snapshot
-      // Fix: resolve active preset first, then override pitch and mark custom
-      draftConfig = normalizeVoiceEffectConfig({
-        ...resolved,
-        enabled: enabledInput.checked,
-        presetId: 'custom',
-        pitchShift: {
-          semitones,
-          preserveDuration: true,
-          exaggerateNatural: resolved.pitchShift?.exaggerateNatural ?? false,
-        },
-      });
-      presetSelect.value = 'custom';
-      schedulePersist();
-      notifyDraftChange();
-      setStatus('');
+      forkPitchFormant({ semitones });
     },
+  });
+
+  const formantKnob = mountRadialKnob(formantMount, {
+    min: VOICE_SEMITONE_MIN,
+    max: VOICE_SEMITONE_MAX,
+    value: 0,
+    label: 'Formant',
+    ariaLabel: 'Formant shift in semitones',
+    onChange: (formantShift) => {
+      if (syncing) return;
+      forkPitchFormant({ formantShift });
+    },
+  });
+
+  formantCharInput.addEventListener('input', () => {
+    if (syncing) return;
+    formantCharValue.textContent = formantCharInput.value;
+    forkPitchFormant({ character: Number(formantCharInput.value) });
   });
 
   function setStatus(message: string): void {
@@ -300,7 +347,11 @@ export function mountVoiceControls(
     presetSelect.value = draftConfig.presetId ?? 'custom';
     characterSelect.value = draftConfig.characterPresetId ?? '';
     characterNote.hidden = !draftConfig.characterPresetId;
-    pitchKnob.setValue(resolvedDraft().pitchShift?.semitones ?? 0, true);
+    const ps = resolvedDraft().pitchShift;
+    pitchKnob.setValue(ps?.semitones ?? 0, true);
+    formantKnob.setValue(ps?.formantShift ?? 0, true);
+    formantCharInput.value = String(ps?.character ?? 0);
+    formantCharValue.textContent = String(ps?.character ?? 0);
     updateIntensityUi();
     updatePresetTip();
     updatePlayAvailability();

@@ -111,24 +111,62 @@ function lerp(min: number, max: number, t: number): number {
 
 /* ---------------------------- v1 primitive emitters ---------------------------- */
 
+/** Neutral vocal-tract resonance centers (Hz) — the F1/F2/F3 region we slide. */
+const FORMANT_CENTERS_HZ = [520, 1500, 2700] as const;
+
 /**
- * Pitch shift (duration-preserving). Formant + character are declared but
- * deferred to Branch 2 (pitch-formant), which replaces this with high-quality
- * formant-aware shifting. Matches the legacy asetrate→aresample→atempo hack.
+ * Pitch + formant (Branch 2). Pitch keeps the duration-preserving
+ * asetrate→aresample→atempo hack (which drags formants along, like un-corrected
+ * pitch shifting). `formantShift` then moves the vocal-tract resonances
+ * *independently* and `character` deepens them.
+ *
+ * No `librubberband` in the shipped core → true source/filter decoupling isn't
+ * available, so we approximate the *filter* (formants) with movable peaking EQs
+ * over the F1–F3 region plus a gentle throat-size tilt. Robust, CPU-light, and
+ * well-suited to stylized character voices (cf. spectralCarve's EQ approach).
+ * All perceptual drivers fold with intensity so Turbo pushes the throat further.
  */
 const emitPitchFormant: Emitter<'pitchFormant'> = (params, ctx) => {
   const factor = ctx.intensityFactor;
-  const semitones = clamp(Math.round(params.semitones * factor), -12, 12);
-  if (semitones === 0) return null;
+  const af: string[] = [];
 
-  const ratio = 2 ** (semitones / 12);
-  const rate = Math.round(ctx.sampleRate * ratio);
-  // atempo accepts 0.5–2.0; 1/ratio stays in range for ±12 semitones.
-  const tempo = round(1 / ratio, 6);
-  return {
-    af: [`asetrate=${rate}`, `aresample=${ctx.sampleRate}`, `atempo=${tempo}`],
-    stage: 'pitch',
-  };
+  // --- Pitch (formants coupled, via resampling) ---
+  const semitones = clamp(Math.round(params.semitones * factor), -12, 12);
+  if (semitones !== 0) {
+    const ratio = 2 ** (semitones / 12);
+    const rate = Math.round(ctx.sampleRate * ratio);
+    // atempo accepts 0.5–2.0; 1/ratio stays in range for ±12 semitones.
+    const tempo = round(1 / ratio, 6);
+    af.push(`asetrate=${rate}`, `aresample=${ctx.sampleRate}`, `atempo=${tempo}`);
+  }
+
+  // --- Independent formant shift + resonance (EQ approximation) ---
+  const formantShift = clamp(params.formantShift * factor, -12, 12);
+  const charAmt = clamp((params.character / 100) * factor, 0, 1);
+
+  if (formantShift !== 0 || charAmt > 0) {
+    const ratio = 2 ** (formantShift / 12); // formant frequency ratio (− = down/larger throat)
+    const shiftMag = Math.min(1, Math.abs(formantShift) / 12);
+    // Higher character → narrower, stronger peaks (more vocal/throaty resonance).
+    const width = round(lerp(1.1, 0.5, charAmt), 2); // octaves
+    const peakGain = round(Math.min(6.5, shiftMag * 5 + charAmt * 4), 1);
+
+    if (peakGain > 0) {
+      for (const center of FORMANT_CENTERS_HZ) {
+        const f = Math.round(center * ratio);
+        af.push(`equalizer=f=${f}:width_type=o:width=${width}:g=${peakGain}`);
+      }
+    }
+
+    // Broad throat-size tilt: + = brighter/smaller, − = darker/larger.
+    const tilt = round(formantShift * 0.5, 1);
+    if (tilt !== 0) {
+      af.push(`treble=g=${tilt}:f=3500`, `bass=g=${round(-tilt * 0.7, 1)}:f=250`);
+    }
+  }
+
+  if (af.length === 0) return null;
+  return { af, stage: 'pitch' };
 };
 
 const emitEq: Emitter<'eq'> = (params, ctx) => {
