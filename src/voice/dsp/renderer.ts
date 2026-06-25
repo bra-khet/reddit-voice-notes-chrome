@@ -26,11 +26,25 @@ export interface RenderContext {
   /** Target sample rate (export = 48 kHz). */
   sampleRate: number;
   /**
-   * Scale a 0–100 "amount" slider by the global intensity.
-   * Linear placeholder: `amount/100 * intensity/10`. Returns a 0..~1.2 factor.
-   * @see Sub-Phase 1.3 — non-linear / per-primitive scaling.
+   * Non-linear strength multiplier for the current intensity. Ease-in curve:
+   * `(intensity/10) ** 1.3`, so f(0)=0, **f(10)=1.0** (nominal unchanged), and
+   * Turbo f(12)≈1.27. Low settings stay subtle, high settings ramp up dramatically
+   * — the "character voice" feel. Emitters that scale pitch/EQ directly use this.
+   */
+  intensityFactor: number;
+  /**
+   * Scale a 0–100 "amount" slider by {@link RenderContext.intensityFactor}.
+   * Returns a 0..~1.27 factor.
    */
   scale(amount0to100: number): number;
+}
+
+/** Ease-in intensity curve exponent. >1 = gentle lows, dramatic highs. */
+const INTENSITY_CURVE_EXP = 1.3;
+
+/** Map effective intensity (0–12) to a strength factor; f(10)=1.0, f(12)≈1.27. */
+export function intensityToFactor(intensity: number): number {
+  return Math.max(0, intensity / 10) ** INTENSITY_CURVE_EXP;
 }
 
 /**
@@ -51,12 +65,13 @@ export interface FragmentRenderer<TNode, TResult> {
   assemble(nodes: TNode[], ctx: RenderContext): TResult;
 }
 
-/** Build the standard linear-scaling context for the given effective intensity. */
+/** Build the render context (non-linear intensity scaling) for the given intensity. */
 export function createRenderContext(intensity: number, sampleRate: number): RenderContext {
+  const intensityFactor = intensityToFactor(intensity);
   return {
     intensity,
     sampleRate,
-    // CONTRIBUTION POINT (1.3): swap this for the per-primitive non-linear curve.
-    scale: (amount0to100: number) => (amount0to100 / 100) * (intensity / 10),
+    intensityFactor,
+    scale: (amount0to100: number) => (amount0to100 / 100) * intensityFactor,
   };
 }

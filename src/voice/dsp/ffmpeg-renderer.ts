@@ -117,7 +117,7 @@ function lerp(min: number, max: number, t: number): number {
  * formant-aware shifting. Matches the legacy asetrate→aresample→atempo hack.
  */
 const emitPitchFormant: Emitter<'pitchFormant'> = (params, ctx) => {
-  const factor = ctx.intensity / 10;
+  const factor = ctx.intensityFactor;
   const semitones = clamp(Math.round(params.semitones * factor), -12, 12);
   if (semitones === 0) return null;
 
@@ -132,7 +132,7 @@ const emitPitchFormant: Emitter<'pitchFormant'> = (params, ctx) => {
 };
 
 const emitEq: Emitter<'eq'> = (params, ctx) => {
-  const factor = ctx.intensity / 10;
+  const factor = ctx.intensityFactor;
   const g = (v: number) => round(v * factor, 1);
   const segments: string[] = [];
   const low = g(params.lowGain);
@@ -177,11 +177,16 @@ const emitLimiter: Emitter<'limiter'> = (params, ctx) => {
 const emitAlgoReverb: Emitter<'algoReverb'> = (params, ctx) => {
   const mix = ctx.scale(params.mix);
   if (mix <= 0) return null;
+  // BUG FIX: aecho "Number of delays N differs from number of decays M"
+  // Fix: aecho=in_gain:out_gain:delays:decays requires matching counts; emit a
+  // second decay for the second delay tap instead of a single decay value.
+  // Sync: src/voice/filter-graphs.ts buildReverbFilter() (legacy, same gotcha).
+  const outGain = round(0.4 + (params.decay / 100) * 0.5, 2);
+  const d1 = Math.round(40 + (params.preDelay / 100) * 100);
+  const d2 = d1 * 2;
   const wet = round(Math.min(0.6, mix * 0.6), 2);
-  // decay → feedback; preDelay → delay tap (ms).
-  const feedback = round(0.4 + (params.decay / 100) * 0.5, 2);
-  const delay = Math.round(40 + (params.preDelay / 100) * 100);
-  return { af: [`aecho=0.8:${feedback}:${delay}|${delay * 2}:${wet}`], stage: 'reverb' };
+  const wet2 = round(wet * 0.6, 2);
+  return { af: [`aecho=0.8:${outGain}:${d1}|${d2}:${wet}|${wet2}`], stage: 'reverb' };
 };
 
 /* ------------------------- 1.2a stylized emitters (linear -af) ------------------------- */

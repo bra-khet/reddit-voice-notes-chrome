@@ -36,6 +36,12 @@ app.innerHTML = `
       <input type="range" id="pitch" min="-12" max="12" step="1" value="0" />
       <output id="pitch-val">0</output>
     </label>
+    <label class="field">
+      <span>Intensity (1–10) — global strength via the non-linear curve</span>
+      <input type="range" id="intensity" min="1" max="10" step="1" value="10" />
+      <output id="intensity-val">10</output>
+      <label class="radio"><input type="checkbox" id="turbo" /> Turbo (×1.27)</label>
+    </label>
     <fieldset class="field" id="fragments-field">
       <span>Fragments (v5) — toggle stylized building blocks (default params)</span>
       <div id="fragments"></div>
@@ -89,6 +95,9 @@ const fragmentsField = document.querySelector<HTMLFieldSetElement>('#fragments-f
 const fragmentsBox = document.querySelector<HTMLDivElement>('#fragments')!;
 const pitchInput = document.querySelector<HTMLInputElement>('#pitch')!;
 const pitchVal = document.querySelector<HTMLOutputElement>('#pitch-val')!;
+const intensityInput = document.querySelector<HTMLInputElement>('#intensity')!;
+const intensityVal = document.querySelector<HTMLOutputElement>('#intensity-val')!;
+const turboInput = document.querySelector<HTMLInputElement>('#turbo')!;
 const processBtn = document.querySelector<HTMLButtonElement>('#process')!;
 const noopBtn = document.querySelector<HTMLButtonElement>('#noop')!;
 const statusEl = document.querySelector<HTMLParagraphElement>('#status')!;
@@ -152,6 +161,8 @@ function buildConfig() {
   return {
     ...config,
     presetId: 'custom' as const,
+    intensity: Number.parseInt(intensityInput.value, 10),
+    turbo: turboInput.checked,
     pitchShift: {
       semitones,
       preserveDuration: true,
@@ -172,8 +183,8 @@ function buildGraph(): StylizedGraph {
   return {
     version: STYLIZED_GRAPH_VERSION,
     enabled: fragments.length > 0,
-    intensity: 10,
-    turbo: false,
+    intensity: Number.parseInt(intensityInput.value, 10),
+    turbo: turboInput.checked,
     fragments: orderFragmentsCanonically(fragments),
   };
 }
@@ -191,6 +202,10 @@ presetSelect.addEventListener('change', () => {
 
 pitchInput.addEventListener('input', () => {
   pitchVal.textContent = pitchInput.value;
+});
+
+intensityInput.addEventListener('input', () => {
+  intensityVal.textContent = intensityInput.value;
 });
 
 fileInput.addEventListener('change', () => {

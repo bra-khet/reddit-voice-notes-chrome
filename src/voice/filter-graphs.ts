@@ -102,7 +102,10 @@ function buildReverbFilter(reverb: VoiceEffectConfig['reverb']): string | null {
   if (amount <= 0) return null;
   // Scale wet mix loosely — exact mapping tuned in dulcet-1.
   const wet = Math.min(0.5, amount * 0.4).toFixed(2);
-  return `aecho=0.8:0.9:40|80:${wet}`;
+  // BUG FIX: aecho "Number of delays 2 differs from number of decays 1"
+  // Fix: aecho delays/decays counts must match — give the second 80ms tap its own decay.
+  // Sync: src/voice/dsp/ffmpeg-renderer.ts emitAlgoReverb() (new graph, same gotcha).
+  return `aecho=0.8:0.9:40|80:${wet}|${wet}`;
 }
 
 /**

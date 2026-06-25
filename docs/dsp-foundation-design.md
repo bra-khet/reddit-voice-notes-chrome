@@ -202,11 +202,16 @@ files) → `amix` against dry per `wetMix`. Result carries `outputLabel` (for `-
 and ordered `auxInputs` (files 1.3's wiring writes + adds as `-i`).
 
 ### Open decisions
-- **IR generation** for `convReverb`: **RESOLVED** — procedural/synthesized in JS
-  (exponential-decay noise + early reflections + damping), AudioBuffer→ConvolverNode
-  for preview, generated WAV→`afir` for export. CC0 sampled IRs optional later.
-- **Non-linear per-primitive intensity curve** shape (1.3) — replaces the linear
-  `RenderContext.scale`.
+- **IR generation** for `convReverb`: **RESOLVED** — procedural/synthesized in JS.
+- **Intensity curve**: **RESOLVED (first pass)** — global ease-in
+  `intensityFactor = (intensity/10) ** 1.3` (f(10)=1.0, f(12)≈1.27) in
+  `RenderContext`. Per-primitive curves remain a future refinement.
+
+### Verified (user QA, 2026-06-24, via voice-harness graph mode)
+All 21 fragment kinds run in ffmpeg.wasm; granular + hybrid called out as standouts.
+Core (`@ffmpeg/core@0.12`, ffmpeg 5.1.4) confirmed to include every filter used — no
+fallback approximations needed. `algoReverb` aecho delay/decay-count bug fixed.
+**Sub-Phases 1.1 + 1.2 + intensity curve merged to `dulcet-ii/integration`.**
 - Runtime QA gate: confirm `asoftclip`/`aexciter`/`deesser`/`adeclick` exist in the
   shipped `@ffmpeg/core` build; harden per-fragment skip so one missing filter does
   not fail the whole `-af` chain (today it falls back to raw audio all-or-nothing).

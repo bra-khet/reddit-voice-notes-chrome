@@ -718,6 +718,20 @@ filter/encoder error) shows in console; **voice-harness rewired** with a Pipelin
 graph is actually testable. tsc clean; build passes. **Re-test needed:** confirm AAC fixes
 the OOB and which stylized filters run in the core (watch `[ffmpeg]` console lines).
 
+### Foundation user-confirmed + reverb fix + intensity curve (2026-06-24)
+**User QA via harness (all 21 fragments):** Legacy great (formant shift a noticeable
+win); Dynamics, Modulation, Color all work; **Granular + Hybrid praised ("PERFECT");**
+convReverb works. **Only bug:** `algoReverb` (Echo/Reverb) threw `aecho` "Number of
+delays 2 differs from number of decays 1". **Fixed** in `ffmpeg-renderer.ts emitAlgoReverb`
++ legacy `filter-graphs.ts buildReverbFilter` (matching delay/decay counts; synced BUG FIX
+comments). Core config dump confirms all used filters present (afir/aexciter/asoftclip/
+deesser/adeclick/amultiply/sine) — no fallback approximations needed; libopus is a
+decoder but not usable as `-c:a` encoder (AAC swap was correct).
+**Non-linear intensity curve (1.3):** `RenderContext.intensityFactor = (intensity/10)**1.3`
+— f(0)=0, **f(10)=1.0 (nominal unchanged → preserves confirmed behavior)**, f(12)≈1.27.
+pitch/EQ emitters now use `ctx.intensityFactor`. Harness gained intensity slider + Turbo.
+Smoke-verified; build passes. **Merged dulcet-ii/dsp-foundation → dulcet-ii/integration.**
+
 ### Next: Sub-Phase 1.3 (remainder)
 - Wire the LIVE transcode (`ffmpeg-runner.ts:462`): thread `-filter_complex` + aux
   `-i` into the muxed WebM→MP4 strategies (alongside the waveform video) — riskier;
