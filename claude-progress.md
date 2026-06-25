@@ -803,14 +803,29 @@ sprint (voice-controls.ts + this handoff).
 
 ## ⭐ RESUME HERE — Dulcet II v5, 2026-06-25
 
-**Status:** Branch 1 (`dulcet-ii/dsp-foundation`) is **COMPLETE and MERGED** to
-`dulcet-ii/integration` (merge `529f6c7`). All 7 character presets bake live:
+**Status:** **Branch 1 (`dsp-foundation`) AND Branch 3 (`preview-pipeline`) COMPLETE and
+MERGED** to `dulcet-ii/integration` (Branch 1 merge `529f6c7`; Branch 3 merge on top).
+All 7 character presets bake live AND audition in the Studio identically to the bake.
 Helium Sprite via `-af` (linear); Cyber Oracle / NerdRage / Glitch Beast / Radio Demon /
 Ethereal Singer / Abyssal Titan via `-filter_complex` (parallel/convolution).
 
-**Branches:** `dulcet-ii/integration` is the current stable line (merge `529f6c7`).
-Old `dsp-foundation` can be left as history. Namespace: `dulcet-ii/*` (git ref D/F conflict
-prevents `dulcet-ii` itself being a branch).
+**Branches:** `dulcet-ii/integration` is the current stable line. Old `dsp-foundation` +
+`preview-pipeline` can be left as history. Namespace: `dulcet-ii/*` (git ref D/F conflict
+prevents `dulcet-ii` itself being a branch). **Roadmap order skipped Branch 2** (pitch-
+formant) to do Branch 3 first — Branch 2 + Branch 4 + storage swap remain.
+
+**Branch 3 (preview-pipeline) — DONE & user-confirmed (preview == bake across all preset
+kinds; intensity modulation correct; stop/spin-up/UX fine):**
+- `resolveVoiceGraph(config)` (`dsp/resolve-graph.ts`) = single source of truth for
+  config→graph, used by BOTH export (`ffmpeg-runner`) and preview → guaranteed parity.
+- Studio "Test character voice" button: one-shot offline render via `processAudioWithGraph`
+  (ffmpeg.wasm in the Studio page, lazy `import()` chunk) → `preview.playProcessed(blob)`
+  plays the rendered audio DRY. Authoritative for ALL graphs.
+- Instant "Play preview" (legacy Web Audio) is the lightweight tier; **disabled when a v5
+  character preset is active** (real-time chain ignores `characterPresetId`).
+- `PREVIEW_MAX_SECONDS = 30` caps preview render for long clips (opt-in
+  `GraphProcessOptions.maxDurationSeconds` → `-t`); export never sets it → bakes full-length.
+- Doc: `dsp-foundation-design.md` § "Preview pipeline".
 
 **What's live & user-confirmed (all of sub-phase 1.3):**
 - Real MP4 bake routes audio through the graph renderer (`ffmpeg-runner.ts` ~line 465):
@@ -856,13 +871,15 @@ prevents `dulcet-ii` itself being a branch).
   fresh-heap-per-complex in process-audio. Live transcode disposes ffmpeg on failure already.
 - `dsp` barrel is WASM-free; safe to import from popup/Studio (unlike `@/src/voice`).
 
-### NEXT PHASES (in order of priority)
-- Full storage swap `VoiceEffectConfig → StylizedGraph` across prefs/profiles/Studio (~24 files;
-  the highest-risk, race-prone area; do last, very carefully).
-- Branch 3 (`dulcet-ii/preview-pipeline`): one-shot offline preview so the Studio Play button
-  reflects character/complex graphs (today Play is legacy-only — character presets are bake-only).
-- Per-primitive (non-global) intensity curves; `resolve-config` cleanup; expose the 21 raw
-  fragments in a Custom UI (Branch 4 `character-system`).
+### NEXT PHASES (remaining Branches)
+- **Branch 2 (`dulcet-ii/pitch-formant`)** — high-quality pitch + formant shifting (the
+  `formantShift` param is already carried through fragments but inaudible until now). The
+  Studio one-shot preview now exists to audition it. Natural next branch.
+- **Branch 4 (`dulcet-ii/character-system`)** — user-facing Custom mode: compose the 21 raw
+  fragments, high-level macros ("Character/Edge/Air"), save-as-character, voice-summary.
+- **Storage swap** `VoiceEffectConfig → StylizedGraph` across prefs/profiles/Studio (~24 files;
+  highest-risk, race-prone — do last, very carefully).
+- Per-primitive (non-global) intensity curves; `resolve-config` cleanup.
 
 **Interactive protocol:** Pause only for human-in-the-loop QA (things that need live audio
 verification) or genuinely ambiguous decisions. Push ahead autonomously on non-risky changes;
