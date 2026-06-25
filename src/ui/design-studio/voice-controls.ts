@@ -32,6 +32,11 @@ export interface VoiceControlsHandle {
 const VOICE_SAVE_DEBOUNCE_MS = 250;
 /** Poll extension IDB while studio is open — mirrors subtitle-controls transcript poll. */
 const RECORDING_POLL_MS = 2000;
+/**
+ * Cap the one-shot preview render so long recordings audition quickly (Branch 3 §3.2).
+ * Shorter clips render in full and stay byte-identical to the bake; only longer ones trim.
+ */
+const PREVIEW_MAX_SECONDS = 30;
 
 // V4 NOTE: Voice section may become its own panel/tab when Studio sections are segmented.
 
@@ -298,6 +303,7 @@ export function mountVoiceControls(
     pitchKnob.setValue(resolvedDraft().pitchShift?.semitones ?? 0, true);
     updateIntensityUi();
     updatePresetTip();
+    updatePlayAvailability();
     notifyDraftChange();
     syncing = false;
   }
@@ -323,6 +329,18 @@ export function mountVoiceControls(
     rendering = active;
     testBtn.disabled = active;
     testBtn.textContent = active ? 'Rendering…' : 'Test character voice';
+  }
+
+  // 3.3 edge case: the real-time Web Audio chain (legacy pitch/EQ/compressor only) cannot
+  // reproduce a v5 character graph — its renderer ignores characterPresetId. So when a
+  // character voice is active, steer the user to the authoritative one-shot Test instead of
+  // letting "Play preview" play a misleading near-raw approximation.
+  function updatePlayAvailability(): void {
+    const characterActive = Boolean(draftConfig.characterPresetId);
+    playBtn.disabled = characterActive;
+    playBtn.title = characterActive
+      ? 'Live preview can’t reproduce v5 character voices — use “Test character voice”.'
+      : '';
   }
 
   async function loadRecordingSource(): Promise<void> {
@@ -451,15 +469,25 @@ export function mountVoiceControls(
       try {
         // Lazy chunk: keeps ffmpeg.wasm glue out of the Studio's initial load.
         const { processAudioWithGraph } = await import('@/src/voice/process-audio');
-        const result = await processAudioWithGraph(lastRecording.blob, graph, (ratio) => {
-          setStatus(`Rendering character voice… ${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%`);
-        });
+        const result = await processAudioWithGraph(
+          lastRecording.blob,
+          graph,
+          (ratio) => {
+            setStatus(`Rendering character voice… ${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%`);
+          },
+          { maxDurationSeconds: PREVIEW_MAX_SECONDS },
+        );
         await preview.playProcessed(result.blob);
         refreshPlayStopUi();
+
+        const trimmed = (lastRecording.meta.durationSeconds ?? 0) > PREVIEW_MAX_SECONDS;
+        const baseMsg = result.applied
+          ? 'Playing rendered character voice — this is what bakes.'
+          : 'Played original — no effect was applied (check console).';
         setStatus(
-          result.applied
-            ? 'Playing rendered character voice — this is what bakes.'
-            : 'Played original — no effect was applied (check console).',
+          trimmed
+            ? `${baseMsg} (Preview limited to first ${PREVIEW_MAX_SECONDS}s; the bake processes the full recording.)`
+            : baseMsg,
         );
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
@@ -474,6 +502,11 @@ export function mountVoiceControls(
     void (async () => {
       if (!preview.hasSource()) {
         setStatus('Record a voice note first, then reopen Design Studio to preview.');
+        return;
+      }
+
+      if (draftConfig.characterPresetId) {
+        setStatus('Live preview can’t reproduce v5 character voices — use “Test character voice”.');
         return;
       }
 

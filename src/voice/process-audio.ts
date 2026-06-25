@@ -264,7 +264,11 @@ const AUX_PATH = (index: number) => `voice-aux-${index}.wav`;
 const GRAPH_COMPLEX_TIMEOUT_MS = 120_000;
 
 /** Build ffmpeg args for a rendered graph result (pure; aux paths match input order). */
-function buildGraphProcessArgs(result: FfmpegGraphResult, auxPaths: string[]): string[] {
+function buildGraphProcessArgs(
+  result: FfmpegGraphResult,
+  auxPaths: string[],
+  maxDurationSeconds?: number,
+): string[] {
   const args = ['-i', INPUT_PATH];
   for (const auxPath of auxPaths) args.push('-i', auxPath);
 
@@ -277,8 +281,20 @@ function buildGraphProcessArgs(result: FfmpegGraphResult, auxPaths: string[]): s
     args.push('-vn');
   }
 
+  // Preview-only duration cap (Branch 3 §3.2): limits the rendered output so long
+  // recordings audition fast. Never passed by the export path → bakes stay full-length.
+  if (typeof maxDurationSeconds === 'number' && maxDurationSeconds > 0) {
+    args.push('-t', String(maxDurationSeconds));
+  }
+
   args.push('-c:a', 'aac', '-b:a', '128k', OUTPUT_PATH);
   return args;
+}
+
+/** Options for the graph processor — preview tuning that the export path never sets. */
+export interface GraphProcessOptions {
+  /** Cap the rendered output duration (seconds). Used by the one-shot Studio preview. */
+  maxDurationSeconds?: number;
 }
 
 /**
@@ -290,6 +306,7 @@ export async function processAudioBytesWithGraph(
   inputBytes: Uint8Array,
   graph: StylizedGraph,
   onProgress?: FfmpegProgressCallback,
+  options?: GraphProcessOptions,
 ): Promise<ProcessAudioBytesResult> {
   const startedAt = Date.now();
   const normalized = normalizeStylizedGraph(graph);
@@ -346,7 +363,11 @@ export async function processAudioBytesWithGraph(
 
     onProgress?.(0.2, stage);
 
-    const exitCode = await execWithTimeout(ffmpeg, buildGraphProcessArgs(result, auxPaths), timeout);
+    const exitCode = await execWithTimeout(
+      ffmpeg,
+      buildGraphProcessArgs(result, auxPaths, options?.maxDurationSeconds),
+      timeout,
+    );
     if (exitCode !== 0) {
       throw new Error(`Voice graph FFmpeg exited with code ${exitCode}`);
     }
@@ -392,9 +413,10 @@ export async function processAudioWithGraph(
   input: Blob,
   graph: StylizedGraph,
   onProgress?: FfmpegProgressCallback,
+  options?: GraphProcessOptions,
 ): Promise<ProcessAudioResult> {
   const inputBytes = new Uint8Array(await input.arrayBuffer());
-  const result = await processAudioBytesWithGraph(inputBytes, graph, onProgress);
+  const result = await processAudioBytesWithGraph(inputBytes, graph, onProgress, options);
 
   return {
     blob: new Blob([Uint8Array.from(result.bytes)], { type: result.mimeType }),
