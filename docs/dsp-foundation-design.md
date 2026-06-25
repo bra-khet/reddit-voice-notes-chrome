@@ -215,3 +215,43 @@ fallback approximations needed. `algoReverb` aecho delay/decay-count bug fixed.
 - Runtime QA gate: confirm `asoftclip`/`aexciter`/`deesser`/`adeclick` exist in the
   shipped `@ffmpeg/core` build; harden per-fragment skip so one missing filter does
   not fail the whole `-af` chain (today it falls back to raw audio all-or-nothing).
+
+---
+
+## Preview pipeline (Branch 3 — `dulcet-ii/preview-pipeline`)
+
+The Design Studio voice panel auditions effects through **two tiers**. The split is
+deliberate: real-time Web Audio cannot reproduce the stylized graphs (the supplement
+explicitly relaxes the live-preview requirement), so fidelity comes from an offline
+render rather than a second DSP backend.
+
+### Tier 1 — "Test character voice" (one-shot, AUTHORITATIVE)
+- Renders the **active** `StylizedGraph` through `processAudioWithGraph` (ffmpeg.wasm,
+  in the Studio page) on the last recording, then plays the result dry via
+  `VoicePreviewHandle.playProcessed` (no effect chain — the audio is already final).
+- **Identical to the bake by construction:** both the Test button and the live export
+  (`ffmpeg-runner.runWebmToMp4`) resolve the config through the *same*
+  `resolveVoiceGraph()` and run the *same* renderer. What you hear is what bakes —
+  verified by user QA across linear, legacy, and complex/parallel presets.
+- Works for **all** graph kinds (linear `-af` and parallel `-filter_complex` + aux IRs).
+- Trade-off: costs a render (first click also spins up ffmpeg.wasm, ~32MB). Acceptable
+  per the "users will happily wait a few seconds for a good test" philosophy.
+- **Performance cap (§3.2):** previews are limited to the first `PREVIEW_MAX_SECONDS`
+  (30s) via an opt-in `maxDurationSeconds` → `-t` on the graph args. Clips ≤30s render
+  in full and stay byte-identical to the bake; longer clips trim (with a status note).
+  The export path never sets this, so **bakes are always full-length**.
+
+### Tier 2 — "Play preview" (instant, APPROXIMATION)
+- The legacy Web Audio chain (`preview-chain.ts`): `playbackRate` pitch + biquad EQ +
+  `DynamicsCompressor`. Zero latency, good for quick legacy/pitch tweaks.
+- **Cannot represent v5 character graphs** — its renderer reads only the flat legacy
+  fields and ignores `characterPresetId`. So when a character voice is active, this
+  button is **disabled** (with a hint steering to Test) rather than playing a
+  misleading near-raw result (§3.3 edge case).
+- Even for legacy presets it is only *roughly* representative (the bake now goes through
+  the migrated graph, not this chain). Authoritative auditioning is always Tier 1.
+
+### Single master preview
+One `VoicePreviewHandle` owns playback; every entry point (`play`, `playProcessed`)
+calls `stop()` first, so only one clip plays at a time and the Stop button governs both
+tiers uniformly.

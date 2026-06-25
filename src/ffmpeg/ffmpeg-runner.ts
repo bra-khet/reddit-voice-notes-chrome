@@ -12,9 +12,7 @@ import {
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
 import {
   buildStylizedGraph,
-  characterPresetGraph,
-  getCharacterPreset,
-  migrateVoiceEffectToGraph,
+  resolveVoiceGraph,
   type FfmpegGraphResult,
 } from '@/src/voice/dsp';
 import {
@@ -546,18 +544,10 @@ export async function runWebmToMp4(
 
   const normalizedVoice = normalizeVoiceEffectConfig(voiceEffect ?? DEFAULT_VOICE_EFFECT_CONFIG);
   // Dulcet II (v5): route the live export's audio filtering through the graph renderer.
-  // A selected v5 character preset builds its native graph; otherwise migrate the legacy
-  // config. Linear graphs bake via -af; parallel/convolution graphs via -filter_complex.
-  const characterPreset = normalizedVoice.characterPresetId
-    ? getCharacterPreset(normalizedVoice.characterPresetId)
-    : undefined;
-  const voiceGraph = characterPreset
-    ? characterPresetGraph(
-        characterPreset,
-        normalizedVoice.turbo ? 12 : normalizedVoice.intensity ?? 10,
-        normalizedVoice.turbo === true,
-      )
-    : migrateVoiceEffectToGraph(normalizedVoice);
+  // resolveVoiceGraph is the shared config→graph path (also used by the Studio one-shot
+  // preview) so preview and export resolve identically. Linear graphs bake via -af;
+  // parallel/convolution graphs via -filter_complex.
+  const voiceGraph = resolveVoiceGraph(normalizedVoice);
   const graphResult = buildStylizedGraph(voiceGraph);
   // CHANGED: derive a VoiceFilterPlan covering both -af and -filter_complex graphs.
   // WHY: the 6 parallel character presets render `mode==='complex'`; previously those

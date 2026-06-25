@@ -8,7 +8,7 @@ import {
 } from '@/src/settings/user-preferences';
 import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
 import { getVoiceEffectPreset, VOICE_EFFECT_PRESETS } from '@/src/voice/presets';
-import { CHARACTER_PRESETS } from '@/src/voice/dsp';
+import { CHARACTER_PRESETS, resolveVoiceGraph, stylizedGraphIsActive } from '@/src/voice/dsp';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
 import { resolveVoiceEffectConfig } from '@/src/voice/resolve-config';
 import {
@@ -32,6 +32,11 @@ export interface VoiceControlsHandle {
 const VOICE_SAVE_DEBOUNCE_MS = 250;
 /** Poll extension IDB while studio is open — mirrors subtitle-controls transcript poll. */
 const RECORDING_POLL_MS = 2000;
+/**
+ * Cap the one-shot preview render so long recordings audition quickly (Branch 3 §3.2).
+ * Shorter clips render in full and stay byte-identical to the bake; only longer ones trim.
+ */
+const PREVIEW_MAX_SECONDS = 30;
 
 // V4 NOTE: Voice section may become its own panel/tab when Studio sections are segmented.
 
@@ -63,7 +68,8 @@ export function renderVoiceControlFields(): string {
         <select class="popup__select" data-character-preset aria-label="Character voice preset"></select>
       </label>
       <p class="studio__voice-preset-desc popup__field-desc" data-character-note hidden>
-        Character voice overrides the preset above on bake. Preview (Play) uses the preset above.
+        Character voice overrides the preset above on bake. Use “Test character voice” to hear
+        the real rendered result; “Play preview” is a quick legacy approximation only.
       </p>
       <p class="studio__voice-preset-hint popup__field-desc">
         Presets include special SFX — intensity modulates the selected preset.
@@ -100,7 +106,10 @@ export function renderVoiceControlFields(): string {
         <div class="studio__knob-host" data-voice-pitch-mount></div>
       </div>
       <div class="studio__voice-actions">
-        <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-play>
+        <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-test>
+          Test character voice
+        </button>
+        <button type="button" class="popup__button popup__button--secondary" data-voice-play>
           Play preview
         </button>
         <button type="button" class="popup__button popup__button--secondary" data-voice-stop hidden>
@@ -146,6 +155,7 @@ export function mountVoiceControls(
   const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
   const turboInput = panel.querySelector<HTMLInputElement>('[data-voice-turbo]')!;
+  const testBtn = panel.querySelector<HTMLButtonElement>('[data-voice-test]')!;
   const playBtn = panel.querySelector<HTMLButtonElement>('[data-voice-play]')!;
   const stopBtn = panel.querySelector<HTMLButtonElement>('[data-voice-stop]')!;
   const statusEl = panel.querySelector<HTMLElement>('[data-voice-status]')!;
@@ -154,6 +164,7 @@ export function mountVoiceControls(
   let lastRecording: LastRecordingSnapshot | null = null;
   let loadedSavedAt = 0;
   let syncing = false;
+  let rendering = false;
   let saveTimer = 0;
 
   const preview = createVoicePreviewPlayer();
@@ -292,6 +303,7 @@ export function mountVoiceControls(
     pitchKnob.setValue(resolvedDraft().pitchShift?.semitones ?? 0, true);
     updateIntensityUi();
     updatePresetTip();
+    updatePlayAvailability();
     notifyDraftChange();
     syncing = false;
   }
@@ -311,6 +323,24 @@ export function mountVoiceControls(
     const isPlaying = preview.isPlaying();
     playBtn.hidden = isPlaying;
     stopBtn.hidden = !isPlaying;
+  }
+
+  function setRendering(active: boolean): void {
+    rendering = active;
+    testBtn.disabled = active;
+    testBtn.textContent = active ? 'Rendering…' : 'Test character voice';
+  }
+
+  // 3.3 edge case: the real-time Web Audio chain (legacy pitch/EQ/compressor only) cannot
+  // reproduce a v5 character graph — its renderer ignores characterPresetId. So when a
+  // character voice is active, steer the user to the authoritative one-shot Test instead of
+  // letting "Play preview" play a misleading near-raw approximation.
+  function updatePlayAvailability(): void {
+    const characterActive = Boolean(draftConfig.characterPresetId);
+    playBtn.disabled = characterActive;
+    playBtn.title = characterActive
+      ? 'Live preview can’t reproduce v5 character voices — use “Test character voice”.'
+      : '';
   }
 
   async function loadRecordingSource(): Promise<void> {
@@ -413,10 +443,70 @@ export function mountVoiceControls(
     setStatus(id ? 'Character voice set — bake to hear it.' : '');
   });
 
+  // Dulcet II (v5) one-shot preview: render the ACTIVE graph (character preset or migrated
+  // legacy config) through ffmpeg.wasm on the last recording, then play it dry. Uses the same
+  // resolveVoiceGraph() as the live export, so what you hear here is what bakes.
+  testBtn.addEventListener('click', () => {
+    if (rendering) return;
+    void (async () => {
+      if (!lastRecording) {
+        setStatus('Record a voice note first, then reopen Design Studio to test.');
+        return;
+      }
+
+      const config = mergeLiveToggles(draftConfig);
+      const graph = resolveVoiceGraph(config);
+      if (!stylizedGraphIsActive(graph)) {
+        setStatus('No active effect to test — enable voice effects or pick a character voice.');
+        return;
+      }
+
+      preview.stop();
+      refreshPlayStopUi();
+      setRendering(true);
+      setStatus('Rendering character voice… (one-shot, a few seconds)');
+
+      try {
+        // Lazy chunk: keeps ffmpeg.wasm glue out of the Studio's initial load.
+        const { processAudioWithGraph } = await import('@/src/voice/process-audio');
+        const result = await processAudioWithGraph(
+          lastRecording.blob,
+          graph,
+          (ratio) => {
+            setStatus(`Rendering character voice… ${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%`);
+          },
+          { maxDurationSeconds: PREVIEW_MAX_SECONDS },
+        );
+        await preview.playProcessed(result.blob);
+        refreshPlayStopUi();
+
+        const trimmed = (lastRecording.meta.durationSeconds ?? 0) > PREVIEW_MAX_SECONDS;
+        const baseMsg = result.applied
+          ? 'Playing rendered character voice — this is what bakes.'
+          : 'Played original — no effect was applied (check console).';
+        setStatus(
+          trimmed
+            ? `${baseMsg} (Preview limited to first ${PREVIEW_MAX_SECONDS}s; the bake processes the full recording.)`
+            : baseMsg,
+        );
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        setStatus(`Test failed: ${detail}`);
+      } finally {
+        setRendering(false);
+      }
+    })();
+  });
+
   playBtn.addEventListener('click', () => {
     void (async () => {
       if (!preview.hasSource()) {
         setStatus('Record a voice note first, then reopen Design Studio to preview.');
+        return;
+      }
+
+      if (draftConfig.characterPresetId) {
+        setStatus('Live preview can’t reproduce v5 character voices — use “Test character voice”.');
         return;
       }
 

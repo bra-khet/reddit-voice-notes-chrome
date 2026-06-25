@@ -11,6 +11,12 @@ export const VOICE_PREVIEW_DEBOUNCE_MS = WEB_AUDIO_PREVIEW_NOTES.debounceMs;
 export interface VoicePreviewHandle {
   setSource(blob: Blob | null): Promise<void>;
   play(config: VoiceEffectConfig): Promise<void>;
+  /**
+   * Play an already-rendered clip dry — no effect chain. Used by the Dulcet II
+   * one-shot preview, where the blob has already passed through the full graph
+   * in ffmpeg.wasm, so the audio is authoritative and must NOT be re-processed.
+   */
+  playProcessed(blob: Blob): Promise<void>;
   stop(): void;
   dispose(): void;
   isPlaying(): boolean;
@@ -120,6 +126,8 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
   let audioContext: AudioContext | null = null;
   let activeSource: AudioBufferSourceNode | null = null;
   let mediaElement: HTMLAudioElement | null = null;
+  /** Object URL for a one-shot rendered clip (playProcessed); separate from the source URL. */
+  let processedUrl: string | null = null;
   let playing = false;
 
   const revokeUrl = (): void => {
@@ -151,6 +159,11 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
       void audioContext.close();
     }
     audioContext = null;
+
+    if (processedUrl) {
+      URL.revokeObjectURL(processedUrl);
+      processedUrl = null;
+    }
   };
 
   const playViaBuffer = async (config: VoiceEffectConfig): Promise<void> => {
@@ -234,6 +247,22 @@ export function createVoicePreviewPlayer(): VoicePreviewHandle {
       }
 
       await playViaMediaElement(normalized);
+    },
+
+    async playProcessed(blob) {
+      this.stop();
+      // Already rendered through the full graph — play dry, no AudioContext/effect chain.
+      processedUrl = URL.createObjectURL(blob);
+      const audio = new Audio(processedUrl);
+      mediaElement = audio;
+
+      audio.onended = () => {
+        playing = false;
+        teardownGraph();
+      };
+
+      playing = true;
+      await audio.play();
     },
 
     stop() {
