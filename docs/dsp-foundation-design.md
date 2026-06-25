@@ -255,3 +255,46 @@ render rather than a second DSP backend.
 One `VoicePreviewHandle` owns playback; every entry point (`play`, `playProcessed`)
 calls `stop()` first, so only one clip plays at a time and the Stop button governs both
 tiers uniformly.
+
+---
+
+## Pitch & Formant (Branch 2 — `dulcet-ii/pitch-formant`)
+
+The `pitchFormant` fragment now uses all three params (previously only `semitones`).
+
+### Formant approach — EQ/resonance approximation (decision)
+The shipped `@ffmpeg/core@0.12` has **no `librubberband`** (its config banner lists no
+`--enable-librubberband`), so the `rubberband` filter — the standard tool for true,
+independent pitch/formant — is unavailable. `afftfilt` (FFT-domain) is deliberately
+avoided elsewhere (`spectralCarve` is an EQ approximation of it) for wasm robustness.
+**Chosen (user-confirmed): approximate the vocal-tract *filter* with movable peaking EQs.**
+
+`emitPitchFormant`:
+- **Pitch** keeps the duration-preserving `asetrate→aresample→atempo` hack — which drags
+  formants along (these three filters *cannot* decouple pitch from formant; proven).
+- **`formantShift`** then slides three peaking EQs across the F1–F3 region
+  (`FORMANT_CENTERS_HZ = 520/1500/2700` × `2^(formantShift/12)`) plus a `treble`/`bass`
+  throat-size tilt (− = darker/larger throat, + = brighter/smaller).
+- **`character`** deepens the resonance — narrower (`width` 1.1→0.5 oct) and stronger peaks;
+  with `formantShift=0` it sits at the neutral centers as "produced" throat resonance.
+- All three perceptual drivers fold with `intensityFactor` (Turbo pushes further).
+
+It's an approximation, not transparent source/filter separation — but for *stylized*
+character voices it reads as genuine formant movement and is robust + CPU-light.
+True independent shift (rubberband rebuild) stays a documented future upgrade.
+
+### Config + UI (Sub-Phase 2.2)
+`PitchShiftConfig` carries `formantShift` (±12) and `character` (0–100); they normalize
+and default to 0 (pre-v5 configs are unaffected). `migrateVoiceEffectToGraph` threads all
+three into the one `pitchFormant` fragment, and `voiceEffectIsActive` treats a
+formant-/character-only voice as active. The Design Studio exposes a **Formant** knob and
+**Character** slider next to **Pitch**; a shared `forkPitchFormant()` patches one field at
+a time (so moving one knob never wipes the others) and forks to a Custom voice. A selected
+character preset still overrides these on bake. This is a bridge over the legacy
+`VoiceEffectConfig` until the eventual storage swap makes `StylizedGraph` canonical.
+
+### Determinism
+Fully deterministic: procedural IRs use a seeded LCG (`ir-generator.ts`), and every emitter
+and ffmpeg filter is deterministic — a given input + config bakes identically every time.
+Preset loudness is gain staging (compressor `makeup` / `limiter` ceiling), independent of
+determinism.
