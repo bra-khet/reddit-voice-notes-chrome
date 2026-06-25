@@ -73,6 +73,39 @@ Previous stable: **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2
 
 **Disabled path:** identical to v2 — no `-af`, no extra WASM work.
 
+## Character voice presets (Dulcet II / v5)
+
+This is the flagship of the project — it's called Reddit **Voice** Notes for a reason.
+v5 rebuilds voice effects on a composable, mix-and-match **graph fragment** system
+optimized for highly stylized fantasy / video-game / anime / V-tuber-style character
+voices, and ships a set of ready-made **character presets** as starting points.
+
+Each preset is just a curated recipe of fragments — nothing you can't build (or
+re-create) yourself by combining the same building blocks:
+
+| Preset | Character |
+|--------|-----------|
+| **Cyber Oracle** | Clangorous metallic prophet in a vast digital cathedral |
+| **NerdRage 🧪** | Homage to the NurdRage YouTube channel (the original Cyber Oracle voicing, preserved as-is) |
+| **Glitch Beast** | Snarling, stuttering cyber-monster |
+| **Ethereal Singer** | Bright, breathy spirit with a shimmering synth halo |
+| **Radio Demon** | Crackly, squashed vintage-broadcast menace |
+| **Helium Sprite** | Tiny, hyper cartoon-pixie chatter |
+| **Abyssal Titan** | Colossal, subterranean god-voice from the deep dark |
+
+### Roll your own
+
+Presets are composed from **21 fragments across 7 categories** — Pitch & Formant,
+Dynamics & Clarity, Modulation & Movement, Color & Embellishment, Spatial / Reverb,
+Textural / Granular, and Hybrid Layers. Enable the ones you want, set their high-level
+sliders (Amount / Character / Edge / Air …), and a global **Intensity / Turbo** scales
+the whole chain. Use a preset as a launchpad: start from "Cyber Oracle", then push the
+ring-mod or swap the convolution space to make it your own.
+
+The fragment model, the canonical chain order, and the design philosophy are documented
+in [`docs/dsp-foundation-design.md`](docs/dsp-foundation-design.md). Presets live in
+`src/voice/dsp/preset-graphs.ts`.
+
 ## Subtitles (v4)
 
 1. Open **Design Studio** → **Subtitles** → enable transcription

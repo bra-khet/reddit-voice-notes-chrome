@@ -323,6 +323,11 @@ export async function processAudioBytesWithGraph(
   const auxPaths = result.auxInputs.map((_, index) => AUX_PATH(index));
   const timeout = result.mode === 'complex' ? GRAPH_COMPLEX_TIMEOUT_MS : VOICE_PROCESS_TIMEOUT_MS;
 
+  // Heavy parallel graphs (stacked resamplers, convolution, multi-stage amix) are
+  // sensitive to accumulated ffmpeg.wasm heap state across runs — an intermittent
+  // exit-1/OOM that doesn't recur on a fresh instance. Start complex graphs clean.
+  if (result.mode === 'complex') disposeFfmpeg();
+
   onProgress?.(0.05, 'voice-loading-wasm');
 
   try {
