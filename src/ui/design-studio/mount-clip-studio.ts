@@ -343,6 +343,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const generation = ++studioSaveGeneration;
     ignoreStoragePrefs = true;
     try {
+      // Flush the debounced voice draft FIRST so a profile snapshot (saveFn reads
+      // persisted prefs.voiceEffect) can't capture a stale voice — root cause of
+      // "Update profile" staying lit after a save. Idempotent for non-voice saves.
+      if (typeof voiceControls?.flushPersist === 'function') {
+        await voiceControls.flushPersist();
+      }
       const prefs = await saveFn();
       if (generation !== studioSaveGeneration) return undefined;
       applyPrefs(prefs);
@@ -391,9 +397,16 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       typeof subtitleControls?.getProfileSnapshotConfig === 'function'
         ? subtitleControls.getProfileSnapshotConfig()
         : activePrefs.transcriptConfig;
+    // Compare the LIVE voice draft, not persisted prefs — the draft saves on a
+    // 250ms debounce, so persisted prefs lags an in-progress edit and the
+    // Update-profile button would flicker stale (mirrors the subtitle draft above).
+    const voiceForMatch =
+      typeof voiceControls?.getDraftConfig === 'function'
+        ? voiceControls.getDraftConfig()
+        : activePrefs.voiceEffect;
     return !clipProfileMatchesLiveState(
       activePrefs.appearance,
-      activePrefs.voiceEffect,
+      voiceForMatch,
       transcriptForMatch,
       profile,
     );
@@ -642,6 +655,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   async function attemptStudioExit(): Promise<void> {
     await flushPendingDesignPersist();
     await subtitleControls.flushPersist();
+    await voiceControls.flushPersist();
     if (!activePrefs || !hasStudioUnsavedChanges(activePrefs)) {
       allowStudioExit = true;
       window.close();
@@ -660,6 +674,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     syncStudioStatusStrip(root, {
       prefs: activePrefs,
       transcriptForMatch: subtitleControls.getProfileSnapshotConfig(),
+      voiceForMatch: voiceControls.getDraftConfig(),
       transcriptDirty: subtitleControls.isTranscriptDirty(),
       transcriptDelivery: subtitleControls.getTranscriptDeliveryStatus(),
       hasSessionRecording: subtitleControls.hasSessionRecording(),
@@ -1015,9 +1030,10 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   };
 
   const pageHideHandler = (): void => {
-    // CHANGED: flush global subtitle prefs before the studio tab is torn down.
+    // CHANGED: flush global subtitle + voice prefs before the studio tab is torn down.
     // WHY: chrome.storage.local.set is async; unload alone is not reliable (BUG-017).
     void subtitleControls.flushPersist();
+    void voiceControls.flushPersist();
     if (allowStudioExit || !entryAppearance || !activePrefs) return;
     if (!hasStudioUnsavedChanges(activePrefs)) return;
     void discardStudioUnsavedChanges(entryAppearance);

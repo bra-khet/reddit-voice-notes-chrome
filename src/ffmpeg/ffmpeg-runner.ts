@@ -10,8 +10,11 @@ import {
   type SubtitleBurnInInput,
 } from '@/src/ffmpeg/subtitle-burnin';
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
-import { buildFfmpegAudioFilter } from '@/src/voice/filter-graphs';
-import { voiceEffectIsActive } from '@/src/voice/resolve-config';
+import {
+  buildStylizedGraph,
+  resolveVoiceGraph,
+  type FfmpegGraphResult,
+} from '@/src/voice/dsp';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
@@ -25,6 +28,8 @@ const MIN_WEBM_BYTES = 256;
 
 /** Flat per-strategy exec ceiling — size scaling caused false stalls on healthy jobs. */
 const STRATEGY_EXEC_TIMEOUT_MS = 75_000;
+/** Complex graphs add afir convolution + amix over the full recording duration. */
+const COMPLEX_STRATEGY_EXEC_TIMEOUT_MS = 120_000;
 const LOAD_FFMPEG_TIMEOUT_MS = 30_000;
 const WASM_SETTLE_MS = 200;
 const OUTPUT_FRAME_RATE = String(WAVEFORM_TARGET_FPS);
@@ -32,6 +37,12 @@ const OUTPUT_FRAME_RATE = String(WAVEFORM_TARGET_FPS);
 const DUP_STORM_MIN_DUP = 100;
 const DUP_STORM_FRAME_RATIO = 0.5;
 const DUP_STORM_POLL_MS = 200;
+
+// CHANGED: aux WAV path for complex graph baking (parallel/convolution presets).
+// WHY: -filter_complex graphs feed procedural IR WAVs as inputs 1..N (input 0 = webm);
+//      the renderer's graph string references them as [1:a]…[N:a], so paths/order must
+//      mirror buildGraphProcessArgs in process-audio.ts.
+const GRAPH_AUX_PATH = (index: number): string => `voice-graph-aux-${index}.wav`;
 
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
@@ -86,7 +97,7 @@ function shouldAbortDupStorm(line: string): boolean {
   return progress !== null && isDupStormProgress(progress.frame, progress.dup);
 }
 
-function attachLogCollector(
+export function attachLogCollector(
   ffmpeg: FFmpeg,
   onLine?: (line: string) => void,
 ): { lines: string[]; detach: () => void } {
@@ -275,12 +286,74 @@ function injectAudioFilter(args: readonly string[], audioFilter: string | null):
   return result;
 }
 
+/**
+ * Dulcet II (v5) — how a rendered graph bakes into the live transcode.
+ *  - `af`:      linear chain spliced in as a single `-af` (the common, light path).
+ *  - `complex`: parallel/convolution graph baked via `-filter_complex` + aux WAV inputs.
+ */
+type VoiceFilterPlan =
+  | { mode: 'af'; af: string }
+  | { mode: 'complex'; result: FfmpegGraphResult };
+
+/**
+ * Splice a rendered complex audio graph into a video transcode strategy:
+ * aux WAVs become inputs 1..N (input 0 = input.webm, referenced as [0:a] by the graph),
+ * then `-filter_complex` + explicit maps route the filtered audio pad and passthrough
+ * video. Mirrors buildGraphProcessArgs in process-audio.ts (its audio-only twin) so the
+ * input ordering the graph string was built against is preserved.
+ */
+function injectComplexGraph(args: readonly string[], result: FfmpegGraphResult): string[] {
+  const out = [...args];
+
+  const firstInput = out.indexOf('-i'); // input.webm — value at firstInput + 1
+  const auxArgs: string[] = [];
+  for (let i = 0; i < result.auxInputs.length; i++) {
+    auxArgs.push('-i', GRAPH_AUX_PATH(i));
+  }
+  out.splice(firstInput + 2, 0, ...auxArgs);
+
+  // Insert the graph + maps before the video codec flags. Only re-encoding strategies
+  // (those with -c:v) reach here; the remux-only 'faststart' strategy is skipped for complex.
+  const codecIndex = out.indexOf('-c:v');
+  out.splice(
+    codecIndex,
+    0,
+    '-filter_complex',
+    result.filterComplex ?? '',
+    '-map',
+    '0:v:0',
+    '-map',
+    `[${result.outputLabel}]`,
+  );
+  return out;
+}
+
 function strategyArgs(
   strategy: (typeof TRANSCODE_STRATEGIES)[number],
-  audioFilter: string | null,
+  plan: VoiceFilterPlan | null,
 ): string[] {
+  if (!plan) return [...strategy.args];
+  if (plan.mode === 'complex') return injectComplexGraph(strategy.args, plan.result);
+  // af: the remux-only 'faststart' strategy has no -c:a anchor to splice an -af before.
   if (strategy.name === 'faststart') return [...strategy.args];
-  return injectAudioFilter(strategy.args, audioFilter);
+  return injectAudioFilter(strategy.args, plan.af);
+}
+
+async function writeAuxInputs(ffmpeg: FFmpeg, result: FfmpegGraphResult): Promise<void> {
+  for (let i = 0; i < result.auxInputs.length; i++) {
+    const path = GRAPH_AUX_PATH(i);
+    await safeDeleteFile(ffmpeg, path);
+    // BUG FIX: ArrayBuffer detached on Worker postMessage
+    // Fix: writeFile transfers the backing buffer; pass a fresh slice per write.
+    // Sync: writeInputWebm + processAudioBytesWithGraph aux writes.
+    await ffmpeg.writeFile(path, result.auxInputs[i].bytes.slice());
+  }
+}
+
+async function deleteAuxInputs(ffmpeg: FFmpeg, result: FfmpegGraphResult): Promise<void> {
+  for (let i = 0; i < result.auxInputs.length; i++) {
+    await safeDeleteFile(ffmpeg, GRAPH_AUX_PATH(i));
+  }
 }
 
 async function safeDeleteFile(ffmpeg: FFmpeg, path: string): Promise<void> {
@@ -356,16 +429,26 @@ async function transcodeWithStrategies(
   inputBytes: Uint8Array,
   onProgress?: FfmpegProgressCallback,
   onFfmpegRatio?: (ratio: number) => void,
-  audioFilter: string | null = null,
+  plan: VoiceFilterPlan | null = null,
 ): Promise<Uint8Array> {
   const attempts: string[] = [];
 
+  // CHANGED: complex graphs (parallel/convolution) start on a clean WASM instance.
+  // WHY: stacked resamplers + amix + a simultaneous libx264 encode are sensitive to
+  //      accumulated ffmpeg.wasm heap state — an intermittent exit-1/OOM that clears on a
+  //      fresh heap. Mirrors processAudioBytesWithGraph's dispose-before-complex guard.
+  if (plan?.mode === 'complex') disposeFfmpeg();
+
   for (const strategy of TRANSCODE_STRATEGIES) {
+    // filter_complex requires re-encoding; the remux-only 'faststart' strategy can't run it.
+    if (plan?.mode === 'complex' && strategy.name === 'faststart') continue;
+
     const ffmpeg = await loadFfmpeg(onProgress);
     await writeInputWebm(ffmpeg, inputBytes);
     await safeDeleteFile(ffmpeg, 'output.mp4');
-    const stageName = audioFilter
-      ? `transcoding-${strategy.name}-voice-af`
+    if (plan?.mode === 'complex') await writeAuxInputs(ffmpeg, plan.result);
+    const stageName = plan
+      ? `transcoding-${strategy.name}-voice-${plan.mode}`
       : `transcoding-${strategy.name}`;
     onProgress?.(0.2, stageName);
 
@@ -385,8 +468,8 @@ async function transcodeWithStrategies(
     try {
       result = await execWithTimeout(
         ffmpeg,
-        strategyArgs(strategy, audioFilter),
-        STRATEGY_EXEC_TIMEOUT_MS,
+        strategyArgs(strategy, plan),
+        plan?.mode === 'complex' ? COMPLEX_STRATEGY_EXEC_TIMEOUT_MS : STRATEGY_EXEC_TIMEOUT_MS,
         abortRef,
       );
     } catch (error) {
@@ -419,6 +502,7 @@ async function transcodeWithStrategies(
       const output = (await ffmpeg.readFile('output.mp4')) as Uint8Array;
       await safeDeleteFile(ffmpeg, 'input.webm');
       await safeDeleteFile(ffmpeg, 'output.mp4');
+      if (plan?.mode === 'complex') await deleteAuxInputs(ffmpeg, plan.result);
       return output;
     }
 
@@ -459,11 +543,23 @@ export async function runWebmToMp4(
   }
 
   const normalizedVoice = normalizeVoiceEffectConfig(voiceEffect ?? DEFAULT_VOICE_EFFECT_CONFIG);
-  const { filter: voiceFilter } = buildFfmpegAudioFilter(normalizedVoice);
-  const audioFilter =
-    voiceFilter && voiceEffectIsActive(normalizedVoice) ? voiceFilter : null;
+  // Dulcet II (v5): route the live export's audio filtering through the graph renderer.
+  // resolveVoiceGraph is the shared config→graph path (also used by the Studio one-shot
+  // preview) so preview and export resolve identically. Linear graphs bake via -af;
+  // parallel/convolution graphs via -filter_complex.
+  const voiceGraph = resolveVoiceGraph(normalizedVoice);
+  const graphResult = buildStylizedGraph(voiceGraph);
+  // CHANGED: derive a VoiceFilterPlan covering both -af and -filter_complex graphs.
+  // WHY: the 6 parallel character presets render `mode==='complex'`; previously those
+  //      collapsed to null → raw fallback. Now they bake; either path falls back to raw.
+  const voicePlan: VoiceFilterPlan | null =
+    graphResult.mode === 'af' && graphResult.af
+      ? { mode: 'af', af: graphResult.af }
+      : graphResult.mode === 'complex' && graphResult.filterComplex && graphResult.outputLabel
+        ? { mode: 'complex', result: graphResult }
+        : null;
 
-  const runEncode = async (filter: string | null): Promise<Uint8Array> =>
+  const runEncode = async (encodePlan: VoiceFilterPlan | null): Promise<Uint8Array> =>
     transcodeWithStrategies(
       inputBytes,
       (ratio, stage) => {
@@ -474,21 +570,21 @@ export async function runWebmToMp4(
         report(ratio, stage);
       },
       (ratio) => report(Math.min(1, Math.max(0, ratio)), 'transcoding'),
-      filter,
+      encodePlan,
     );
 
   try {
     onProgress?.(0.18, 'writing-input');
 
-    if (audioFilter) {
+    if (voicePlan) {
       try {
-        const output = await runEncode(audioFilter);
+        const output = await runEncode(voicePlan);
         onProgress?.(1, 'done');
         return { bytes: output };
       } catch (voiceError) {
         const detail = voiceError instanceof Error ? voiceError.message : String(voiceError);
         console.warn(
-          `${EXTENSION_LOG_PREFIX} Voice -af transcode failed — falling back to raw audio`,
+          `${EXTENSION_LOG_PREFIX} Voice ${voicePlan.mode} transcode failed — falling back to raw audio`,
           detail,
         );
         disposeFfmpeg();

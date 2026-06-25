@@ -560,6 +560,89 @@ body {
   line-height: 1.45;
 }
 
+/* Dulcet II (v5 / Branch 4) — character chip picker */
+.studio__char-section {
+  margin: 0 0 12px;
+}
+
+.studio__char-label {
+  display: block;
+  margin: 0 0 7px;
+  font-size: var(--studio-font-meta);
+  font-weight: var(--studio-font-weight-label);
+  letter-spacing: var(--studio-letter-label);
+  text-transform: uppercase;
+  color: var(--studio-text-muted);
+}
+
+.studio__char-help {
+  margin: 0 0 8px;
+  color: var(--studio-text-muted);
+  line-height: 1.4;
+}
+
+.studio__char-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 4px;
+}
+
+/* Non-interactive status light: "you're on a custom voice for <profile>". */
+.studio__char-status {
+  display: inline-block;
+  margin: 6px 0 0;
+  padding: 3px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--studio-violet-confirm-edge);
+  background: rgba(148, 152, 232, 0.12);
+  color: var(--studio-violet-confirm);
+  font-size: var(--studio-font-meta);
+  font-weight: 600;
+  letter-spacing: var(--studio-letter-meta);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio__char-status[hidden] {
+  display: none;
+}
+
+.studio__char-chip {
+  padding: 4px 11px;
+  border-radius: 14px;
+  border: 1px solid var(--studio-indigo-accent);
+  background: transparent;
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-body);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+
+.studio__char-chip:hover {
+  border-color: var(--studio-amber-dim);
+  color: var(--studio-text);
+}
+
+.studio__char-chip.is-selected {
+  border-color: var(--studio-amber);
+  background: rgba(255, 213, 79, 0.1);
+  color: var(--studio-amber);
+}
+
+.studio__char-note {
+  margin: 2px 0 0;
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-meta);
+  font-style: italic;
+  min-height: 1.1em;
+}
+
 .studio__voice-preset-tip {
   margin: -2px 0 6px;
   color: #d7dadc;
@@ -591,6 +674,335 @@ body {
 .studio__voice-status {
   margin: 0;
   min-height: 1.2em;
+}
+
+/* Dulcet II (v5 / Branch 4) — Custom voice composer */
+.voice-composer {
+  margin: 4px 0 12px;
+}
+
+.voice-composer__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.voice-composer__toolbar-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #d7dadc;
+}
+
+.voice-composer__toolbar-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.voice-composer__link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: #818384;
+  cursor: pointer;
+}
+
+.voice-composer__link:hover {
+  color: #d7dadc;
+  text-decoration: underline;
+}
+
+.voice-composer__link--blank:hover {
+  color: #ff7b7b;
+}
+
+.voice-composer__advanced {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 0.75rem;
+  color: #818384;
+  cursor: pointer;
+}
+
+.voice-composer__cat {
+  border: 1px solid #343536;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.voice-composer__cat-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 11px;
+  background: none;
+  border: none;
+  color: #d7dadc;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.voice-composer__cat-head:hover {
+  background: #1a1a1b;
+}
+
+.voice-composer__chevron {
+  color: #818384;
+  font-size: 0.75rem;
+  width: 0.9em;
+}
+
+.voice-composer__cat-label {
+  flex: 1;
+}
+
+.voice-composer__count {
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #343536;
+  color: #818384;
+}
+
+.voice-composer__count.is-on {
+  border-color: transparent;
+  background: rgba(0, 121, 211, 0.18);
+  color: #4fbcff;
+}
+
+.voice-composer__cat-body {
+  padding: 2px 11px 6px;
+  border-top: 1px solid #343536;
+}
+
+.voice-composer__frag {
+  padding: 9px 0;
+  border-bottom: 1px solid #2a2a2b;
+}
+
+.voice-composer__frag:last-child {
+  border-bottom: none;
+}
+
+.voice-composer__frag-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.voice-composer__frag-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+
+.voice-composer__frag-name {
+  font-size: 0.8125rem;
+  color: #d7dadc;
+}
+
+.voice-composer__frag.is-on .voice-composer__frag-name {
+  font-weight: 600;
+}
+
+.voice-composer__adv-tag {
+  margin-left: 6px;
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  color: #818384;
+  border: 1px solid #343536;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.voice-composer__frag-info {
+  flex: none;
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #4a4a4b;
+  color: #818384;
+  font-size: 0.6875rem;
+  line-height: 14px;
+  text-align: center;
+  cursor: help;
+}
+
+/* Dulcet II (v5 / Branch 4) — Fine-tune disclosure + per-primitive gain dial */
+.voice-composer__advanced--finetune {
+  margin-top: -4px;
+  margin-bottom: 12px;
+  padding-left: 14px;
+  border-left: 2px solid #2a2a2b;
+}
+
+.voice-composer__gain {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.voice-composer__gain-knob {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-composer__gain-val {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--studio-amber, #ffd54f);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+  line-height: 1;
+  /* nudge into the knob well (the SVG well is centred slightly above middle) */
+  transform: translateY(-1px);
+  pointer-events: none;
+}
+
+.voice-composer__gain-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.voice-composer__gain-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.7;
+  touch-action: none;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.voice-composer__gain-step:hover {
+  opacity: 1;
+  background: rgba(255, 213, 79, 0.14);
+}
+
+.voice-composer__gain-step:active {
+  background: rgba(255, 213, 79, 0.26);
+}
+
+.voice-composer__gain-step img {
+  display: block;
+}
+
+.voice-composer__frag-body {
+  margin-top: 8px;
+  padding-left: 26px;
+}
+
+.voice-composer__ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.voice-composer__ctrl-label {
+  font-size: 0.6875rem;
+  color: #818384;
+  min-width: 76px;
+}
+
+/* Design Studio v4 physical slider (div-based, pointer-captured).
+   Track SVG uses preserveAspectRatio="none" + background-size 100% 100% so the
+   machined ends and edge glow stretch with the full row width. */
+.studio__physical-slider {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  height: 22px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.studio__voice-intensity .studio__physical-slider {
+  width: 100%;
+}
+
+.studio__physical-slider:focus-visible {
+  outline: 2px solid #4fbcff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.studio__physical-slider.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.studio__physical-slider-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 16px;
+  transform: translateY(-50%);
+  border-radius: 4px;
+  background-image: url('/assets/design-studio-v4/sliders/physical-slider-track.svg');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+.studio__physical-slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 28px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  background-image: url('/assets/design-studio-v4/sliders/physical-slider-tab.svg');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+}
+
+.studio__physical-slider:active:not(.is-disabled) {
+  cursor: grabbing;
+}
+
+.voice-composer__ctrl-value {
+  font-size: 0.6875rem;
+  color: #d7dadc;
+  min-width: 30px;
+  text-align: right;
+}
+
+.voice-composer__select {
+  flex: 1;
 }
 
 .studio__subtitles-source {

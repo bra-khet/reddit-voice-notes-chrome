@@ -6,10 +6,13 @@ import { isStylePanelVisible } from '@/src/ui/style-select';
 import type { TranscriptDeliveryStatus } from '@/src/ui/design-studio/subtitle-segment-editor';
 import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 import type { TranscriptConfig } from '@/src/transcription/types';
+import type { VoiceEffectConfig } from '@/src/voice/types';
 
 export type StudioStatusStripInput = {
   prefs: UserPreferencesV1;
   transcriptForMatch: TranscriptConfig;
+  /** Live voice draft for dirty-match — falls back to prefs.voiceEffect when absent. */
+  voiceForMatch?: VoiceEffectConfig;
   transcriptDirty: boolean;
   transcriptDelivery: TranscriptDeliveryStatus;
   hasSessionRecording: boolean;
@@ -46,14 +49,18 @@ export type ProfileStatusSnapshot = {
 // DEFERRED: RECORDED? row — in-studio recording is out of scope for v4 UI refresh (docs/design-studio.md §10.1).
 // Future: YES | NO | ERROR from recorder session bridge.
 
-function profileDirty(prefs: UserPreferencesV1, transcriptForMatch: TranscriptConfig): boolean {
+function profileDirty(
+  prefs: UserPreferencesV1,
+  transcriptForMatch: TranscriptConfig,
+  voiceForMatch: VoiceEffectConfig | undefined,
+): boolean {
   const profileId = prefs.appearance.activeProfileId;
   if (!profileId || isPresetProfileId(profileId)) return false;
   const profile = getClipProfileById(prefs, profileId);
   if (!profile) return false;
   return !clipProfileMatchesLiveState(
     prefs.appearance,
-    prefs.voiceEffect,
+    voiceForMatch ?? prefs.voiceEffect,
     transcriptForMatch,
     profile,
   );
@@ -71,7 +78,7 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
   } = input;
   const subtitlesEnabled = transcriptForMatch.transcriptionEnabled;
   const hasCues = hasTranscriptCues;
-  const unsavedProfile = profileDirty(prefs, transcriptForMatch);
+  const unsavedProfile = profileDirty(prefs, transcriptForMatch, input.voiceForMatch);
   const unsavedStyle = isStylePanelVisible(prefs) && isCustomStyleDirty(prefs.appearance);
 
   let subtitlesState: SubtitlesStatusState;

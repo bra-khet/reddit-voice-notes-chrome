@@ -1,7 +1,5 @@
 import { disposeFfmpeg, runSubtitleBurnIn, runWebmToMp4, type RunWebmToMp4Result } from '@/src/ffmpeg/ffmpeg-runner';
 import { normalizeVoiceEffectConfig, type VoiceEffectConfig } from '@/src/voice/types';
-import { enqueueProcessAudio } from '@/src/voice/offscreen-queue';
-import { VOICE_EFFECT_PRESETS, voiceConfigFromPreset } from '@/src/voice/presets';
 import {
   assertTranscodeNotCancelled,
   clearTranscodeCancelled,
@@ -530,13 +528,6 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return;
 });
-
-/** dulcet-1 manual harness — DevTools on this offscreen document (serialized via transcode queue). */
-(globalThis as Record<string, unknown>).__rvnVoiceHarness = {
-  enqueueProcessAudio,
-  presets: VOICE_EFFECT_PRESETS,
-  voiceConfigFromPreset,
-};
 
 /** eloquent-1 — offscreen transcription via MSG_TRANSCRIBE_* + vosk-sandbox iframe. */
 (globalThis as Record<string, unknown>).__rvnTranscribeHarness = {

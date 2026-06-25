@@ -6,9 +6,9 @@ All recording, visualization, transcoding, and voice effects happen **client-sid
 
 ## Status
 
-**Stable `main` v4.0.0 — Eloquent I** (2026-06-24) — optional automated subtitles on the full v3 stack: Vosk WASM STT, Design Studio v4 shell, YouTube-style segment editor, edit-before-bake, hard-burned captions, 3-phase workflow guidance. Fully opt-in — v3 fast path unchanged when subtitles are off. Release: `docs/release-notes-v4.0.0.md`.
+**Stable `main` v5.0.0 — Dulcet II** (2026-06-25) — full DSP rebuild of voice stylization on a graph-native engine: composable `StylizedGraph` fragments (21 effect primitives across 7 categories) replace the legacy flat-field layer, with character voice presets (one-click chips + Incognito), per-primitive Fine-tune intensity dials, and physical analog sliders in the Design Studio voice composer. The graph bake is the single source of truth for preview and export. Release: `docs/release-notes-v5.0.0.md`.
 
-Previous stable: **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3), `eloquent-branch.md` (v4 subtitles).
+Previous stable: **v4.0.0** (Eloquent I — subtitles), **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3), `eloquent-branch.md` (v4 subtitles).
 
 ### What's new in v4.0 (Eloquent I)
 
@@ -72,6 +72,39 @@ Previous stable: **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2
 5. Next recording applies active voice config during transcode
 
 **Disabled path:** identical to v2 — no `-af`, no extra WASM work.
+
+## Character voice presets (Dulcet II / v5)
+
+This is the flagship of the project — it's called Reddit **Voice** Notes for a reason.
+v5 rebuilds voice effects on a composable, mix-and-match **graph fragment** system
+optimized for highly stylized fantasy / video-game / anime / V-tuber-style character
+voices, and ships a set of ready-made **character presets** as starting points.
+
+Each preset is just a curated recipe of fragments — nothing you can't build (or
+re-create) yourself by combining the same building blocks:
+
+| Preset | Character |
+|--------|-----------|
+| **Cyber Oracle** | Clangorous metallic prophet in a vast digital cathedral |
+| **NerdRage 🧪** | Homage to the NurdRage YouTube channel (the original Cyber Oracle voicing, preserved as-is) |
+| **Glitch Beast** | Snarling, stuttering cyber-monster |
+| **Ethereal Singer** | Bright, breathy spirit with a shimmering synth halo |
+| **Radio Demon** | Crackly, squashed vintage-broadcast menace |
+| **Helium Sprite** | Tiny, hyper cartoon-pixie chatter |
+| **Abyssal Titan** | Colossal, subterranean god-voice from the deep dark |
+
+### Roll your own
+
+Presets are composed from **21 fragments across 7 categories** — Pitch & Formant,
+Dynamics & Clarity, Modulation & Movement, Color & Embellishment, Spatial / Reverb,
+Textural / Granular, and Hybrid Layers. Enable the ones you want, set their high-level
+sliders (Amount / Character / Edge / Air …), and a global **Intensity / Turbo** scales
+the whole chain. Use a preset as a launchpad: start from "Cyber Oracle", then push the
+ring-mod or swap the convolution space to make it your own.
+
+The fragment model, the canonical chain order, and the design philosophy are documented
+in [`docs/dsp-foundation-design.md`](docs/dsp-foundation-design.md). Presets live in
+`src/voice/dsp/preset-graphs.ts`.
 
 ## Subtitles (v4)
 
@@ -170,7 +203,7 @@ Output: `.output/chrome-mv3/`
 npm run zip
 ```
 
-Output: `.output/reddit-voice-notes-4.0.0-chrome.zip` (~57 MB — includes Vosk model + fonts)
+Output: `.output/reddit-voice-notes-5.0.0-chrome.zip` (~57 MB — includes Vosk model + fonts)
 
 ### Type check
 
@@ -212,6 +245,7 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 
 | Tag | Meaning |
 |-----|---------|
+| `v5.0.0` | **Dulcet II** — graph-native voice DSP rebuild + character presets (`dulcet-ii` merge, 2026-06) |
 | `v4.0.0` | **Eloquent I** — automated subtitles + Design Studio v4 (`eloquent` merge, 2026-06) |
 | `v3.1.0` | Design Studio collapsible panels + UX polish (2026-06) |
 | `v3.0.0` | Voice effects (`dulcet` merge, 2026-06) |

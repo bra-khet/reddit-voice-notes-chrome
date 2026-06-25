@@ -44,6 +44,8 @@ export const STUDIO_V4_ASSETS = {
     chevronEnter16: `${BASE}/icons/navigation/chevron-enter-16.svg`,
     chevronBack32: `${BASE}/icons/navigation/chevron-back-32.svg`,
     chevronBack16: `${BASE}/icons/navigation/chevron-back-16.svg`,
+    chevronUp16: `${BASE}/icons/navigation/chevron-up-16.svg`,
+    chevronDown16: `${BASE}/icons/navigation/chevron-down-16.svg`,
     profile32: `${BASE}/icons/navigation/profile-silhouette-32.svg`,
     profile16: `${BASE}/icons/navigation/profile-silhouette-16.svg`,
   },
@@ -61,6 +63,7 @@ export const STUDIO_V4_ASSETS = {
     needle: `${BASE}/knobs/knob-needle.svg`,
     decal: `${BASE}/knobs/knob-radial-speedometer-decal.svg`,
     volumeAssembly: `${BASE}/knobs/volume-knob.svg`,
+    mini: `${BASE}/knobs/knob-mini.svg`,
   },
 } as const;
 

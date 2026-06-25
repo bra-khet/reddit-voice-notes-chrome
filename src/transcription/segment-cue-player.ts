@@ -86,17 +86,20 @@ export function createSegmentCuePlayer(): SegmentCuePlayerHandle {
     source.start(0, window.start, duration);
   };
 
-  const playViaMediaElement = async (window: { start: number; end: number }): Promise<void> => {
+  // BUG FIX: tsc TS2339 "Property 'setTimeout' does not exist on '{ start; end }'"
+  // Fix: the cue-window param was named `window`, shadowing the DOM global; rename to `cueWindow`
+  // so `window.setTimeout` resolves to the global timer API (mirrors window.clearTimeout in clearStopTimer).
+  const playViaMediaElement = async (cueWindow: { start: number; end: number }): Promise<void> => {
     if (!objectUrl) throw new Error('No media URL for cue preview.');
 
     const audio = new Audio(objectUrl);
     mediaElement = audio;
-    audio.currentTime = window.start;
+    audio.currentTime = cueWindow.start;
 
     playing = true;
     await audio.play();
 
-    const durationMs = Math.max(0, (window.end - window.start) * 1000);
+    const durationMs = Math.max(0, (cueWindow.end - cueWindow.start) * 1000);
     stopTimer = window.setTimeout(() => {
       audio.pause();
       playing = false;
