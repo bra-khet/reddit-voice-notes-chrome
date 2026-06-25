@@ -28,6 +28,10 @@ import {
   type FragmentKind,
   type StylizedGraph,
 } from '@/src/voice/dsp';
+import {
+  renderPhysicalSliderHtml,
+  wirePhysicalSliders,
+} from '@/src/ui/design-studio/physical-slider';
 import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 
 export interface VoiceComposerHandle {
@@ -165,23 +169,6 @@ function fmtRange(spec: Extract<ControlSpec, { type: 'range' }>, value: number):
   return String(value);
 }
 
-/** Custom physical-slider geometry (thumb is the physical-slider-tab asset). */
-const SLIDER_THUMB_PX = 28;
-const SLIDER_THUMB_HALF_PX = SLIDER_THUMB_PX / 2;
-
-/**
- * CSS `left` for the thumb centre at fraction `frac` (0–1) of travel. The thumb
- * is inset by half its width at each rail so it never overhangs the track ends.
- */
-function sliderThumbLeft(frac: number): string {
-  const f = Math.max(0, Math.min(1, frac));
-  return `calc(${SLIDER_THUMB_HALF_PX}px + (100% - ${SLIDER_THUMB_PX}px) * ${f})`;
-}
-
-function valueToFraction(value: number, min: number, max: number): number {
-  return max > min ? (value - min) / (max - min) : 0;
-}
-
 export function mountVoiceComposer(
   host: HTMLElement,
   options: VoiceComposerOptions,
@@ -245,21 +232,17 @@ export function mountVoiceComposer(
           </div>`;
       }
       const value = Number(params[spec.key] ?? 0);
-      const frac = valueToFraction(value, spec.min, spec.max);
-      // Custom div slider (not a native <input range>): a div with its own pointer
-      // logic + setPointerCapture keeps the drag glued to this slider only — native
-      // range inputs were dropping capture and the wrapping label jumped the value.
       return `
         <div class="voice-composer__ctrl">
           <span class="voice-composer__ctrl-label">${spec.label}</span>
-          <div class="voice-composer__slider" data-slider data-kind="${fragment.kind}" data-key="${spec.key}"
-            data-min="${spec.min}" data-max="${spec.max}" data-step="${spec.step}" data-value="${value}"
-            role="slider" tabindex="0"
-            aria-valuemin="${spec.min}" aria-valuemax="${spec.max}" aria-valuenow="${value}"
-            aria-label="${escapeAttr(`${FRAGMENT_DEFS[fragment.kind].label} ${spec.label}`)}">
-            <span class="voice-composer__slider-track"></span>
-            <span class="voice-composer__slider-thumb" style="left:${sliderThumbLeft(frac)}"></span>
-          </div>
+          ${renderPhysicalSliderHtml({
+            min: spec.min,
+            max: spec.max,
+            step: spec.step,
+            value,
+            ariaLabel: `${FRAGMENT_DEFS[fragment.kind].label} ${spec.label}`,
+            dataAttrs: { kind: fragment.kind, key: spec.key },
+          })}
           <span class="voice-composer__ctrl-value" data-value-for="${fragment.kind}.${spec.key}">${fmtRange(spec, value)}</span>
         </div>`;
     });
@@ -447,40 +430,18 @@ export function mountVoiceComposer(
     (fragment.params as unknown as Record<string, unknown>)[key] = value;
   }
 
-  /* ----- Custom slider drag (pointer-captured) ----- */
-
-  let activeSlider: HTMLElement | null = null;
-
-  /** Snap a pointer x to the slider's stepped, clamped value (thumb-inset travel). */
-  function sliderValueFromX(slider: HTMLElement, clientX: number): number {
-    const min = Number(slider.dataset.min);
-    const max = Number(slider.dataset.max);
-    const step = Number(slider.dataset.step) || 1;
-    const rect = slider.getBoundingClientRect();
-    const usable = rect.width - SLIDER_THUMB_PX;
-    const frac = usable > 0 ? (clientX - rect.left - SLIDER_THUMB_HALF_PX) / usable : 0;
-    const raw = min + Math.max(0, Math.min(1, frac)) * (max - min);
-    return Math.max(min, Math.min(max, Math.round(raw / step) * step));
-  }
-
-  /** Apply a value to a slider: move the thumb + readout, and emit only on change. */
-  function setSliderValue(slider: HTMLElement, value: number): void {
-    const min = Number(slider.dataset.min);
-    const max = Number(slider.dataset.max);
-    const prev = Number(slider.dataset.value);
-    slider.dataset.value = String(value);
-    slider.setAttribute('aria-valuenow', String(value));
-    const thumb = slider.querySelector<HTMLElement>('.voice-composer__slider-thumb');
-    if (thumb) thumb.style.left = sliderThumbLeft(valueToFraction(value, min, max));
-    const kind = slider.dataset.kind as FragmentKind;
-    const key = slider.dataset.key as string;
-    const readout = host.querySelector<HTMLElement>(`[data-value-for="${kind}.${key}"]`);
-    if (readout) readout.textContent = value > 0 && min < 0 ? `+${value}` : String(value);
-    if (value !== prev) {
+  const unwireSliders = wirePhysicalSliders(host, {
+    onValueChange(slider, value, prev) {
+      if (value === prev) return;
+      const min = Number(slider.dataset.min);
+      const kind = slider.dataset.kind as FragmentKind;
+      const key = slider.dataset.key as string;
+      const readout = host.querySelector<HTMLElement>(`[data-value-for="${kind}.${key}"]`);
+      if (readout) readout.textContent = value > 0 && min < 0 ? `+${value}` : String(value);
       applyParam(kind, key, value);
       emit();
-    }
-  }
+    },
+  });
 
   /* ----- Gain stepper press-and-hold (dead-man's switch auto-repeat) ----- */
 
@@ -521,58 +482,17 @@ export function mountVoiceComposer(
       startGainHold(kind, gainBtn.dataset.action === 'gain-up' ? +1 : -1);
       return;
     }
-    const slider = el.closest<HTMLElement>('[data-slider]');
-    if (slider) {
-      event.preventDefault();
-      activeSlider = slider;
-      try {
-        // Capture binds the whole drag to THIS slider — no dropped capture, no
-        // bleeding onto neighbours even if the cursor leaves the element.
-        slider.setPointerCapture(event.pointerId);
-      } catch {
-        // ignore
-      }
-      // preventDefault suppresses the focus a click would give; restore it so the
-      // arrow keys work right after grabbing (preventScroll keeps the popup still).
-      slider.focus({ preventScroll: true });
-      setSliderValue(slider, sliderValueFromX(slider, event.clientX));
-    }
-  }
-
-  function onPointerMove(event: PointerEvent): void {
-    if (!activeSlider) return;
-    setSliderValue(activeSlider, sliderValueFromX(activeSlider, event.clientX));
   }
 
   function onPointerEnd(): void {
-    activeSlider = null;
     stopGainHold();
-  }
-
-  function onKeyDown(event: KeyboardEvent): void {
-    const slider = (event.target as HTMLElement).closest<HTMLElement>('[data-slider]');
-    if (!slider) return;
-    const min = Number(slider.dataset.min);
-    const max = Number(slider.dataset.max);
-    const step = Number(slider.dataset.step) || 1;
-    const current = Number(slider.dataset.value);
-    let next = current;
-    if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next = current + step;
-    else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next = current - step;
-    else if (event.key === 'Home') next = min;
-    else if (event.key === 'End') next = max;
-    else return;
-    event.preventDefault();
-    setSliderValue(slider, Math.max(min, Math.min(max, next)));
   }
 
   host.addEventListener('click', onClick);
   host.addEventListener('change', onChangeEvent);
   host.addEventListener('pointerdown', onPointerDown);
-  host.addEventListener('pointermove', onPointerMove);
   host.addEventListener('pointerup', onPointerEnd);
   host.addEventListener('pointercancel', onPointerEnd);
-  host.addEventListener('keydown', onKeyDown);
   render();
 
   return {
@@ -588,13 +508,12 @@ export function mountVoiceComposer(
     },
     dispose() {
       stopGainHold();
+      unwireSliders();
       host.removeEventListener('click', onClick);
       host.removeEventListener('change', onChangeEvent);
       host.removeEventListener('pointerdown', onPointerDown);
-      host.removeEventListener('pointermove', onPointerMove);
       host.removeEventListener('pointerup', onPointerEnd);
       host.removeEventListener('pointercancel', onPointerEnd);
-      host.removeEventListener('keydown', onKeyDown);
       host.innerHTML = '';
       host.classList.remove('voice-composer');
     },

@@ -933,29 +933,37 @@ body {
   min-width: 76px;
 }
 
-/* Custom physical slider (div-based, pointer-captured) for the primitive controls.
-   Uses the design-studio-v4 slider assets: machined track (stretched full width)
-   + physical tab thumb. A real DOM slider gives us reliable cursor capture and a
-   track that scales with the row, which the native range pseudo-elements did not. */
-.voice-composer__slider {
+/* Design Studio v4 physical slider (div-based, pointer-captured).
+   Track SVG uses preserveAspectRatio="none" + background-size 100% 100% so the
+   machined ends and edge glow stretch with the full row width. */
+.studio__physical-slider {
   flex: 1;
   min-width: 0;
   position: relative;
   height: 22px;
   cursor: pointer;
-  /* keep the drag glued to this slider: no scroll-steal, no text selection */
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.voice-composer__slider:focus-visible {
+.studio__voice-intensity .studio__physical-slider {
+  width: 100%;
+}
+
+.studio__physical-slider:focus-visible {
   outline: 2px solid #4fbcff;
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-.voice-composer__slider-track {
+.studio__physical-slider.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.studio__physical-slider-track {
   position: absolute;
   left: 0;
   right: 0;
@@ -969,7 +977,7 @@ body {
   pointer-events: none;
 }
 
-.voice-composer__slider-thumb {
+.studio__physical-slider-thumb {
   position: absolute;
   top: 50%;
   width: 28px;
@@ -982,7 +990,7 @@ body {
   pointer-events: none;
 }
 
-.voice-composer__slider:active {
+.studio__physical-slider:active:not(.is-disabled) {
   cursor: grabbing;
 }
 

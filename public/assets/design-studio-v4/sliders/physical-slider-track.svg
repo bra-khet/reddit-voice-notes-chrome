@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="280" height="36" viewBox="0 0 280 36" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="36" viewBox="0 0 280 36"
+     preserveAspectRatio="none" aria-hidden="true">
 /*
   Design Studio v4 — Physical Analog Slider Track
   Features:
@@ -12,6 +13,10 @@
   - The black center (#12001f or pure black) gives the "feathered to black center" physical look.
 
   Pair with physical-slider-tab.svg
+
+  Scaling:
+  - preserveAspectRatio="none" so CSS background-size: 100% 100% stretches the full
+    track width; percentage gradient stops keep the theme glow pinned to both ends.
 
   NOTE FOR GIMP: Use CSS-style /* */ comments (not XML <!-- -->) for header docs
   in SVGs. GIMP's parser can be strict about double hyphens inside XML comments.
