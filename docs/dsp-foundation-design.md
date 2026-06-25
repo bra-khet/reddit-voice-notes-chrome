@@ -149,27 +149,27 @@ kind skips to `none` (no crash).
 
 ---
 
-## Integration plan (Sub-Phase 1.3 — not yet wired)
+## Integration plan (Sub-Phase 1.3 → Branch 4) — DONE
 
-The legacy export path (`ffmpeg-runner.ts:462`, `process-audio.ts:141`) still calls
-`buildFfmpegAudioFilter(config) → { filter, stage }`. 1.3 swaps the source:
+The whole pipeline is now graph-native; the legacy flat path is **removed** (Branch 4,
+commit 5cfa5c1).
 
-1. **DONE (step 1):** `process-audio.ts` `processAudioBytesWithGraph()` /
+1. **DONE:** `process-audio.ts` `processAudioBytesWithGraph()` /
    `processAudioWithGraph()` run a `StylizedGraph` through ffmpeg.wasm — both the
-   linear `-af` chain and the complex `-filter_complex` path (writes aux IR WAVs as
-   extra `-i`, `-map`s the output pad, longer timeout for convolution). Additive: the
-   legacy `processAudioBytes(config)` path is untouched. **Harness-testable now;
-   pending runtime QA of filter availability + convolution perf.**
-2. Wire the live transcode (`ffmpeg-runner.ts`) — needs `-filter_complex` + aux `-i`
-   threaded into the muxed WebM→MP4 strategies alongside the waveform video stream.
-3. Store `StylizedGraph` (migrate legacy on read) instead of `VoiceEffectConfig`
-   across prefs/profiles/Design Studio (~24 files; do with the app running for QA).
-4. Refactor `resolve-config.ts` intensity scaling into `RenderContext` with the
-   **non-linear, per-primitive** curve (user decision); refresh `presets.ts` as
-   native fragment graphs.
+   linear `-af` chain and the complex `-filter_complex` path (aux IR WAVs as extra
+   `-i`, `-map`ped output pad, longer convolution timeout). These are now the **only**
+   voice processors.
+2. **DONE:** the live transcode (`ffmpeg-runner.ts` → `resolveVoiceGraph` →
+   `buildStylizedGraph`) bakes the graph, threading `-filter_complex` + aux `-i`
+   alongside the waveform video stream. Test and export resolve identically.
+3. **DONE:** `VoiceEffectConfig` carries the `StylizedGraph` directly (`graph`) plus
+   `characterPresetId`; prefs / profiles / Design Studio persist it with no schema
+   plumbing. The flat `pitchShift/eq/dynamics/reverb/presetId` fields and the
+   `presets.ts` / `filter-graphs.ts` / `migrate-v1.ts` legacy modules are deleted.
+4. **Open (deferred):** per-primitive non-linear intensity curves. The global
+   ease-in `intensityFactor = (intensity/10) ** 1.3` ships as-is.
 
-The dsp module + the `process-audio` graph runner are additive; the live recorder /
-export / storage paths are still on the legacy config.
+The voice subsystem is graph-only end to end — there is no second (legacy) world.
 
 ## Status / next
 
@@ -241,20 +241,16 @@ render rather than a second DSP backend.
   in full and stay byte-identical to the bake; longer clips trim (with a status note).
   The export path never sets this, so **bakes are always full-length**.
 
-### Tier 2 — "Play preview" (instant, APPROXIMATION)
-- The legacy Web Audio chain (`preview-chain.ts`): `playbackRate` pitch + biquad EQ +
-  `DynamicsCompressor`. Zero latency, good for quick legacy/pitch tweaks.
-- **Cannot represent v5 character graphs** — its renderer reads only the flat legacy
-  fields and ignores `characterPresetId`. So when a character voice is active, this
-  button is **disabled** (with a hint steering to Test) rather than playing a
-  misleading near-raw result (§3.3 edge case).
-- Even for legacy presets it is only *roughly* representative (the bake now goes through
-  the migrated graph, not this chain). Authoritative auditioning is always Tier 1.
+### Tier 2 — "Play preview" — REMOVED (Branch 4, 4.3)
+The legacy Web Audio chain (`playbackRate` pitch + biquad EQ + `DynamicsCompressor`)
+could only read the flat legacy fields and never represented a v5 character graph, so it
+was always disabled once the chip picker + composer became the sole authoring path.
+Branch 4 removed it; `preview-chain.ts` is now a **dry rendered-clip player** only. Test
+is the single, authoritative preview.
 
 ### Single master preview
-One `VoicePreviewHandle` owns playback; every entry point (`play`, `playProcessed`)
-calls `stop()` first, so only one clip plays at a time and the Stop button governs both
-tiers uniformly.
+One `VoicePreviewHandle` owns playback; `playProcessed` calls `stop()` first, so only one
+rendered clip plays at a time and the Stop button governs it.
 
 ---
 

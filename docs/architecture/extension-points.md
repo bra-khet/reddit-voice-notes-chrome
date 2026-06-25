@@ -9,15 +9,27 @@
 
 ---
 
-## Voice effects — v1
+## Voice effects — v5 (graph-native, Dulcet II)
 
-- **Add a preset:** `src/voice/presets.ts` → register; intensity scaling in `src/voice/resolve-config.ts`.
-- **Preview path:** `src/voice/preview-chain.ts` (Web Audio graph) — fully expressive.
-- **Bake path:** filter graph in `src/voice/filter-graphs.ts` → applied as `-af` in the transcode pass.
-- **Preview=bake?** YES — a preset MUST have both paths reading the same resolved config from `resolveVoiceEffectConfig()`. A preview-only effect is a violation.
-- **Sync points:** preset id ↔ summary (`src/voice/voice-summary.ts`) ↔ Studio control (`src/ui/design-studio/voice-controls.ts`).
-- **Gotcha:** Web Audio `AudioParam` uses `.value` assignment — not `.setValueAtTime()` (BUG-008 origin class).
-- **Import rule:** Do NOT add voice effect code to `src/voice/types.ts` barrel re-exports — circular import risk (BUG-008).
+The flat v3/v4 layer (presets.ts / filter-graphs.ts / migrate-v1.ts / Web-Audio preview)
+was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only config is
+`graph` (user-composed) or `characterPresetId`.
+
+- **Add a fragment (primitive):** add one entry to `FragmentParamMap` + `FRAGMENT_DEFS`
+  in `src/voice/dsp/fragment-types.ts`, then an emitter in `src/voice/dsp/ffmpeg-renderer.ts`.
+  The discriminated union, defaults, registry, and composer UI all derive from that map.
+- **Add a character preset:** `src/voice/dsp/preset-graphs.ts` → register a recipe
+  (`build()` returns fragments); it surfaces automatically as a chip in the voice panel.
+- **Bake path:** `resolveVoiceGraph(config)` → `buildStylizedGraph()` → `-af` (linear) or
+  `-filter_complex` + aux IR WAVs (parallel/convolution), run by `src/ffmpeg/ffmpeg-runner.ts`.
+- **Preview=bake?** YES — Test and the live export both resolve through the *same*
+  `resolveVoiceGraph()` and the *same* renderer, so Test is byte-identical to the bake.
+  There is no separate preview DSP backend (the dry player just plays the rendered clip).
+- **Sync points:** `characterPresetId`/`graph` ↔ summary (`src/voice/voice-summary.ts`) ↔
+  Studio composer (`src/ui/design-studio/voice-composer.ts` + `voice-controls.ts`) ↔
+  dirty key (`voiceEffectUserIntentKey` in `src/voice/resolve-config.ts`, id-free).
+- **Import rule:** `src/voice/types.ts` may import only the `fragment-types` leaf — never
+  `resolve-config` / renderers — to avoid pulling FFmpeg into the popup (BUG-008 class).
 
 ## Subtitle effects — v1
 

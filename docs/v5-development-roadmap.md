@@ -99,7 +99,14 @@ After all four are merged back into `dulcet`, do final polish work directly on `
 
 ---
 
-### Branch 4: `dulcet/character-system`
+### Branch 4: `dulcet-ii/character-system` — ✅ COMPLETE (merged to `dulcet-ii/integration`)
+
+**Shipped:** the chip-based character picker (front door) + the mix-and-match Custom
+composer (curated core + Advanced reveal, seed-then-tweak, blank-slate). The voice state
+layer (summary, dirty-check, persistence) was moved onto the graph world, and the entire
+legacy flat-field layer (presets table, `filter-graphs.ts`, `migrate-v1.ts`, Web-Audio
+preview) was deleted — the subsystem is graph-native end to end (commits 9b4a443 →
+5cfa5c1). Deferred: per-primitive non-linear intensity curves.
 
 **Purpose**: Deliver the expressive Custom mode and new stylized presets that let users create their own character voices.
 
