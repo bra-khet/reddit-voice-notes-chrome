@@ -853,6 +853,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .voice-composer__gain-knob {
@@ -896,6 +898,7 @@ body {
   border-radius: 3px;
   cursor: pointer;
   opacity: 0.7;
+  touch-action: none;
   transition: opacity 0.12s, background 0.12s;
 }
 
@@ -930,63 +933,57 @@ body {
   min-width: 76px;
 }
 
-/* Physical-slider styling for the primitive controls — uses the design-studio-v4
-   slider assets (tab handle + machined track). appearance:none + a tall grab
-   target also fixes the thumb being fiddly to capture. */
-.voice-composer__range {
+/* Custom physical slider (div-based, pointer-captured) for the primitive controls.
+   Uses the design-studio-v4 slider assets: machined track (stretched full width)
+   + physical tab thumb. A real DOM slider gives us reliable cursor capture and a
+   track that scales with the row, which the native range pseudo-elements did not. */
+.voice-composer__slider {
   flex: 1;
   min-width: 0;
-  height: 20px;
-  margin: 0;
-  background: transparent;
+  position: relative;
+  height: 22px;
   cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
+  /* keep the drag glued to this slider: no scroll-steal, no text selection */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.voice-composer__range::-webkit-slider-runnable-track {
+.voice-composer__slider:focus-visible {
+  outline: 2px solid #4fbcff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.voice-composer__slider-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
   height: 16px;
+  transform: translateY(-50%);
   border-radius: 4px;
   background-image: url('/assets/design-studio-v4/sliders/physical-slider-track.svg');
   background-size: 100% 100%;
   background-repeat: no-repeat;
+  pointer-events: none;
 }
 
-.voice-composer__range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
+.voice-composer__slider-thumb {
+  position: absolute;
+  top: 50%;
   width: 28px;
   height: 20px;
-  margin-top: -2px;
+  transform: translate(-50%, -50%);
   background-image: url('/assets/design-studio-v4/sliders/physical-slider-tab.svg');
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  border: none;
-  cursor: grab;
+  pointer-events: none;
 }
 
-.voice-composer__range:active::-webkit-slider-thumb {
+.voice-composer__slider:active {
   cursor: grabbing;
-}
-
-.voice-composer__range::-moz-range-track {
-  height: 16px;
-  border-radius: 4px;
-  background-image: url('/assets/design-studio-v4/sliders/physical-slider-track.svg');
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-}
-
-.voice-composer__range::-moz-range-thumb {
-  width: 28px;
-  height: 20px;
-  background-image: url('/assets/design-studio-v4/sliders/physical-slider-tab.svg');
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  border: none;
-  cursor: grab;
 }
 
 .voice-composer__ctrl-value {

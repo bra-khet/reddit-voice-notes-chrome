@@ -2,9 +2,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
 /*
   Design Studio v4 — Mini value knob (compact volume-knob variant).
-  Static housing + amber tick ring + dark center well; the numeric value is
-  overlaid by the DOM (a <span> centered on the well), so this is purely the
-  themed bezel for the per-primitive Fine-tune stepper. Theme via .theme-stroke.
+  Static housing, amber tick ring, dark center well. The numeric value is drawn
+  by the DOM on top of the well, so this is purely the themed bezel for the
+  per-primitive Fine-tune stepper. Theme via .theme-stroke.
 */
   <defs>
     <linearGradient id="mkBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
