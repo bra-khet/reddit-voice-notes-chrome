@@ -701,7 +701,9 @@ function backgroundBlobChunk(bytes: Uint8Array, chunkIndex: number): BackgroundB
   };
 }
 
-async function relayBackgroundBlobViaPort(port: browser.runtime.Port, id: string): Promise<void> {
+// BUG FIX: tsc TS2833 "Cannot find namespace 'browser'" (TS 5.7 + WXT types)
+// Fix: `browser` is a value global, not a type namespace; use WXT's `Browser` namespace for the Port type.
+async function relayBackgroundBlobViaPort(port: Browser.runtime.Port, id: string): Promise<void> {
   const loaded = await loadBackgroundBytes(id);
   if (!loaded) {
     port.postMessage({ phase: 'error', ok: false, error: 'Background not found.' } satisfies BackgroundBlobPortMessage);
