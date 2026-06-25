@@ -7,7 +7,6 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { mountVoiceComposer } from '@/src/ui/design-studio/voice-composer';
-import { getVoiceEffectPreset, VOICE_EFFECT_PRESETS } from '@/src/voice/presets';
 import {
   CHARACTER_PRESETS,
   resolveVoiceGraph,
@@ -23,7 +22,6 @@ import {
   VOICE_INTENSITY_MIN,
   VOICE_INTENSITY_TURBO,
   type VoiceEffectConfig,
-  type VoiceEffectPresetId,
 } from '@/src/voice/types';
 
 export interface VoiceControlsHandle {
@@ -61,23 +59,11 @@ export function renderVoiceControlFields(): string {
           aria-label="Enable voice effects"
         />
       </label>
-      <label class="popup__field studio__field--compact">
-        <span class="popup__field-label">Voice preset</span>
-        <select class="popup__select" data-voice-preset aria-label="Voice preset"></select>
-      </label>
-      <p class="studio__voice-preset-tip popup__field-desc" data-voice-preset-tip hidden></p>
-      <label class="popup__field studio__field--compact">
-        <span class="popup__field-label">Character voice (v5)</span>
-        <select class="popup__select" data-character-preset aria-label="Character voice preset"></select>
-      </label>
-      <p class="studio__voice-preset-desc popup__field-desc" data-character-note hidden>
-        Character voice overrides the preset above on bake. Use “Test character voice” to hear
-        the real rendered result; “Play preview” is a quick legacy approximation only.
-      </p>
-      <p class="studio__voice-preset-hint popup__field-desc">
-        Presets include special SFX — intensity modulates the selected preset.
-        The pitch knob switches to Custom for manual pitch only.
-      </p>
+      <div class=”studio__char-section”>
+        <span class=”popup__field-label studio__char-label”>Character voice</span>
+        <div class=”studio__char-chips” data-char-chips></div>
+        <p class=”studio__char-note popup__field-desc” data-char-note></p>
+      </div>
       <label class="popup__field studio__field--compact studio__voice-intensity">
         <span class="popup__field-label">
           Intensity <span data-voice-intensity-value>10/10</span>
@@ -148,10 +134,8 @@ export function mountVoiceControls(
   const panel = root.querySelector<HTMLElement>('[data-voice-controls]')!;
   const sourceEl = panel.querySelector<HTMLElement>('[data-voice-source]')!;
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-voice-enabled]')!;
-  const presetSelect = panel.querySelector<HTMLSelectElement>('[data-voice-preset]')!;
-  const presetTipEl = panel.querySelector<HTMLElement>('[data-voice-preset-tip]')!;
-  const characterSelect = panel.querySelector<HTMLSelectElement>('[data-character-preset]')!;
-  const characterNote = panel.querySelector<HTMLElement>('[data-character-note]')!;
+  const chipsHost = panel.querySelector<HTMLElement>('[data-char-chips]')!;
+  const charNoteEl = panel.querySelector<HTMLElement>('[data-char-note]')!;
   const composerHost = panel.querySelector<HTMLElement>('[data-voice-composer]')!;
   const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
@@ -170,23 +154,21 @@ export function mountVoiceControls(
 
   const preview = createVoicePreviewPlayer();
 
-  for (const preset of VOICE_EFFECT_PRESETS) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.label;
-    presetSelect.appendChild(option);
+  for (const preset of CHARACTER_PRESETS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'studio__char-chip';
+    btn.dataset.charId = preset.id;
+    btn.textContent = preset.label;
+    btn.title = preset.blurb;
+    chipsHost.appendChild(btn);
   }
 
-  const characterNone = document.createElement('option');
-  characterNone.value = '';
-  characterNone.textContent = '— None (use preset above) —';
-  characterSelect.appendChild(characterNone);
-  for (const preset of CHARACTER_PRESETS) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.label;
-    option.title = preset.blurb;
-    characterSelect.appendChild(option);
+  function markActiveChip(id: string | undefined): void {
+    for (const chip of chipsHost.querySelectorAll<HTMLElement>('.studio__char-chip')) {
+      chip.classList.toggle('is-selected', chip.dataset.charId === id && id !== undefined);
+    }
+    charNoteEl.textContent = id ? 'Editing any effect goes custom — click the chip again to reset.' : '';
   }
 
   // Branch 4: the Custom composer is the single editor of the active StylizedGraph.
@@ -201,9 +183,7 @@ export function mountVoiceControls(
       graph: nextGraph,
       enabled: hasFragments ? true : enabledInput.checked,
     });
-    presetSelect.value = 'custom';
-    characterSelect.value = '';
-    characterNote.hidden = true;
+    markActiveChip(undefined);
     enabledInput.checked = draftConfig.enabled;
     updatePlayAvailability();
     schedulePersist();
@@ -222,18 +202,6 @@ export function mountVoiceControls(
 
   function setStatus(message: string): void {
     statusEl.textContent = message;
-  }
-
-  function updatePresetTip(): void {
-    const presetId = (draftConfig.presetId ?? 'custom') as VoiceEffectPresetId;
-    const hint = getVoiceEffectPreset(presetId).usageHint;
-    if (hint) {
-      presetTipEl.textContent = hint;
-      presetTipEl.hidden = false;
-      return;
-    }
-    presetTipEl.textContent = '';
-    presetTipEl.hidden = true;
   }
 
   function notifyDraftChange(): void {
@@ -298,14 +266,11 @@ export function mountVoiceControls(
   function syncControlsFromDraft(): void {
     syncing = true;
     enabledInput.checked = draftConfig.enabled;
-    presetSelect.value = draftConfig.presetId ?? 'custom';
-    characterSelect.value = draftConfig.characterPresetId ?? '';
-    characterNote.hidden = !draftConfig.characterPresetId;
+    markActiveChip(draftConfig.characterPresetId);
     // Seed the composer with whatever the voice currently resolves to (a stored
     // graph, a character preset's makeup, or a migrated legacy config) for display.
     composer.setGraph(resolveVoiceGraph(resolvedDraft()));
     updateIntensityUi();
-    updatePresetTip();
     updatePlayAvailability();
     notifyDraftChange();
     syncing = false;
@@ -421,33 +386,22 @@ export function mountVoiceControls(
     setStatus('');
   });
 
-  presetSelect.addEventListener('change', () => {
+  chipsHost.addEventListener('click', (event) => {
     if (syncing) return;
-    const presetId = presetSelect.value as VoiceEffectPresetId;
-    draftConfig = mergeLiveToggles({
-      enabled: enabledInput.checked,
-      presetId,
-      intensity: clampIntensity(Number(intensityInput.value)),
-      turbo: turboInput.checked,
-    });
-    syncControlsFromDraft();
-    schedulePersist();
-    setStatus('');
-  });
-
-  characterSelect.addEventListener('change', () => {
-    if (syncing) return;
-    const id = characterSelect.value || undefined;
+    const chip = (event.target as HTMLElement).closest<HTMLElement>('[data-char-id]');
+    if (!chip) return;
+    const id = chip.dataset.charId!;
+    // Explicitly clear graph so the character takes precedence in resolveVoiceGraph.
     draftConfig = normalizeVoiceEffectConfig({
-      ...draftConfig,
-      enabled: id ? true : draftConfig.enabled,
+      ...mergeLiveToggles(draftConfig),
+      presetId: 'custom',
       characterPresetId: id,
-      intensity: clampIntensity(Number(intensityInput.value)),
-      turbo: turboInput.checked,
+      graph: undefined,
+      enabled: true,
     });
     syncControlsFromDraft();
     schedulePersist();
-    setStatus(id ? 'Character voice set — bake to hear it.' : '');
+    setStatus('Character voice set — Test to hear the rendered result.');
   });
 
   // Dulcet II (v5) one-shot preview: render the ACTIVE graph (character preset or migrated

@@ -560,6 +560,61 @@ body {
   line-height: 1.45;
 }
 
+/* Dulcet II (v5 / Branch 4) — character chip picker */
+.studio__char-section {
+  margin: 0 0 12px;
+}
+
+.studio__char-label {
+  display: block;
+  margin: 0 0 7px;
+  font-size: var(--studio-font-meta);
+  font-weight: var(--studio-font-weight-label);
+  letter-spacing: var(--studio-letter-label);
+  text-transform: uppercase;
+  color: var(--studio-text-muted);
+}
+
+.studio__char-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 4px;
+}
+
+.studio__char-chip {
+  padding: 4px 11px;
+  border-radius: 14px;
+  border: 1px solid var(--studio-indigo-accent);
+  background: transparent;
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-body);
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+
+.studio__char-chip:hover {
+  border-color: var(--studio-amber-dim);
+  color: var(--studio-text);
+}
+
+.studio__char-chip.is-selected {
+  border-color: var(--studio-amber);
+  background: rgba(255, 213, 79, 0.1);
+  color: var(--studio-amber);
+}
+
+.studio__char-note {
+  margin: 2px 0 0;
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-meta);
+  font-style: italic;
+  min-height: 1.1em;
+}
+
 .studio__voice-preset-tip {
   margin: -2px 0 6px;
   color: #d7dadc;

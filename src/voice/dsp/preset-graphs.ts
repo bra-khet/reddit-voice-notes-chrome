@@ -31,6 +31,25 @@ export interface CharacterPreset {
 
 export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
   {
+    id: 'incognito',
+    label: 'Incognito',
+    blurb: 'Pitch + formant shift hides your vocal fingerprint — subtle, natural-sounding, hard to reverse.',
+    intensity: 7,
+    build: () => [
+      // Shift pitch AND resonance (formant) — pitch-alone anonymization is easy to invert;
+      // combined shift alters the perceived vocal tract length, a stronger identity mask.
+      createFragment('pitchFormant', { semitones: -3, formantShift: -2, character: 15 }),
+      // Sibilants carry strong speaker fingerprints; soften them.
+      createFragment('deEsser', { amount: 40 }),
+      // Even out dynamics — dynamic range patterns also help identify speakers.
+      createFragment('compressor', { amount: 35, makeup: 20 }),
+      // Very subtle texture — smears the mic/room acoustic fingerprint without sounding processed.
+      createFragment('saturation', { warmth: 8, drive: 12, edge: 15 }),
+      createFragment('convReverb', { space: 'small-box', mix: 15, decay: 25, preDelay: 3 }),
+      createFragment('limiter', { amount: 30 }),
+    ],
+  },
+  {
     id: 'cyber-oracle',
     label: 'Cyber Oracle',
     blurb: 'Shimmering digital construct — light and metallic with a granular sheen (not a deep voice).',
