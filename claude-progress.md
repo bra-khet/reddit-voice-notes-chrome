@@ -764,7 +764,19 @@ repeated pitch+hybrid hammering. Tunings applied:
   preset table, "roll your own" from 21 fragments / 7 categories, points to design doc).
 All 7 presets structurally validated; build passes. **Merged to dulcet-ii/integration.**
 
-### Next: Sub-Phase 1.3 (remainder) — INTERACTIVE, app-loaded, one step at a time
+### Live-export wiring — step 1 DONE (user-confirmed live)
+`ffmpeg-runner.ts:462` now sources the export `-af` from
+`buildStylizedGraph(migrateVoiceEffectToGraph(normalizedVoice))` (linear mode), replacing
+`buildFfmpegAudioFilter` + `voiceEffectIsActive`. Existing raw-audio fallback retained.
+**User-verified live:** presets bake unchanged, carries into bake, toggle-off defeats
+effects, zero console errors (offscreen/SW/tabs). Complex graphs not yet wired (→ step 2).
+**Slight-mask "sounds deep" investigated:** legacy-vs-graph `-af` diff shows slight-mask
+byte-identical @10 (pitch identical at all intensities; EQ ≤0.3 dB) — NOT a regression.
+It's the preset's design (−3 downshift + high cut). Migration does change Robot (stronger
+compressor+makeup) and Whisper (loudnorm→compressor) — fine, replaced when basics authored
+natively. Non-linear curve makes higher/whisper gentler at non-10 intensities (expected).
+
+### Next: live-export step 2 + Sub-Phase 1.3 (remainder) — INTERACTIVE, app-loaded, one step at a time
 User switched to Ask permissions (mode 1). For live-export wiring + storage swap: work
 ONE small change at a time — propose/show diff, ask explicit approval before any edit or
 command, user tests live in the running dev build and reports back before next step.

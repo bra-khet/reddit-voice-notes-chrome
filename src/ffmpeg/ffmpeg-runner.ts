@@ -10,8 +10,7 @@ import {
   type SubtitleBurnInInput,
 } from '@/src/ffmpeg/subtitle-burnin';
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
-import { buildFfmpegAudioFilter } from '@/src/voice/filter-graphs';
-import { voiceEffectIsActive } from '@/src/voice/resolve-config';
+import { buildStylizedGraph, migrateVoiceEffectToGraph } from '@/src/voice/dsp';
 import {
   DEFAULT_VOICE_EFFECT_CONFIG,
   normalizeVoiceEffectConfig,
@@ -459,9 +458,11 @@ export async function runWebmToMp4(
   }
 
   const normalizedVoice = normalizeVoiceEffectConfig(voiceEffect ?? DEFAULT_VOICE_EFFECT_CONFIG);
-  const { filter: voiceFilter } = buildFfmpegAudioFilter(normalizedVoice);
-  const audioFilter =
-    voiceFilter && voiceEffectIsActive(normalizedVoice) ? voiceFilter : null;
+  // Dulcet II (v5) step 1: route the live export's audio filtering through the new
+  // graph renderer. Migrate the stored legacy config → StylizedGraph, then build.
+  // Migrated legacy presets are all linear (-af); complex graphs land in step 2.
+  const graphResult = buildStylizedGraph(migrateVoiceEffectToGraph(normalizedVoice));
+  const audioFilter = graphResult.mode === 'af' ? graphResult.af : null;
 
   const runEncode = async (filter: string | null): Promise<Uint8Array> =>
     transcodeWithStrategies(
