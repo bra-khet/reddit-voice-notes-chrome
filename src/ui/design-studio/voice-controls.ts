@@ -133,7 +133,7 @@ export function renderVoiceControlFields(): string {
         <button type="button" class="popup__button popup__button--secondary" data-voice-play>
           Play preview
         </button>
-        <button type="button" class="popup__button popup__button--secondary" data-voice-stop hidden>
+        <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-voice-stop hidden>
           Stop
         </button>
       </div>

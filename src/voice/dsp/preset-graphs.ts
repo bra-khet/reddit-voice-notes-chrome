@@ -39,6 +39,8 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
       // Deliberately NOT deep — this is what separates it from NerdRage. The pitch/throat
       // stay light; the identity comes from metallic shimmer + subtle granular layering.
       createFragment('pitchFormant', { semitones: -2, formantShift: -1, character: 28 }),
+      // Gentle makeup — nudge the overall level up (read a touch quiet).
+      createFragment('compressor', { amount: 12, makeup: 35 }),
       createFragment('spectralCarve', { amount: 50, character: 80 }),
       createFragment('presenceAir', { presence: 35, air: 35 }),
       // Metallic shimmer: a higher-carrier ring mod (subtle) + a flanger comb sweep.
@@ -87,8 +89,8 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
     intensity: 8,
     build: () => [
       createFragment('pitchFormant', { semitones: 3, formantShift: 2, character: 30 }),
-      // Gentle leveler + makeup — pure loudness lift (preset read as a bit quiet).
-      createFragment('compressor', { amount: 20, makeup: 65 }),
+      // Gentle leveler + makeup — modest lift (halved from the first pass; was too loud).
+      createFragment('compressor', { amount: 20, makeup: 33 }),
       createFragment('presenceAir', { presence: 30, air: 55 }),
       createFragment('chorus', { rate: 30, depth: 55, mix: 50 }),
       createFragment('hybridLayer', { layerMix: 35, carrier: 'noise', followStrength: 60, harmonicEmphasis: 40 }),
@@ -119,8 +121,8 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
     intensity: 8,
     build: () => [
       createFragment('pitchFormant', { semitones: 7, formantShift: 5, character: 20 }),
-      // Gentle leveler + makeup — pure loudness lift (preset read as a bit quiet).
-      createFragment('compressor', { amount: 20, makeup: 65 }),
+      // Gentle leveler + makeup — modest lift (halved from the first pass; was too loud).
+      createFragment('compressor', { amount: 20, makeup: 33 }),
       createFragment('deEsser', { amount: 45 }),
       createFragment('presenceAir', { presence: 40, air: 35 }),
       createFragment('flanger', { rate: 45, depth: 35, mix: 25 }),
@@ -137,13 +139,13 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
       // Deeper + bigger throat than before; the choppy granular + metallic carve are GONE
       // (they made it muddy), replaced by a longer, larger reverb and a clarity lift.
       createFragment('pitchFormant', { semitones: -9, formantShift: -6, character: 55 }),
-      createFragment('compressor', { amount: 50, makeup: 8 }),
+      createFragment('compressor', { amount: 50, makeup: 20 }),
       createFragment('saturation', { warmth: 55, drive: 28, edge: 8 }),
       // Clarity so the depth reads as "huge" rather than "muddy".
       createFragment('presenceAir', { presence: 35, air: 20 }),
       // Longer, larger tail — the "god from the deep" space.
       createFragment('convReverb', { space: 'cavern', mix: 55, decay: 95, preDelay: 50 }),
-      createFragment('limiter', { amount: 55 }),
+      createFragment('limiter', { amount: 48 }),
     ],
   },
 ];
