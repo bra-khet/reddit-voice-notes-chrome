@@ -23,6 +23,21 @@ import { characterPresetGraph, getCharacterPreset } from './preset-graphs';
  * that gets rendered. Caller is expected to pass an already-normalized config.
  */
 export function resolveVoiceGraph(config: VoiceEffectConfig): StylizedGraph {
+  // Branch 4: a user-composed graph is authoritative when present. The stored
+  // graph's own enabled/intensity/turbo are a baseline the global slider
+  // overrides at resolve time (same contract as the preset path below), so the
+  // Studio's Intensity/Turbo controls keep modulating a custom voice.
+  if (config.graph && config.graph.fragments.length > 0) {
+    return {
+      ...config.graph,
+      enabled: config.enabled !== false,
+      intensity: config.turbo
+        ? VOICE_INTENSITY_TURBO
+        : config.intensity ?? VOICE_INTENSITY_DEFAULT,
+      turbo: config.turbo === true,
+    };
+  }
+
   const preset = config.characterPresetId
     ? getCharacterPreset(config.characterPresetId)
     : undefined;

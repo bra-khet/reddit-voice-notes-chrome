@@ -117,6 +117,12 @@ export function voiceEffectIsActive(config: VoiceEffectConfig): boolean {
   const scaled = scaleVoiceEffectByIntensity(config);
   if (!scaled.enabled) return false;
 
+  // Dulcet II (v5 / Branch 4): a composed graph with any enabled fragment is
+  // active regardless of the legacy flat fields (it supersedes them on resolve).
+  if (scaled.graph && scaled.graph.fragments.some((fragment) => fragment.enabled)) {
+    return true;
+  }
+
   const semitones = scaled.pitchShift?.semitones ?? 0;
   if (semitones !== 0) return true;
 

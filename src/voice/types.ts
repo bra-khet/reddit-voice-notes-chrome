@@ -7,6 +7,10 @@
  * Import resolveVoiceEffectConfig / voiceEffectIsActive from resolve-config.ts directly.
  */
 
+// fragment-types.ts is a pure, dependency-free leaf (no WASM, no back-import of
+// this file), so importing it here is cycle-safe — unlike resolve-config.ts above.
+import { normalizeStylizedGraph, type StylizedGraph } from './dsp/fragment-types';
+
 /** Bundled voice preset ids — hardcoded like theme presets, not stored in savedProfiles. */
 export type VoiceEffectPresetId =
   | 'deeper'
@@ -77,6 +81,15 @@ export interface VoiceEffectConfig {
   presetId?: VoiceEffectPresetId;
   /** v5 character preset id (Dulcet II). When set, export/preview use its native graph. */
   characterPresetId?: string;
+  /**
+   * Dulcet II (v5 / Branch 4) — user-composed fragment chain. When present and
+   * non-empty this is the AUTHORITATIVE voice: `resolveVoiceGraph` prefers it
+   * over `characterPresetId` and the legacy flat fields below. The global
+   * enabled/intensity/Turbo slider still owns those three values at resolve time.
+   * The flat pitchShift/eq/dynamics/reverb slots are the transitional legacy
+   * authoring path, removed once the Custom composer fully owns voice authoring.
+   */
+  graph?: StylizedGraph;
   pitchShift?: PitchShiftConfig;
   eq?: EqBandConfig;
   dynamics?: DynamicsConfig;
@@ -197,12 +210,19 @@ export function normalizeVoiceEffectConfig(
       ? raw.characterPresetId
       : undefined;
 
+  // Branch 4: structurally clean a composed graph; an emptied composer (no
+  // fragments) collapses back to no-graph so the carrier never stores dead state.
+  const normalizedGraph = raw.graph ? normalizeStylizedGraph(raw.graph) : undefined;
+  const graph =
+    normalizedGraph && normalizedGraph.fragments.length > 0 ? normalizedGraph : undefined;
+
   return {
     enabled: raw.enabled === true,
     intensity,
     turbo,
     presetId,
     characterPresetId,
+    graph,
     pitchShift,
     eq,
     dynamics: raw.dynamics,
