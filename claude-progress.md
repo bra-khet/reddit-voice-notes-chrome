@@ -803,11 +803,21 @@ sprint (voice-controls.ts + this handoff).
 
 ## ⭐ RESUME HERE — Dulcet II v5, 2026-06-25
 
-**Status:** **Branch 1 (`dsp-foundation`) AND Branch 3 (`preview-pipeline`) COMPLETE and
-MERGED** to `dulcet-ii/integration` (Branch 1 merge `529f6c7`; Branch 3 merge on top).
-All 7 character presets bake live AND audition in the Studio identically to the bake.
-Helium Sprite via `-af` (linear); Cyber Oracle / NerdRage / Glitch Beast / Radio Demon /
-Ethereal Singer / Abyssal Titan via `-filter_complex` (parallel/convolution).
+**Status:** **Branches 1 (`dsp-foundation`), 3 (`preview-pipeline`), and 2
+(`pitch-formant`) COMPLETE and MERGED** to `dulcet-ii/integration` (done in that order;
+Branch 2 merged last). All 7 character presets bake live AND audition in the Studio
+identically to the bake. Helium Sprite via `-af` (linear); the other six via
+`-filter_complex` (parallel/convolution).
+
+**Branch 2 (pitch-formant) — DONE & user-confirmed (two audition rounds):** `formantShift`
++ `character` are now audible (movable F1–F3 peaking EQs + throat tilt + resonance; EQ
+approximation — no librubberband in the core). Studio has a **Formant knob + Character
+slider** (Custom voice; `forkPitchFormant` patches one field at a time). `PitchShiftConfig`
+carries formantShift/character → `migrateVoiceEffectToGraph` → fragment; `voiceEffectIsActive`
+counts formant-only voices. Presets re-tuned twice: Cyber Oracle = metallic-shimmer cousin
+(no longer clones NerdRage), Abyssal Titan redesigned (deeper/longer/cleaner), loudness
+balanced. Stop button uses charcoal+red-glow `--delete` style. Harness has formant/character
+sliders. **Deterministic** (seeded LCG IRs). Doc: design-doc "Pitch & Formant" section.
 
 **Branches:** `dulcet-ii/integration` is the current stable line. Old `dsp-foundation` +
 `preview-pipeline` can be left as history. Namespace: `dulcet-ii/*` (git ref D/F conflict
@@ -872,13 +882,14 @@ kinds; intensity modulation correct; stop/spin-up/UX fine):**
 - `dsp` barrel is WASM-free; safe to import from popup/Studio (unlike `@/src/voice`).
 
 ### NEXT PHASES (remaining Branches)
-- **Branch 2 (`dulcet-ii/pitch-formant`)** — high-quality pitch + formant shifting (the
-  `formantShift` param is already carried through fragments but inaudible until now). The
-  Studio one-shot preview now exists to audition it. Natural next branch.
-- **Branch 4 (`dulcet-ii/character-system`)** — user-facing Custom mode: compose the 21 raw
-  fragments, high-level macros ("Character/Edge/Air"), save-as-character, voice-summary.
+- **⭐ Branch 4 (`dulcet-ii/character-system`)** — NEXT. User-facing Custom mode: compose the
+  21 raw fragments mix-and-match, high-level expressive macros ("Character/Edge/Air"),
+  save-as-character flow, voice-summary. The "user-facing power" layer (supplement §"UI
+  approach"). Builds on everything: the fragment registry (`FRAGMENT_DEFS`), resolveVoiceGraph,
+  the one-shot preview, and the formant/character controls already in the Studio.
 - **Storage swap** `VoiceEffectConfig → StylizedGraph` across prefs/profiles/Studio (~24 files;
-  highest-risk, race-prone — do last, very carefully).
+  highest-risk, race-prone — do last, very carefully). Branch 4 may force part of this since
+  composing raw fragments wants graph-native storage; scope it carefully when starting B4.
 - Per-primitive (non-global) intensity curves; `resolve-config` cleanup.
 
 **Interactive protocol:** Pause only for human-in-the-loop QA (things that need live audio
