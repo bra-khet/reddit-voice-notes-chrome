@@ -4,6 +4,9 @@ import { DEFAULT_VOICE_EFFECT_CONFIG, type VoiceEffectPresetId } from '@/src/voi
 import {
   createFragment,
   orderFragmentsCanonically,
+  characterPresetGraph,
+  getCharacterPreset,
+  CHARACTER_PRESETS,
   FRAGMENT_DEFS,
   FRAGMENT_KINDS,
   STYLIZED_GRAPH_VERSION,
@@ -41,6 +44,10 @@ app.innerHTML = `
       <input type="range" id="intensity" min="1" max="10" step="1" value="10" />
       <output id="intensity-val">10</output>
       <label class="radio"><input type="checkbox" id="turbo" /> Turbo (×1.27)</label>
+    </label>
+    <label class="field" id="char-preset-field">
+      <span>Character preset (v5) — curated recipe; overrides the toggles below</span>
+      <select id="char-preset"></select>
     </label>
     <fieldset class="field" id="fragments-field">
       <span>Fragments (v5) — toggle stylized building blocks (default params)</span>
@@ -91,6 +98,8 @@ document.head.appendChild(style);
 const fileInput = document.querySelector<HTMLInputElement>('#file')!;
 const presetSelect = document.querySelector<HTMLSelectElement>('#preset')!;
 const presetField = document.querySelector<HTMLLabelElement>('#preset-field')!;
+const charPresetSelect = document.querySelector<HTMLSelectElement>('#char-preset')!;
+const charPresetField = document.querySelector<HTMLLabelElement>('#char-preset-field')!;
 const fragmentsField = document.querySelector<HTMLFieldSetElement>('#fragments-field')!;
 const fragmentsBox = document.querySelector<HTMLDivElement>('#fragments')!;
 const pitchInput = document.querySelector<HTMLInputElement>('#pitch')!;
@@ -114,6 +123,17 @@ for (const preset of VOICE_EFFECT_PRESETS) {
   option.value = preset.id;
   option.textContent = `${preset.label} — ${preset.description}`;
   presetSelect.appendChild(option);
+}
+
+const manualOption = document.createElement('option');
+manualOption.value = '';
+manualOption.textContent = '— manual (use toggles below) —';
+charPresetSelect.appendChild(manualOption);
+for (const preset of CHARACTER_PRESETS) {
+  const option = document.createElement('option');
+  option.value = preset.id;
+  option.textContent = `${preset.label} — ${preset.blurb}`;
+  charPresetSelect.appendChild(option);
 }
 
 // Build a checkbox per fragment kind (grouped by category), pitchFormant excluded
@@ -151,6 +171,7 @@ function usingGraph(): boolean {
 function syncPipelineUi(): void {
   const graph = usingGraph();
   presetField.style.display = graph ? 'none' : 'flex';
+  charPresetField.style.display = graph ? 'flex' : 'none';
   fragmentsField.style.display = graph ? 'flex' : 'none';
 }
 
@@ -172,6 +193,13 @@ function buildConfig() {
 }
 
 function buildGraph(): StylizedGraph {
+  const intensity = Number.parseInt(intensityInput.value, 10);
+  const turbo = turboInput.checked;
+
+  // A selected character preset overrides the manual toggles.
+  const preset = charPresetSelect.value ? getCharacterPreset(charPresetSelect.value) : undefined;
+  if (preset) return characterPresetGraph(preset, intensity, turbo);
+
   const fragments: AnyFragment[] = [];
   const semitones = Number.parseInt(pitchInput.value, 10);
   if (semitones !== 0) fragments.push(createFragment('pitchFormant', { semitones }));
@@ -183,8 +211,8 @@ function buildGraph(): StylizedGraph {
   return {
     version: STYLIZED_GRAPH_VERSION,
     enabled: fragments.length > 0,
-    intensity: Number.parseInt(intensityInput.value, 10),
-    turbo: turboInput.checked,
+    intensity,
+    turbo,
     fragments: orderFragmentsCanonically(fragments),
   };
 }

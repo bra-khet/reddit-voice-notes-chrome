@@ -13,3 +13,5 @@ export * from './renderer';
 export * from './ffmpeg-renderer';
 export * from './build-stylized-graph';
 export * from './migrate-v1';
+export * from './ir-generator';
+export * from './preset-graphs';

@@ -732,6 +732,22 @@ decoder but not usable as `-c:a` encoder (AAC swap was correct).
 pitch/EQ emitters now use `ctx.intensityFactor`. Harness gained intensity slider + Turbo.
 Smoke-verified; build passes. **Merged dulcet-ii/dsp-foundation → dulcet-ii/integration.**
 
+### Native presets + combination coverage + ephemeral-error hardening (2026-06-24)
+- **Character presets** (`src/voice/dsp/preset-graphs.ts`): Cyber Oracle, Glitch Beast,
+  Ethereal Singer, Radio Demon, Helium Sprite, Abyssal Titan — authored natively as
+  StylizedGraphs (each a curated, known-good fragment combination). Wired into the
+  voice-harness as a "Character preset" dropdown (overrides manual toggles).
+- **Ephemeral error** (hybrid voice + pitch slider ≠ 0 → intermittent exit-1, not
+  reproducible after restart): that combo is the only graph stacking TWO full
+  asetrate→aresample→atempo resample chains (pitch + hybrid octave-down) → heaviest
+  graph, ffmpeg.wasm ~32MB heap pressure. **Determined NOT a construction bug** — a
+  68-combination structural validator (singles, all pitch×other pairs, all 4
+  pitch+hybrid carriers, ALL-on, turbo, every preset) passed 0 failures (label
+  consistency + aecho/chorus arg counts). **Mitigation:** `processAudioBytesWithGraph`
+  now disposes + reloads ffmpeg for `mode==='complex'` graphs → fresh heap per heavy
+  run. If it recurs, the `[ffmpeg]` log now shows the real cause.
+- tsc clean; build passes. Pending: user re-test + merge to integration.
+
 ### Next: Sub-Phase 1.3 (remainder)
 - Wire the LIVE transcode (`ffmpeg-runner.ts:462`): thread `-filter_complex` + aux
   `-i` into the muxed WebM→MP4 strategies (alongside the waveform video) — riskier;
