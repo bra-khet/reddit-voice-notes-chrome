@@ -637,3 +637,109 @@ Add a clear, professional **3-Phase Creative Workflow** guidance layer on top of
 ```bash
 git checkout v4.0.0 && npm install && npm run dev
 ```
+
+---
+
+## Dulcet II (v5) — `dulcet-ii/dsp-foundation` (2026-06-24, in progress)
+
+**Design doc:** `docs/dsp-foundation-design.md` · **Roadmap:** `docs/v5-development-roadmap*.md` + `docs/v5-implementation-notes.md`
+
+### Branch naming (git ref D/F conflict — important)
+v5 reuses the "dulcet" codename, but the old `dulcet` branch (merged v3) still exists,
+and git can't have both a branch `dulcet-ii` and branches under `dulcet-ii/`. So
+**`dulcet-ii` is a namespace**: integration line = `dulcet-ii/integration`; features =
+`dulcet-ii/dsp-foundation` (+ `pitch-formant`, `preview-pipeline`, `character-system`).
+Read roadmap's `dulcet`→`dulcet-ii/integration`, `dulcet/<x>`→`dulcet-ii/<x>`.
+
+### Locked v5 decisions (user, 2026-06-24)
+1. Fresh `dulcet-ii` namespace; old `dulcet` untouched.
+2. **Replace + migrate** the voice config — fragment graph is canonical, flat
+   `VoiceEffectConfig` becomes a legacy migration input. No prod user data (dev
+   profiles only) → no long-term compat shim. Forward-looking posture for all v5.
+3. Backend-agnostic fragment descriptors + FFmpeg emitter now; Web Audio in Branch 3.
+
+### Sub-Phase 1.1 — DONE
+New self-contained `src/voice/dsp/` module (additive, **unwired** — legacy export
+path untouched, build green):
+- `fragment-types.ts` — canonical `StylizedGraph` + 21 fragment kinds / 7 categories +
+  `FRAGMENT_DEFS` registry + normalize/create. Pure-data leaf (no WASM, popup-safe).
+- `renderer.ts` — backend-agnostic `FragmentRenderer` + `RenderContext`.
+- `ffmpeg-renderer.ts` — emits `-af` / (1.2) `-filter_complex`; v1 primitive emitters
+  (pitch, eq, compressor, gate, limiter, echo) implemented; stylized kinds skip to 1.2.
+- `build-stylized-graph.ts` — `buildStylizedGraph()` + `CANONICAL_CHAIN_ORDER`.
+- `migrate-v1.ts` — legacy config → graph.
+
+**Smoke-verified round-trip** (compiled dsp to CJS, ran under node): robot →
+`pitchFormant→eq→compressor` with byte-identical legacy EQ (`g=3`/`g=-2`); intensity
+scales `-5→-2`; whisper normalize→compressor; voice-off → `none`; unimplemented kind
+skips to `none` (no crash). `tsc --noEmit`: zero new errors (only pre-existing
+background.ts / background-loader.ts / voice-recorder.ts / segment-cue-player.ts).
+
+### Sub-Phase 1.2a — DONE
+`CANONICAL_CHAIN_ORDER` confirmed by user (clean → shape → character → space → safety).
+Linear-`-af` stylized emitters added (15/21 kinds now emit): flanger, chorus, aphaser,
+tremolo, vibrato; saturation (`asoftclip`), harmonicExciter (`aexciter`), presenceAir
+(`equalizer`+`treble`); deEsser (`deesser`), deClick (`adeclick`). Strength scales with
+intensity, LFO rate stays raw. Smoke-verified syntax + scaling; tsc clean.
+
+### Sub-Phase 1.2b-i — DONE
+`-filter_complex` assembler + parallel-node model (`ParallelSpec`: lavfi `sources`,
+`auxInputs` for extra `-i` files, dry/wet `amix`, mono normalization at graph head)
+in `ffmpeg-renderer.ts`; `ringMod` implemented (sine × signal via `amultiply`).
+16/21 kinds emit. Smoke-verified graph threading for linear+parallel chains; tsc clean.
+**IR decision (user):** procedural/synthesized JS IRs for convReverb (no sampled assets).
+
+### Sub-Phase 1.2b — DONE (all 21 kinds emit)
+New `ir-generator.ts` (procedural reverb IR + WAV encoder; reused by Branch 3 preview
+ConvolverNode). Emitters added: convReverb (IR→WAV aux→`afir`, mixDuration longest to
+keep tail), hybridLayer (parallel synth layer *derived from voice* → finite, no
+infinite source), granular (linear `aecho` multi-tap smear — approximation; true
+per-grain = future WASM), spectralCarve (resonant EQ peaks vocal→metallic). Added
+per-`ParallelSpec` `mixDuration`. Kitchen-sink graph (pitch→sat→carve→ringMod→
+granular→convReverb) smoke-verified; tsc clean. **Sub-Phase 1.2 COMPLETE.**
+
+### Sub-Phase 1.3 — step 1 DONE (graph runs in ffmpeg.wasm)
+`process-audio.ts`: `processAudioBytesWithGraph()` / `processAudioWithGraph()` execute
+a `StylizedGraph` through ffmpeg.wasm — linear `-af` AND complex `-filter_complex`
+(writes aux IR WAVs as extra `-i`, `-map`s output pad, 120s timeout for convolution).
+Additive — legacy `processAudioBytes(config)` path untouched; tsc clean (only the 4
+pre-existing error files remain). Harness-testable now.
+
+### Harness OOB fix + graph-mode QA (2026-06-24)
+**Symptom:** voice-harness crashed `RuntimeError: memory access out of bounds` on every
+`processAudioBytes` run (process-audio.ts catch). **Root cause:** the isolated processor
+encoded `-c:a libopus`, but libopus is absent/broken in the shipped `@ffmpeg/core ^0.12.10`
+— a missing encoder crashes ffmpeg.wasm as a generic OOB. (No-op runs skip `exec` → didn't
+crash; the shipped transcode uses `-c:a aac` → always worked.) **Fix:** encode AAC/M4A in
+`process-audio.ts` (both legacy + graph paths; OUTPUT_PATH `.m4a`, mimeType `audio/mp4`).
+Also: export+attach `attachLogCollector` in `execWithTimeout` so ffmpeg stderr (the real
+filter/encoder error) shows in console; **voice-harness rewired** with a Pipeline toggle
+(Graph v5 / Legacy) + per-fragment checkboxes (from `FRAGMENT_DEFS`) so the new stylized
+graph is actually testable. tsc clean; build passes. **Re-test needed:** confirm AAC fixes
+the OOB and which stylized filters run in the core (watch `[ffmpeg]` console lines).
+
+### Foundation user-confirmed + reverb fix + intensity curve (2026-06-24)
+**User QA via harness (all 21 fragments):** Legacy great (formant shift a noticeable
+win); Dynamics, Modulation, Color all work; **Granular + Hybrid praised ("PERFECT");**
+convReverb works. **Only bug:** `algoReverb` (Echo/Reverb) threw `aecho` "Number of
+delays 2 differs from number of decays 1". **Fixed** in `ffmpeg-renderer.ts emitAlgoReverb`
++ legacy `filter-graphs.ts buildReverbFilter` (matching delay/decay counts; synced BUG FIX
+comments). Core config dump confirms all used filters present (afir/aexciter/asoftclip/
+deesser/adeclick/amultiply/sine) — no fallback approximations needed; libopus is a
+decoder but not usable as `-c:a` encoder (AAC swap was correct).
+**Non-linear intensity curve (1.3):** `RenderContext.intensityFactor = (intensity/10)**1.3`
+— f(0)=0, **f(10)=1.0 (nominal unchanged → preserves confirmed behavior)**, f(12)≈1.27.
+pitch/EQ emitters now use `ctx.intensityFactor`. Harness gained intensity slider + Turbo.
+Smoke-verified; build passes. **Merged dulcet-ii/dsp-foundation → dulcet-ii/integration.**
+
+### Next: Sub-Phase 1.3 (remainder)
+- Wire the LIVE transcode (`ffmpeg-runner.ts:462`): thread `-filter_complex` + aux
+  `-i` into the muxed WebM→MP4 strategies (alongside the waveform video) — riskier;
+  do with the app running.
+- Swap stored `VoiceEffectConfig` → `StylizedGraph` across prefs/profiles/Design
+  Studio (~24 files; migrate on read).
+- **Non-linear per-primitive intensity curve** (user decision) replacing the linear
+  `RenderContext.scale`; native fragment presets; resolve-config refactor.
+- **QA gate:** confirm `asoftclip`/`aexciter`/`deesser`/`adeclick`/`afir`/`amultiply`/
+  `sine` in shipped `@ffmpeg/core`; make per-fragment skip resilient (today a missing
+  filter fails the whole graph → raw-audio fallback).
