@@ -8,6 +8,7 @@ import {
 } from '@/src/settings/user-preferences';
 import { mountRadialKnob } from '@/src/ui/design-studio/radial-knob';
 import { getVoiceEffectPreset, VOICE_EFFECT_PRESETS } from '@/src/voice/presets';
+import { CHARACTER_PRESETS } from '@/src/voice/dsp';
 import { createVoicePreviewPlayer } from '@/src/voice/preview-chain';
 import { resolveVoiceEffectConfig } from '@/src/voice/resolve-config';
 import {
@@ -57,6 +58,13 @@ export function renderVoiceControlFields(): string {
         <select class="popup__select" data-voice-preset aria-label="Voice preset"></select>
       </label>
       <p class="studio__voice-preset-tip popup__field-desc" data-voice-preset-tip hidden></p>
+      <label class="popup__field studio__field--compact">
+        <span class="popup__field-label">Character voice (v5)</span>
+        <select class="popup__select" data-character-preset aria-label="Character voice preset"></select>
+      </label>
+      <p class="studio__voice-preset-desc popup__field-desc" data-character-note hidden>
+        Character voice overrides the preset above on bake. Preview (Play) uses the preset above.
+      </p>
       <p class="studio__voice-preset-hint popup__field-desc">
         Presets include special SFX — intensity modulates the selected preset.
         The pitch knob switches to Custom for manual pitch only.
@@ -132,6 +140,8 @@ export function mountVoiceControls(
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-voice-enabled]')!;
   const presetSelect = panel.querySelector<HTMLSelectElement>('[data-voice-preset]')!;
   const presetTipEl = panel.querySelector<HTMLElement>('[data-voice-preset-tip]')!;
+  const characterSelect = panel.querySelector<HTMLSelectElement>('[data-character-preset]')!;
+  const characterNote = panel.querySelector<HTMLElement>('[data-character-note]')!;
   const pitchMount = panel.querySelector<HTMLElement>('[data-voice-pitch-mount]')!;
   const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
@@ -153,6 +163,18 @@ export function mountVoiceControls(
     option.value = preset.id;
     option.textContent = preset.label;
     presetSelect.appendChild(option);
+  }
+
+  const characterNone = document.createElement('option');
+  characterNone.value = '';
+  characterNone.textContent = '— None (use preset above) —';
+  characterSelect.appendChild(characterNone);
+  for (const preset of CHARACTER_PRESETS) {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent = preset.label;
+    option.title = preset.blurb;
+    characterSelect.appendChild(option);
   }
 
   const pitchKnob = mountRadialKnob(pitchMount, {
@@ -265,6 +287,8 @@ export function mountVoiceControls(
     syncing = true;
     enabledInput.checked = draftConfig.enabled;
     presetSelect.value = draftConfig.presetId ?? 'custom';
+    characterSelect.value = draftConfig.characterPresetId ?? '';
+    characterNote.hidden = !draftConfig.characterPresetId;
     pitchKnob.setValue(resolvedDraft().pitchShift?.semitones ?? 0, true);
     updateIntensityUi();
     updatePresetTip();
@@ -372,6 +396,21 @@ export function mountVoiceControls(
     syncControlsFromDraft();
     schedulePersist();
     setStatus('');
+  });
+
+  characterSelect.addEventListener('change', () => {
+    if (syncing) return;
+    const id = characterSelect.value || undefined;
+    draftConfig = normalizeVoiceEffectConfig({
+      ...draftConfig,
+      enabled: id ? true : draftConfig.enabled,
+      characterPresetId: id,
+      intensity: clampIntensity(Number(intensityInput.value)),
+      turbo: turboInput.checked,
+    });
+    syncControlsFromDraft();
+    schedulePersist();
+    setStatus(id ? 'Character voice set — bake to hear it.' : '');
   });
 
   playBtn.addEventListener('click', () => {
