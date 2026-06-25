@@ -764,18 +764,153 @@ repeated pitch+hybrid hammering. Tunings applied:
   preset table, "roll your own" from 21 fragments / 7 categories, points to design doc).
 All 7 presets structurally validated; build passes. **Merged to dulcet-ii/integration.**
 
-### Next: Sub-Phase 1.3 (remainder) — INTERACTIVE, app-loaded, one step at a time
-User switched to Ask permissions (mode 1). For live-export wiring + storage swap: work
-ONE small change at a time — propose/show diff, ask explicit approval before any edit or
-command, user tests live in the running dev build and reports back before next step.
-Ask precisely what's needed from each live test. Do not batch or race ahead.
-- Wire the LIVE transcode (`ffmpeg-runner.ts:462`): thread `-filter_complex` + aux
-  `-i` into the muxed WebM→MP4 strategies (alongside the waveform video) — riskier;
-  do with the app running.
-- Swap stored `VoiceEffectConfig` → `StylizedGraph` across prefs/profiles/Design
-  Studio (~24 files; migrate on read).
-- **Non-linear per-primitive intensity curve** (user decision) replacing the linear
-  `RenderContext.scale`; native fragment presets; resolve-config refactor.
-- **QA gate:** confirm `asoftclip`/`aexciter`/`deesser`/`adeclick`/`afir`/`amultiply`/
-  `sine` in shipped `@ffmpeg/core`; make per-fragment skip resilient (today a missing
-  filter fails the whole graph → raw-audio fallback).
+### Live-export wiring — step 1 DONE (user-confirmed live)
+`ffmpeg-runner.ts:462` now sources the export `-af` from
+`buildStylizedGraph(migrateVoiceEffectToGraph(normalizedVoice))` (linear mode), replacing
+`buildFfmpegAudioFilter` + `voiceEffectIsActive`. Existing raw-audio fallback retained.
+**User-verified live:** presets bake unchanged, carries into bake, toggle-off defeats
+effects, zero console errors (offscreen/SW/tabs). Complex graphs not yet wired (→ step 2).
+**Slight-mask "sounds deep" investigated:** legacy-vs-graph `-af` diff shows slight-mask
+byte-identical @10 (pitch identical at all intensities; EQ ≤0.3 dB) — NOT a regression.
+It's the preset's design (−3 downshift + high cut). Migration does change Robot (stronger
+compressor+makeup) and Whisper (loudnorm→compressor) — fine, replaced when basics authored
+natively. Non-linear curve makes higher/whisper gentler at non-10 intensities (expected).
+
+### Live-export step 2a DONE — character preset storage + export resolution
+Chosen direction (user): expose character presets in Studio via lightweight `characterPresetId`
+(no full StylizedGraph storage swap yet). Step 2a (smoke-verified, not yet live):
+- `types.ts`: `characterPresetId?: string` on VoiceEffectConfig + normalize pass-through (drops empty).
+- `ffmpeg-runner.ts`: if `characterPresetId` resolves to a character preset → `characterPresetGraph`
+  (intensity/turbo from config) → `buildStylizedGraph`; else legacy `migrateVoiceEffectToGraph`.
+  Linear character presets (Helium Sprite) → `-af` bakes; complex ones → null → raw fallback until
+  complex-export step. Unknown id / no id → legacy unchanged (zero regression).
+- **Next 2b:** Studio voice picker → set `characterPresetId` (makes it live-testable). Preview stays
+  legacy-only for character presets until Branch 3 (bake-to-hear; show a note). voice-controls.ts is
+  the race-prone file — read fully + show exact diff before editing.
+
+### Live-export step 2b DONE — Studio character-voice picker (user-confirmed live, 2026-06-24)
+`src/ui/design-studio/voice-controls.ts`: added a separate **"Character voice (v5)"** `<select>`
+(below the legacy preset picker) populated from `CHARACTER_PRESETS`. On change it sets
+`draftConfig.characterPresetId` (forces `enabled` when set), persists, and shows a note
+("overrides on bake; Play uses the preset above"). `syncControlsFromDraft` sets the select +
+note from `draftConfig`. Separate dropdown chosen to NOT disturb the race-prone legacy
+picker/custom/sync logic. **User-verified live:** Helium Sprite (linear) bakes into the
+character voice & sounds great; complex presets (Cyber Oracle etc.) fall back to raw audio
+gracefully (no crash); legacy presets unchanged; zero console errors. Commit pending in this
+sprint (voice-controls.ts + this handoff).
+
+---
+
+## ⭐ RESUME HERE (post-compaction handoff) — Dulcet II v5, 2026-06-24
+
+**One-liner:** Branch 1 (`dulcet-ii/dsp-foundation`) DSP rebuild is functionally complete and
+the new graph system is WIRED INTO THE LIVE EXPORT for linear graphs + selectable character
+presets. Next interactive step = **complex-graph export** (make the real MP4 transcode run
+`-filter_complex` graphs so the parallel presets bake instead of falling back).
+
+**Branches:** working = `dulcet-ii/dsp-foundation`. Integration = `dulcet-ii/integration` (last
+merge `75d99e3` = 1.1/1.2/intensity-curve/presets). The live-export commits (step 1 `cc5ae92`,
+2a `ccc17ea`, 2b pending) are AHEAD of integration on dsp-foundation — merge to integration at
+the next milestone (after complex-export, or on request). Old v3 `dulcet` branch is unrelated
+history; `dulcet-ii` is a git NAMESPACE (can't be a branch itself).
+
+**What's live & user-confirmed:**
+- Real MP4 bake routes audio through the new renderer: `ffmpeg-runner.ts` (~line 461) resolves
+  `characterPresetId → characterPresetGraph` else `migrateVoiceEffectToGraph`, then
+  `buildStylizedGraph(graph)`; uses `result.af` only when `mode==='af'` (complex → `null` →
+  existing raw-audio fallback + "voice effect fallback" toast).
+- Design Studio has the Character-voice picker (2b). Helium Sprite (the one fully-LINEAR
+  character preset) bakes live. The other 6 presets are parallel/complex → fall back to raw
+  until complex-export lands.
+- Toggling voice off, legacy presets, and Slight-mask all confirmed unchanged.
+
+**dsp module map (`src/voice/dsp/`, all WASM-free → popup-safe barrel):**
+- `fragment-types.ts` — `StylizedGraph`, 21 `FragmentKind`s/7 categories, `FRAGMENT_DEFS`
+  registry, `createFragment`, `normalizeStylizedGraph`. Pure-data leaf.
+- `renderer.ts` — `FragmentRenderer` interface, `RenderContext`, `intensityToFactor` =
+  `(intensity/10)**1.3` (f(10)=1.0 exactly, f(12)≈1.27); `createRenderContext`.
+- `ffmpeg-renderer.ts` — per-kind emitters; `ffmpegRenderer.assemble` builds either linear
+  `-af` or `-filter_complex` (mono-normalized head, `asplit`→wet→`amix` per `ParallelSpec`
+  with per-spec `mixDuration`; parallel kinds: ringMod/convReverb/hybridLayer; granular &
+  spectralCarve are linear). `FfmpegGraphResult { mode, af, filterComplex, outputLabel,
+  auxInputs, stages }`.
+- `build-stylized-graph.ts` — `buildStylizedGraph(graph, renderer=ffmpegRenderer)`,
+  `CANONICAL_CHAIN_ORDER` (confirmed), `orderFragmentsCanonically`, `stylizedGraphIsActive`.
+- `migrate-v1.ts` — `migrateVoiceEffectToGraph(VoiceEffectConfig)` (resolve preset → fragments).
+- `ir-generator.ts` — `generateImpulseResponse` (procedural reverb IR) + `encodeWavMono16` +
+  `IR_SPACES`. Used by convReverb (`afir`) and (future) Branch-3 ConvolverNode.
+- `preset-graphs.ts` — `CHARACTER_PRESETS` (7: cyber-oracle, nerdrage, glitch-beast,
+  ethereal-singer, radio-demon, helium-sprite, abyssal-titan), `characterPresetGraph`,
+  `getCharacterPreset`.
+- `process-audio.ts` (NOT in dsp/) — `processAudioBytesWithGraph`/`processAudioWithGraph` run a
+  graph in ffmpeg.wasm (linear + complex, writes aux WAVs, `-map`s output, AAC/M4A encoder,
+  disposes+reloads ffmpeg for `complex` graphs = fresh heap). This is the HARNESS path
+  (voice-harness.html), separate from the live transcode.
+
+**Critical runtime facts (do NOT relearn the hard way):**
+- `@ffmpeg/core@0.12` (ffmpeg 5.1.4) has every filter used (afir/aexciter/asoftclip/deesser/
+  adeclick/amultiply/sine). **libopus is decode-only here → encode with AAC, not `-c:a libopus`**
+  (a missing encoder crashes as generic "memory access out of bounds").
+- `aecho`/`chorus`: number of delays MUST equal number of decays (the v5 reverb bug).
+- `intensityFactor` f(10)=1.0 preserves the user-confirmed sound; only non-10 changes.
+- `hybridLayer` carrier is DERIVED from the voice (finite) — never an infinite `sine`/noise src.
+- Heavy graph = pitch + hybrid (two stacked resample chains) → intermittent OOM; mitigated by
+  fresh-heap-per-complex in process-audio. Live transcode disposes ffmpeg on failure already.
+- `dsp` barrel is WASM-free; safe to import from popup/Studio (unlike `@/src/voice`).
+
+### NEXT STEP (interactive, app-loaded): complex-graph export
+**Goal:** make the live WebM→MP4 transcode run `-filter_complex` graphs so the 6 parallel
+character presets (Cyber Oracle etc.) BAKE instead of falling back to raw.
+
+**Where:** `src/ffmpeg/ffmpeg-runner.ts`. Today (~line 461) `audioFilter = graphResult.mode==='af'
+? graphResult.af : null`. The linear `-af` is spliced before `-c:a` by `injectAudioFilter`
+(~line 268) inside the strategy builder (~281), and `transcodeWithStrategies` (~line 354) writes
+`input.webm` + execs `TRANSCODE_STRATEGIES` (h264-aac with dup-storm flags `-fps_mode passthrough
+-r 24`; + `faststart` remux fallback).
+
+**Plan (propose to user one sub-step at a time, get approval, they live-test):**
+1. Thread the full `graphResult` (not just the `af` string) to the encode path so a `complex`
+   result can be used.
+2. When `mode==='complex'`: in `transcodeWithStrategies`, also write `graphResult.auxInputs`
+   (IR WAVs) to the FFmpeg FS (today only `input.webm` is written); clean them after.
+3. New arg builder for complex (parallel to `injectAudioFilter`): `-i input.webm` + one `-i
+   aux{i}.wav` per aux input + `-filter_complex <graphResult.filterComplex>` + `-map 0:v:0`
+   (video → libx264, KEEP the dup-storm video flags) + `-map [graphResult.outputLabel]` (audio
+   → aac). Implicit stream selection breaks with filter_complex, so explicit `-map` is REQUIRED.
+   The graph references `[0:a]` for the voice and `[1:a]…` for aux in order (assembler already
+   numbers them this way).
+4. **Reference impl:** `process-audio.ts` `buildGraphProcessArgs` already builds the audio-only
+   complex args (write aux, `-i`, `-filter_complex`, `-map [out]`). The transcode version =
+   that + `-map 0:v:0` and the libx264 video flags. Audio in complex mode is mono (graph forces
+   `aformat=channel_layouts=mono`) — fine for voice.
+5. Keep the `faststart` remux strategy filter-free; keep the existing raw-audio fallback as the
+   safety net (so a bad complex graph still produces a usable bake + toast).
+**Test:** pick **Cyber Oracle** in the Studio → record → bake → should now hear the full metallic
+character (not raw). Confirm A/V sync + the waveform video still render; no dup-storm; no console
+errors. Then the other 5 parallel presets.
+
+### After complex-export (later phases, still interactive)
+- Full storage swap `VoiceEffectConfig → StylizedGraph` across prefs/profiles/Studio (~24 files;
+  the highest-risk, race-prone area; do last, very carefully).
+- Branch 3 (`dulcet-ii/preview-pipeline`): one-shot offline preview so the Studio Play button
+  reflects character/complex graphs (today Play is legacy-only — character presets are bake-only).
+- Per-primitive (non-global) intensity curves; `resolve-config` cleanup; expose the 21 raw
+  fragments in a Custom UI (Branch 4 `character-system`).
+
+### Interactive protocol (STILL IN EFFECT — user on Ask permissions / mode 1)
+Work ONE small change at a time: propose what you'll do (or show the diff), **ask explicit
+approval before any edit or command**, then the user live-tests in the running dev build and
+reports back before the next piece. Ask precisely what you need from each live test. Do not
+batch or race ahead.
+
+### Restore / test
+```bash
+git checkout dulcet-ii/dsp-foundation && npm install && npm run dev
+```
+- Harness: `voice-harness.html` — Pipeline=Graph, Character preset dropdown or per-fragment toggles.
+- Live: Design Studio → Voice → Character voice (v5) → record on Reddit → bake.
+- Build gate: `npm run build` (~1s) and `npx tsc --noEmit` (only 4 pre-existing error files:
+  background.ts, background-loader.ts, voice-recorder.ts, segment-cue-player.ts).
+- Throwaway smoke pattern: write `_dsp-smoke.ts`, `npx tsc _dsp-smoke.ts --outDir _smoke-out
+  --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck`,
+  drop `_smoke-out/package.json {"type":"commonjs"}`, `node _smoke-out/_dsp-smoke.js`, then delete both.
