@@ -90,18 +90,52 @@ export function scaleVoiceEffectByIntensity(config: VoiceEffectConfig): VoiceEff
   };
 }
 
-/** Compare user-facing voice state — preset picks match on id + intensity, not flattened SFX. */
+/**
+ * Stable, id-independent key describing the user's voice *intent* — the basis
+ * for profile dirty-checks and snapshots.
+ *
+ * Dulcet II (v5 / Branch 4): a composed graph and a character preset are now
+ * first-class. Two rules keep the key correct:
+ *  - **No volatile ids.** `createFragment` assigns time+counter ids that differ
+ *    on every rebuild; including them made any graph voice compare permanently
+ *    "dirty". The key serializes only kind/enabled/params (the audio-affecting
+ *    content), never `fragment.id`.
+ *  - **Intent kind.** A graph, a character pick, a bundled preset, and a legacy
+ *    custom config are distinct user choices; each gets its own discriminated key.
+ */
 export function voiceEffectUserIntentKey(config: VoiceEffectConfig): string {
-  const normalized = normalizeVoiceEffectConfig(config);
-  if (normalized.presetId !== 'custom') {
+  const n = normalizeVoiceEffectConfig(config);
+  const base = { enabled: n.enabled, intensity: n.intensity, turbo: n.turbo };
+
+  if (n.graph && n.graph.fragments.length > 0) {
     return JSON.stringify({
-      enabled: normalized.enabled,
-      presetId: normalized.presetId,
-      intensity: normalized.intensity,
-      turbo: normalized.turbo,
+      ...base,
+      kind: 'graph',
+      // Strip ids; order is significant (the chain), params/enabled are the content.
+      fragments: n.graph.fragments.map((fragment) => ({
+        kind: fragment.kind,
+        enabled: fragment.enabled,
+        params: fragment.params,
+      })),
     });
   }
-  return JSON.stringify(normalized);
+
+  if (n.characterPresetId) {
+    return JSON.stringify({ ...base, kind: 'character', characterPresetId: n.characterPresetId });
+  }
+
+  if (n.presetId !== 'custom') {
+    return JSON.stringify({ ...base, kind: 'preset', presetId: n.presetId });
+  }
+
+  return JSON.stringify({
+    ...base,
+    kind: 'legacy-custom',
+    pitchShift: n.pitchShift,
+    eq: n.eq,
+    dynamics: n.dynamics,
+    reverb: n.reverb,
+  });
 }
 
 /** Stable equality for profile dirty checks and snapshots. */

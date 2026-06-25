@@ -7,6 +7,8 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { mountVoiceComposer } from '@/src/ui/design-studio/voice-composer';
+import { getClipProfileById } from '@/src/settings/clip-profiles';
+import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import {
   CHARACTER_PRESETS,
   resolveVoiceGraph,
@@ -28,6 +30,12 @@ export interface VoiceControlsHandle {
   dispose(): void;
   getDraftConfig(): VoiceEffectConfig;
   syncFromPreferences(prefs: UserPreferencesV1): void;
+  /**
+   * Flush the debounced voice draft to global prefs *now* and resolve when the
+   * write completes. Profile save / studio exit must await this so a profile
+   * snapshot can't capture a stale voice (mirrors subtitleControls.flushPersist).
+   */
+  flushPersist(): Promise<void>;
 }
 
 const VOICE_SAVE_DEBOUNCE_MS = 250;
@@ -59,10 +67,15 @@ export function renderVoiceControlFields(): string {
           aria-label="Enable voice effects"
         />
       </label>
-      <div class=”studio__char-section”>
-        <span class=”popup__field-label studio__char-label”>Character voice</span>
-        <div class=”studio__char-chips” data-char-chips></div>
-        <p class=”studio__char-note popup__field-desc” data-char-note></p>
+      <div class="studio__char-section">
+        <span class="popup__field-label studio__char-label">Character voice</span>
+        <p class="studio__char-help popup__field-desc">
+          Each profile carries one voice. Pick a character to start, then tweak it
+          below into a custom voice — your changes save with this profile.
+        </p>
+        <div class="studio__char-chips" data-char-chips></div>
+        <span class="studio__char-status" data-char-status hidden></span>
+        <p class="studio__char-note popup__field-desc" data-char-note></p>
       </div>
       <label class="popup__field studio__field--compact studio__voice-intensity">
         <span class="popup__field-label">
@@ -127,6 +140,13 @@ function formatSavedAt(ms: number): string {
   }
 }
 
+/** Active saved-profile name for the custom-voice status pill (undefined in custom/no-profile mode). */
+function activeProfileNameFrom(prefs: UserPreferencesV1): string | undefined {
+  const profileId = prefs.appearance.activeProfileId;
+  if (!profileId || isPresetProfileId(profileId)) return undefined;
+  return getClipProfileById(prefs, profileId)?.name;
+}
+
 export function mountVoiceControls(
   root: HTMLElement,
   onDraftChange?: () => void,
@@ -135,6 +155,7 @@ export function mountVoiceControls(
   const sourceEl = panel.querySelector<HTMLElement>('[data-voice-source]')!;
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-voice-enabled]')!;
   const chipsHost = panel.querySelector<HTMLElement>('[data-char-chips]')!;
+  const charStatusEl = panel.querySelector<HTMLElement>('[data-char-status]')!;
   const charNoteEl = panel.querySelector<HTMLElement>('[data-char-note]')!;
   const composerHost = panel.querySelector<HTMLElement>('[data-voice-composer]')!;
   const intensityInput = panel.querySelector<HTMLInputElement>('[data-voice-intensity]')!;
@@ -146,6 +167,7 @@ export function mountVoiceControls(
   const statusEl = panel.querySelector<HTMLElement>('[data-voice-status]')!;
 
   let draftConfig: VoiceEffectConfig = normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
+  let currentProfileName: string | undefined;
   let lastRecording: LastRecordingSnapshot | null = null;
   let loadedSavedAt = 0;
   let syncing = false;
@@ -164,11 +186,38 @@ export function mountVoiceControls(
     chipsHost.appendChild(btn);
   }
 
-  function markActiveChip(id: string | undefined): void {
+  /**
+   * Reflect the active voice identity in the chip row:
+   *  - highlight the selected character chip (when a character is picked), and
+   *  - light a non-interactive status pill named after the active profile when
+   *    the voice is a *custom* graph (no character) — the "you're on a custom
+   *    voice for this profile" indicator. Profile names are user text, so the
+   *    label is set via textContent (never innerHTML) — no escape hazards.
+   */
+  function updateVoiceIdentity(): void {
+    const characterId = draftConfig.characterPresetId;
+    const isCustomGraph =
+      !characterId && (draftConfig.graph?.fragments.length ?? 0) > 0;
+
     for (const chip of chipsHost.querySelectorAll<HTMLElement>('.studio__char-chip')) {
-      chip.classList.toggle('is-selected', chip.dataset.charId === id && id !== undefined);
+      chip.classList.toggle(
+        'is-selected',
+        characterId !== undefined && chip.dataset.charId === characterId,
+      );
     }
-    charNoteEl.textContent = id ? 'Editing any effect goes custom — click the chip again to reset.' : '';
+
+    if (isCustomGraph) {
+      const name = currentProfileName?.trim();
+      charStatusEl.textContent = name ? `★ ${name} — custom voice` : '★ Custom voice';
+      charStatusEl.hidden = false;
+    } else {
+      charStatusEl.textContent = '';
+      charStatusEl.hidden = true;
+    }
+
+    charNoteEl.textContent = characterId
+      ? 'Editing any effect below makes this a custom voice for this profile.'
+      : '';
   }
 
   // Branch 4: the Custom composer is the single editor of the active StylizedGraph.
@@ -183,7 +232,7 @@ export function mountVoiceControls(
       graph: nextGraph,
       enabled: hasFragments ? true : enabledInput.checked,
     });
-    markActiveChip(undefined);
+    updateVoiceIdentity();
     enabledInput.checked = draftConfig.enabled;
     updatePlayAvailability();
     schedulePersist();
@@ -218,15 +267,22 @@ export function mountVoiceControls(
     }, VOICE_SAVE_DEBOUNCE_MS);
   }
 
-  function persistNow(): void {
+  /** Write the current draft to global prefs immediately; returns the save promise. */
+  function writeDraftNow(): Promise<void> {
     if (saveTimer) {
       window.clearTimeout(saveTimer);
       saveTimer = 0;
     }
     draftConfig.enabled = enabledInput.checked;
-    void saveVoiceEffectPreferences(draftConfig).catch((error: unknown) => {
-      console.warn('[Reddit Voice Notes] Voice prefs save failed', error);
-    });
+    return saveVoiceEffectPreferences(draftConfig)
+      .then(() => undefined)
+      .catch((error: unknown) => {
+        console.warn('[Reddit Voice Notes] Voice prefs save failed', error);
+      });
+  }
+
+  function persistNow(): void {
+    void writeDraftNow();
   }
 
   function updateIntensityUi(): void {
@@ -266,7 +322,7 @@ export function mountVoiceControls(
   function syncControlsFromDraft(): void {
     syncing = true;
     enabledInput.checked = draftConfig.enabled;
-    markActiveChip(draftConfig.characterPresetId);
+    updateVoiceIdentity();
     // Seed the composer with whatever the voice currently resolves to (a stored
     // graph, a character preset's makeup, or a migrated legacy config) for display.
     composer.setGraph(resolveVoiceGraph(resolvedDraft()));
@@ -512,6 +568,7 @@ export function mountVoiceControls(
 
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+    currentProfileName = activeProfileNameFrom(prefs);
     syncControlsFromDraft();
   });
 
@@ -528,8 +585,12 @@ export function mountVoiceControls(
     syncFromPreferences(prefs) {
       syncing = true;
       draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+      currentProfileName = activeProfileNameFrom(prefs);
       syncControlsFromDraft();
       syncing = false;
+    },
+    flushPersist() {
+      return writeDraftNow();
     },
     dispose() {
       window.clearInterval(playPoll);

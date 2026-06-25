@@ -575,11 +575,39 @@ body {
   color: var(--studio-text-muted);
 }
 
+.studio__char-help {
+  margin: 0 0 8px;
+  color: var(--studio-text-muted);
+  line-height: 1.4;
+}
+
 .studio__char-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin: 0 0 4px;
+}
+
+/* Non-interactive status light: "you're on a custom voice for <profile>". */
+.studio__char-status {
+  display: inline-block;
+  margin: 6px 0 0;
+  padding: 3px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--studio-violet-confirm-edge);
+  background: rgba(148, 152, 232, 0.12);
+  color: var(--studio-violet-confirm);
+  font-size: var(--studio-font-meta);
+  font-weight: 600;
+  letter-spacing: var(--studio-letter-meta);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio__char-status[hidden] {
+  display: none;
 }
 
 .studio__char-chip {
