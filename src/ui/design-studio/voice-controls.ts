@@ -29,6 +29,19 @@ import {
   VOICE_INTENSITY_TURBO,
   type VoiceEffectConfig,
 } from '@/src/voice/types';
+import { showToast } from '@/src/ui/toast';
+import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
+import {
+  guardVoiceCharacterSwitch,
+  isVoiceCharacterLocked,
+  LOCK_GUARD_CUSTOM_REASON,
+  resetVoiceCharacterLock,
+  setVoiceCharacterLock,
+} from '@/src/ui/design-studio/voice-character-lock';
+import {
+  copyVoiceCharacterToClipboard,
+  pasteVoiceCharacterFromClipboard,
+} from '@/src/settings/clipboard-backup';
 
 export interface VoiceControlsHandle {
   dispose(): void;
@@ -54,6 +67,9 @@ const PREVIEW_MAX_SECONDS = 30;
 // V4 NOTE: Voice section may become its own panel/tab when Studio sections are segmented.
 
 export function renderVoiceControlFields(): string {
+  const copyIconUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.copy16);
+  const pasteIconUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.paste16);
+  const padlockOpenUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.padlockOpen16);
   return `
     <div class="studio__voice" data-voice-controls>
       <p class="studio__voice-source" data-voice-source>
@@ -78,7 +94,40 @@ export function renderVoiceControlFields(): string {
           below into a custom voice — your changes save with this profile.
         </p>
         <div class="studio__char-chips" data-char-chips></div>
-        <span class="studio__char-status" data-char-status hidden></span>
+        <div class="studio__char-pill-row">
+          <span class="studio__char-status" data-char-status hidden></span>
+          <div class="studio__char-actions" data-voice-char-actions>
+            <button
+              type="button"
+              class="studio__icon-btn"
+              data-voice-copy
+              title="Copy this voice character to the clipboard"
+              aria-label="Copy this voice character to the clipboard"
+            >
+              <img src="${copyIconUrl}" alt="" width="16" height="16" />
+            </button>
+            <button
+              type="button"
+              class="studio__icon-btn"
+              data-voice-paste
+              title="Paste a voice character from the clipboard"
+              aria-label="Paste a voice character from the clipboard"
+            >
+              <img src="${pasteIconUrl}" alt="" width="16" height="16" />
+            </button>
+            <button
+              type="button"
+              class="studio__icon-btn studio__lock-btn"
+              data-voice-lock
+              hidden
+              aria-pressed="false"
+              title="Lock this custom voice character to prevent switching"
+              aria-label="Lock this custom voice character to prevent switching"
+            >
+              <img src="${padlockOpenUrl}" alt="" width="16" height="16" data-voice-lock-img />
+            </button>
+          </div>
+        </div>
         <p class="studio__char-note popup__field-desc" data-char-note></p>
       </div>
       <label class="popup__field studio__field--compact studio__voice-intensity">
@@ -156,6 +205,10 @@ export function mountVoiceControls(
   const chipsHost = panel.querySelector<HTMLElement>('[data-char-chips]')!;
   const charStatusEl = panel.querySelector<HTMLElement>('[data-char-status]')!;
   const charNoteEl = panel.querySelector<HTMLElement>('[data-char-note]')!;
+  const copyBtn = panel.querySelector<HTMLButtonElement>('[data-voice-copy]')!;
+  const pasteBtn = panel.querySelector<HTMLButtonElement>('[data-voice-paste]')!;
+  const lockBtn = panel.querySelector<HTMLButtonElement>('[data-voice-lock]')!;
+  const lockImg = panel.querySelector<HTMLImageElement>('[data-voice-lock-img]')!;
   const composerHost = panel.querySelector<HTMLElement>('[data-voice-composer]')!;
   const intensitySlider = panel.querySelector<HTMLElement>('[data-voice-intensity]')!;
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
@@ -173,6 +226,12 @@ export function mountVoiceControls(
   let saveTimer = 0;
 
   const preview = createVoicePreviewPlayer();
+
+  const PADLOCK_OPEN_URL = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.padlockOpen16);
+  const PADLOCK_CLOSED_URL = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.padlockClosed16);
+  // Transient guard (spec §2): each studio open starts unlocked even if a prior
+  // mount in the same page left the module flag armed.
+  resetVoiceCharacterLock();
 
   for (const preset of CHARACTER_PRESETS) {
     const btn = document.createElement('button');
@@ -211,6 +270,26 @@ export function mountVoiceControls(
     } else {
       charStatusEl.textContent = '';
       charStatusEl.hidden = true;
+    }
+
+    // Lock guard is a custom-voice-only affordance: presets are always restorable
+    // from preset-graphs.ts, so the padlock only surfaces for a custom graph.
+    if (isCustomGraph) {
+      const locked = isVoiceCharacterLocked();
+      lockBtn.hidden = false;
+      lockImg.src = locked ? PADLOCK_CLOSED_URL : PADLOCK_OPEN_URL;
+      lockBtn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+      const lockLabel = locked
+        ? 'Unlock voice character switching'
+        : 'Lock this custom voice character to prevent switching';
+      lockBtn.title = lockLabel;
+      lockBtn.setAttribute('aria-label', lockLabel);
+    } else {
+      // Leaving custom mode must not strand an armed lock (e.g. blank-slate reset).
+      if (isVoiceCharacterLocked()) setVoiceCharacterLock(false);
+      lockBtn.hidden = true;
+      lockImg.src = PADLOCK_OPEN_URL;
+      lockBtn.setAttribute('aria-pressed', 'false');
     }
 
     charNoteEl.textContent = characterId
@@ -431,6 +510,18 @@ export function mountVoiceControls(
     const chip = (event.target as HTMLElement).closest<HTMLElement>('[data-char-id]');
     if (!chip) return;
     const id = chip.dataset.charId!;
+    // Voice Character Lock: while locked on a custom voice, block switching to a
+    // preset chip (it would overwrite the tuned graph) and remind via toast. Fires
+    // on every guarded click — the shared toast dedupes identical repeats itself.
+    const guard = guardVoiceCharacterSwitch(
+      isVoiceCharacterLocked(),
+      { characterPresetId: draftConfig.characterPresetId },
+      { characterPresetId: id },
+    );
+    if (!guard.allowed) {
+      showToast(guard.reason ?? LOCK_GUARD_CUSTOM_REASON, 'info');
+      return;
+    }
     // Explicitly clear graph so the character takes precedence in resolveVoiceGraph.
     draftConfig = normalizeVoiceEffectConfig({
       ...mergeLiveToggles(draftConfig),
@@ -441,6 +532,35 @@ export function mountVoiceControls(
     syncControlsFromDraft();
     schedulePersist();
     setStatus('Character voice set — Test to hear the rendered result.');
+  });
+
+  // Voice Character Lock — toggle the transient guard (custom voice only).
+  lockBtn.addEventListener('click', () => {
+    setVoiceCharacterLock(!isVoiceCharacterLocked());
+    updateVoiceIdentity();
+  });
+
+  // Clipboard Voice Character Backup — copy the live voice character as versioned JSON.
+  copyBtn.addEventListener('click', () => {
+    const config = normalizeVoiceEffectConfig(mergeLiveToggles(draftConfig));
+    void copyVoiceCharacterToClipboard(config).then((result) => {
+      showToast(result.message ?? '', result.success ? 'info' : 'error');
+    });
+  });
+
+  // Paste a voice character → apply to the live draft exactly like a manual edit so
+  // the existing dirty/save pathway (Update / Save to new) lights up. Never auto-saves.
+  pasteBtn.addEventListener('click', () => {
+    void pasteVoiceCharacterFromClipboard().then((result) => {
+      if (!result.success || !result.config) {
+        showToast(result.message ?? 'Nothing usable on the clipboard', 'info');
+        return;
+      }
+      draftConfig = result.config;
+      syncControlsFromDraft();
+      schedulePersist();
+      showToast(result.message ?? '', 'info');
+    });
   });
 
   // Dulcet II (v5) one-shot preview: render the ACTIVE graph (character preset or migrated
