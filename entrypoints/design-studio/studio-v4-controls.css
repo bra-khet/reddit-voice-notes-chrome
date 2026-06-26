@@ -1,0 +1,91 @@
+/* Design Studio v5 — scoped form controls + type system.
+   WHY: entrypoints/popup/style.css is authored for the Reddit-native popup (Reddit-blue
+   accents, gray labels, system prose). Inside the extension-origin Studio those shared
+   .popup__* controls must speak indigo + amber, not Reddit blue. Every selector is scoped
+   to .studio-v4 so specificity (0,2,0) beats the bare .popup__* rule (0,1,0) regardless of
+   import order — and the real popup is never touched. */
+
+/* ── Type system ─────────────────────────────────────────────────────────── */
+
+.studio-v4 {
+  font-family: var(--studio-font-sans);
+}
+
+/* Wordmark + section / sub-panel titles wear the machined display face (signage). */
+.studio-v4 .studio__title,
+.studio-v4 .studio__panel-title,
+.studio-v4 .studio__profile-cluster-title,
+.studio-v4 .studio__subpanel-chrome-title,
+.studio-v4 .studio-v4__status-label {
+  font-family: var(--studio-font-display);
+  font-weight: 600;
+}
+
+.studio-v4 .studio__title {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Measured values read as instrument readouts — tabular mono, never reflowing. */
+.studio-v4 [data-voice-intensity-value],
+.studio-v4 [data-subtitle-font-size-value],
+.studio-v4 [data-subtitle-backdrop-opacity-value],
+.studio-v4 [data-subtitle-glow-opacity-value],
+.studio-v4 .studio-v4__status-value,
+.studio-v4 .voice-composer__ctrl-value,
+.studio-v4 .studio__preview-label {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* ── Toggles — amber "on", not Reddit blue ───────────────────────────────── */
+
+.studio-v4 .popup__toggle-input:checked {
+  background: var(--studio-control-on);
+}
+
+.studio-v4 .popup__toggle-input:checked::before {
+  background: #1a1000; /* dark knob on amber for AA contrast */
+}
+
+.studio-v4 .popup__toggle-input:focus-visible {
+  outline-color: var(--studio-focus);
+}
+
+/* ── Selects — inset indigo surface, amber focus, mono-free prose ─────────── */
+
+.studio-v4 .popup__select {
+  background: var(--studio-surface-raised);
+  border: 1px solid var(--studio-hairline-strong);
+  color: var(--studio-text);
+}
+
+.studio-v4 .popup__select:hover {
+  border-color: var(--studio-amber-edge);
+}
+
+.studio-v4 .popup__select:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+/* ── Labels & descriptions — indigo-muted, not Reddit gray ───────────────── */
+
+.studio-v4 .popup__field-label {
+  color: var(--studio-field-label);
+}
+
+.studio-v4 .popup__toggle-label {
+  color: var(--studio-text);
+}
+
+.studio-v4 .popup__field-desc {
+  color: var(--studio-indigo-muted);
+}
+
+/* "preview only" / "Bake: stepped" micro-tags — quiet amber instrument captions. */
+.studio-v4 .popup__micro {
+  color: var(--studio-amber-dim);
+  letter-spacing: var(--studio-letter-meta);
+}

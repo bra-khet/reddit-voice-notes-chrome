@@ -43,6 +43,11 @@ import {
   type TranscriptDeliveryStatus,
 } from '@/src/ui/design-studio/subtitle-segment-editor';
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
+import {
+  renderPhysicalSliderHtml,
+  setPhysicalSliderValue,
+  wirePhysicalSliders,
+} from '@/src/ui/design-studio/physical-slider';
 
 export interface SubtitleControlsHandle {
   dispose(): void;
@@ -174,16 +179,14 @@ export function renderSubtitleControlFields(): string {
           <span class="popup__field-label">
             Font size <span data-subtitle-font-size-value>22px</span>
           </span>
-          <input
-            class="popup__range"
-            type="range"
-            min="14"
-            max="36"
-            step="1"
-            value="22"
-            data-subtitle-font-size
-            aria-label="Subtitle font size"
-          />
+          ${renderPhysicalSliderHtml({
+            min: 14,
+            max: 36,
+            step: 1,
+            value: 22,
+            ariaLabel: 'Subtitle font size',
+            dataAttrs: { 'subtitle-font-size': '' },
+          })}
         </label>
         <label class="popup__toggle-row studio__subtitles-toggle">
           <span class="popup__toggle-copy">
@@ -202,16 +205,14 @@ export function renderSubtitleControlFields(): string {
           <span class="popup__field-label">
             Backdrop opacity <span data-subtitle-backdrop-opacity-value>72%</span>
           </span>
-          <input
-            class="popup__range"
-            type="range"
-            min="30"
-            max="95"
-            step="1"
-            value="72"
-            data-subtitle-backdrop-opacity
-            aria-label="Subtitle backdrop opacity"
-          />
+          ${renderPhysicalSliderHtml({
+            min: 30,
+            max: 95,
+            step: 1,
+            value: 72,
+            ariaLabel: 'Subtitle backdrop opacity',
+            dataAttrs: { 'subtitle-backdrop-opacity': '' },
+          })}
         </label>
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Text color</span>
@@ -257,16 +258,14 @@ export function renderSubtitleControlFields(): string {
             <span class="popup__field-label">
               Glow strength <span data-subtitle-glow-opacity-value>55%</span>
             </span>
-            <input
-              class="popup__range"
-              type="range"
-              min="20"
-              max="90"
-              step="1"
-              value="55"
-              data-subtitle-glow-opacity
-              aria-label="Subtitle glow strength"
-            />
+            ${renderPhysicalSliderHtml({
+              min: 20,
+              max: 90,
+              step: 1,
+              value: 55,
+              ariaLabel: 'Subtitle glow strength',
+              dataAttrs: { 'subtitle-glow-opacity': '' },
+            })}
           </label>
         </div>
         <div class="studio__subtitle-special-hue" data-subtitle-special-hue-panel hidden>
@@ -352,10 +351,11 @@ export function mountSubtitleControls(
   const enabledInput = panel.querySelector<HTMLInputElement>('[data-subtitle-enabled]')!;
   const positionSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-position]')!;
   const fontFamilySelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-font-family]')!;
-  const fontSizeInput = panel.querySelector<HTMLInputElement>('[data-subtitle-font-size]')!;
+  // Physical analog sliders (div[role=slider], value in dataset) — not <input>.
+  const fontSizeInput = panel.querySelector<HTMLElement>('[data-subtitle-font-size]')!;
   const fontSizeValueEl = panel.querySelector<HTMLElement>('[data-subtitle-font-size-value]')!;
   const backdropInput = panel.querySelector<HTMLInputElement>('[data-subtitle-backdrop]')!;
-  const backdropOpacityInput = panel.querySelector<HTMLInputElement>('[data-subtitle-backdrop-opacity]')!;
+  const backdropOpacityInput = panel.querySelector<HTMLElement>('[data-subtitle-backdrop-opacity]')!;
   const backdropOpacityValueEl = panel.querySelector<HTMLElement>(
     '[data-subtitle-backdrop-opacity-value]',
   )!;
@@ -368,7 +368,7 @@ export function mountSubtitleControls(
   const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
   const glowModeSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-mode]')!;
   const glowColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-color]')!;
-  const glowOpacityInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow-opacity]')!;
+  const glowOpacityInput = panel.querySelector<HTMLElement>('[data-subtitle-glow-opacity]')!;
   const glowOpacityValueEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-opacity-value]')!;
   const resetBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-reset]')!;
   const bakeBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-bake]')!;
@@ -822,7 +822,7 @@ export function mountSubtitleControls(
     glowOptionsEl.hidden = !glowOn;
     glowModeSelect.disabled = !glowOn;
     glowColorSelect.disabled = !glowOn;
-    glowOpacityInput.disabled = !glowOn || borderMode;
+    glowOpacityInput.classList.toggle('is-disabled', !glowOn || borderMode);
   }
 
   function syncSpecialHueUi(): void {
@@ -842,20 +842,20 @@ export function mountSubtitleControls(
     positionSelect.value = style.position ?? 'bottom';
     fontFamilySelect.value = style.fontFamily ?? 'dejavu-sans';
     const fontSize = style.fontSize ?? 22;
-    fontSizeInput.value = String(fontSize);
+    setPhysicalSliderValue(fontSizeInput, fontSize);
     fontSizeValueEl.textContent = `${fontSize}px`;
     backdropInput.checked = style.backdrop?.enabled !== false;
     const opacityPct = Math.round((style.backdrop?.opacity ?? 0.72) * 100);
-    backdropOpacityInput.value = String(opacityPct);
+    setPhysicalSliderValue(backdropOpacityInput, opacityPct);
     backdropOpacityValueEl.textContent = `${opacityPct}%`;
-    backdropOpacityInput.disabled = !backdropInput.checked;
+    backdropOpacityInput.classList.toggle('is-disabled', !backdropInput.checked);
     textColorSelect.value = style.textColor ?? 'white';
     specialHueRainbowInput.checked = style.specialHueRainbow === true;
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
     const glowOpacityPct = Math.round((style.glow?.opacity ?? 0.55) * 100);
-    glowOpacityInput.value = String(glowOpacityPct);
+    setPhysicalSliderValue(glowOpacityInput, glowOpacityPct);
     glowOpacityValueEl.textContent = `${glowOpacityPct}%`;
     syncGlowOptionsUi();
     syncSpecialHueUi();
@@ -883,14 +883,14 @@ export function mountSubtitleControls(
   }
 
   function mergeStyleFromControls(): SubtitleStyleConfig {
-    const opacity = Number(backdropOpacityInput.value) / 100;
-    const glowOpacity = Number(glowOpacityInput.value) / 100;
+    const opacity = Number(backdropOpacityInput.dataset.value) / 100;
+    const glowOpacity = Number(glowOpacityInput.dataset.value) / 100;
     return normalizeSubtitleStyle({
       ...draftConfig.style,
       enabled: draftConfig.transcriptionEnabled,
       position: positionSelect.value as SubtitleStyleConfig['position'],
       fontFamily: fontFamilySelect.value,
-      fontSize: Number(fontSizeInput.value),
+      fontSize: Number(fontSizeInput.dataset.value),
       textColor: textColorSelect.value as SubtitleTextColor,
       backdrop: {
         ...draftConfig.style.backdrop,
@@ -1052,28 +1052,33 @@ export function mountSubtitleControls(
     notifyDraftChange();
   });
 
-  fontSizeInput.addEventListener('input', () => {
-    if (syncing) return;
-    fontSizeValueEl.textContent = `${fontSizeInput.value}px`;
-    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
-    schedulePersist();
-    notifyDraftChange();
+  const unwireFontSize = wirePhysicalSliders(fontSizeInput, {
+    onValueChange(_slider, value) {
+      if (syncing) return;
+      fontSizeValueEl.textContent = `${value}px`;
+      draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+      schedulePersist();
+      notifyDraftChange();
+    },
   });
 
   backdropInput.addEventListener('change', () => {
     if (syncing) return;
-    backdropOpacityInput.disabled = !backdropInput.checked;
+    backdropOpacityInput.classList.toggle('is-disabled', !backdropInput.checked);
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();
   });
 
-  backdropOpacityInput.addEventListener('input', () => {
-    if (syncing) return;
-    backdropOpacityValueEl.textContent = `${backdropOpacityInput.value}%`;
-    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
-    schedulePersist();
-    notifyDraftChange();
+  const unwireBackdropOpacity = wirePhysicalSliders(backdropOpacityInput, {
+    isDisabled: () => !backdropInput.checked,
+    onValueChange(_slider, value) {
+      if (syncing) return;
+      backdropOpacityValueEl.textContent = `${value}%`;
+      draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+      schedulePersist();
+      notifyDraftChange();
+    },
   });
 
   textColorSelect.addEventListener('change', () => {
@@ -1116,12 +1121,15 @@ export function mountSubtitleControls(
     notifyDraftChange();
   });
 
-  glowOpacityInput.addEventListener('input', () => {
-    if (syncing) return;
-    glowOpacityValueEl.textContent = `${glowOpacityInput.value}%`;
-    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
-    schedulePersist();
-    notifyDraftChange();
+  const unwireGlowOpacity = wirePhysicalSliders(glowOpacityInput, {
+    isDisabled: () => !glowInput.checked || glowModeSelect.value === 'border',
+    onValueChange(_slider, value) {
+      if (syncing) return;
+      glowOpacityValueEl.textContent = `${value}%`;
+      draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+      schedulePersist();
+      notifyDraftChange();
+    },
   });
 
   const onVisibility = (): void => {
@@ -1203,6 +1211,9 @@ export function mountSubtitleControls(
       document.removeEventListener('keydown', onDisableGuardKeydown);
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onTranscriptReady);
+      unwireFontSize();
+      unwireBackdropOpacity();
+      unwireGlowOpacity();
       window.clearInterval(pollTimer);
       if (saveTimer) window.clearTimeout(saveTimer);
       writeSubtitlesEnabledLocal(draftConfig.transcriptionEnabled);

@@ -93,8 +93,8 @@ body {
   margin-bottom: 10px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: linear-gradient(135deg, rgba(0, 121, 211, 0.1), rgba(0, 121, 211, 0.02));
-  border: 1px solid rgba(0, 121, 211, 0.22);
+  background: linear-gradient(135deg, rgba(148, 152, 232, 0.1), rgba(148, 152, 232, 0.02));
+  border: 1px solid rgba(148, 152, 232, 0.22);
 }
 
 .studio__profile-bar-field {
@@ -207,7 +207,7 @@ body {
   text-transform: uppercase;
   color: #d7dadc;
   padding-left: 10px;
-  border-left: 3px solid #0079d3;
+  border-left: 3px solid var(--studio-amber);
   white-space: nowrap;
 }
 
@@ -471,7 +471,7 @@ body {
 }
 
 .studio__knob-host:focus-visible {
-  outline: 2px solid #0079d3;
+  outline: 2px solid var(--studio-focus);
   outline-offset: 3px;
   border-radius: 8px;
 }
@@ -540,7 +540,7 @@ body {
 }
 
 .studio__color-hex-input:focus-visible {
-  outline: 2px solid #0079d3;
+  outline: 2px solid var(--studio-focus);
   outline-offset: 2px;
 }
 
@@ -775,8 +775,8 @@ body {
 
 .voice-composer__count.is-on {
   border-color: transparent;
-  background: rgba(0, 121, 211, 0.18);
-  color: #4fbcff;
+  background: rgba(255, 213, 79, 0.16);
+  color: var(--studio-amber);
 }
 
 .voice-composer__cat-body {
@@ -952,7 +952,10 @@ body {
 }
 
 .studio__physical-slider:focus-visible {
-  outline: 2px solid #4fbcff;
+  /* BUG FIX: off-palette focus stray
+     Fix: #4fbcff (a blue in no token) → unified --studio-focus (amber).
+     Sync: all studio focus rings now resolve to --studio-focus. */
+  outline: 2px solid var(--studio-focus);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -988,10 +991,25 @@ body {
   background-repeat: no-repeat;
   background-position: center;
   pointer-events: none;
+  /* Seated drop shadow at rest; the machined tab "lights up" in --studio-track-glow
+     when grabbed or focused (theming via tokens, per assets README). */
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+  transition: filter 0.15s ease;
+}
+
+.studio__physical-slider:focus-visible .studio__physical-slider-thumb,
+.studio__physical-slider:active:not(.is-disabled) .studio__physical-slider-thumb {
+  filter: drop-shadow(0 0 6px var(--studio-track-glow)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 .studio__physical-slider:active:not(.is-disabled) {
   cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__physical-slider-thumb {
+    transition: none;
+  }
 }
 
 .voice-composer__ctrl-value {
@@ -1138,7 +1156,7 @@ body {
   border: 1px solid #2a2a44;
   border-radius: 3px;
   padding: 2px 7px;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--studio-font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   white-space: nowrap;
@@ -1323,7 +1341,7 @@ body {
   border: 1px solid #2a2a44;
   background: #0a0014;
   color: #ffd54f;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--studio-font-mono);
   font-size: 0.8rem;
   text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
 }
@@ -1475,8 +1493,8 @@ body {
 .popup__button--studio {
   width: 100%;
   margin-top: 4px;
-  background: #0079d3;
-  color: #ffffff;
+  background: var(--studio-violet-confirm);
+  color: #f4f3ff;
 }
 
 .popup__button--studio:hover {
@@ -1548,15 +1566,15 @@ body {
 }
 
 .studio__layout-choice:focus-visible {
-  outline: 2px solid #0079d3;
+  outline: 2px solid var(--studio-focus);
   outline-offset: 2px;
 }
 
 .studio__layout-choice--active {
   color: #d7dadc;
-  border-color: #0079d3;
-  background: rgba(0, 121, 211, 0.12);
-  box-shadow: 0 0 0 1px rgba(0, 121, 211, 0.35);
+  border-color: var(--studio-amber);
+  background: rgba(255, 213, 79, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.35);
 }
 
 .studio__layout-choice-label {
@@ -1775,163 +1793,8 @@ details[open] .wf-why__summary::before {
   line-height: 1.45;
 }
 
-@media (prefers-color-scheme: light) {
-  .wf-banner {
-    background: linear-gradient(135deg, rgba(200, 210, 255, 0.3), rgba(230, 220, 255, 0.2));
-    border-color: rgba(100, 105, 200, 0.25);
-  }
+/* NOTE: Design Studio is nocturnal by identity — it always renders deep-indigo
+   regardless of the OS colour scheme. The two pre-v4 `prefers-color-scheme: light`
+   blocks (white panels, Reddit-blue #0079d3 step dots / alignment bars) were removed
+   in polish-v5; do not reintroduce a light variant here. */
 
-  .wf-step__dot {
-    border-color: #8a86b0;
-    color: #576f76;
-  }
-
-  .wf-step--active .wf-step__dot {
-    border-color: #9498e8;
-    background: #9498e8;
-    color: #fff;
-  }
-
-  .wf-step--done .wf-step__dot {
-    border-color: #0079d3;
-    background: rgba(0, 121, 211, 0.1);
-    color: #0079d3;
-  }
-
-  .wf-step__label { color: #576f76; }
-  .wf-step--active .wf-step__label { color: #1a1a1b; }
-  .wf-step--done .wf-step__label { color: #0079d3; }
-  .wf-step__connector--done { background: #0079d3; }
-  .wf-cta__text { color: #1a1a1b; }
-  .wf-cta__btn { color: #fff; }
-  .wf-why { border-top-color: rgba(100, 105, 200, 0.18); }
-  .wf-why__summary { color: #6b70c4; }
-  .wf-why__body { color: #576f76; }
-}
-
-@media (prefers-color-scheme: light) {
-  .studio__profile-bar {
-    background: linear-gradient(135deg, rgba(0, 121, 211, 0.08), rgba(0, 121, 211, 0.02));
-    border-color: rgba(0, 121, 211, 0.18);
-  }
-
-  .studio__profile-bar-label {
-    color: #0079d3;
-  }
-
-  .studio__preview-wrap {
-    border-color: #edeff1;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  }
-
-  .studio__preview-label {
-    background: rgba(255, 255, 255, 0.85);
-    color: #1a1a1b;
-  }
-
-  .studio__panel {
-    background: #ffffff;
-    border-color: #edeff1;
-  }
-
-  .studio__panel-body {
-    border-top-color: #edeff1;
-  }
-
-  .studio__panel-title {
-    color: #1a1a1b;
-  }
-
-  .studio__meta-style-name,
-  .studio__meta-plain {
-    color: #1a1a1b;
-  }
-
-  .studio__align-badge {
-    background: rgba(0, 0, 0, 0.06);
-    border-color: #c8ccd0;
-  }
-
-  .studio__align-bar {
-    background: #a8b4bc;
-  }
-
-  .studio__align-bar--active {
-    background: #0079d3;
-    box-shadow: 0 0 3px rgba(0, 121, 211, 0.45);
-  }
-
-  .studio__panel-chevron {
-    border-color: #576f76;
-  }
-
-  .studio__subsection {
-    border-top-color: #edeff1;
-  }
-
-  .studio__subsection--effects {
-    border-top-color: rgba(26, 127, 92, 0.25);
-  }
-
-  .studio__subtitle,
-  .studio__footer-note {
-    color: #576f76;
-  }
-
-  .popup__profile-btn--muted {
-    background: #edeff1;
-    color: #576f76;
-  }
-
-  .studio__color-panel {
-    background: #f6f7f8;
-    border-color: #edeff1;
-  }
-
-  .studio__color-swatch {
-    border-color: #c8ccd0;
-  }
-
-  .studio__color-hex-input {
-    background: #ffffff;
-    color: #1a1a1b;
-    border-color: #edeff1;
-  }
-
-  .studio__knob-value {
-    color: #1a1a1b;
-  }
-
-  .studio__exit-dialog {
-    background: #ffffff;
-    border-color: #edeff1;
-  }
-
-  .studio__exit-copy {
-    color: #576f76;
-  }
-
-  .studio__voice-preset-tip {
-    color: #1a1a1b;
-  }
-
-  .studio__background-layout {
-    border-top-color: #edeff1;
-  }
-
-  .studio__layout-choice {
-    background: #f6f7f8;
-    border-color: #edeff1;
-    color: #576f76;
-  }
-
-  .studio__layout-choice:hover {
-    color: #1a1a1b;
-    border-color: #c8ccd0;
-  }
-
-  .studio__layout-choice--active {
-    color: #1a1a1b;
-    background: rgba(0, 121, 211, 0.08);
-  }
-}

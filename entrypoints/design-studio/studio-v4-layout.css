@@ -128,14 +128,64 @@ body:has(.studio-v4) {
   );
 }
 
+/* Signature: the hero reads as a powered studio monitor. The label is a lit readout
+   with a breathing "LIVE" tell; the WYSIWYG promise is etched into the glass. */
 .studio-v4 .studio__hero .studio__preview-label {
-  z-index: 3;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--studio-amber);
   font-size: var(--studio-font-caption);
   font-weight: var(--studio-font-weight-label);
-  letter-spacing: var(--studio-letter-label);
-  background: rgba(18, 0, 31, 0.72);
-  border: 1px solid rgba(255, 213, 79, 0.22);
+  letter-spacing: 0.12em;
+  background: rgba(18, 0, 31, 0.78);
+  border: 1px solid color-mix(in srgb, var(--studio-amber) 28%, transparent);
+  box-shadow:
+    0 0 14px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 213, 79, 0.06);
+}
+
+.studio-v4 .studio__hero .studio__preview-label::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--studio-amber);
+  box-shadow: 0 0 8px var(--studio-amber);
+}
+
+.studio-v4 .studio__hero .studio__preview-wrap::before {
+  content: 'PREVIEW = OUTPUT';
+  position: absolute;
+  right: 16px;
+  bottom: 13px;
+  z-index: 4;
+  font-family: var(--studio-font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.16em;
+  color: var(--studio-amber-dim);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-v4 .studio__hero .studio__preview-label::before {
+    animation: studio-live-breath 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes studio-live-breath {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 9px var(--studio-amber);
+  }
+  50% {
+    opacity: 0.45;
+    box-shadow: 0 0 3px var(--studio-amber);
+  }
 }
 
 .studio-v4 .studio__profile-cluster {
@@ -440,6 +490,22 @@ body:has(.studio-v4) {
   padding: 8px 10px 0;
 }
 
+/* Cividis section ramp — each card declares one --card-accent; title, head divider,
+   and enter-chip ride it. Always paired with the section icon + label, so the ramp is
+   reinforcement, never color-only (design-studio.md §10.3). */
+.studio-v4 .studio__panel[data-studio-panel='bar-style'] {
+  --card-accent: var(--studio-accent-bars);
+}
+.studio-v4 .studio__panel[data-studio-panel='background'] {
+  --card-accent: var(--studio-accent-background);
+}
+.studio-v4 .studio__panel[data-studio-panel='voice'] {
+  --card-accent: var(--studio-accent-voice);
+}
+.studio-v4 .studio__panel[data-studio-panel='subtitles'] {
+  --card-accent: var(--studio-accent-subtitles);
+}
+
 .studio-v4 .studio__panel-title {
   padding-left: 0;
   border-left: none;
@@ -447,19 +513,25 @@ body:has(.studio-v4) {
   font-weight: var(--studio-font-weight-label);
   letter-spacing: var(--studio-letter-label);
   text-transform: uppercase;
-  color: var(--studio-amber);
+  color: var(--card-accent, var(--studio-amber));
 }
 
-.studio-v4 .studio__panel[data-studio-panel='background'] .studio__panel-title {
-  color: var(--studio-cyan-ready);
+/* Accent divider under the icon + title row; quiet tint so text stays AA on deep indigo. */
+.studio-v4 .studio__panel-summary-head {
+  margin-bottom: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--card-accent, var(--studio-amber)) 32%, transparent);
 }
 
-.studio-v4 .studio__panel[data-studio-panel='voice'] .studio__panel-title {
-  color: var(--studio-amber-dim);
+/* Section icon keeps its machined amber silhouette (the non-color identity) but
+   gains a faint accent halo so it belongs to its card's ramp stop. filter works on
+   <img>; the icon SVGs are fixed-fill, so we glow rather than recolour. */
+.studio-v4 .studio__panel-icon {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--card-accent, var(--studio-amber)) 45%, transparent));
 }
 
-.studio-v4 .studio__panel[data-studio-panel='subtitles'] .studio__panel-title {
-  color: var(--studio-cyan-ready);
+.studio-v4 .studio__panel-enter-chip {
+  box-shadow: 0 0 9px color-mix(in srgb, var(--card-accent, var(--studio-amber)) 26%, transparent);
 }
 
 .studio-v4 .studio__panel-meta {
@@ -834,4 +906,41 @@ body:has(.studio-v4) {
 
 .studio-v4 .studio__subtitle-disable-copy {
   color: var(--studio-text-muted);
+}
+
+/* ── Boot reveal — one orchestrated entrance (hero → four cards), motion-safe ──
+   One-shot on mount; `both` holds the end state so opening/closing a sub-panel never
+   replays it. Fully suppressed under prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .studio-v4 .studio__hero,
+  .studio-v4 .studio__panel-strip > .studio__panel {
+    animation: studio-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .studio-v4 .studio__hero {
+    animation-delay: 0.02s;
+  }
+  .studio-v4 .studio__panel-strip > .studio__panel:nth-child(1) {
+    animation-delay: 0.1s;
+  }
+  .studio-v4 .studio__panel-strip > .studio__panel:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+  .studio-v4 .studio__panel-strip > .studio__panel:nth-child(3) {
+    animation-delay: 0.22s;
+  }
+  .studio-v4 .studio__panel-strip > .studio__panel:nth-child(4) {
+    animation-delay: 0.28s;
+  }
+}
+
+@keyframes studio-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

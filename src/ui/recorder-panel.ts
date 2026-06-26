@@ -31,6 +31,26 @@ import { showToast } from './toast';
 
 const PANEL_HOST_ATTR = 'data-rvn-recorder-host';
 
+/**
+ * Studio chrome mirrored for the Reddit-docked recorder panel. The panel lives in a
+ * content-script Shadow DOM and can't read the Design Studio's CSS custom properties, so
+ * the nocturnal-indigo + amber identity is mirrored here. Keep in sync with
+ * entrypoints/design-studio/studio-palette.css. The Record button's accent stays
+ * theme-derived (--rvn-accent) so it reads as the active clip's colour.
+ */
+const STUDIO = {
+  bgDeep: '#12001f',
+  surfaceInset: '#0a0014',
+  surfaceRaised: '#241a4a',
+  amber: '#ffd54f',
+  amberDim: '#c9a63d',
+  amberEdge: '#8a6f1a',
+  cyanReady: '#5ec8e8',
+  text: '#e8e6f0',
+  textMuted: '#a8a4c0',
+  hairline: 'rgba(138, 134, 176, 0.22)',
+} as const;
+
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -89,12 +109,14 @@ export class RecorderPanel {
           z-index: 2147483647;
           width: min(420px, calc(100vw - 32px));
           padding: 16px;
-          border-radius: 16px;
-          background: ${RVN_COLORS.panelBg};
-          color: ${RVN_COLORS.textPrimary};
+          border-radius: 14px;
+          background: linear-gradient(180deg, rgba(29, 31, 110, 0.28), rgba(18, 0, 31, 0)) ${STUDIO.bgDeep};
+          color: ${STUDIO.text};
           font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-          border: 1px solid var(--rvn-panel-border, ${RVN_COLORS.panelBorder});
+          box-shadow:
+            0 12px 40px rgba(0, 0, 0, 0.55),
+            inset 0 1px 0 rgba(255, 213, 79, 0.12);
+          border: 1px solid var(--rvn-panel-border, ${STUDIO.hairline});
           color-scheme: dark;
         }
         .header {
@@ -103,27 +125,34 @@ export class RecorderPanel {
           justify-content: space-between;
           margin-bottom: 8px;
         }
-        .title { font-weight: 600; font-size: 15px; margin: 0; }
+        .title {
+          margin: 0;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: ${STUDIO.amber};
+        }
         .close {
           border: none;
           background: transparent;
-          color: ${RVN_COLORS.textMuted};
+          color: ${STUDIO.textMuted};
           font-size: 18px;
           cursor: pointer;
           padding: 4px 8px;
           border-radius: 8px;
         }
-        .close:hover { background: rgba(255,255,255,0.08); color: ${RVN_COLORS.textPrimary}; }
-        .close:focus-visible { outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue}); outline-offset: 2px; }
+        .close:hover { background: rgba(255, 213, 79, 0.12); color: ${STUDIO.amber}; }
+        .close:focus-visible { outline: 2px solid var(--rvn-focus, ${STUDIO.amber}); outline-offset: 2px; }
         .status {
-          color: ${RVN_COLORS.textMuted};
+          color: ${STUDIO.textMuted};
           font-size: 12px;
           margin: 0 0 8px;
           min-height: 1.4em;
         }
         .status--error { color: ${RVN_COLORS.error}; }
-        .status--success { color: ${RVN_COLORS.success}; }
-        .status--warning { color: ${RVN_COLORS.warning}; }
+        .status--success { color: ${STUDIO.cyanReady}; }
+        .status--warning { color: ${STUDIO.amber}; }
         .status-studio {
           margin: 0 0 10px;
         }
@@ -195,20 +224,20 @@ export class RecorderPanel {
           font-weight: 700;
           margin: 0;
         }
-        .timer--warning { color: ${RVN_COLORS.warning}; }
+        .timer--warning { color: ${STUDIO.amber}; }
         .timer--critical { color: ${RVN_COLORS.error}; }
-        .timer__cap { font-size: 12px; font-weight: 500; color: ${RVN_COLORS.textMuted}; margin-left: 8px; }
+        .timer__cap { font-size: 12px; font-weight: 500; color: ${STUDIO.textMuted}; margin-left: 8px; }
         .time-progress {
           height: 3px;
           border-radius: 2px;
-          background: ${RVN_COLORS.panelBorder};
+          background: ${STUDIO.surfaceRaised};
           margin-bottom: 12px;
           overflow: hidden;
         }
         .time-progress__bar {
           height: 100%;
           width: 0%;
-          background: var(--rvn-accent, ${RVN_COLORS.redditBlue});
+          background: var(--rvn-accent, ${STUDIO.amber});
           transition: width 0.25s linear, background 0.2s ease;
         }
         .time-progress__bar--warning { background: ${RVN_COLORS.warning}; }
@@ -218,7 +247,9 @@ export class RecorderPanel {
           aspect-ratio: 16 / 9;
           border-radius: 10px;
           overflow: hidden;
-          background: ${RVN_COLORS.surfaceDark};
+          background: ${STUDIO.surfaceInset};
+          border: 1px solid rgba(255, 213, 79, 0.18);
+          box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.6);
           margin-bottom: 12px;
         }
         .waveform canvas { width: 100%; height: 100%; display: block; }
@@ -230,37 +261,40 @@ export class RecorderPanel {
           margin-bottom: 12px;
         }
         .theme-row__label {
-          font-size: 12px;
-          color: ${RVN_COLORS.textMuted};
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          color: ${STUDIO.amberDim};
           white-space: nowrap;
         }
         .theme-row__select {
           flex: 1;
-          border: 1px solid ${RVN_COLORS.panelBorder};
+          border: 1px solid ${STUDIO.hairline};
           border-radius: 8px;
-          background: ${RVN_COLORS.surfaceRaised};
-          color: ${RVN_COLORS.textPrimary};
+          background: ${STUDIO.surfaceRaised};
+          color: ${STUDIO.text};
           font: inherit;
           font-size: 12px;
           padding: 6px 8px;
           cursor: pointer;
         }
         .theme-row__select:focus-visible {
-          outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue});
+          outline: 2px solid var(--rvn-focus, ${STUDIO.amber});
           outline-offset: 2px;
         }
         .theme-row__select:disabled { opacity: 0.55; cursor: not-allowed; }
         .progress {
           height: 4px;
           border-radius: 2px;
-          background: ${RVN_COLORS.panelBorder};
+          background: ${STUDIO.surfaceRaised};
           margin-bottom: 12px;
           overflow: hidden;
         }
         .progress__bar {
           height: 100%;
           width: 0%;
-          background: var(--rvn-accent, ${RVN_COLORS.redditBlue});
+          background: var(--rvn-accent, ${STUDIO.amber});
           transition: width 0.2s ease;
         }
         .actions { display: flex; gap: 8px; }
@@ -281,9 +315,9 @@ export class RecorderPanel {
           background: var(--rvn-accent-hover, ${RVN_COLORS.redditOrangeHover});
           filter: brightness(1.06);
         }
-        .action--secondary { background: ${RVN_COLORS.surfaceRaised}; color: ${RVN_COLORS.textPrimary}; }
-        .action--secondary:hover { background: ${RVN_COLORS.panelBorder}; }
-        .action:focus-visible { outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue}); outline-offset: 2px; }
+        .action--secondary { background: ${STUDIO.surfaceRaised}; color: ${STUDIO.text}; border: 1px solid ${STUDIO.hairline}; }
+        .action--secondary:hover { background: #2e2360; border-color: ${STUDIO.amberEdge}; }
+        .action:focus-visible { outline: 2px solid var(--rvn-focus, ${STUDIO.amber}); outline-offset: 2px; }
         .action:disabled { opacity: 0.5; cursor: not-allowed; }
         .tertiary {
           display: block;
@@ -291,7 +325,7 @@ export class RecorderPanel {
           margin-top: 8px;
           border: none;
           background: transparent;
-          color: ${RVN_COLORS.textMuted};
+          color: ${STUDIO.textMuted};
           font: inherit;
           font-size: 12px;
           font-weight: 500;
@@ -300,48 +334,19 @@ export class RecorderPanel {
           text-decoration: underline;
           text-underline-offset: 2px;
         }
-        .tertiary:hover { color: ${RVN_COLORS.textPrimary}; }
-        .tertiary:focus-visible { outline: 2px solid var(--rvn-focus, ${RVN_COLORS.redditBlue}); outline-offset: 2px; border-radius: 4px; }
+        .tertiary:hover { color: ${STUDIO.amber}; }
+        .tertiary:focus-visible { outline: 2px solid var(--rvn-focus, ${STUDIO.amber}); outline-offset: 2px; border-radius: 4px; }
+        /* Light Reddit: the panel stays nocturnal-indigo — the Studio is dark by identity,
+           so it docks as a deliberate instrument, not a theme-flipped card. Only firm up the
+           edge + shadow for separation against a light page; color-scheme stays dark so the
+           native clip-style <select> popup renders dark too. */
         @media (prefers-color-scheme: light) {
           .panel {
-            background: #ffffff;
-            color: #1a1a1b;
-            border-color: #edeff1;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-            color-scheme: light;
+            border-color: rgba(18, 0, 31, 0.55);
+            box-shadow:
+              0 12px 40px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(255, 213, 79, 0.12);
           }
-          .close { color: #576f76; }
-          .close:hover { background: rgba(0,0,0,0.06); color: #1a1a1b; }
-          .status { color: #576f76; }
-          .timer__cap { color: #576f76; }
-          .time-progress { background: #edeff1; }
-          .waveform { background: #f6f7f8; }
-          .theme-row__select {
-            background: #f6f7f8;
-            color: #1a1a1b;
-            border-color: #edeff1;
-          }
-          .progress { background: #edeff1; }
-          .action--secondary { background: #f6f7f8; color: #1a1a1b; }
-          .action--secondary:hover { background: #edeff1; }
-          .tertiary { color: #576f76; }
-          .tertiary:hover { color: #1a1a1b; }
-          .studio-first-hint {
-            color: #7a5a00;
-            border-color: rgba(201, 166, 61, 0.65);
-            background: rgba(255, 213, 79, 0.28);
-            box-shadow: none;
-          }
-          .studio-first-hint__caution { color: #9a7210; }
-          .studio-first-hint__arrow { color: #7a5a00; }
-          .how-it-works {
-            border-color: rgba(100, 105, 200, 0.2);
-            background: rgba(107, 112, 196, 0.06);
-          }
-          .how-it-works__summary { color: #5a5faa; }
-          .how-it-works__num { background: rgba(100, 105, 200, 0.15); color: #5a5faa; }
-          .how-it-works__step-text { color: #3d3d3d; }
-          .how-it-works__step-text strong { color: #1a1a1b; }
         }
         /* ── 3-phase how-it-works intro card ── */
         .how-it-works {
