@@ -11,8 +11,10 @@ import {
   type DrawableBackgroundImage,
   getDrawableBackgroundSize,
   isDrawableBackgroundReady,
+  loadAnimatedBackground,
   loadBackgroundImageElement,
 } from '@/src/storage/background-loader';
+import type { AnimatedBackground } from '@/src/storage/animated-background';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { USER_BACKGROUND_DIM_OVERLAY } from '@/src/storage/image-db-types';
 import {
@@ -65,6 +67,8 @@ export async function loadUserBackgroundImage(id: string): Promise<DrawableBackg
 
 export interface ResolvedClipBackgrounds {
   userBackgroundImage: DrawableBackgroundImage | null;
+  /** Set only when the personal background is an animated GIF with real motion (>1 frame). */
+  userAnimatedBackground: AnimatedBackground | null;
   bundledBackgroundImage: HTMLImageElement | null;
 }
 
@@ -75,8 +79,19 @@ export async function resolveClipBackgrounds(
 ): Promise<ResolvedClipBackgrounds> {
   const normalizedId = normalizeBackgroundAssetId(customBackgroundId);
   let userBackgroundImage: DrawableBackgroundImage | null = null;
+  let userAnimatedBackground: AnimatedBackground | null = null;
   if (normalizedId) {
-    userBackgroundImage = await loadUserBackgroundImage(normalizedId);
+    // CHANGED: resolve animated GIFs to a frame controller; static assets unchanged.
+    // WHY: animated branch Phase 2 — looping happens on the canvas (preview = recorder = MP4).
+    // loadAnimatedBackground returns a controller only for GIFs with real motion; everything
+    // else (static images, single-frame or undecodable GIFs) falls through to the static path.
+    const animated = await loadAnimatedBackground(normalizedId);
+    if (animated) {
+      userAnimatedBackground = animated;
+      userBackgroundImage = animated.firstFrame();
+    } else {
+      userBackgroundImage = await loadUserBackgroundImage(normalizedId);
+    }
   }
 
   let bundledBackgroundImage: HTMLImageElement | null = null;
@@ -84,11 +99,7 @@ export async function resolveClipBackgrounds(
     bundledBackgroundImage = await loadBackgroundImage(theme.background.value);
   }
 
-  if (userBackgroundImage) {
-    return { userBackgroundImage, bundledBackgroundImage };
-  }
-
-  return { userBackgroundImage: null, bundledBackgroundImage };
+  return { userBackgroundImage, userAnimatedBackground, bundledBackgroundImage };
 }
 
 export async function loadBackgroundImage(key: string): Promise<HTMLImageElement | null> {

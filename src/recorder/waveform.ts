@@ -16,6 +16,7 @@ import {
   type WaveformTheme,
 } from '@/src/theme';
 import type { DrawableBackgroundImage } from '@/src/storage/background-loader';
+import type { AnimatedBackground } from '@/src/storage/animated-background';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { DEFAULT_THEME_ID, getThemeById } from '@/src/theme/presets';
 import {
@@ -181,6 +182,8 @@ export class WaveformRenderer {
   private userBackgroundLayout: UserBackgroundLayout = userBackgroundLayoutFromAppearance({});
   private bundledBackgroundImage: HTMLImageElement | null = null;
   private userBackgroundImage: DrawableBackgroundImage | null = null;
+  /** Set when the personal background is an animated GIF — drives per-frame looping. */
+  private userAnimatedBackground: AnimatedBackground | null = null;
   private backgroundLoadPromise: Promise<void> = Promise.resolve();
   /** Monotonic token — stale async loads must not overwrite newer background state. */
   private backgroundLoadGeneration = 0;
@@ -290,6 +293,7 @@ export class WaveformRenderer {
     if (generation !== this.backgroundLoadGeneration) return;
 
     this.userBackgroundImage = resolved.userBackgroundImage;
+    this.userAnimatedBackground = resolved.userAnimatedBackground;
     this.bundledBackgroundImage = resolved.bundledBackgroundImage;
   }
 
@@ -323,16 +327,24 @@ export class WaveformRenderer {
     this.smoothedAudioEnergy =
       this.smoothedAudioEnergy * energySmoothing + instantEnergy * energyBlend;
 
+    // CHANGED: pick the animated GIF frame for this instant (reduce-motion freezes to frame 0).
+    // WHY: animated branch Phase 2 — the captured canvas is the exported MP4, so looping here
+    //      animates the live recorder, the preview, and the export in lockstep (WYSIWYG).
+    const animationTimeMs = this.reduceMotion ? 0 : performance.now();
+    const backgroundFrame = this.userAnimatedBackground
+      ? this.userAnimatedBackground.frameAt(animationTimeMs)
+      : this.userBackgroundImage;
+
     drawThemeBackground(
       ctx,
       canvas,
       theme,
       this.bundledBackgroundImage,
       {
-        timeMs: this.reduceMotion ? 0 : performance.now(),
+        timeMs: animationTimeMs,
         audioEnergy: this.smoothedAudioEnergy,
       },
-      this.userBackgroundImage,
+      backgroundFrame,
       this.userBackgroundLayout,
     );
 
@@ -431,10 +443,13 @@ export async function renderThemePreview(
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
 
-  const { userBackgroundImage, bundledBackgroundImage } = await resolveClipBackgrounds(
-    theme,
-    customBackgroundId,
-  );
+  const { userBackgroundImage, userAnimatedBackground, bundledBackgroundImage } =
+    await resolveClipBackgrounds(theme, customBackgroundId);
+
+  // Animated GIF: pick the frame for `timeMs` (callers pass 0 to freeze for reduced motion).
+  const backgroundFrame = userAnimatedBackground
+    ? userAnimatedBackground.frameAt(timeMs)
+    : userBackgroundImage;
 
   drawThemeBackground(
     ctx,
@@ -445,7 +460,7 @@ export async function renderThemePreview(
       timeMs,
       audioEnergy: 0.32,
     },
-    userBackgroundImage,
+    backgroundFrame,
     userBackgroundLayout,
   );
   drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);

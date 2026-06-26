@@ -12,8 +12,15 @@ import {
 } from '@/src/messaging/background-blob';
 import {
   createBackgroundObjectUrl,
+  getBackgroundAsset,
   normalizeBackgroundAssetId,
 } from './image-db';
+import {
+  AnimatedBackground,
+  animatedDecodeSupported,
+  decodeAnimatedBackground,
+  isAnimatableMime,
+} from './animated-background';
 
 /** Canvas-drawable personal/bundled decode result — ImageBitmap bypasses page img-src CSP. */
 export type DrawableBackgroundImage = HTMLImageElement | ImageBitmap;
@@ -337,7 +344,136 @@ export async function loadBackgroundImageElement(id: string): Promise<DrawableBa
   return loadBackgroundImageElementViaRelay(normalized);
 }
 
+// ── Animated GIF backgrounds (animated branch, Phase 2) ──────────────────────
+// Decode the GIF's frames once and cache a single active controller. Only one
+// personal background is active at a time per context, so we keep at most one
+// decoded controller live and dispose superseded ones after a grace delay — long
+// enough that the recorder/Studio have swapped to the new frame source before the
+// old ImageBitmaps close (drawing a closed bitmap would throw).
+
+interface AnimatedCacheEntry {
+  id: string;
+  promise: Promise<AnimatedBackground | null>;
+  anim: AnimatedBackground | null;
+}
+
+const ANIMATED_DISPOSE_GRACE_MS = 1500;
+let animatedEntry: AnimatedCacheEntry | null = null;
+const pendingAnimatedDisposal = new Set<AnimatedBackground>();
+let animatedDisposeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function queueAnimatedDisposal(anim: AnimatedBackground | null): void {
+  if (!anim) return;
+  pendingAnimatedDisposal.add(anim);
+  if (animatedDisposeTimer != null) return;
+  animatedDisposeTimer = setTimeout(() => {
+    animatedDisposeTimer = null;
+    for (const entry of pendingAnimatedDisposal) entry.dispose();
+    pendingAnimatedDisposal.clear();
+  }, ANIMATED_DISPOSE_GRACE_MS);
+}
+
+/** `not-animatable`/`unavailable` distinguish a sticky "no GIF here" from a transient relay miss. */
+type AnimatableBytes =
+  | { kind: 'bytes'; bytes: Uint8Array; mimeType: string }
+  | { kind: 'not-animatable' }
+  | { kind: 'unavailable' };
+
+async function fetchAnimatableBytes(normalized: string): Promise<AnimatableBytes> {
+  if (isExtensionPageContext()) {
+    const record = await getBackgroundAsset(normalized);
+    if (!record || !isAnimatableMime(record.mimeType)) return { kind: 'not-animatable' };
+    const buffer = await record.blob.arrayBuffer();
+    return { kind: 'bytes', bytes: new Uint8Array(buffer), mimeType: record.mimeType };
+  }
+
+  // Content script — probe MIME cheaply first; only relay full bytes for animatable kinds.
+  // A null meta is an ambiguous relay miss (SW cold start), so treat it as retryable.
+  const meta = await requestBackgroundBlobMeta(normalized);
+  if (!meta?.mimeType) return { kind: 'unavailable' };
+  if (!isAnimatableMime(meta.mimeType)) return { kind: 'not-animatable' };
+  const payload =
+    (await requestBackgroundBlobViaPort(normalized)) ?? (await requestBackgroundBlobViaMessage(normalized));
+  if (!payload) return { kind: 'unavailable' };
+  return { kind: 'bytes', bytes: payload.bytes, mimeType: payload.mimeType };
+}
+
+type AnimatedOutcome =
+  | { status: 'animated'; anim: AnimatedBackground }
+  | { status: 'static' } // sticky: non-GIF, single-frame, corrupt, or unsupported env
+  | { status: 'retry' }; // transient relay miss — evict so the next resolve re-attempts
+
+async function resolveAnimatedOutcome(normalized: string): Promise<AnimatedOutcome> {
+  if (!animatedDecodeSupported()) return { status: 'static' };
+
+  const fetched = await fetchAnimatableBytes(normalized);
+  if (fetched.kind === 'unavailable') return { status: 'retry' };
+  if (fetched.kind === 'not-animatable') return { status: 'static' };
+
+  const anim = await decodeAnimatedBackground(fetched.bytes, fetched.mimeType);
+  if (!anim) return { status: 'static' }; // bytes present but undecodable — static fallback, don't hammer
+  if (!anim.isAnimated) {
+    anim.dispose(); // single-frame GIF — let the static path draw it
+    return { status: 'static' };
+  }
+  return { status: 'animated', anim };
+}
+
+/**
+ * Resolve the active background as an *animated* controller, or `null` when it's
+ * static / non-GIF / undecodable (callers fall back to a static first frame). Works
+ * in both the extension page (local blob) and the recorder content script (relay).
+ */
+export function loadAnimatedBackground(
+  id: string | null | undefined,
+): Promise<AnimatedBackground | null> {
+  const normalized = normalizeBackgroundAssetId(id);
+  if (!normalized) return Promise.resolve(null);
+  if (animatedEntry?.id === normalized) return animatedEntry.promise;
+
+  const previous = animatedEntry;
+  const outcome = resolveAnimatedOutcome(normalized);
+  const entry: AnimatedCacheEntry = {
+    id: normalized,
+    anim: null,
+    promise: outcome.then((result) => (result.status === 'animated' ? result.anim : null)),
+  };
+  outcome
+    .then((result) => {
+      if (animatedEntry !== entry) {
+        if (result.status === 'animated') queueAnimatedDisposal(result.anim); // superseded mid-flight
+        return;
+      }
+      if (result.status === 'animated') entry.anim = result.anim;
+      else if (result.status === 'retry') animatedEntry = null; // evict — next resolve retries
+      // 'static' → keep the sticky null entry (no retry, no per-frame re-probe)
+    })
+    .catch(() => {
+      if (animatedEntry === entry) animatedEntry = null;
+    });
+  animatedEntry = entry;
+
+  // Retire the controller we just replaced once its decode has settled.
+  if (previous) {
+    previous.promise.then((anim) => queueAnimatedDisposal(anim)).catch(() => {});
+  }
+
+  return entry.promise;
+}
+
+/** Sync check for the Studio preview RAF — true once an *animated* GIF is decoded & active. */
+export function isAnimatedBackgroundCached(id: string | null | undefined): boolean {
+  const normalized = normalizeBackgroundAssetId(id);
+  return !!normalized && animatedEntry?.id === normalized && !!animatedEntry.anim?.isAnimated;
+}
+
 export function evictBackgroundImageElementCache(id: string): void {
   const normalized = normalizeBackgroundAssetId(id);
-  if (normalized) evictDecodedBackgroundImage(normalized);
+  if (!normalized) return;
+  evictDecodedBackgroundImage(normalized);
+  if (animatedEntry?.id === normalized) {
+    const stale = animatedEntry;
+    animatedEntry = null;
+    stale.promise.then((anim) => queueAnimatedDisposal(anim)).catch(() => {});
+  }
 }

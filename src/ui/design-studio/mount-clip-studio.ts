@@ -7,6 +7,7 @@ import {
   userBackgroundLayoutFromAppearance,
   type BarAlignment,
 } from '@/src/theme';
+import { isAnimatedBackgroundCached } from '@/src/storage/background-loader';
 import {
   clipProfileMatchesLiveState,
   getClipProfileById,
@@ -368,6 +369,22 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     lastPreviewFrame = 0;
   }
 
+  /** Redraw previews at the GIF's first frame (timeMs 0) — used for the reduced-motion freeze. */
+  function freezePreviewFirstFrame(): void {
+    const subtitlePreview = subtitleControls?.getPreviewOptions();
+    for (const canvas of previewCanvases()) {
+      void renderThemePreview(
+        canvas,
+        resolvedTheme(),
+        activeAlignment,
+        0,
+        activeCustomBackgroundId(),
+        activeBackgroundLayout(),
+        subtitlePreview,
+      );
+    }
+  }
+
   function activeCustomBackgroundId(): string | null {
     return activePrefs?.appearance.customBackgroundId ?? null;
   }
@@ -489,9 +506,15 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const animatedOverlay = themeHasAnimatedOverlay(theme);
     const subtitlePreview = subtitleControls?.getPreviewOptions();
     const rainbowPreview = subtitlePreview?.enabled && subtitlePreviewNeedsAnimation(subtitlePreview.style);
-    const shouldAnimate = presetBokeh || animatedOverlay || rainbowPreview;
+    // CHANGED: an animated GIF personal background must drive the preview RAF too.
+    // WHY: animated branch Phase 2 — otherwise the Studio preview would freeze while the
+    //      recorder/export loop, breaking the WYSIWYG promise.
+    const animatedBackground = isAnimatedBackgroundCached(activeCustomBackgroundId());
+    const shouldAnimate = presetBokeh || animatedOverlay || rainbowPreview || animatedBackground;
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
+      // Freeze the GIF to its first frame so the reduced-motion preview matches the recorder.
+      if (animatedBackground) freezePreviewFirstFrame();
       return;
     }
     if (!shouldAnimate) {
