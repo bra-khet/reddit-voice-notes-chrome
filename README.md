@@ -4,9 +4,25 @@ A privacy-first Chrome Manifest V3 extension that records short voice notes dire
 
 All recording, visualization, transcoding, and voice effects happen **client-side** in the browser. The only data that leaves your machine is the final MP4 you choose to upload to Reddit.
 
+Works with:
+
+- Chrome
+- Edge
+- Opera
+- Brave
+- Any Chromium-based MV3 browser.
+
+Incompatible:
+
+- Firefox
+- Safari
+- Tor Browser
+
 ## Status
 
-**Stable `main` v5.0.0 — Dulcet II** (2026-06-25) — full DSP rebuild of voice stylization on a graph-native engine: composable `StylizedGraph` fragments (21 effect primitives across 7 categories) replace the legacy flat-field layer, with character voice presets (one-click chips + Incognito), per-primitive Fine-tune intensity dials, and physical analog sliders in the Design Studio voice composer. The graph bake is the single source of truth for preview and export. Release: `docs/release-notes-v5.0.0.md`.
+**Stable `main` v5.2.0 — Voice QoL** (2026-06-26) — two small quality-of-life additions to the Design Studio voice panel: a **character lock** padlock that guards a tuned custom voice against an accidental preset-chip click, and **clipboard copy/paste** to back up a voice character (and restore it later) as portable versioned JSON. Both build directly on the v5.0.0 Dulcet II voice engine — see `docs/release-notes-v5.0.0.md` for the full voice system. (v5.1.0 added animated GIF backgrounds.)
+
+**v5.0.0 — Dulcet II** (2026-06-25) — full DSP rebuild of voice stylization on a graph-native engine: composable `StylizedGraph` fragments (21 effect primitives across 7 categories) replace the legacy flat-field layer, with character voice presets (one-click chips + Incognito), per-primitive Fine-tune intensity dials, and physical analog sliders in the Design Studio voice composer. The graph bake is the single source of truth for preview and export. Release: `docs/release-notes-v5.0.0.md`.
 
 Previous stable: **v4.0.0** (Eloquent I — subtitles), **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3), `eloquent-branch.md` (v4 subtitles).
 
@@ -245,6 +261,8 @@ Note: `tsc --noEmit` may report pre-existing strictness issues in a few files; t
 
 | Tag | Meaning |
 |-----|---------|
+| `v5.2.0` | **Voice QoL** — custom-voice lock guard + clipboard voice backup (2026-06) |
+| `v5.1.0` | Animated GIF backgrounds (2026-06) |
 | `v5.0.0` | **Dulcet II** — graph-native voice DSP rebuild + character presets (`dulcet-ii` merge, 2026-06) |
 | `v4.0.0` | **Eloquent I** — automated subtitles + Design Studio v4 (`eloquent` merge, 2026-06) |
 | `v3.1.0` | Design Studio collapsible panels + UX polish (2026-06) |
