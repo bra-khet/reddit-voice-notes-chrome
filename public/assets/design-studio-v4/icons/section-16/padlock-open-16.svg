@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+  <!-- Design Studio v4 - Padlock open / unlocked (16px) -->
+  <g fill="#ffd54f" stroke="#8a6f1a" stroke-width="0.6" stroke-linejoin="round">
+    <rect x="3.5" y="7.5" width="9" height="6.5" rx="1.5"/>
+    <circle cx="8" cy="10.75" r="0.9" fill="#8a6f1a" stroke="none"/>
+  </g>
+  <path d="M5.5 7.5 V5.5 a2.5 2.5 0 0 1 5 0" fill="none" stroke="#ffd54f" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

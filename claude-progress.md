@@ -970,3 +970,43 @@ git checkout animated && npm install && npm run dev
 ```
 - Import an animated GIF in Clip appearance → Design Studio preview loops → record on Reddit →
   exported MP4 loops the background. Build gate: `npm run build` + `npm run compile` (clean).
+
+---
+
+## v5.2.0 — Voice Panel QoL: Character Lock + Clipboard Backup (2026-06-26)
+
+**Branch:** `feature/voice-qol-lock-clipboard` (off `main` @ v5.1.0) · **Doc:** `docs/v5.2.0-voice-qol-lock-clipboard.md`
+**Specs:** `docs/v5.1.2-QOL-characterlockout.md` + `docs/v5.1.1-QOL-charactercopypaste.md`
+
+Two paired minimal QoL MVPs on the Design Studio Voice sub-panel, built together (shared surface). Icon cluster `[🔒][copy][paste]` on the custom-voice pill row.
+
+- **Voice Character Lock** — transient padlock guard; renders only for a custom voice
+  (`characterPresetId` undefined); blocked preset-chip switches show a polite toast, no draft change.
+- **Clipboard Voice Character Backup** — copy/paste live voice as `rvn-voice-character-v1` versioned
+  JSON (graph-native); paste applies like a manual edit so Update/Save lights up; never auto-saves.
+
+| Phase | Status | Commit |
+|-------|--------|--------|
+| 0 — assets, branch, scope, future-note | DONE | `fd5d2f7` |
+| 1 — pure-logic modules (guard predicate + clipboard schema) | DONE (6/6 predicate cases) | `ee47fdb` |
+| 2 — UI wiring (cluster + guard + copy/paste) | DONE, user-QA'd | `f90a38c` |
+| Polish — SVG render fix (xmlns) + padlock left-align | DONE | `78663b0` |
+| 6 — docs + v5.2.0 bump | DONE | (this) |
+
+**User QA (2026-06-26):** all functionality verified — lock/toast/highlight, copy/paste, dirty state.
+Found two visual bugs (now fixed): the four new SVGs lacked the `xmlns` namespace so they rendered
+blank via `<img>`; and the padlock was appended on the right, shoving copy/paste over (now leftmost).
+
+**Decision:** clipboard scope = **voice character only** (not full profile); schema must stay parity/
+migratable with the future static companion page (`docs/future-ideas.md`).
+
+**Modules (pure, leaf-safe):** `src/ui/design-studio/voice-character-lock.ts`,
+`src/settings/clipboard-backup.ts`. Guard choke point: the delegated chip handler in
+`voice-controls.ts`. tsc + wxt build clean.
+
+### Restore / test
+```bash
+git checkout feature/voice-qol-lock-clipboard && npm install && npm run dev
+```
+Record on Reddit → Design Studio → Voice → tune a custom voice → padlock appears → lock → preset
+click is blocked (toast) → copy/paste round-trips and lights up Update profile.

@@ -643,6 +643,69 @@ body {
   min-height: 1.1em;
 }
 
+/* Voice-panel QoL (v5.1.x): clipboard copy/paste + custom-voice lock guard.
+   One right-aligned icon cluster sharing a row with the custom-voice status pill. */
+.studio__char-pill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Pill owns its own top margin elsewhere; the row supplies it here. */
+.studio__char-pill-row .studio__char-status {
+  margin: 0;
+}
+
+.studio__char-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.studio__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.12s, background 0.12s, border-color 0.12s;
+}
+
+.studio__icon-btn:hover {
+  opacity: 1;
+  background: rgba(255, 213, 79, 0.12);
+}
+
+.studio__icon-btn:focus-visible {
+  outline: none;
+  opacity: 1;
+  border-color: var(--studio-focus);
+}
+
+.studio__icon-btn[hidden] {
+  display: none;
+}
+
+.studio__icon-btn img {
+  display: block;
+  pointer-events: none;
+}
+
+/* Locked = active guard: amber-lit to match the closed-padlock asset. */
+.studio__lock-btn[aria-pressed='true'] {
+  opacity: 1;
+  background: rgba(255, 213, 79, 0.16);
+  border-color: var(--studio-amber);
+}
+
 .studio__voice-preset-tip {
   margin: -2px 0 6px;
   color: #d7dadc;

@@ -108,3 +108,34 @@ Every hop already exists and is exercised for the coarse ratio. Adding `time` is
 **Why not Hard:** No new architecture required. The signal exists. The relay exists. No WASM changes. No new message family. The UI slot is already there (`statusEl`, existing progress bar). The total diff would be ~40–60 lines across 6 files, with no side effects on the transcode success/failure paths. The burn-in indicator would follow automatically once the transcode path is wired.
 
 **Gotcha to remember:** WebM recordings from Chrome often have `Duration: N/A` in FFmpeg's probe output, so FFmpeg's own `progress` ratio can be unreliable or jump. `time` (the output timecode) is more trustworthy as a chronometer — it advances monotonically as frames are encoded regardless of container duration metadata. Using `elapsedSeconds` from `RecorderState` as the denominator sidesteps this entirely.
+
+---
+
+## Voice Character Profile Studio — Static Hosted Companion Page
+
+**Priority:** Medium / future
+**Effort:** Large (separate deliverable, outside the extension bundle)
+**Status:** Design only — depends on the Clipboard Voice Character Backup MVP (`docs/v5.1.1-QOL-charactercopypaste.md`) shipping first.
+
+### What it is
+
+The **Clipboard Voice Character Backup** feature is the bootstrap for something larger: a **standalone static webpage** (GitHub Pages or equivalent), hosted **separate from the extension itself**, where users can visit to **further test and refine their voice character profiles** away from the in-extension Voice panel.
+
+Because the extension already serializes a voice character config to the clipboard as versioned JSON, that same payload becomes the interchange format with the web page:
+
+- **Extension → Page:** copy a voice character in the Studio Voice panel, paste it into the page to load it.
+- **Page → Extension:** refine/preview on the page, copy the result, paste it back into the Voice panel via the existing paste path.
+
+The page is a richer scratch space (multiple slots, side-by-side compares, sliders, sharable links) that would be heavy to build inside the extension popup, but is natural as a static site.
+
+### Hard requirement — schema parity / migratability
+
+The clipboard JSON schema designed for the MVP is the contract between the extension and this future page. Therefore:
+
+- The MVP **must** use a discriminator + version (`type` + version, e.g. `rvn-voice-character-v1` / `rvn-profile-v1`) so the page can validate and migrate payloads safely.
+- The web page **must** follow the **same schema** or stay **migratable** from it — never a divergent format. Any schema change ships a version bump and a migration shim on both sides.
+- Keep the serialized voice config **graph-native** (the `StylizedGraph` world — see `project_voice_resolve_worlds`), never legacy flat fields, so the page and extension share one canonical voice representation.
+
+### Why it's deferred
+
+It's an entirely separate hosting + build target with no impact on the extension MVP beyond the schema-stability commitment above. The MVP delivers value alone; this page is the "Phase 2" evolution noted in the clipboard plan's *Future Evolution* (file export/import, named slots).

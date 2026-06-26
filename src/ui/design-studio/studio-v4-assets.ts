@@ -40,6 +40,11 @@ export const STUDIO_V4_ASSETS = {
     background16: `${BASE}/icons/section-16/frame-icon-16.svg`,
     voice16: `${BASE}/icons/section-16/mic-wave-16.svg`,
     subtitles16: `${BASE}/icons/section-16/caption-lines-16.svg`,
+    // Voice-panel QoL (v5.1.x): character lock guard + clipboard voice backup.
+    padlockOpen16: `${BASE}/icons/section-16/padlock-open-16.svg`,
+    padlockClosed16: `${BASE}/icons/section-16/padlock-closed-16.svg`,
+    copy16: `${BASE}/icons/section-16/copy-16.svg`,
+    paste16: `${BASE}/icons/section-16/paste-16.svg`,
     chevronEnter32: `${BASE}/icons/navigation/chevron-enter-32.svg`,
     chevronEnter16: `${BASE}/icons/navigation/chevron-enter-16.svg`,
     chevronBack32: `${BASE}/icons/navigation/chevron-back-32.svg`,
