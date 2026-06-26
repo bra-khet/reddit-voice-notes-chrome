@@ -753,6 +753,8 @@ reddit.com).
 | Rainbow speed / slice fineness | Subtitles | Tunable `RAINBOW_CYCLES_PER_SECOND` + `RAINBOW_BAKE_SLICE_SECONDS`; user slider optional |
 | In-Studio recording (optional) | Shell / Voice | Extension page mic + unified canvas; Reddit tab keeps attach-only — see §13 |
 | Font picker | Subtitles | Deferred |
+| Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
+| Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
 | Chunked base-MP4 relay | Subtitles | If large-clip bake fails |
 | Legacy `transcriptConfig` on profiles | Subtitles / Profile | Update profile once embeds style |
 | ~~Section tabs vs `<details>`~~ | Shell | **Done v3.7** — hero + 1×4 cards + sub-panels |
