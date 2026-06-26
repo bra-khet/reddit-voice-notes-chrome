@@ -952,7 +952,10 @@ body {
 }
 
 .studio__physical-slider:focus-visible {
-  outline: 2px solid #4fbcff;
+  /* BUG FIX: off-palette focus stray
+     Fix: #4fbcff (a blue in no token) → unified --studio-focus (amber).
+     Sync: all studio focus rings now resolve to --studio-focus. */
+  outline: 2px solid var(--studio-focus);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -988,10 +991,25 @@ body {
   background-repeat: no-repeat;
   background-position: center;
   pointer-events: none;
+  /* Seated drop shadow at rest; the machined tab "lights up" in --studio-track-glow
+     when grabbed or focused (theming via tokens, per assets README). */
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+  transition: filter 0.15s ease;
+}
+
+.studio__physical-slider:focus-visible .studio__physical-slider-thumb,
+.studio__physical-slider:active:not(.is-disabled) .studio__physical-slider-thumb {
+  filter: drop-shadow(0 0 6px var(--studio-track-glow)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
 
 .studio__physical-slider:active:not(.is-disabled) {
   cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__physical-slider-thumb {
+    transition: none;
+  }
 }
 
 .voice-composer__ctrl-value {

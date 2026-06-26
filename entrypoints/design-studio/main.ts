@@ -4,6 +4,7 @@ import './studio-v4-chrome.css';
 import './studio-v4-layout.css';
 import './studio-v4-buttons.css';
 import './style.css';
+import './studio-v4-controls.css';
 import { reconcileBackgroundPreferences } from '@/src/storage/background-refs';
 import { loadUserPreferences } from '@/src/settings/user-preferences';
 import { mountClipStudio } from '@/src/ui/design-studio/mount-clip-studio';

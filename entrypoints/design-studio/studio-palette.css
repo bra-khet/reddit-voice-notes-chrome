@@ -1,5 +1,26 @@
-/* Design Studio v4 chrome tokens — CVD-friendly indigo + amber anchor.
-   WHY: Shared palette for UI refresh; pair hue with icon/label per design-studio.md §10.3. */
+/* Design Studio v5 chrome tokens — CVD-friendly indigo + amber anchor.
+   WHY: Single source of truth for Studio colour + type. Pair hue with icon/label per
+   design-studio.md §10.3. Everything below lives on the indigo→amber Cividis axis;
+   --studio-cyan-ready is the only cool "ready/info" accent. Do NOT introduce off-axis
+   hues or Reddit-popup blues (#0079d3) / grays (#818384) — scope overrides to .studio-v4. */
+
+/* Self-hosted machined display face (latin subset, ~10 KB/weight; CSP font-src 'self').
+   Reserved for the wordmark + section/sub-panel titles — the studio's "signage". */
+@font-face {
+  font-family: 'Chakra Petch';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/fonts/ChakraPetch-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Chakra Petch';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/fonts/ChakraPetch-Bold.woff2') format('woff2');
+}
 
 :root {
   --studio-bg-deep: #12001f;
@@ -37,4 +58,32 @@
   --studio-font-weight-strong: 800;
   --studio-letter-label: 0.08em;
   --studio-letter-meta: 0.04em;
+
+  /* v5 type families — distinctive display, refined sans prose, instrument-readout mono.
+     RVN-DejaVu-Mono is registered on boot by preview-font-loader.ts and is the same family
+     the bake can render, reinforcing the preview = output promise. */
+  --studio-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --studio-font-display: 'Chakra Petch', var(--studio-font-sans);
+  --studio-font-mono: 'RVN-DejaVu-Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Mono', monospace;
+
+  /* v5 semantic control tokens — replace inherited Reddit-popup blue/gray inside the Studio. */
+  --studio-focus: var(--studio-amber);                 /* one focus ring, studio-wide */
+  --studio-control-on: var(--studio-amber-action);     /* toggle "on" fill (was #0079d3) */
+  --studio-field-label: var(--studio-indigo-muted);    /* field labels (was #818384) */
+
+  /* v5 surfaces & hairlines — one raised fill + one divider language (indigo axis). */
+  --studio-surface-raised: #241a4a;
+  --studio-hairline: rgba(138, 134, 176, 0.18);
+  --studio-hairline-strong: rgba(138, 134, 176, 0.32);
+
+  /* Physical-slider track illumination hook (themeable per control via currentColor). */
+  --studio-track-glow: var(--studio-amber);
+
+  /* v5 section ramp — four perceptually-uniform stops along the indigo→amber Cividis axis
+     (monotonic luminance, cool→warm). ALWAYS paired with the section icon + label, never
+     color-only (design-studio.md §10.3). Order follows the card strip. */
+  --studio-accent-bars: #8f93e6;        /* Bar style — indigo-violet */
+  --studio-accent-background: #7aa6c8;  /* Background — steel blue */
+  --studio-accent-voice: #d8b24a;       /* Voice — warm gold (amber energy) */
+  --studio-accent-subtitles: #ffd54f;   /* Subtitles — full amber */
 }
