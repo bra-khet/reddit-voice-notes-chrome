@@ -134,8 +134,11 @@ export function formatCueRange(start: number, end: number): string {
 // v5.3 Subtitle QoL — Timecode Scaffolding (design doc §6)
 // ════════════════════════════════════════════════════════════════════════════
 
+// CHANGED: default scaffold slot 5s → 3s (QA: 5s feels long for the short phrase
+// that fits on one subtitle line without multi-line wrapping). v5.3 subtitle QoL.
+// Revisit upward if/when burn-in gains multi-line wrapping (Phase 7 follow-up).
 /** Default minimum slot length for evenly-timed scaffolding (design doc §6). */
-export const DEFAULT_SCAFFOLD_MIN_SEGMENT_SECONDS = 5;
+export const DEFAULT_SCAFFOLD_MIN_SEGMENT_SECONDS = 3;
 
 /**
  * Soft hyphen — an *invisible* placeholder character. Unlike '', it survives

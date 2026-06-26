@@ -60,7 +60,19 @@ check('timeout stage → timeout (even though fallback is also true)', () => {
   assert.match(r.message, /timed out/i);
 });
 
-check('fallback throw (non-timeout) → inference-error', () => {
+check('no-speech thrown by host (fallback:true + marker) → no-speech, NOT inference-error', () => {
+  // Exact shape from QA log: host throws on empty text → caught as fallback:true.
+  const r = classifyTranscribeFailure({
+    applied: false,
+    fallback: true,
+    stage:
+      'Vosk returned no speech after 5640ms audio (90240 frames @ 16000Hz (5.6s, peak=0.009, rms=0.0007)). Check PCM decode and worker pacing.',
+    result: result(),
+  });
+  assert.equal(r.type, 'no-speech');
+});
+
+check('fallback throw (non-timeout, no marker) → inference-error', () => {
   const r = classifyTranscribeFailure({
     applied: false,
     fallback: true,

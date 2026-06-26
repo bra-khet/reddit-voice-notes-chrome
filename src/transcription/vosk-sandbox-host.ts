@@ -3,7 +3,7 @@
  * Worker stays vosk-browser blob worker (sandbox null-origin); IDBFS sync patched non-fatal at build (BUG-013).
  */
 import { Model } from 'vosk-browser';
-import { TRANSCRIBE_CHUNK_SAMPLES } from './constants';
+import { TRANSCRIBE_CHUNK_SAMPLES, VOSK_NO_SPEECH_ERROR_MARKER } from './constants';
 import { assertPcmUsable, coerceFloat32Samples, formatPcmStats } from './pcm-stats';
 import type { TranscriptResult, TranscriptSegment } from './types';
 import {
@@ -188,9 +188,11 @@ function runVoskOnPcm(
 
         const text = segments.map((segment) => segment.text).join(' ').trim();
         if (!text) {
+          // Sync: VOSK_NO_SPEECH_ERROR_MARKER must stay a substring of this message —
+          // transcribe-failure.ts classifies no-speech by matching it (v5.3).
           fail(
             new Error(
-              `Vosk returned no speech after ${Math.round(audioMs)}ms audio (${pcmSummary}). Check PCM decode and worker pacing.`,
+              `Vosk returned ${VOSK_NO_SPEECH_ERROR_MARKER} after ${Math.round(audioMs)}ms audio (${pcmSummary}). Check PCM decode and worker pacing.`,
             ),
           );
           return;

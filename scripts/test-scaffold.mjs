@@ -105,6 +105,12 @@ check('default min (no arg) still satisfies contract', () => {
   assertContract(23, undefined);
 });
 
+check('default min is 3s — 9s clip → 3 slots of 3s', () => {
+  const segs = generateTranscriptScaffold(9);
+  assert.equal(segs.length, 3);
+  assert.deepEqual([segs[0].end, segs[1].end, segs[2].end], [3, 6, 9]);
+});
+
 // ── Strategy C specifics: runt tail (< ½·min) merges into predecessor ───────
 console.log('\nStrategy C — runt-tail merge\n');
 

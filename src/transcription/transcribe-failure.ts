@@ -6,6 +6,7 @@
  * dropping the result (the silent-pending-hang bug). Leaf module — imports types
  * only, safe for the content script (no Vosk/FFmpeg pull-in).
  */
+import { VOSK_NO_SPEECH_ERROR_MARKER } from './constants';
 import type { TranscribeAudioResult, TranscriptFailureReason } from './types';
 
 /** The fields we need from a transcribe outcome (TranscribeAudioResult / client result). */
@@ -21,8 +22,12 @@ type TranscribeOutcomeLike = Pick<
  * Mapping (from runTranscribeWebmBlob's result shapes):
  *  - applied                          → null (success; persisted normally)
  *  - stage mentions timeout           → 'timeout'      (120s race rejected)
+ *  - stage carries the no-speech marker → 'no-speech'  (host throws on empty text;
+ *                                          arrives via fallback:true, NOT a clean
+ *                                          empty result — must be checked first)
  *  - fallback (core caught a throw)   → 'inference-error'
- *  - reached Vosk, no segments/text   → 'no-speech'
+ *  - reached Vosk, no segments/text   → 'no-speech'    (defensive; if the host is
+ *                                          ever changed to return empty instead)
  *  - not applied but has content      → 'empty-result' (defensive)
  */
 export function classifyTranscribeFailure(
@@ -33,6 +38,15 @@ export function classifyTranscribeFailure(
   const stage = (outcome.stage ?? '').toLowerCase();
   if (stage.includes('timed out') || stage.includes('timeout')) {
     return { type: 'timeout', message: outcome.stage || 'Transcription timed out.' };
+  }
+
+  // BUG FIX: no-speech mislabeled as inference-error
+  // Fix: Vosk's no-speech path THROWS (vosk-sandbox-host.ts) → reaches here as
+  //      fallback:true, so this marker check must precede the generic fallback
+  //      branch below, otherwise every no-speech run reads as inference-error.
+  // Sync: VOSK_NO_SPEECH_ERROR_MARKER is embedded in that thrown message.
+  if (stage.includes(VOSK_NO_SPEECH_ERROR_MARKER)) {
+    return { type: 'no-speech', message: 'No speech detected in the recording.' };
   }
 
   if (outcome.fallback) {
