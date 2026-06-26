@@ -16,6 +16,24 @@ export interface TranscriptResult {
   segments: TranscriptSegment[];
   language?: string;
   source: TranscriptSource;
+  // CHANGED: optional clip duration carried on the result (v5.3 subtitle QoL)
+  // WHY: scaffold + smart-split need the full clip length without re-decoding audio
+  duration?: number;
+}
+
+// CHANGED: explicit failure taxonomy for graceful Vosk handling (v5.3 subtitle QoL)
+// WHY: lets the pipeline persist *why* transcription failed so the UI can show a
+//      granular red state instead of hanging on amber "pending" forever.
+export type TranscriptFailureType =
+  | 'no-speech'
+  | 'inference-error'
+  | 'empty-result'
+  | 'timeout';
+
+export interface TranscriptFailureReason {
+  type: TranscriptFailureType;
+  message: string;
+  details?: unknown;
 }
 
 export interface SubtitleBackdropConfig {

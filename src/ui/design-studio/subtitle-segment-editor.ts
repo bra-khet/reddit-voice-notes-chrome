@@ -27,7 +27,19 @@ export interface SegmentEditorState {
   confirmed: boolean;
 }
 
-export type TranscriptDeliveryStatus = 'idle' | 'pending' | 'ready' | 'timeout';
+// CHANGED: added 'failed' | 'no-speech' | 'scaffolded' (v5.3 subtitle QoL)
+// WHY: graceful Vosk failure needs explicit terminal states so the editor/status
+//      strip can short-circuit the pending timer and surface scaffolding.
+// Sync: studio-status-strip.ts (status→icon/label map) and subtitle-controls.ts
+//       (refresh/load logic) must handle these same three members.
+export type TranscriptDeliveryStatus =
+  | 'idle'
+  | 'pending'
+  | 'ready'
+  | 'timeout'
+  | 'failed'
+  | 'no-speech'
+  | 'scaffolded';
 
 export interface SegmentEditorHandle {
   dispose(): void;

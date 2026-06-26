@@ -2,7 +2,7 @@ import {
   cloneTranscriptResult,
   isTranscriptDirty,
 } from '@/src/transcription/transcript-editing';
-import type { TranscriptResult } from '@/src/transcription/types';
+import type { TranscriptFailureReason, TranscriptResult } from '@/src/transcription/types';
 
 const DB_NAME = 'rvnSessionTranscript';
 const DB_VERSION = 1;
@@ -19,6 +19,12 @@ export interface SessionTranscriptSnapshot {
   lastEditedAt?: number;
   /** Set when user explicitly saves transcript edits in Design Studio. */
   confirmedAt?: number;
+  // CHANGED: graceful-failure metadata (v5.3 subtitle QoL)
+  // WHY: persist *why* Vosk failed + whether segments are auto-generated scaffold,
+  //      so the editor opens with a usable template instead of an amber hang.
+  error?: TranscriptFailureReason;
+  /** True when originalResult.segments are evenly-timed scaffold, not real STT. */
+  isScaffolded?: boolean;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -55,6 +61,10 @@ interface StoredSessionTranscriptV2 {
   capturedAt: number;
   lastEditedAt?: number;
   confirmedAt?: number;
+  // CHANGED: persisted failure/scaffold metadata (v5.3 subtitle QoL) — mirrors
+  //          SessionTranscriptSnapshot so a Phase-2 failure write round-trips on read.
+  error?: TranscriptFailureReason;
+  isScaffolded?: boolean;
 }
 
 /** Legacy eloquent-2 shape — migrated on read. */
@@ -100,6 +110,10 @@ function normalizeStoredRecord(record: StoredSessionTranscript): SessionTranscri
     capturedAt: record.capturedAt,
     lastEditedAt: record.lastEditedAt,
     confirmedAt: record.confirmedAt,
+    // CHANGED: carry failure/scaffold metadata through read-normalize (v5.3)
+    // WHY: optional + additive — legacy records simply leave these undefined.
+    error: record.error,
+    isScaffolded: record.isScaffolded === true ? true : undefined,
   };
 }
 

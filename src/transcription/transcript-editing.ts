@@ -126,3 +126,97 @@ export function formatCueTimestamp(seconds: number): string {
 export function formatCueRange(start: number, end: number): string {
   return `${formatCueTimestamp(start)} → ${formatCueTimestamp(end)}`;
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// v5.3 Subtitle QoL — Timecode Scaffolding (design doc §6)
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Default minimum slot length for evenly-timed scaffolding (design doc §6). */
+export const DEFAULT_SCAFFOLD_MIN_SEGMENT_SECONDS = 5;
+
+/**
+ * Soft hyphen — an *invisible* placeholder character. Unlike '', it survives
+ * "is this slot empty?" filters (e.g. rebuildTextFromSegments) so scaffold slots
+ * aren't silently stripped on normalize. Burn-in/preview render it as nothing.
+ */
+export const SCAFFOLD_SOFT_HYPHEN = '­';
+
+/**
+ * Generate evenly-timed empty subtitle slots covering a full clip.
+ *
+ * Turns a Vosk failure (or a manual "give me a template" click) into a usable
+ * editor scaffold: a contiguous, gap-free, non-overlapping set of timed segments
+ * spanning [0, clipDuration], each carrying `placeholder` text.
+ *
+ * CONTRACT — asserted by scripts/test-scaffold.mjs:
+ *  - clipDuration <= 0 / non-finite        → []
+ *  - segments[0].start === 0
+ *  - contiguous: segments[i].end === segments[i+1].start (no gaps, no overlaps)
+ *  - last segment .end === clipDuration EXACTLY (clamp float drift)
+ *  - every segment.text === placeholder
+ *  - clipDuration <= minSegmentSec         → exactly one slot [0, clipDuration]
+ *
+ * @param clipDuration  full clip length in seconds (from recording metadata)
+ * @param minSegmentSec target slot length; also the floor for slot count
+ * @param placeholder   '' (truly empty) or SCAFFOLD_SOFT_HYPHEN
+ */
+export function generateTranscriptScaffold(
+  clipDuration: number,
+  minSegmentSec: number = DEFAULT_SCAFFOLD_MIN_SEGMENT_SECONDS,
+  placeholder: string = '',
+): TranscriptSegment[] {
+  // Guard: nothing to scaffold for empty / invalid / non-finite durations.
+  if (!Number.isFinite(clipDuration) || clipDuration <= 0) return [];
+
+  // Guard: a nonsensical min collapses to a single full-clip slot.
+  const minSeg =
+    Number.isFinite(minSegmentSec) && minSegmentSec > 0 ? minSegmentSec : clipDuration;
+
+  const segments: TranscriptSegment[] = [];
+
+  // Strategy C — fixed `minSeg` chunks on round boundaries, then fold a runt
+  // final tail (< ½·minSeg) back into its predecessor so there's no awkward
+  // tiny slot. Round boundaries AND no stub; a merged tail can reach ~1.5×minSeg,
+  // which Phase 6 Smart Split handles if the user wants it shorter.
+  const slotCount = Math.ceil(clipDuration / minSeg);
+  for (let i = 0; i < slotCount; i++) {
+    const start = i * minSeg;
+    const end = Math.min((i + 1) * minSeg, clipDuration);
+    segments.push({ start, end, text: placeholder });
+  }
+
+  // Merge a runt final slot into the one before it (only when >1 slot exists).
+  const last = segments[segments.length - 1];
+  if (segments.length > 1 && last.end - last.start < minSeg / 2) {
+    segments.pop();
+  }
+
+  // Clamp the final slot's end to EXACTLY clipDuration — kills float drift so
+  // the OOB check (segment-timing.ts) never sees a phantom end > clip length.
+  segments[segments.length - 1].end = clipDuration;
+
+  return segments;
+}
+
+/**
+ * Wrap a fresh scaffold into a persistable TranscriptResult (source: 'manual').
+ * Used by the failure path (Phase 2) and the manual "Generate scaffolding"
+ * button (Phase 5). The aggregate text is empty — nothing is transcribed yet.
+ */
+export function buildScaffoldTranscriptResult(
+  clipDuration: number,
+  options?: { minSegmentSec?: number; placeholder?: string; language?: string },
+): TranscriptResult {
+  const segments = generateTranscriptScaffold(
+    clipDuration,
+    options?.minSegmentSec ?? DEFAULT_SCAFFOLD_MIN_SEGMENT_SECONDS,
+    options?.placeholder ?? '',
+  );
+  return {
+    text: '',
+    segments,
+    source: 'manual',
+    language: options?.language,
+    duration: Number.isFinite(clipDuration) && clipDuration > 0 ? clipDuration : undefined,
+  };
+}
