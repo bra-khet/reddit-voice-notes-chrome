@@ -99,6 +99,17 @@ export function renderVoiceControlFields(): string {
           <div class="studio__char-actions" data-voice-char-actions>
             <button
               type="button"
+              class="studio__icon-btn studio__lock-btn"
+              data-voice-lock
+              hidden
+              aria-pressed="false"
+              title="Lock this custom voice character to prevent switching"
+              aria-label="Lock this custom voice character to prevent switching"
+            >
+              <img src="${padlockOpenUrl}" alt="" width="16" height="16" data-voice-lock-img />
+            </button>
+            <button
+              type="button"
               class="studio__icon-btn"
               data-voice-copy
               title="Copy this voice character to the clipboard"
@@ -114,17 +125,6 @@ export function renderVoiceControlFields(): string {
               aria-label="Paste a voice character from the clipboard"
             >
               <img src="${pasteIconUrl}" alt="" width="16" height="16" />
-            </button>
-            <button
-              type="button"
-              class="studio__icon-btn studio__lock-btn"
-              data-voice-lock
-              hidden
-              aria-pressed="false"
-              title="Lock this custom voice character to prevent switching"
-              aria-label="Lock this custom voice character to prevent switching"
-            >
-              <img src="${padlockOpenUrl}" alt="" width="16" height="16" data-voice-lock-img />
             </button>
           </div>
         </div>
