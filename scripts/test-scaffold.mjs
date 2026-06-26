@@ -29,8 +29,12 @@ await build({
   logLevel: 'silent',
 });
 
-const { generateTranscriptScaffold, buildScaffoldTranscriptResult, SCAFFOLD_SOFT_HYPHEN } =
-  await import(pathToFileURL(outfile).href);
+const {
+  generateTranscriptScaffold,
+  buildScaffoldTranscriptResult,
+  normalizeEditedTranscriptResult,
+  SCAFFOLD_SOFT_HYPHEN,
+} = await import(pathToFileURL(outfile).href);
 
 let passed = 0;
 let failed = 0;
@@ -160,6 +164,40 @@ check('invalid duration → empty segments, undefined duration', () => {
   const res = buildScaffoldTranscriptResult(0);
   assert.deepEqual(res.segments, []);
   assert.equal(res.duration, undefined);
+});
+
+// ── Phase 4: scaffold survives editing (keepEmptyTimedSegments) ──────────────
+console.log('\nnormalizeEditedTranscriptResult — scaffold preservation\n');
+
+check('keepEmptyTimedSegments preserves all empty timed slots', () => {
+  const base = buildScaffoldTranscriptResult(9); // 3 empty slots
+  const edited = normalizeEditedTranscriptResult(base, base.segments, {
+    keepEmptyTimedSegments: true,
+  });
+  assert.equal(edited.segments.length, 3);
+  assert.equal(edited.text, ''); // aggregate text stays empty
+  assert.equal(edited.source, 'manual');
+});
+
+check('default (no option) strips empty segments — established idiom', () => {
+  const base = buildScaffoldTranscriptResult(9);
+  const edited = normalizeEditedTranscriptResult(base, base.segments);
+  assert.equal(edited.segments.length, 0);
+});
+
+check('keepEmpty still drops zero-duration cues', () => {
+  const base = buildScaffoldTranscriptResult(9);
+  const segs = [...base.segments, { start: 5, end: 5, text: '' }];
+  const edited = normalizeEditedTranscriptResult(base, segs, { keepEmptyTimedSegments: true });
+  assert.equal(edited.segments.length, 3);
+});
+
+check('mixed fill: empties kept, aggregate text holds only the real cue', () => {
+  const base = buildScaffoldTranscriptResult(9);
+  const segs = base.segments.map((s, i) => (i === 1 ? { ...s, text: 'hello' } : s));
+  const edited = normalizeEditedTranscriptResult(base, segs, { keepEmptyTimedSegments: true });
+  assert.equal(edited.segments.length, 3);
+  assert.equal(edited.text, 'hello');
 });
 
 rmSync(outdir, { recursive: true, force: true });

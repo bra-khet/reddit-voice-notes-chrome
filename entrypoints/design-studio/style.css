@@ -1161,6 +1161,32 @@ body {
   color: #81c784;
 }
 
+/* v5.3 subtitle QoL — scaffolding mode (magenta = "special template", distinct
+   from the red failure status on the strip so the banner reads as help, not alarm). */
+.studio__transcript-badge--scaffold {
+  background: rgba(224, 64, 251, 0.18);
+  color: #e497fb;
+}
+
+.studio__transcript-scaffold-banner {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(224, 64, 251, 0.45);
+  border-radius: 8px;
+  background: rgba(224, 64, 251, 0.1);
+  font-size: 12px;
+  line-height: 1.45;
+  color: #d9c2e8;
+}
+
+.studio__transcript-scaffold-banner strong {
+  color: #f0c6ff;
+}
+
+.studio__transcript-scaffold-banner[hidden] {
+  display: none;
+}
+
 .studio__bake-unsaved {
   margin: 8px 0 4px;
   padding: 10px 12px;

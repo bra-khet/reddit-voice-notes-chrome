@@ -82,10 +82,16 @@ export function renderSubtitleSegmentEditorFields(): string {
         <span class="studio__transcript-badge studio__transcript-badge--pending" data-transcript-pending-badge hidden>Pending</span>
         <span class="studio__transcript-badge studio__transcript-badge--timeout" data-transcript-timeout-badge hidden>Timed out</span>
         <span class="studio__transcript-badge studio__transcript-badge--saved" data-transcript-saved-badge hidden>Ready</span>
+        <span class="studio__transcript-badge studio__transcript-badge--scaffold" data-transcript-scaffold-badge hidden>Scaffold</span>
       </div>
       <p class="studio__transcript-hint popup__field-desc">
         Review what Vosk produced. Open the editor to fix wording or timing before baking.
       </p>
+      <div class="studio__transcript-scaffold-banner" data-transcript-scaffold-banner hidden role="status">
+        <strong>Scaffolding mode active</strong> — evenly timed slots are ready for your
+        text. Type directly into each cue, then Confirm &amp; save. Empty slots are skipped
+        when baking, so fill only the ones you need.
+      </div>
       <div class="studio__transcript-preview" data-transcript-preview>
         <p class="studio__transcript-empty">No transcript yet — record on Reddit first.</p>
       </div>
@@ -185,6 +191,8 @@ export function mountSubtitleSegmentEditor(
   const pendingBadge = panel.querySelector<HTMLElement>('[data-transcript-pending-badge]')!;
   const timeoutBadge = panel.querySelector<HTMLElement>('[data-transcript-timeout-badge]')!;
   const savedBadge = panel.querySelector<HTMLElement>('[data-transcript-saved-badge]')!;
+  const scaffoldBadge = panel.querySelector<HTMLElement>('[data-transcript-scaffold-badge]')!;
+  const scaffoldBanner = panel.querySelector<HTMLElement>('[data-transcript-scaffold-banner]')!;
   const editOpenBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')!;
   const saveBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-save]')!;
   const discardBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-discard]')!;
@@ -326,13 +334,28 @@ export function mountSubtitleSegmentEditor(
     previewEl.innerHTML = lines;
   }
 
+  // CHANGED: scaffold mode = a graceful-failure / manual scaffold delivery state
+  // (v5.3 Phase 4). Drives the banner, badge, empty-slot preservation, and focus.
+  function inScaffoldMode(): boolean {
+    return (
+      deliveryStatus === 'no-speech' ||
+      deliveryStatus === 'failed' ||
+      deliveryStatus === 'scaffolded'
+    );
+  }
+
   function syncActionButtons(): void {
     const dirty = computeDirty();
     const hasTranscript = Boolean(edited?.segments?.length);
+    const scaffold = inScaffoldMode();
     dirtyBadge.hidden = !dirty;
     pendingBadge.hidden = dirty || deliveryStatus !== 'pending';
     timeoutBadge.hidden = dirty || deliveryStatus !== 'timeout';
     savedBadge.hidden = dirty || deliveryStatus !== 'ready' || !hasTranscript;
+    // Scaffold badge replaces the timed-out/ready badges while in scaffold mode;
+    // the dirty "Unsaved" badge still wins once the user starts editing.
+    scaffoldBadge.hidden = dirty || !scaffold;
+    scaffoldBanner.hidden = !scaffold;
     saveBtn.hidden = !dirty;
     discardBtn.hidden = !dirty;
   }
@@ -518,6 +541,11 @@ export function mountSubtitleSegmentEditor(
     modalOpenBaseline = modalDraft.map((segment) => ({ ...segment }));
     renderModalSegments();
     modalEl.hidden = false;
+    // CHANGED: drop the caret into the first slot when scaffolding (v5.3 Phase 4)
+    // so the user can start typing captions immediately.
+    if (inScaffoldMode()) {
+      segmentsEl.querySelector<HTMLTextAreaElement>('[data-segment-text]')?.focus();
+    }
     void loadRecordingSource();
   }
 
@@ -533,7 +561,11 @@ export function mountSubtitleSegmentEditor(
   function applyModalDraft(): void {
     if (!edited) return;
     const segments = readModalDraft();
-    edited = normalizeEditedTranscriptResult(edited, segments);
+    // CHANGED: keep empty timed slots while in scaffold mode (v5.3 Phase 4) so the
+    // template survives partial fills — empties still bake to nothing.
+    edited = normalizeEditedTranscriptResult(edited, segments, {
+      keepEmptyTimedSegments: inScaffoldMode(),
+    });
     renderPreview();
     syncActionButtons();
     notify();

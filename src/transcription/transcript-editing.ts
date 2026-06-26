@@ -80,7 +80,13 @@ export function rebuildTextFromSegments(segments: TranscriptSegment[]): string {
 export function normalizeEditedTranscriptResult(
   base: TranscriptResult,
   segments: TranscriptSegment[],
+  options?: { keepEmptyTimedSegments?: boolean },
 ): TranscriptResult {
+  // CHANGED: keepEmptyTimedSegments preserves empty-but-timed scaffold slots (v5.3
+  // Phase 4). WHY: a scaffold's empty slots ARE the feature — stripping them on
+  // apply would destroy the template. Empty cues still bake to nothing (srt-builder
+  // skips them + subtitle-bake.ts filters segment.text.trim()), so this is output-safe.
+  const keepEmpty = options?.keepEmptyTimedSegments === true;
   const cleaned = sortSegmentsByStart(
     segments
       .map((segment) => ({
@@ -88,7 +94,7 @@ export function normalizeEditedTranscriptResult(
         end: normalizeCueSeconds(segment.end),
         text: segment.text.trim(),
       }))
-      .filter((segment) => segment.text.length > 0),
+      .filter((segment) => (keepEmpty ? segment.end > segment.start : segment.text.length > 0)),
   );
 
   return {

@@ -402,6 +402,11 @@ export function mountSubtitleControls(
     async onSaveEdits(edited) {
       await saveSessionTranscriptEdits(edited, { confirmed: true });
       lastSnapshot = await loadSessionTranscript();
+      // CHANGED: recompute delivery status after a confirmed save (v5.3 Phase 4).
+      // WHY: saveSessionTranscriptEdits drops error/isScaffolded, so a filled-in
+      //      scaffold must leave the red 'no-speech'/'failed' state for 'ready'
+      //      instead of staying alarmed after the user has added captions.
+      await refreshTranscriptDeliveryStatus();
       syncDraftFromEditor();
       syncBakeButton();
       updateSourceCopy();
