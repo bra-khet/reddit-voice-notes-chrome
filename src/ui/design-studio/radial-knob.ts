@@ -119,7 +119,7 @@ function drawKnobFace(canvas: HTMLCanvasElement, value: number, min: number, max
     }
 
     ctx.closePath();
-    ctx.fillStyle = 'rgba(0, 121, 211, 0.28)';
+    ctx.fillStyle = 'rgba(255, 213, 79, 0.24)';
     ctx.fill();
   }
 
@@ -128,7 +128,7 @@ function drawKnobFace(canvas: HTMLCanvasElement, value: number, min: number, max
   ctx.arc(pointer.x, pointer.y, 5, 0, Math.PI * 2);
   ctx.fillStyle = '#d7dadc';
   ctx.fill();
-  ctx.strokeStyle = '#0079d3';
+  ctx.strokeStyle = '#ffd54f';
   ctx.lineWidth = 2;
   ctx.stroke();
 
