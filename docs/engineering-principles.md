@@ -82,6 +82,7 @@ User background blobs are **too large for `chrome.storage.local`** (multi‑MB i
 ### Reference implementation
 
 - `src/storage/image-db.ts` — IndexedDB CRUD, import validation, object-URL cache.
+- `src/storage/animated-background.ts` — animated GIF frame decode (`ImageDecoder`) + `frameAt` loop timing; canvas-native, captured into the export (no FFmpeg). See `docs/gif-animation-design-implementation.md`.
 - `src/storage/background-refs.ts` — ref collection, reconcile, prune.
 - `src/settings/user-preferences.ts` — `customBackgroundId` normalization on merge.
 
