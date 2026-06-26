@@ -228,7 +228,22 @@ async function handleTranscribe(
     const model = await loadModel(modelUrl);
     postToParent({ type: VOSK_SANDBOX_PROGRESS, id, ratio: 0.14, stage: 'model-ready' });
 
-    const result = await runVoskOnPcm(model, samples, sampleRate, language, id, pcmSummary);
+    // BUG FIX: cold-start no-speech misreported as inference-error on the FIRST run
+    // Fix: the recognizer/worker is flaky on the very first inference of a session
+    //      (works after one success). Retry once on a fresh recognizer — the model
+    //      is loaded and the worker is now warm. Skip the retry for a genuine
+    //      no-speech result (it's terminal and would just repeat).
+    // Sync: classification of the resulting error happens in transcribe-failure.ts.
+    let result: TranscriptResult;
+    try {
+      result = await runVoskOnPcm(model, samples, sampleRate, language, id, pcmSummary);
+    } catch (firstError) {
+      const firstMessage = firstError instanceof Error ? firstError.message : String(firstError);
+      if (firstMessage.includes(VOSK_NO_SPEECH_ERROR_MARKER)) throw firstError;
+      postToParent({ type: VOSK_SANDBOX_PROGRESS, id, ratio: 0.13, stage: 'cold-retry' });
+      await delay(250);
+      result = await runVoskOnPcm(model, samples, sampleRate, language, id, pcmSummary);
+    }
     postToParent({ type: VOSK_SANDBOX_RESULT, id, ok: true, result });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

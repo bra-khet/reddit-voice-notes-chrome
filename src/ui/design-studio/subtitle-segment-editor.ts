@@ -2,10 +2,13 @@ import { createSegmentCuePlayer } from '@/src/transcription/segment-cue-player';
 import {
   buildDefaultNewSegment,
   buildScaffoldTranscriptResult,
+  cueTextIsBlank,
   formatCueRange,
   isTranscriptDirty,
   cloneTranscriptResult,
   normalizeEditedTranscriptResult,
+  SCAFFOLD_SOFT_HYPHEN,
+  stripScaffoldPlaceholder,
 } from '@/src/transcription/transcript-editing';
 import {
   isSegmentEndOutOfBounds,
@@ -365,7 +368,8 @@ export function mountSubtitleSegmentEditor(
     const lines = segments
       .map((segment) => {
         const time = formatCueRange(segment.start, segment.end);
-        const text = escapeHtml(segment.text.trim() || '(empty)');
+        // CHANGED: scaffold soft-hyphen slots read as "(empty)" (v5.3 QA fix).
+        const text = escapeHtml(stripScaffoldPlaceholder(segment.text).trim() || '(empty)');
         const oob =
           clipDuration !== null && segmentHasOutOfBoundsEnd(segment, clipDuration)
             ? `<span class="studio__transcript-oob-badge" title="Cue end exceeds recording length">${OOB_LABEL}</span>`
@@ -501,7 +505,9 @@ export function mountSubtitleSegmentEditor(
         </label>
       `;
       const textArea = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
-      if (textArea) textArea.value = segment.text;
+      // CHANGED: strip the soft-hyphen placeholder so the user types into a clean
+      // textarea (not after an invisible char) — re-inserted on read if left blank.
+      if (textArea) textArea.value = stripScaffoldPlaceholder(segment.text);
       syncSegmentRowUi(row, index);
       segmentsEl.append(row);
     }
@@ -525,10 +531,16 @@ export function mountSubtitleSegmentEditor(
       const textInput = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
       if (!startInput || !endInput || !textInput) return;
 
+      // CHANGED: re-insert the soft-hyphen placeholder for slots left blank, so
+      // empty scaffold cues persist through normalize instead of being scrubbed
+      // (v5.3 QA fix). Filled cues keep the user's text verbatim.
+      const rawText = textInput.value;
+      const text = cueTextIsBlank(rawText) ? SCAFFOLD_SOFT_HYPHEN : rawText;
+
       next.push({
         start: normalizeSegmentSeconds(Number(startInput.value)),
         end: normalizeSegmentSeconds(Number(endInput.value)),
-        text: textInput.value,
+        text,
       });
     });
 

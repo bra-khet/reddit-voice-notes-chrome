@@ -613,7 +613,17 @@ export function mountSubtitleControls(
 
       if (snapshotAt > 0 && recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
         clearPendingTranscriptTimer();
-        segmentEditor.setTranscriptDeliveryStatus(deliveryStatusForSnapshot(lastSnapshot));
+        const resolved = deliveryStatusForSnapshot(lastSnapshot);
+        // Diagnostic (v5.3): confirm the Studio sees the scaffold's failure metadata.
+        // If `resolved` is 'ready'/'scaffolded' for a known failure, the snapshot
+        // lost its error somewhere upstream; if it's correct here but the strip
+        // still shows "Transcribed", the strip input is stale.
+        console.log('[Reddit Voice Notes] Subtitle delivery resolved', {
+          resolved,
+          errorType: lastSnapshot?.error?.type ?? null,
+          isScaffolded: lastSnapshot?.isScaffolded ?? false,
+        });
+        segmentEditor.setTranscriptDeliveryStatus(resolved);
         return;
       }
 

@@ -67,10 +67,29 @@ export function buildDefaultNewSegment(
   return { start, end, text: '' };
 }
 
+/**
+ * Remove soft-hyphen scaffold placeholders so the text can be displayed, typed
+ * into, or rendered cleanly. Soft hyphen (U+00AD) is NOT whitespace, so plain
+ * `.trim()` does not strip it — callers must use this first.
+ */
+export function stripScaffoldPlaceholder(text: string): string {
+  return text.split(SCAFFOLD_SOFT_HYPHEN).join('');
+}
+
+/**
+ * A cue is "blank" when nothing but scaffold placeholders / whitespace remains.
+ * Used everywhere emptiness matters (preview "(empty)", SRT skip, bake filter)
+ * so soft-hyphen scaffold slots read as empty — they persist in storage but bake
+ * to nothing.
+ */
+export function cueTextIsBlank(text: string): boolean {
+  return stripScaffoldPlaceholder(text).trim().length === 0;
+}
+
 /** Rebuild full transcript text from segment lines (single space join). */
 export function rebuildTextFromSegments(segments: TranscriptSegment[]): string {
   return segments
-    .map((segment) => segment.text.trim())
+    .map((segment) => stripScaffoldPlaceholder(segment.text).trim())
     .filter(Boolean)
     .join(' ')
     .trim();
@@ -219,10 +238,15 @@ export function buildScaffoldTranscriptResult(
   clipDuration: number,
   options?: { minSegmentSec?: number; placeholder?: string; language?: string },
 ): TranscriptResult {
+  // CHANGED: default placeholder is the soft hyphen, not '' (v5.3 QA fix).
+  // WHY: empty-text slots get scrubbed by normalize's length>0 filter; a soft
+  // hyphen is non-empty so the slots persist intrinsically (independent of the
+  // editor's scaffold-mode detection), yet read as blank everywhere via
+  // cueTextIsBlank, so they still bake to nothing.
   const segments = generateTranscriptScaffold(
     clipDuration,
     options?.minSegmentSec ?? DEFAULT_SCAFFOLD_MIN_SEGMENT_SECONDS,
-    options?.placeholder ?? '',
+    options?.placeholder ?? SCAFFOLD_SOFT_HYPHEN,
   );
   return {
     text: '',

@@ -2,6 +2,7 @@ import {
   buildGlowLayerSpecs,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
+import { stripScaffoldPlaceholder } from './transcript-editing';
 import type { SubtitleStyleConfig, TranscriptSegment } from './types';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
 
@@ -113,7 +114,9 @@ export function drawSubtitlePreview(
   if (!options.enabled) return;
 
   const previewTimeSec = (options.previewTimeMs ?? performance.now()) / 1000;
-  const displayText = options.text.trim() || PREVIEW_PLACEHOLDER;
+  // CHANGED: strip soft-hyphen scaffold placeholders so blank slots don't render
+  // an invisible glyph instead of the preview placeholder (v5.3 QA fix).
+  const displayText = stripScaffoldPlaceholder(options.text).trim() || PREVIEW_PLACEHOLDER;
   const style = options.style;
   const fontSize = style.fontSize ?? 22;
   const fontFamily = previewCssFontFamily(style.fontFamily ?? 'dejavu-sans');

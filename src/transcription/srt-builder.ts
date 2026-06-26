@@ -1,3 +1,4 @@
+import { cueTextIsBlank, stripScaffoldPlaceholder } from './transcript-editing';
 import type { TranscriptSegment } from './types';
 
 function formatSrtTimestamp(seconds: number): string {
@@ -18,7 +19,9 @@ export function buildSrtFromSegments(segments: TranscriptSegment[]): string {
   const blocks: string[] = [];
 
   segments.forEach((segment, index) => {
-    const text = segment.text.trim();
+    // CHANGED: skip soft-hyphen-only scaffold slots, render cleaned text (v5.3).
+    if (cueTextIsBlank(segment.text)) return;
+    const text = stripScaffoldPlaceholder(segment.text).trim();
     if (!text) return;
 
     const start = formatSrtTimestamp(segment.start);
