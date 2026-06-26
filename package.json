@@ -2,7 +2,7 @@
   "name": "reddit-voice-notes",
   "description": "Record voice notes with animated waveform for Reddit video comments",
   "private": true,
-  "version": "5.0.0",
+  "version": "5.1.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
