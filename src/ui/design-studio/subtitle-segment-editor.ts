@@ -1,6 +1,7 @@
 import { createSegmentCuePlayer } from '@/src/transcription/segment-cue-player';
 import {
   buildDefaultNewSegment,
+  buildScaffoldTranscriptResult,
   formatCueRange,
   isTranscriptDirty,
   cloneTranscriptResult,
@@ -101,6 +102,14 @@ export function renderSubtitleSegmentEditorFields(): string {
         </button>
         <button
           type="button"
+          class="popup__profile-btn"
+          data-transcript-scaffold-generate
+          title="Replace cues with evenly timed empty slots spanning the clip"
+        >
+          Generate scaffold
+        </button>
+        <button
+          type="button"
           class="popup__profile-btn popup__profile-btn--amber"
           data-transcript-save
           hidden
@@ -194,6 +203,9 @@ export function mountSubtitleSegmentEditor(
   const scaffoldBadge = panel.querySelector<HTMLElement>('[data-transcript-scaffold-badge]')!;
   const scaffoldBanner = panel.querySelector<HTMLElement>('[data-transcript-scaffold-banner]')!;
   const editOpenBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')!;
+  const generateScaffoldBtn = panel.querySelector<HTMLButtonElement>(
+    '[data-transcript-scaffold-generate]',
+  )!;
   const saveBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-save]')!;
   const discardBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-discard]')!;
   const modalEl = panel.querySelector<HTMLElement>('[data-transcript-modal]')!;
@@ -285,6 +297,42 @@ export function mountSubtitleSegmentEditor(
     );
   }
 
+  // CHANGED: manual "Generate scaffold" (v5.3 Phase 5) — broader QoL even when
+  // transcription succeeded. Replaces the working cues with evenly timed empty
+  // slots spanning the clip; the user confirms/saves like any other edit.
+  function resolveScaffoldClipDuration(): number | null {
+    return (
+      clipDurationForPlayback() ??
+      clipDurationForOob() ??
+      (typeof lastRecording?.meta.durationSeconds === 'number' &&
+      lastRecording.meta.durationSeconds > 0
+        ? lastRecording.meta.durationSeconds
+        : null)
+    );
+  }
+
+  function generateScaffoldFromClip(): void {
+    const duration = resolveScaffoldClipDuration();
+    if (duration === null || duration <= 0) return;
+
+    // Confirm before discarding real work (design §8: "with confirm").
+    const hasRealCues = (edited?.segments ?? []).some((segment) => segment.text.trim().length > 0);
+    if (
+      (hasRealCues || computeDirty()) &&
+      !window.confirm(
+        'Replace the current cues with a fresh timecode scaffold? Unsaved edits will be lost.',
+      )
+    ) {
+      return;
+    }
+
+    edited = buildScaffoldTranscriptResult(duration);
+    deliveryStatus = 'scaffolded';
+    renderPreview();
+    syncActionButtons();
+    notify();
+  }
+
   function notify(): void {
     const dirty = computeDirty();
     handlers?.onStateChange?.({
@@ -358,6 +406,8 @@ export function mountSubtitleSegmentEditor(
     scaffoldBanner.hidden = !scaffold;
     saveBtn.hidden = !dirty;
     discardBtn.hidden = !dirty;
+    // Manual scaffold needs a known clip length to span.
+    generateScaffoldBtn.disabled = resolveScaffoldClipDuration() === null;
   }
 
   function setTranscriptDeliveryStatus(status: TranscriptDeliveryStatus): void {
@@ -621,6 +671,7 @@ export function mountSubtitleSegmentEditor(
   });
 
   editOpenBtn.addEventListener('click', openModal);
+  generateScaffoldBtn.addEventListener('click', generateScaffoldFromClip);
   addSegmentBtn.addEventListener('click', addSegment);
   modalCloseBtn.addEventListener('click', requestCloseModal);
   modalCancelBtn.addEventListener('click', requestCloseModal);
