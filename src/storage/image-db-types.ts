@@ -6,7 +6,7 @@ export const IMAGE_DB_STORE_BACKGROUNDS = 'backgrounds' as const;
 
 export const BACKGROUND_ID_PREFIX = 'bg-' as const;
 
-/** Static images for pretty-7; video/loop kinds reserved for future phases. */
+/** Static images (pretty-7) + animated GIF loops (animated branch); video reserved. */
 export type BackgroundMediaKind = 'image' | 'video' | 'animated';
 
 export type BackgroundImportErrorCode =
@@ -34,15 +34,18 @@ export interface BackgroundAssetRecord extends BackgroundAssetMeta {
   blob: Blob;
 }
 
-/** MIME types we may persist (video gated until canvas loop support ships). */
+/** MIME types we may persist (video gated until a video background path ships). */
 export const BACKGROUND_MIME_TYPES: Readonly<Record<BackgroundMediaKind, readonly string[]>> = {
   image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   animated: ['image/gif'],
   video: ['video/mp4', 'video/webm'],
 };
 
-/** Import surface for pretty-7a — images only; loops/video stored later behind a flag. */
-export const BACKGROUND_IMPORT_ENABLED_KINDS: readonly BackgroundMediaKind[] = ['image'];
+// CHANGED: enable 'animated' GIF imports alongside static images.
+// WHY: animated branch Phase 1 — GIF loops are rendered on the canvas (see
+//      docs/gif-animation-design-implementation.md). Video stays gated.
+/** Import surface — static images + animated GIFs; video stored later behind a flag. */
+export const BACKGROUND_IMPORT_ENABLED_KINDS: readonly BackgroundMediaKind[] = ['image', 'animated'];
 
 /** Per-file cap for static images (pretty-7). */
 export const MAX_SINGLE_IMAGE_BACKGROUND_BYTES = 8 * 1024 * 1024;

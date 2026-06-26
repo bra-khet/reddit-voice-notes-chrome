@@ -151,13 +151,15 @@ The single canvas in `waveform.ts` (`canvas.captureStream`) is the video track s
 - Font preview (WYSIWYG): canvas uses `FontFace` API loading DejaVu TTFs under `RVN-*` names (`preview-font-loader.ts`); bake uses the same TTFs via FreeType in WASM FS. The two paths agree on glyphs because they load the same TTF assets, but rely on different renderers — minor kerning/hinting differences are accepted.
 - Static `fontcolor` per drawtext filter — animated rainbow requires time-sliced duplicates at bake; canvas RAF is fully expressive.
 
+**Animated GIF backgrounds — no gap (the canvas-native case):** GIF frames are decoded once (`AnimatedBackground` / WebCodecs `ImageDecoder`) and advanced by elapsed time in the canvas RAF (`frameAt`), so they are captured straight into `base.mp4`. Preview, live recorder, and export loop identically with **no** FFmpeg/bake path — the inverse of subtitles/rainbow. Reduced motion freezes to frame 0 everywhere. See `docs/gif-animation-design-implementation.md`.
+
 **Where it could silently drift:** Adding a new visual effect to the canvas without a bake path is a violation. `extension-points.md` enforces this contract at the seam level.
 
 ### 3.2 Effect composition
 
 Compositing order (bottom → top) in the final MP4:
 
-1. **Background** — theme gradient/SVG/bokeh + optional personal image (`rvnImageDb`).
+1. **Background** — theme gradient/SVG/bokeh + optional personal image or **animated GIF loop** (`rvnImageDb`; GIF frames advanced in the canvas RAF and captured into `base.mp4`, no FFmpeg layer).
 2. **Bars** — waveform + glow/effects (canvas capture at 24 fps on Reddit).
 3. **Subtitles** — FFmpeg `drawtext` burn-in on `base.mp4`. **Never drawn into the canvas RAF.**
 
@@ -241,8 +243,8 @@ Adding a fourth visual layer changes compositing order. This must be an explicit
 ### Personal background WYSIWYG relay
 
 1. Studio reads `rvnImageDb` directly (extension origin — synchronous, no relay).
-2. Recorder (reddit.com) cannot read extension IDB — on canvas init: opens `BACKGROUND_BLOB_PORT` to background → background reads `rvnImageDb` → streams chunked base64 → content script → `FileReader` → data-URL → `canvas.drawImage`.
-3. Missing blob → theme fallback. Never blocks recording.
+2. Recorder (reddit.com) cannot read extension IDB — on canvas init: opens `BACKGROUND_BLOB_PORT` to background → background reads `rvnImageDb` → streams chunked base64 → content script → decode → `canvas.drawImage`. The same relayed bytes feed animated GIFs, decoded into looping frames via WebCodecs `ImageDecoder` (`src/storage/animated-background.ts`).
+3. Missing blob / undecodable GIF → static first frame or theme fallback. Never blocks recording.
 
 **Code verified at:** `docs/engineering-principles.md § Personal backgrounds`; `docs/design-studio.md §5.3`.
 

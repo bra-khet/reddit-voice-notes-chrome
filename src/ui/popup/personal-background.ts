@@ -23,7 +23,10 @@ function formatAssetLabel(asset: BackgroundAssetMeta): string {
   const sizeKb = Math.max(1, Math.round(asset.byteSize / 1024));
   const dims =
     asset.width && asset.height ? ` · ${asset.width}×${asset.height}` : '';
-  return `${asset.displayName} (${sizeKb} KB${dims})`;
+  // CHANGED: surface animated GIFs in the library label.
+  // WHY: animated branch Phase 1 — users should see which backgrounds loop.
+  const animated = asset.mediaKind === 'animated' ? ' · Animated' : '';
+  return `${asset.displayName} (${sizeKb} KB${dims}${animated})`;
 }
 
 export function renderPersonalBackgroundFields(): string {

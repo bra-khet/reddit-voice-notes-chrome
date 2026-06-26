@@ -1,127 +1,192 @@
-# Animated GIF Background Looping — Design & Implementation Phase
+# Animated GIF Backgrounds — Finalized Development Plan
 
-**Context**: Part of the ongoing v5 / UI refresh & polish work on the `dulcet` line (or main).  
-**Codename / Scope**: `animated-gif-bg` (contained, low-risk feature addition)  
-**Status**: Design complete — ready for implementation
+**Branch:** `animated` (small, contained feature branch off `main` @ v5 line)
+**Codename:** `animated-gif-bg`
+**Status:** Plan finalized 2026-06-26 · **Phase 1 done** (26db0d1) · **Phase 2 done** (f521bb8), awaiting QA · **Phase 3 next**
+**Fallback tag for this sprint:** `v4.0.0` (last tagged `main` release; record a fresh tag before merge)
 
----
-
-### Purpose
-
-Enable users to import animated GIFs as personal backgrounds. The GIF loops seamlessly and repeatedly in the exported MP4 video while changing almost nothing in the user interface or preview experience.
-
-This is the natural next step after the schema-ready work already present in `image-db-types.ts` and `image-db.ts`. It delivers immediate user value (fun, expressive, looping backgrounds) with minimal surface area and full respect for the existing memory, preview, and fidelity contracts.
-
----
-
-### Architectural Fit & Why Contained
-
-The foundation was deliberately built for this:
-
-- `resolveMediaKindForMime` already returns `'animated'` for `image/gif`.
-- `BACKGROUND_MIME_TYPES`, `BackgroundMediaKind`, quotas (`MAX_SINGLE_IMAGE_BACKGROUND_BYTES` for GIFs, reserved video quota for later), `BackgroundAssetRecord`, and `pruneUnreferencedBackgrounds` are already kind-aware or generic.
-- The import gate (`BACKGROUND_IMPORT_ENABLED_KINDS`) + explicit comments (“loops/video stored later behind a flag”, “until canvas loop support ships”) was the only blocker.
-- Canvas path (`background-loader.ts`) uses `createImageBitmap` / `HTMLImageElement` + `drawImage` → first frame only. This is intentional and matches the documented “preview expressive, export quantized/approximated” philosophy (see `design-studio.md` §7.4 and `engineering-principles.md`).
-- Blob relay (`BACKGROUND_BLOB_PORT`, chunked base64) and storage split (`chrome.storage.local` = ID only, IndexedDB = full blob + kind) already work for any media kind.
-- FFmpeg transcode pipeline already integrates backgrounds during export and follows memory-aware patterns (separate transcode queue, semantic progress/heartbeats, wall-clock timeouts, time-sliced pre-bakes, single-pass style).
-
-**No changes required** to core storage, relay, UI contracts, dirty tracking, or save pathways. The work is almost entirely “unlock the gate + implement the looping read-into-FFmpeg path.”
-
-This is deliberately kept as a single contained phase (unlike the multi-branch DSP foundation work) because the risk surface is small and the value is immediate.
+> This document supersedes the original FFmpeg-centric draft. The draft's core
+> premise — "the FFmpeg transcode pipeline already integrates backgrounds, just
+> unlock the gate and feed a looping GIF into FFmpeg" — does **not** match this
+> codebase (see § Architectural Correction). The animation is driven on the
+> **canvas**, not in FFmpeg. Decision locked by user 2026-06-26.
 
 ---
 
-### Development Phase
+## Purpose
 
-#### Sub-Phase 1: Enable Import & Schema Polish (low risk, ~1–2 hours)
-
-- In `src/storage/image-db-types.ts`:
-  - Add `'animated'` to `BACKGROUND_IMPORT_ENABLED_KINDS`.
-  - Update comments to reflect that animated GIF backgrounds are now supported for import and export looping (video kinds remain gated).
-- In `image-db.ts`:
-  - Confirm `assertImportAllowed` + `maxBytesForKind` already route `'animated'` correctly to the image quota (8 MiB). No logic change needed.
-- Update `docs/engineering-principles.md` (Memory Management & Backgrounds section) and `docs/design-studio.md` (Background handling) with a short note on the new capability and the intentional preview-vs-export fidelity gap.
-- Optional micro-polish: In the background status card or list item, show a subtle “Animated” or “Loops” indicator when `mediaKind === 'animated'` (only if it fits the current UI refresh without layout changes).
-
-**Success criteria**:
-- GIF files now import successfully and are stored with `mediaKind: 'animated'`.
-- First-frame dimensions are correctly probed.
-- All existing import, quota, prune, and reconcile behavior continues to work unchanged.
-
-#### Sub-Phase 2: FFmpeg Export Looping Implementation (core work, ~4–8 hours)
-
-**Goal**: Read the GIF blob into the WASM MEMFS and feed its frames repeatedly into the final MP4 as a looping background layer, using the same scale / position / dim / overlay logic as static backgrounds.
-
-**Recommended strategy** (memory-efficient and aligned with existing patterns):
-
-1. In the transcode command builder, detect `mediaKind === 'animated'` (fetch meta alongside blob or extend the relay payload lightly).
-2. Write the GIF to MEMFS (e.g. `bg.gif`).
-3. **Primary path (try first)**: Use `-stream_loop -1 -ignore_loop 0 -i bg.gif` (or equivalent) as the background input. Combine with the existing scale/pad/position/dim/overlay filter snippet and `-shortest` (or explicit duration) so the loop fills exactly the recording length.
-4. **Fallback / explicit control path** (“100 ms frames easiest”): Add a tiny pre-pass that normalizes the GIF to a short, controlled loop clip:
-   ```bash
-   ffmpeg -y -ignore_loop 0 -i orig_bg.gif \
-     -vf "fps=10,..." \
-     -c:v libx264 -preset ultrafast -crf 28 \
-     bg_loop.mp4
-   ```
-   Then use `-stream_loop -1 -i bg_loop.mp4` in the main command. This keeps peak heap comfortable inside the ~32 MB WASM limit and gives explicit frame-rate control.
-
-5. Reuse all existing background filter logic (alignment, fit/fill, `USER_BACKGROUND_DIM_OVERLAY`, etc.).
-6. Wire semantic progress, heartbeats, wall-clock timeout, and cancellation for any pre-pass (same guards used elsewhere in the transcode flow).
-7. On any animated-path error: graceful fallback to static first-frame treatment with clear logging.
-
-**Memory & performance notes**:
-- `stream_loop` (or short pre-baked clip) avoids materializing thousands of frames.
-- Matches existing patterns: chunked relays for large blobs, separate transcode queue, time-sliced pre-bakes (rainbow slices), and “quantized export approximations.”
-- Pre-pass is fast (< 1 s for typical GIFs) and optional — start with direct `stream_loop`.
-
-**Success criteria**:
-- Exported MP4 shows the GIF looping smoothly and repeatedly for the full recording duration.
-- Positioning, scaling, and dim overlay behave identically to static backgrounds.
-- No regression on static image backgrounds or overall transcode stability/memory.
-- Cancellation and progress reporting remain reliable.
-
-#### Sub-Phase 3: Integration, Testing & Documentation ( ~2–4 hours)
-
-- End-to-end tests with varied GIFs (short loop, long cycle, 1-frame, high-fps, near-max size, different aspect ratios).
-- Memory stress test: max-size GIF + full-length recording.
-- Confirm fallback path works cleanly.
-- Final doc polish in `engineering-principles.md` and `design-studio.md` (explicitly note the preview = static first frame / export = full animation gap, consistent with other fidelity decisions).
-- Optional: Add a one-line internal note explaining the design choice (canvas stays simple; looping lives in the FFmpeg export path).
-
-**Success criteria**:
-- Feature feels complete and polished.
-- All tests pass, including edge cases and memory bounds.
-- Documentation accurately reflects the implemented behavior and intentional gaps.
+Let users import animated GIFs as personal backgrounds. The GIF loops smoothly in
+the **live recorder canvas, the Design Studio preview, and the exported MP4** —
+because all three are the same pixels. Minimal new surface area, zero changes to
+the hardened transcode / voice / subtitle-burn-in pipeline.
 
 ---
 
-### Overall Success Criteria for the Phase
+## Architectural Correction (why the strategy changed)
 
-- Users can import animated GIFs as backgrounds with zero or near-zero UI change.
-- Exported MP4 videos contain smoothly looping animated backgrounds.
-- Preview and recorder canvas remain unchanged (first-frame static draw) — WYSIWYG for waveform is preserved.
-- Memory usage stays within established WASM limits via `stream_loop` + optional controlled pre-bake.
-- All existing contracts (storage split, relay, progress/timeout, cancellation, prune, save pathways) are respected.
-- The implementation follows the project’s core principles: pipeline-native, graceful degradation, semantic health signals, documented fidelity gaps, and minimal surface area for new media kinds.
+The original draft assumed a post-process compositing model (overlay a looping GIF
+under the waveform inside FFmpeg). This project does **not** work that way.
+
+**This is a single-canvas WYSIWYG pipeline:**
+
+1. `WaveformRenderer.drawFrame()` calls `drawThemeBackground(...)` **every frame**,
+   painting the background (theme or personal image) directly onto the canvas
+   — `src/recorder/waveform.ts`.
+2. `canvas.captureStream(WAVEFORM_TARGET_FPS=24)` → `MediaRecorder` → WebM. **The
+   background is baked into the pixels at capture time.**
+3. `src/ffmpeg/ffmpeg-runner.ts` transcodes WebM→MP4 with **audio-only** filters
+   (`-af` / `-filter_complex` for voice) and an optional **subtitle** burn-in pass.
+   It has **no** background image/video input, no overlay, no `stream_loop`.
+   FFmpeg never touches the background.
+
+**Implication:** there is no "FFmpeg background path" to unlock. Routing a looping
+GIF through FFmpeg would require *building* a brand-new compositing stage
+(transparent canvas background + reliable VP8/VP9 alpha through `MediaRecorder` +
+GIF overlay in FFmpeg) — high risk, touches the hardened export code, and breaks
+the project's load-bearing **preview = recorder = MP4** guarantee.
+
+**The native path is the one the draft dismissed.** The canvas *already* renders
+time-driven animated backgrounds: `drawThemeBackground` receives
+`{ timeMs, audioEnergy }` and the `bokeh` / `sparkle` / `twinkle` overlays animate
+per frame (`src/theme/backgrounds.ts`; see `engineering-principles.md` "Cheap
+per-frame flairs"). An animated GIF is the *same pattern*: advance a frame index by
+elapsed time and `drawImage` the current frame. Chrome's `ImageDecoder` (WebCodecs)
+decodes GIF frames natively, so no JS GIF parser is bundled, and the work lives in
+the **page heap** — the ~32 MB WASM-heap limit (an FFmpeg constraint) does not apply.
+
+### What this buys us
+
+| Property | Canvas-native (chosen) | FFmpeg composite (rejected draft) |
+|---|---|---|
+| WYSIWYG (preview = recorder = MP4) | ✅ preserved | ❌ preview static, export animated |
+| Export pipeline risk | ✅ none — FFmpeg untouched | ❌ rewrites transcode compositing |
+| Relay / storage changes | ✅ none — relay already ships GIF bytes | needs payload + alpha plumbing |
+| WASM 32 MB heap pressure | ✅ N/A (page heap) | ⚠️ a real concern |
+| New cost | GIF frame decode + per-frame advance | transparent-canvas alpha capture (fragile) |
 
 ---
 
-### Risks & Mitigations
+## Architectural Fit (foundation already present)
 
-- **WASM memory pressure on large/complex GIFs** → Primary `stream_loop` path + optional short pre-bake normalize at ~10 fps. Fallback to static on error.
-- **Inconsistent preview vs export** → Explicitly documented as intentional (same pattern as other export approximations). Users get the correct deliverable (the MP4).
-- **GIF decode variance in WASM** → Graceful fallback + testing across representative files.
-- **Scope creep into full canvas animation** → Explicitly out of scope for this phase. Canvas animation (if desired later) would be a separate, higher-cost effort.
+- `resolveMediaKindForMime('image/gif')` → `'animated'` (`src/storage/image-db.ts`).
+- `BackgroundMediaKind`, `BACKGROUND_MIME_TYPES`, quotas (`MAX_SINGLE_IMAGE_BACKGROUND_BYTES`
+  routes `'animated'` to the 8 MiB image cap via `maxBytesForKind`), `BackgroundAssetRecord`,
+  the `mediaKind` IndexedDB index, and `pruneUnreferencedBackgrounds` /
+  `reconcileBackgroundPreferences` are all id-based and **kind-agnostic**.
+- Blob relay (`BACKGROUND_BLOB_PORT`, chunked base64) and the storage split
+  (`chrome.storage.local` = id only, IndexedDB = blob + kind) already carry **any**
+  byte payload, GIF included — **no protocol change** for animation.
+- The import gate `BACKGROUND_IMPORT_ENABLED_KINDS` (currently `['image']`) is the
+  only blocker for import. `probeImageDimensions` already decodes a GIF's **first
+  frame** via `createImageBitmap`, so dimensions probe correctly today.
+
+The only genuinely new code is a small **animated-background controller** that turns
+GIF bytes into timed frames, plus per-frame frame-selection in the two RAF loops
+(recorder + Studio preview).
 
 ---
 
-### References to Existing Patterns
+## Development Phases
 
-- Chunked blob relay & storage split (`engineering-principles.md`)
-- Semantic progress / heartbeats / wall-clock timeouts (transcode flow)
-- Time-sliced / pre-bake approximations (rainbow slices, quantized export visuals)
-- Fidelity gap documentation style (`design-studio.md` §7.4)
-- “Schema-ready, gate later” approach used for video kinds
+### Phase 1 — Enable import & schema polish · engine-independent · low risk (~1 h)
+
+Identical regardless of animation engine, so it commits us to nothing and ships a
+useful intermediate state (GIF imports + draws as a **static first frame** through
+the existing canvas path).
+
+- `src/storage/image-db-types.ts`
+  - Add `'animated'` to `BACKGROUND_IMPORT_ENABLED_KINDS` → `['image', 'animated']`.
+  - Refresh comments: animated GIFs are importable now; **video** stays gated.
+- `src/storage/image-db.ts` — **no change required** (verified): `assertImportAllowed`
+  + `maxBytesForKind` already route `'animated'` to the 8 MiB image quota,
+  `probeImageDimensions` returns the GIF's first-frame size, and the disabled-kind
+  message already reads correctly (only `'video'` can now reach the throw).
+- `src/ui/popup/personal-background.ts`
+  - Optional micro-polish: append a subtle **"· Animated"** tag to the library
+    option label when `mediaKind === 'animated'` (label-only; no layout change).
+- Docs note in `engineering-principles.md` / `design-studio.md`: GIF import enabled;
+  animation arrives in Phase 2; **no fidelity gap** (canvas drives all three surfaces).
+
+**Success criteria**
+- GIFs import successfully, stored with `mediaKind: 'animated'`.
+- First-frame dimensions probed correctly.
+- Import / quota / prune / reconcile behavior unchanged.
+- `tsc --noEmit` clean (modulo pre-existing warnings); `wxt build` green.
+
+### Phase 2 — Canvas frame-animation engine · core work (~4–6 h)
+
+**Goal:** decode GIF frames once, advance them by elapsed wall-clock time in the RAF
+loops, and draw the current frame through the existing `drawThemeBackground` user
+layer — so the recorder canvas, Studio preview, and captured MP4 all loop in sync.
+
+1. **New `src/recorder/animated-background.ts`** — an `AnimatedBackground` controller:
+   - `decodeAnimatedBackground(bytes, mimeType)` using WebCodecs `ImageDecoder`
+     (`'image/gif'`); collect per-frame `ImageBitmap` + `duration` into a cumulative
+     timeline; expose `frameAt(timeMs): DrawableBackgroundImage` (modulo total
+     duration → seamless loop). Single-frame GIFs collapse to a static draw.
+   - Memory guards: cap frame count / total decoded pixels; optionally downscale
+     oversized GIFs; `dispose()` closes all `ImageBitmap`s on swap/stop.
+   - Graceful fallback: decode failure → first frame only (existing static path).
+2. **`src/storage/background-loader.ts`** — an animated-aware resolve that returns
+   either a static `DrawableBackgroundImage` or an `AnimatedBackground`, in **both**
+   contexts (extension page = local blob via `mediaKind`; content script = relayed
+   bytes, branching on `mimeType === 'image/gif'`). Relay is unchanged.
+3. **`src/recorder/waveform.ts`** — hold an `AnimatedBackground | null`; build it in
+   `loadBackgroundIfNeeded` when the asset is animated; in `drawFrame`, select the
+   current frame by `performance.now()` and pass it as `userBackgroundImage`. Respect
+   `reduceMotion` (freeze on frame 0 — mirrors the existing `timeMs: 0` behavior).
+4. **Design Studio preview loop** (`renderThemePreview` / preview block RAF) — same
+   per-frame advance so the Studio preview animates (WYSIWYG parity).
+5. No FFmpeg, relay, storage, prefs, dirty-tracking, or save-path changes.
+
+**Success criteria**
+- Recorder canvas, Studio preview, and exported MP4 all loop the GIF smoothly for
+  the full recording, in sync.
+- Position / fit-fill / dim overlay behave identically to static backgrounds.
+- `reduceMotion` freezes to first frame everywhere.
+- No regression on static image backgrounds; 24 fps draw budget holds.
+- Decode failure falls back to static first frame with clear logging.
+
+### Phase 3 — Integration, testing & docs (~2–3 h)
+
+- Vary GIFs: short loop, long cycle, 1-frame, high-fps, near-8 MB, odd aspect ratios.
+- Memory: max-size GIF + full-length recording; confirm `dispose()` eviction on swap.
+- Confirm reduce-motion and the known **hidden-tab rAF freeze** behave consistently
+  (animation pauses with the canvas, same as today's effects — not a new limitation).
+- Doc polish in `engineering-principles.md`, `design-studio.md`, and
+  `docs/architecture/architecture-map.md` (background flow now: animated canvas layer).
+- Tag a stable checkpoint before merging `animated` → `main`.
+
+**Success criteria:** feature feels complete; all manual QA passes incl. edge cases
+and memory bounds; docs reflect the canvas-native reality (no fidelity gap).
 
 ---
+
+## Risks & Mitigations
+
+- **Large/many-frame GIF memory (page heap)** → frame-count / pixel cap + optional
+  downscale; `dispose()` closes bitmaps on swap; fall back to static on cap breach.
+- **`ImageDecoder` availability** → it's a Chrome global (MV3 target is Chrome);
+  feature-detect and fall back to first-frame `createImageBitmap` if absent.
+- **24 fps draw budget** → blitting a pre-decoded `ImageBitmap` is cheap; profile the
+  recorder canvas at 24 fps before merge (same gate as bokeh/sparkle effects).
+- **Hidden-tab freeze** → pre-existing, documented rAF behavior; animation simply
+  pauses with the canvas. Consistent, not a regression.
+
+---
+
+## Out of Scope (this phase)
+
+- Any FFmpeg-side compositing or transparent-canvas alpha capture.
+- Video (`.mp4`/`.webm`) backgrounds — schema-ready but still gated.
+- Frame-accurate GIF timing beyond the 24 fps capture cadence.
+
+---
+
+## References to Existing Patterns
+
+- Single-canvas WYSIWYG + mid-recording hot-swap (`claude-progress.md`, "single-canvas WYSIWYG").
+- Time-driven per-frame background effects: bokeh / sparkle / twinkle (`src/theme/backgrounds.ts`).
+- Chunked blob relay & storage split (`engineering-principles.md` "Personal backgrounds — ImageDB").
+- Stale-load generation guard in `loadBackgroundIfNeeded` (`src/recorder/waveform.ts`).
+- `/code-review` gate + fallback-tag discipline before any merge (`docs/code-review.md`).

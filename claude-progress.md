@@ -925,3 +925,48 @@ git checkout dulcet-ii/integration && npm install && npm run dev
 - Throwaway smoke pattern: write `_dsp-smoke.ts`, `npx tsc _dsp-smoke.ts --outDir _smoke-out
   --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck`,
   drop `_smoke-out/package.json {"type":"commonjs"}`, `node _smoke-out/_dsp-smoke.js`, then delete both.
+
+---
+
+## Animated GIF backgrounds — `animated` branch (off `main`/v5 line, 2026-06-26)
+
+**Plan (source of truth):** `docs/gif-animation-design-implementation.md` · **Memory:** `project_animated_gif_backgrounds.md`
+
+Looping animated-GIF personal backgrounds. The original draft proposed an FFmpeg
+`stream_loop` composite; that premise was **wrong** — backgrounds are not composited in
+FFmpeg. This is a single-canvas WYSIWYG pipeline (`drawThemeBackground` paints the bg every
+frame → `captureStream(24)` → WebM; `ffmpeg-runner.ts` only does audio `-af` + subtitle
+burn-in). So the loop is **canvas-native**: advance GIF frames in the draw loop, same pattern
+as the existing time-driven bokeh/sparkle overlays. Preserves preview = recorder = MP4; zero
+FFmpeg/relay/storage changes. (User chose canvas-native over FFmpeg composite, 2026-06-26.)
+
+| Phase | Status | Commit |
+|-------|--------|--------|
+| 1 — enable import + schema polish | DONE | `26db0d1` |
+| 2 — canvas-native loop engine | DONE, user-QA'd | `f521bb8` |
+| 3 — docs polish + stable tag | in progress | — |
+
+- **Phase 1:** `'animated'` added to `BACKGROUND_IMPORT_ENABLED_KINDS` (video still gated);
+  `· Animated` library label. GIFs import as `mediaKind:'animated'`; quota/probe/reconcile
+  all kind-agnostic (no logic change). GIF draws as static first frame via the existing path.
+- **Phase 2:** `src/storage/animated-background.ts` = `AnimatedBackground` (WebCodecs
+  `ImageDecoder` → `ImageBitmap` frames; `frameAt(timeMs)` seamless modulo loop; GIF delay
+  clamp sub-20ms→100ms; caps ≤120 frames / ≤128 MB / downscale ≤640px; `dispose`). Wired via
+  `loadAnimatedBackground` + `isAnimatedBackgroundCached` (`background-loader.ts`, single active
+  controller, grace-delayed disposal, transient-relay-miss retryable / non-GIF+corrupt+1-frame
+  sticky-static), `resolveClipBackgrounds` (`backgrounds.ts`), `waveform.ts` (`drawFrame` +
+  `renderThemePreview`), `mount-clip-studio.ts` (`shouldAnimate` + reduce-motion freeze).
+- **User QA (2026-06-26, all pass):** import / preview / recorder / switching / export — no
+  regressions; reduce-motion freezes to frame 0 and recovers; edge cases fine; a 4.5 MB GIF clip
+  at the 2:00 cap → 13 MB MP4, nominal transcode/scribe time.
+
+**Design knob (the one real choice):** frame-timing clamp in `animated-background.ts`
+(`GIF_MIN_FRAME_DELAY_MS = 20`, `GIF_DEFAULT_FRAME_DELAY_MS = 100`) — mirrors classic browser
+GIF playback. Plus memory caps (`MAX_ANIMATED_FRAMES`, `MAX_TOTAL_FRAME_BYTES`, `MAX_FRAME_DIMENSION`).
+
+### Restore / test
+```bash
+git checkout animated && npm install && npm run dev
+```
+- Import an animated GIF in Clip appearance → Design Studio preview loops → record on Reddit →
+  exported MP4 loops the background. Build gate: `npm run build` + `npm run compile` (clean).

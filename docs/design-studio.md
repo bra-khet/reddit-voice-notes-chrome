@@ -279,7 +279,8 @@ Color/effect changes call `applyLocalDesignOverrides` → immediate preview refr
 ### 5.2 Semantic model
 
 - **Theme background** — from active clip style; no `customBackgroundId`.
-- **Personal background** — blob in `rvnImageDb`; prefs hold id only.
+- **Personal background** — blob in `rvnImageDb`; prefs hold id only. Images (JPEG/PNG/WebP) and **animated GIFs** share the same id/storage/relay; an animated GIF loops on the canvas (decoded to frames via WebCodecs `ImageDecoder`).
+- **Animated GIF = canvas-native, no fidelity gap** — frames advance in the same RAF that feeds `captureStream`, so preview = recorder = exported MP4. No FFmpeg/bake path. Reduced motion freezes to the first frame everywhere. See `docs/gif-animation-design-implementation.md`.
 - **Reconcile** — `reconcileBackgroundPreferences` strips missing ids on boot.
 
 ### 5.3 WYSIWYG relay (recorder)
@@ -300,6 +301,7 @@ Missing blob → theme fallback; never blocks recording.
 | `background-layout-controls.ts` | Fit/fill + position grid |
 | `src/ui/popup/personal-background.ts` | Shared upload UI (mounted in Studio) |
 | `src/storage/image-db.ts` | Blob CRUD |
+| `src/storage/animated-background.ts` | GIF frame decode + `frameAt` loop timing |
 | `src/storage/background-refs.ts` | Reconcile + prune |
 
 ---
