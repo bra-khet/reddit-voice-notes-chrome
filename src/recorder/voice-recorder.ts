@@ -20,6 +20,8 @@ import { forkTranscribeWebm } from '@/src/transcription/transcribe-client';
 
 import { relaySaveSessionTranscript } from '@/src/storage/session-transcript-relay';
 import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
+import { buildScaffoldTranscriptResult } from '@/src/transcription/transcript-editing';
+import { classifyTranscribeFailure } from '@/src/transcription/transcribe-failure';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
@@ -435,6 +437,10 @@ export class VoiceRecorderSession {
     reportProgress: boolean,
   ): Promise<Awaited<ReturnType<typeof forkTranscribeWebm>>> {
     const generation = this.transcribeGeneration;
+    // CHANGED: snapshot the recorder-timer length now for failure scaffolding (v5.3).
+    // WHY: same floored value as meta.durationSeconds, so a scaffold's last cue end
+    //      equals the OOB clip length — no phantom out-of-bounds badge.
+    const clipDurationSeconds = this.elapsedSeconds;
     this.abortTranscribe();
     const controller = new AbortController();
     this.transcribeAbort = controller;
@@ -463,6 +469,27 @@ export class VoiceRecorderSession {
         if (outcome.applied) {
           setSessionTranscript(outcome.result, outcome.jobId);
           void relaySaveSessionTranscript(outcome.result, outcome.jobId);
+        } else {
+          // CHANGED: graceful failure → persist a timecode scaffold instead of
+          // silently dropping the result (v5.3 Phase 2). Fires SESSION_TRANSCRIPT_
+          // READY_KEY so Design Studio unsticks from amber "pending" and opens a
+          // usable template. Only reached when subtitles are enabled (caller guard).
+          const failure = classifyTranscribeFailure(outcome);
+          if (failure) {
+            const scaffold = buildScaffoldTranscriptResult(clipDurationSeconds, {
+              language: outcome.result.language,
+            });
+            void relaySaveSessionTranscript(scaffold, outcome.jobId, {
+              error: failure,
+              isScaffolded: true,
+            });
+            console.warn(`${EXTENSION_LOG_PREFIX} Transcribe failed — scaffolding`, {
+              jobId: outcome.jobId,
+              reason: failure.type,
+              clipDurationSeconds,
+              scaffoldSegments: scaffold.segments.length,
+            });
+          }
         }
 
         console.log(`${EXTENSION_LOG_PREFIX} Transcribe complete`, {

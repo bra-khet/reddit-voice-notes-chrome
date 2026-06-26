@@ -41,7 +41,7 @@ import {
   SESSION_TRANSCRIPT_READY_KEY,
 } from '@/src/settings/user-preferences';
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
-import type { TranscriptResult } from '@/src/transcription/types';
+import type { TranscriptFailureReason, TranscriptResult } from '@/src/transcription/types';
 import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-studio';
 import { BURNIN_PIPELINE_STAMP, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
 import {
@@ -856,7 +856,21 @@ export default defineBackground(() => {
               sendResponse(response);
               return;
             }
-            await saveSessionTranscript(parsed, request.jobId);
+            // CHANGED: thread graceful-failure metadata into the snapshot (v5.3 Phase 2).
+            // WHY: a failed/empty Vosk run now relays a scaffold result + error reason
+            //      so Design Studio unsticks from "pending" and opens a usable template.
+            let failureReason: TranscriptFailureReason | undefined;
+            if (request.errorJson) {
+              try {
+                failureReason = JSON.parse(request.errorJson) as TranscriptFailureReason;
+              } catch {
+                failureReason = undefined;
+              }
+            }
+            await saveSessionTranscript(parsed, request.jobId, {
+              error: failureReason,
+              isScaffolded: request.isScaffolded === true,
+            });
             await browser.storage.local.set({ [SESSION_TRANSCRIPT_READY_KEY]: Date.now() });
             response.ok = true;
             sendResponse(response);

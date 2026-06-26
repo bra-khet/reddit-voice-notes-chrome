@@ -11,6 +11,9 @@ export function cloneTranscriptResult(result: TranscriptResult): TranscriptResul
     source: result.source,
     language: result.language,
     segments: result.segments.map((segment) => ({ ...segment })),
+    // CHANGED: carry duration through clones (v5.3) — otherwise the scaffold's
+    // clip length is lost on every snapshot clone. Equality checks ignore it.
+    duration: result.duration,
   };
 }
 

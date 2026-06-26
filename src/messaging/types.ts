@@ -122,6 +122,11 @@ export interface SaveSessionTranscriptRequest {
   type: typeof MSG_SAVE_SESSION_TRANSCRIPT;
   transcriptJson: string;
   jobId?: string;
+  // CHANGED: graceful-failure metadata relayed alongside the (scaffold) result (v5.3).
+  // WHY: lets the IDB snapshot record *why* Vosk failed + that segments are scaffold.
+  /** JSON of TranscriptFailureReason; present only on the failure/scaffold path. */
+  errorJson?: string;
+  isScaffolded?: boolean;
 }
 
 export interface SaveSessionTranscriptResponse {

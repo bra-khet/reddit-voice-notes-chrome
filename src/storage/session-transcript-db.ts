@@ -134,6 +134,9 @@ export function sessionTranscriptIsConfirmed(snapshot: SessionTranscriptSnapshot
 export async function saveSessionTranscript(
   result: TranscriptResult,
   jobId?: string,
+  // CHANGED: optional failure/scaffold metadata (v5.3 subtitle QoL).
+  // WHY: the graceful-failure path persists a scaffold result + why Vosk failed.
+  meta?: { error?: TranscriptFailureReason; isScaffolded?: boolean },
 ): Promise<void> {
   const baseline = cloneTranscriptResult(result);
   const record: StoredSessionTranscriptV2 = {
@@ -141,6 +144,8 @@ export async function saveSessionTranscript(
     editedResult: cloneTranscriptResult(result),
     jobId,
     capturedAt: Date.now(),
+    error: meta?.error,
+    isScaffolded: meta?.isScaffolded === true ? true : undefined,
   };
 
   try {
