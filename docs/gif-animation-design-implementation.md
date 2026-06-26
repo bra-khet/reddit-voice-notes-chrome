@@ -2,7 +2,7 @@
 
 **Branch:** `animated` (small, contained feature branch off `main` @ v5 line)
 **Codename:** `animated-gif-bg`
-**Status:** Plan finalized 2026-06-26 · **Phase 1 in progress**
+**Status:** Plan finalized 2026-06-26 · **Phase 1 done** (26db0d1) · **Phase 2 done** (f521bb8), awaiting QA · **Phase 3 next**
 **Fallback tag for this sprint:** `v4.0.0` (last tagged `main` release; record a fresh tag before merge)
 
 > This document supersedes the original FFmpeg-centric draft. The draft's core
