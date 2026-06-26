@@ -1156,7 +1156,7 @@ body {
   border: 1px solid #2a2a44;
   border-radius: 3px;
   padding: 2px 7px;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--studio-font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   white-space: nowrap;
@@ -1341,7 +1341,7 @@ body {
   border: 1px solid #2a2a44;
   background: #0a0014;
   color: #ffd54f;
-  font-family: 'Courier New', Courier, monospace;
+  font-family: var(--studio-font-mono);
   font-size: 0.8rem;
   text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
 }

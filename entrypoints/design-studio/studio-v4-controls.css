@@ -16,8 +16,7 @@
 .studio-v4 .studio__panel-title,
 .studio-v4 .studio__profile-cluster-title,
 .studio-v4 .studio__subpanel-chrome-title,
-.studio-v4 .studio-v4__status-label,
-.studio-v4 .studio__preview-label {
+.studio-v4 .studio-v4__status-label {
   font-family: var(--studio-font-display);
   font-weight: 600;
 }
@@ -33,7 +32,8 @@
 .studio-v4 [data-subtitle-backdrop-opacity-value],
 .studio-v4 [data-subtitle-glow-opacity-value],
 .studio-v4 .studio-v4__status-value,
-.studio-v4 .voice-composer__ctrl-value {
+.studio-v4 .voice-composer__ctrl-value,
+.studio-v4 .studio__preview-label {
   font-family: var(--studio-font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
