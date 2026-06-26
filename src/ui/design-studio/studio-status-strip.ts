@@ -98,20 +98,40 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
     subtitlesState = 'incoming';
     subtitlesLabel = 'Incoming…';
     subtitlesIcon = STUDIO_V4_ASSETS.status.pending;
+  } else if (transcriptDirty) {
+    // CHANGED: active editing wins over the terminal failure/timeout alarms (v5.3
+    // Phase 3) — every failure now yields an editable scaffold, so once the user
+    // types, "confirm edits" is the right call to action, not "no speech".
+    subtitlesState = 'edits-pending';
+    subtitlesLabel = 'Confirm edits in Subtitles panel';
+    subtitlesIcon = STUDIO_V4_ASSETS.status.warning;
+    showOpenPanel = true;
   } else if (transcriptDelivery === 'timeout') {
     subtitlesState = 'error';
-    subtitlesLabel = 'Timed out — add subs manually or re-record';
-    subtitlesIcon = STUDIO_V4_ASSETS.status.warning;
+    subtitlesLabel = 'Timed out — timecode template ready for manual entry';
+    subtitlesIcon = STUDIO_V4_ASSETS.status.failure;
+    showOpenPanel = true;
+  } else if (transcriptDelivery === 'no-speech') {
+    // CHANGED: graceful no-speech → red failure + scaffolding affordance (v5.3 Phase 3).
+    subtitlesState = 'no-speech';
+    subtitlesLabel = 'No speech detected — scaffolding ready for manual entry';
+    subtitlesIcon = STUDIO_V4_ASSETS.status.failure;
+    showOpenPanel = true;
+  } else if (transcriptDelivery === 'failed') {
+    subtitlesState = 'error';
+    subtitlesLabel = 'Transcription failed — timecode template generated';
+    subtitlesIcon = STUDIO_V4_ASSETS.status.failure;
+    showOpenPanel = true;
+  } else if (transcriptDelivery === 'scaffolded') {
+    // Success-path scaffold (manual generate, Phase 5) — neutral, not an alarm.
+    subtitlesState = 'no-speech';
+    subtitlesLabel = 'Scaffolding ready — type your subtitles';
+    subtitlesIcon = STUDIO_V4_ASSETS.status.info;
     showOpenPanel = true;
   } else if (transcriptDelivery === 'ready' && !hasCues) {
     subtitlesState = 'no-speech';
     subtitlesLabel = 'No speech — check audio or add subs manually';
     subtitlesIcon = STUDIO_V4_ASSETS.status.failure;
-    showOpenPanel = true;
-  } else if (transcriptDirty) {
-    subtitlesState = 'edits-pending';
-    subtitlesLabel = 'Confirm edits in Subtitles panel';
-    subtitlesIcon = STUDIO_V4_ASSETS.status.warning;
     showOpenPanel = true;
   } else if (bakedForSession) {
     subtitlesState = 'baked';
@@ -134,9 +154,12 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
   if (subtitlesEnabled) {
     if (!hasSessionRecording) blockers.push('Record a clip on Reddit');
     else if (transcriptDelivery === 'pending') blockers.push('Wait for subtitles');
-    else if (transcriptDelivery === 'timeout') blockers.push('Add subs manually or record again');
-    else if (transcriptDelivery === 'ready' && !hasCues) blockers.push('No speech — check audio or add subs manually');
     else if (transcriptDirty) blockers.push('Confirm subtitle edits');
+    else if (transcriptDelivery === 'timeout') blockers.push('Type subtitles into the template, then bake');
+    else if (transcriptDelivery === 'no-speech') blockers.push('No speech — type subtitles into the scaffold');
+    else if (transcriptDelivery === 'failed') blockers.push('Transcription failed — type subtitles into the scaffold');
+    else if (transcriptDelivery === 'scaffolded') blockers.push('Type your subtitles into the scaffold');
+    else if (transcriptDelivery === 'ready' && !hasCues) blockers.push('No speech — check audio or add subs manually');
     else if (!bakedForSession) blockers.push('Bake subtitles into MP4');
   }
 

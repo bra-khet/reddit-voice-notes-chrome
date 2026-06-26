@@ -578,6 +578,21 @@ export function mountSubtitleControls(
     bakeUnsavedDialog.hidden = false;
   }
 
+  // CHANGED: map a current snapshot to its delivery status (v5.3 Phase 3).
+  // WHY: a graceful-failure scaffold snapshot carries error/isScaffolded — without
+  //      this it read as plain 'ready' (the "transcribed" QA symptom). A current
+  //      snapshot of any kind short-circuits the 120s pending timer.
+  function deliveryStatusForSnapshot(
+    snapshot: SessionTranscriptSnapshot | null,
+  ): TranscriptDeliveryStatus {
+    const errorType = snapshot?.error?.type;
+    if (errorType === 'no-speech') return 'no-speech';
+    if (errorType === 'timeout') return 'timeout';
+    if (errorType === 'inference-error' || errorType === 'empty-result') return 'failed';
+    if (snapshot?.isScaffolded) return 'scaffolded';
+    return 'ready';
+  }
+
   async function refreshTranscriptDeliveryStatus(): Promise<void> {
     try {
       if (!draftConfig.transcriptionEnabled) {
@@ -593,7 +608,7 @@ export function mountSubtitleControls(
 
       if (snapshotAt > 0 && recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
         clearPendingTranscriptTimer();
-        segmentEditor.setTranscriptDeliveryStatus('ready');
+        segmentEditor.setTranscriptDeliveryStatus(deliveryStatusForSnapshot(lastSnapshot));
         return;
       }
 
@@ -624,7 +639,7 @@ export function mountSubtitleControls(
       // BUG FIX: stale IDB transcript marked delivery ready without a current recording
       // Fix: only ready when snapshot capturedAt is at or after last recording ready.
       if (recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
-        segmentEditor.setTranscriptDeliveryStatus('ready');
+        segmentEditor.setTranscriptDeliveryStatus(deliveryStatusForSnapshot(lastSnapshot));
       } else {
         segmentEditor.setTranscriptDeliveryStatus('idle');
       }
