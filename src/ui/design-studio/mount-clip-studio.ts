@@ -128,7 +128,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         <div class="studio__header-row">
           <div>
             <h1 class="studio__title">Design Studio</h1>
-            <p class="studio__subtitle">Clip appearance — preview matches your recorded video.</p>
+            <p class="studio__subtitle">Style your clip's look, voice, and captions — the live preview matches your export.</p>
           </div>
           <button type="button" class="popup__profile-btn popup__profile-btn--save studio__done-btn" data-studio-done>
             Done

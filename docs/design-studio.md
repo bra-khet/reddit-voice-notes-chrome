@@ -690,6 +690,58 @@ Card faces remain non-interactive except **enter**; all apply/discard lives insi
 
 **Fallback tags:** `v3.7.0` (UI shell + subtitles) · `v3.6.0` (behavior-only baseline) · `v3.6.0-ui-assets-ready` (assets before layout TS).
 
+### 10.6 v5 polish — design unification (branch `polish-v5`)
+
+A studio-wide coherence pass on top of the v4 shell. **No structural change** — hero
++ 1×4 strip + sub-panels and every `data-*` / storage / dirty-state contract are
+intact. What changed is the visual language, now enforced from one token source.
+
+**Tokens (`studio-palette.css` — evolved, no new hues).** New semantic layer on the
+existing indigo→amber axis:
+
+| Token | Role |
+|-------|------|
+| `--studio-focus` | One focus ring studio-wide (retired the off-palette `#4fbcff` slider stray) |
+| `--studio-control-on` | Toggle "on" fill — replaces inherited Reddit-popup blue `#0079d3` |
+| `--studio-field-label` | Field labels — replaces inherited Reddit gray `#818384` |
+| `--studio-surface-raised` / `--studio-hairline*` | One raised-control fill + one divider language |
+| `--studio-track-glow` | Physical-slider illumination hook |
+| `--studio-accent-{bars,background,voice,subtitles}` | **Cividis 4-stop section ramp** (cool→warm, monotonic luminance) |
+
+**Form-control coherence (`studio-v4-controls.css`, new).** The Studio imports
+`popup/style.css`, which is authored for the Reddit-native popup. All shared
+`.popup__*` controls (toggles, selects, labels) are now overridden **scoped to
+`.studio-v4`** so the popup itself is never touched. This closes the single biggest
+"assembled, not designed" leak.
+
+**Type system.** Self-hosted **Chakra Petch** (machined display face, `font-src 'self'`,
+~20 KB total) for the wordmark + section/sub-panel titles; **`RVN-DejaVu-Mono`** (already
+registered by `preview-font-loader.ts`, the same family the bake can render) for all
+**numeric/status readouts** — values look measured, prose stays in the UI sans.
+
+**Section ramp (§10.3 extension).** Each card carries one `--card-accent` driving its
+title, head divider, enter-chip glow, and icon halo. The accent is **always** paired with
+the section's icon + label, so it remains reinforcement, never color-only.
+
+**Signature.** The hero preview reads as a **powered studio monitor**: a lit readout with
+a breathing `LIVE` dot and the `PREVIEW = OUTPUT` invariant **etched into the glass**. The
+**physical analog slider** is now the universal control — the last generic `<input
+type=range>` (3 in Subtitles: font size, backdrop opacity, glow strength) was migrated to
+the pointer-captured `physical-slider`; **zero `type=range` remain in the Studio.**
+
+**Motion.** One orchestrated boot reveal (hero → four cards stagger) + the LIVE breath +
+slider thumb glow, all gated behind `prefers-reduced-motion`.
+
+**Recorder panel (§ cross-surface).** Pulled toward Studio chrome — nocturnal-indigo
+surface, machined lit edge, amber signage, waveform reframed as a monitor, success→cyan
+(no green). Stays **dark in light Reddit** (the Studio is dark by identity) and keeps the
+**theme-derived Record accent**. `RVN_COLORS` is untouched, so the Reddit-native popup and
+toast are unaffected. Justification: the panel is the same creative tool *docked* into
+Reddit; the only retained Reddit-native trait is system-ui type (no web-font cost on
+reddit.com).
+
+**Fallback tag:** `v5.0.0` (Dulcet II baseline before this pass).
+
 ---
 
 ## 11. Open work (within sections, non-blocking)
