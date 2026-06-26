@@ -63,3 +63,65 @@ This is deliberately kept as a single contained phase (unlike the multi-branch D
      -vf "fps=10,..." \
      -c:v libx264 -preset ultrafast -crf 28 \
      bg_loop.mp4
+   ```
+   Then use `-stream_loop -1 -i bg_loop.mp4` in the main command. This keeps peak heap comfortable inside the ~32 MB WASM limit and gives explicit frame-rate control.
+
+5. Reuse all existing background filter logic (alignment, fit/fill, `USER_BACKGROUND_DIM_OVERLAY`, etc.).
+6. Wire semantic progress, heartbeats, wall-clock timeout, and cancellation for any pre-pass (same guards used elsewhere in the transcode flow).
+7. On any animated-path error: graceful fallback to static first-frame treatment with clear logging.
+
+**Memory & performance notes**:
+- `stream_loop` (or short pre-baked clip) avoids materializing thousands of frames.
+- Matches existing patterns: chunked relays for large blobs, separate transcode queue, time-sliced pre-bakes (rainbow slices), and “quantized export approximations.”
+- Pre-pass is fast (< 1 s for typical GIFs) and optional — start with direct `stream_loop`.
+
+**Success criteria**:
+- Exported MP4 shows the GIF looping smoothly and repeatedly for the full recording duration.
+- Positioning, scaling, and dim overlay behave identically to static backgrounds.
+- No regression on static image backgrounds or overall transcode stability/memory.
+- Cancellation and progress reporting remain reliable.
+
+#### Sub-Phase 3: Integration, Testing & Documentation ( ~2–4 hours)
+
+- End-to-end tests with varied GIFs (short loop, long cycle, 1-frame, high-fps, near-max size, different aspect ratios).
+- Memory stress test: max-size GIF + full-length recording.
+- Confirm fallback path works cleanly.
+- Final doc polish in `engineering-principles.md` and `design-studio.md` (explicitly note the preview = static first frame / export = full animation gap, consistent with other fidelity decisions).
+- Optional: Add a one-line internal note explaining the design choice (canvas stays simple; looping lives in the FFmpeg export path).
+
+**Success criteria**:
+- Feature feels complete and polished.
+- All tests pass, including edge cases and memory bounds.
+- Documentation accurately reflects the implemented behavior and intentional gaps.
+
+---
+
+### Overall Success Criteria for the Phase
+
+- Users can import animated GIFs as backgrounds with zero or near-zero UI change.
+- Exported MP4 videos contain smoothly looping animated backgrounds.
+- Preview and recorder canvas remain unchanged (first-frame static draw) — WYSIWYG for waveform is preserved.
+- Memory usage stays within established WASM limits via `stream_loop` + optional controlled pre-bake.
+- All existing contracts (storage split, relay, progress/timeout, cancellation, prune, save pathways) are respected.
+- The implementation follows the project’s core principles: pipeline-native, graceful degradation, semantic health signals, documented fidelity gaps, and minimal surface area for new media kinds.
+
+---
+
+### Risks & Mitigations
+
+- **WASM memory pressure on large/complex GIFs** → Primary `stream_loop` path + optional short pre-bake normalize at ~10 fps. Fallback to static on error.
+- **Inconsistent preview vs export** → Explicitly documented as intentional (same pattern as other export approximations). Users get the correct deliverable (the MP4).
+- **GIF decode variance in WASM** → Graceful fallback + testing across representative files.
+- **Scope creep into full canvas animation** → Explicitly out of scope for this phase. Canvas animation (if desired later) would be a separate, higher-cost effort.
+
+---
+
+### References to Existing Patterns
+
+- Chunked blob relay & storage split (`engineering-principles.md`)
+- Semantic progress / heartbeats / wall-clock timeouts (transcode flow)
+- Time-sliced / pre-bake approximations (rainbow slices, quantized export visuals)
+- Fidelity gap documentation style (`design-studio.md` §7.4)
+- “Schema-ready, gate later” approach used for video kinds
+
+---
