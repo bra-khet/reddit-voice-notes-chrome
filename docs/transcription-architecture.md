@@ -151,26 +151,55 @@ npm run build:vosk-sandbox && reload extension at chrome://extensions
 
 Open `transcribe-harness.html` → load WebM from recorder → Transcribe.
 
+## Graceful failure emission & timecode scaffolding (v5.3 subtitle QoL)
+
+Before v5.3 a Vosk no-speech / empty / inference error left the Studio stuck on amber "Pending" until the 120 s timeout (silent failure). Now every transcribe outcome resolves to a persisted, explicit state.
+
+**Emission path (content script):**
+
+```
+forkTranscribeWebm() resolves (applied | fallback | timeout)
+  └─ if NOT applied → classifyTranscribeFailure()  [transcribe-failure.ts]
+        → 'no-speech' | 'inference-error' | 'empty-result' | 'timeout'
+     buildScaffoldTranscriptResult(clipDurationSeconds)  [transcript-editing.ts]
+        → evenly-timed empty slots (soft-hyphen ­ placeholder)
+     relaySaveSessionTranscript(scaffold, jobId, { error, isScaffolded:true })
+        → MSG_SAVE_SESSION_TRANSCRIPT → background saveSessionTranscript()
+        → rvnSessionTranscript IDB (carries error + isScaffolded) + SESSION_TRANSCRIPT_READY_KEY
+```
+
+- **Classifier** (`transcribe-failure.ts`): no-speech is detected by `VOSK_NO_SPEECH_ERROR_MARKER` (the sandbox host *throws* on empty text, arriving as `fallback:true`); applied→null, timeout marker→timeout, fallback→inference-error, empty→no-speech, else→empty-result.
+- **Clip duration** comes from the recorder timer (`elapsedSeconds`, matches `LAST_RECORDING_READY_KEY` meta) — no re-decode, no new storage.
+- **Studio resolve** (`subtitle-controls.ts deliveryStatusForSnapshot`): maps `error`/`isScaffolded` → `no-speech` | `failed` | `scaffolded`, short-circuits the pending timer, and opens the segment editor in scaffolding mode (red status strip + timed empty slots).
+
+**Soft-hyphen placeholder (`­`, U+00AD):** empty scaffold slots carry a soft hyphen so they survive `.trim()`-based emptiness filters and persist through editing; everything blank-aware uses `cueTextIsBlank` / `stripScaffoldPlaceholder`. Empty slots bake to nothing (`usableSegments` skips them).
+
+**Long-segment Smart Split** (`splitSegmentIntoChunks` + `src/utils/text-metrics.ts`): a long cue is split at word boundaries into chunks that each fit one caption line (canvas measured against the preview box), with the time span divided proportionally to chunk character length. Pure + node-tested (`scripts/test-smart-split.mjs`).
+
+Pure modules are unit-tested without a framework via esbuild bundle + `node:assert`: `test-scaffold.mjs`, `test-transcribe-failure.mjs`, `test-smart-split.mjs`, `test-burnin-budget.mjs`.
+
 ## Subtitle burn-in render paths (eloquent-3+)
 
-Production uses **one** strategy: `drawtext-font` + bundled `DejaVuSans.ttf` (`subtitle-burnin.ts`). Historical `subtitles-srt` (libass) was removed in BUG-030.
+Production uses **one** family of strategies: `drawtext-font` + bundled `DejaVuSans.ttf` (`subtitle-burnin.ts`), now a budgeted **degradation chain** (see below). Historical `subtitles-srt` (libass) was removed in BUG-030.
 
 | Capability | `drawtext` + bundled TTF (current) | `subtitles` + SRT/ASS (libass) |
 |------------|-----------------------------------|--------------------------------|
 | Timed cues | `enable='between(t,start,end)'` per cue | Native ASS timing |
-| Backdrop / glow / border | Stacked drawtext duplicate layers | ASS styles (Outline, Shadow, BorderStyle) |
-| Animated color (`\t()`, rainbow) | Time-sliced static colors (see `design-studio.md` §7.4) | Theoretically smooth transforms |
+| Backdrop / glow / border | Stacked drawtext duplicate layers (flat-cost `GlowRingMode`) | ASS styles (Outline, Shadow, BorderStyle) |
+| Animated color (`\t()`, rainbow) | **Removed (v5.3)** — bake colors are static per cue | Theoretically smooth transforms |
 | ffmpeg.wasm fonts | `fontfile=` to wasm virtual FS | Needs libass + fontsdir or embedded fonts |
 | Failure mode when misconfigured | Log needles + thrown error (since BUG-030) | **Exit 0, no visible subs** (BUG-025) |
 
-**Headroom in current architecture before pain:**
+**Filtergraph budget + degradation chain (BUG-035):** the graph scales as cues × glow-ring layers, and ffmpeg.wasm aborts past ~70 drawtext filters (640×360). `buildBurnInStrategies` builds tiers `drawtext-glow` (soft halo, `single` ring ≈9 glow/cue) → `drawtext-glow-min` (`min` ring ≈4/cue) → `drawtext-plain`, dedupes, and keeps those within `MAX_BURNIN_DRAWTEXT_LAYERS = 64` (richest-in-budget first). `burnInWithStrategies` reloads a fresh wasm instance per tier, so a tier that still OOMs degrades instead of hard-failing. `blurRadius` controls ring **spread**, not layer count (`buildGlowLayerSpecs` `GlowRingMode`), so glow cost is flat.
 
-- More drawtext layers (glow, border, rainbow slices) — filter graph size; long clips + many cues need slice caps.
+**Headroom / rules:**
+
+- Keep the per-cue layer budget in mind for any new glow/effect — cost is cues × layers; prefer flat-cost ring modes over stacked rings.
 - `textfile=` per cue (BUG-031) — punctuation-safe; keep using this pattern.
-- Finer rainbow slices — smoother stepped hue; linear cost in filter count.
+- Empty scaffold slots are excluded from the graph (`usableSegments` / `cueTextIsBlank`).
 - Revisit libass only via **isolated harness** — confirm wasm build includes libass, bundle fonts, validate pixels; do not restore silent fallback.
 
-Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031.
+Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031, BUG-034, BUG-035.
 
 ## Phase status
 
@@ -181,5 +210,6 @@ Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031.
 | eloquent-2 | Design Studio Subtitles panel + preview | **Done** |
 | eloquent-3 | FFmpeg subtitle burn-in | **Done** |
 | eloquent-4 | Studio editor polish + relay hardening | **Partial** (`v3.6.0`) |
+| v5.3 Subtitle QoL | Graceful failure → scaffold, Smart Split, per-cue delete, bake budget, rainbow removed | **Done** (`subtitle-qol-failure-scaffold-v1`) |
 
 See `eloquent-branch.md` for full phase plan and `docs/design-studio.md` for current Studio semantics.

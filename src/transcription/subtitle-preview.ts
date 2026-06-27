@@ -159,7 +159,10 @@ export function drawSubtitlePreview(
 
   if (glow?.enabled === true) {
     ctx.fillStyle = hexToRgba(palette.glowHex, 1);
-    for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
+    // CHANGED: preview uses the same cheap 'single' halo ring as the bake (v5.3) —
+    // WYSIWYG parity + far fewer fillText passes per RAF/redraw, so dragging the
+    // sliders / color wheel stays smooth.
+    for (const spec of buildGlowLayerSpecs(glow, fontSize, 'single')) {
       ctx.globalAlpha = spec.opacity;
       drawTextLines(ctx, lines, textX, textY, lineHeight, spec.offsetX, spec.offsetY);
     }
