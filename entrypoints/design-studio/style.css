@@ -739,6 +739,94 @@ body {
   min-height: 1.2em;
 }
 
+/* v5.3.1 — Voice audition: "Last Voice Note" (stored) + "One-Time Test" (live mic) */
+
+/* Two test buttons flanking a shared voice glyph: visual = same voice; names = distinct. */
+.studio__voice-tests {
+  justify-content: center;
+}
+
+.studio__voice-test-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 120ms ease;
+}
+
+.studio__voice-test-cap {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* Shared-function indicator between the buttons (inherits color via currentColor). */
+.studio__voice-test-icon {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-top: -14px; /* nudge up to sit beside the buttons, not the captions */
+  color: var(--studio-amber, #ffd54f);
+  opacity: 0.75;
+}
+
+/* Empty state (no saved recording): steer the eye to the mic test. */
+.studio__voice-test-group.is-deemphasized {
+  opacity: 0.5;
+}
+
+.studio__voice-test-group.is-emphasized .popup__profile-btn {
+  box-shadow: 0 0 0 2px var(--studio-amber, #ffd54f);
+}
+
+.studio__mic-test-btn.is-capturing {
+  outline: 2px solid var(--studio-amber);
+  outline-offset: 1px;
+}
+
+/* Meter row — visible only while capturing. */
+.studio__voice-mic {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.studio__voice-meter {
+  flex: 1 1 auto;
+  height: 8px;
+  min-width: 80px;
+  border-radius: 999px;
+  background: var(--studio-amber-dim, rgba(255, 213, 79, 0.18));
+  overflow: hidden;
+}
+
+.studio__voice-meter-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--studio-amber, #ffd54f);
+  transition: width 80ms linear;
+}
+
+/* Dedicated row so the shared Stop button never reflows the test buttons. */
+.studio__voice-stoprow {
+  display: flex;
+  margin-bottom: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__voice-meter-fill {
+    transition: none;
+  }
+
+  .studio__voice-test-group {
+    transition: none;
+  }
+}
+
 /* Dulcet II (v5 / Branch 4) — Custom voice composer */
 .voice-composer {
   margin: 4px 0 12px;

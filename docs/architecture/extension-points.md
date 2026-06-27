@@ -1,7 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.0 · **Updated:** 2026-06-24 · **Reflects:** `eloquent` (eloquent-5 hardening)  
-**Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.
+**Version:** v1.1 · **Updated:** 2026-06-27 · **Reflects:** `feature/voice-preview-live-mic` (v5.3.1)  
+**Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
+**Changelog:** v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -84,6 +85,31 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Data contracts:** `data-studio-panel`, `data-summary-*`, `data-studio-panel-open` are checked by multiple consumers — do not rename without a grep audit.
 - **Preview coupling:** new controls that affect clip appearance must call `applyLocalDesignOverrides()` → immediate preview; debounced persist for HSV-style rapid input.
 - **Import rule:** Studio and Popup import only direct files — never `@/src/voice` or `@/src/transcription` barrels (they pull WASM dependencies; BUG-008 pattern).
+
+## Voice live-mic preview — v1 (v5.3.1)
+
+Transient mic capture as an alternative *input source* for the in-Studio voice audition.
+Adds **no** new fragment, renderer, message family, or storage — it only feeds a fresh
+capture into the existing voice render path.
+
+- **Capture seam:** `src/voice/mic-test-capture.ts` → `startMicTestCapture(options)` returns
+  a controller (`stop` / `cancel` / `done: Promise<Blob>`). Pure leaf: **no FFmpeg, no
+  storage imports.** Inject mic constraints via `options.acquireStream`
+  (`() => acquireMicStream(prefs.audio)`) to match the real recorder.
+- **Render/play path:** reuse `resolveVoiceGraph()` → `processAudioWithGraph(blob, graph,
+  …, { maxDurationSeconds })` → the single `VoicePreviewHandle.playProcessed`. **Do not**
+  add a wrapper or a second player.
+- **Preview=bake?** YES by construction — identical resolve + renderer as the bake; the
+  capture is just a different input. No new fidelity gap.
+- **Sync points:** the two audition buttons + shared Stop in `voice-controls.ts`
+  (`refreshStopUi`, `refreshActionAvailability`); CSS in `entrypoints/design-studio/style.css`
+  (`.studio__voice-tests`, `.studio__voice-meter`, `.studio__voice-stoprow`); canonical
+  doc `docs/design-studio.md` §6.5; plan `docs/v5.3.1-voice-live-mic-preview-design-document.md`.
+- **Invariant (must hold):** the capture is **never** persisted — `mic-test-capture.ts`
+  imports no storage, so it cannot write `rvnLastRecording`. Any future "save this take"
+  feature must be a deliberate, separate decision, not a silent IDB write here.
+- **Gotcha:** Design Studio is a *separate origin* from reddit.com, so `getUserMedia`
+  prompts again on first use there (verified working — v5.3.1 §6.0 gate).
 
 ---
 

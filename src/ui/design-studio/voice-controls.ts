@@ -42,6 +42,15 @@ import {
   copyVoiceCharacterToClipboard,
   pasteVoiceCharacterFromClipboard,
 } from '@/src/settings/clipboard-backup';
+import {
+  startMicTestCapture,
+  MicTestCaptureError,
+  MIC_TEST_DEFAULT_MAX_MS,
+  type MicTestCaptureController,
+  type MicTestCaptureErrorCode,
+} from '@/src/voice/mic-test-capture';
+import { acquireMicStream } from '@/src/recorder/mic-constraints';
+import type { AudioPreferences } from '@/src/settings/user-preferences';
 
 export interface VoiceControlsHandle {
   dispose(): void;
@@ -156,10 +165,62 @@ export function renderVoiceControlFields(): string {
         />
       </label>
       <div class="studio__voice-composer" data-voice-composer></div>
-      <div class="studio__voice-actions">
-        <button type="button" class="popup__profile-btn popup__profile-btn--save" data-voice-test>
-          Test character voice
-        </button>
+      <div class="studio__voice-actions studio__voice-tests">
+        <div class="studio__voice-test-group" data-voice-test-group>
+          <button
+            type="button"
+            class="popup__profile-btn popup__profile-btn--save"
+            data-voice-test
+            aria-label="Test the current voice character on your last recording from Reddit"
+          >
+            Last Voice Note
+          </button>
+          <p class="studio__voice-test-cap" data-voice-test-cap>Stored recording from Reddit</p>
+        </div>
+        <!-- Shared voice glyph: visual cue that both buttons audition the same voice.
+             Inlined (not <img>) so stroke="currentColor" inherits the panel color. -->
+        <svg
+          class="studio__voice-test-icon"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+        <div class="studio__voice-test-group" data-voice-mic-test-group>
+          <button
+            type="button"
+            class="popup__profile-btn popup__profile-btn--save studio__mic-test-btn"
+            data-voice-mic-test
+            aria-label="Record a one-time test with your microphone and hear the current voice character"
+          >
+            One-Time Test
+          </button>
+          <p class="studio__voice-test-cap" data-voice-test-cap>Test recording — not stored</p>
+        </div>
+      </div>
+      <div class="studio__voice-mic" data-voice-mic-panel hidden>
+        <div
+          class="studio__voice-meter"
+          data-voice-meter
+          role="meter"
+          aria-label="Microphone input level"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <span class="studio__voice-meter-fill" data-voice-meter-fill></span>
+        </div>
+      </div>
+      <div class="studio__voice-stoprow">
         <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-voice-stop hidden>
           Stop
         </button>
@@ -214,6 +275,12 @@ export function mountVoiceControls(
   const intensityValueEl = panel.querySelector<HTMLElement>('[data-voice-intensity-value]')!;
   const turboInput = panel.querySelector<HTMLInputElement>('[data-voice-turbo]')!;
   const testBtn = panel.querySelector<HTMLButtonElement>('[data-voice-test]')!;
+  const testGroup = panel.querySelector<HTMLElement>('[data-voice-test-group]')!;
+  const micTestBtn = panel.querySelector<HTMLButtonElement>('[data-voice-mic-test]')!;
+  const micTestGroup = panel.querySelector<HTMLElement>('[data-voice-mic-test-group]')!;
+  const micPanel = panel.querySelector<HTMLElement>('[data-voice-mic-panel]')!;
+  const meterEl = panel.querySelector<HTMLElement>('[data-voice-meter]')!;
+  const meterFill = panel.querySelector<HTMLElement>('[data-voice-meter-fill]')!;
   const stopBtn = panel.querySelector<HTMLButtonElement>('[data-voice-stop]')!;
   const statusEl = panel.querySelector<HTMLElement>('[data-voice-status]')!;
 
@@ -223,6 +290,11 @@ export function mountVoiceControls(
   let loadedSavedAt = 0;
   let syncing = false;
   let rendering = false;
+  let capturing = false;
+  let capture: MicTestCaptureController | null = null;
+  // Mic-capture prefs (raw/enhanced) so the One-Time Test uses the SAME constraints as the
+  // real recorder — keeps the audition faithful to the eventual bake. Null until prefs load.
+  let audioPrefs: AudioPreferences | null = null;
   let saveTimer = 0;
 
   const preview = createVoicePreviewPlayer();
@@ -411,7 +483,9 @@ export function mountVoiceControls(
 
   function updateSourceCopy(): void {
     if (!lastRecording) {
-      sourceEl.textContent = `No recording yet — record a voice note (up to ${formatRecordingCapClock()}), then reopen Design Studio.`;
+      // The storage-safety rule (no mic capture is ever stored) pinches hardest for
+      // newcomers with no saved take — so frame it as a path forward, not a dead end.
+      sourceEl.textContent = `No saved recording yet — record a voice note on Reddit (up to ${formatRecordingCapClock()}) to use “Last Voice Note”, or try “One-Time Test” to audition with your mic right now.`;
       return;
     }
 
@@ -420,15 +494,106 @@ export function mountVoiceControls(
     sourceEl.textContent = `Last recording: ${formatDuration(meta.durationSeconds)} · ${kb} KB · ${formatSavedAt(meta.savedAt)}`;
   }
 
-  function refreshPlayStopUi(): void {
-    // Stop is shown only while the rendered Test clip is playing back.
-    stopBtn.hidden = !preview.isPlaying();
+  /**
+   * One shared Stop button governs both audition modes (only one can run at a time):
+   *  - while capturing → "Stop & render" (flush the mic clip and render it),
+   *  - while playing back → "Stop" (halt the rendered clip).
+   * It lives in its own row so the test buttons never reflow as it appears/disappears.
+   */
+  function refreshStopUi(): void {
+    if (capturing) {
+      stopBtn.hidden = false;
+      stopBtn.textContent = 'Stop & render';
+    } else if (preview.isPlaying()) {
+      stopBtn.hidden = false;
+      stopBtn.textContent = 'Stop';
+    } else {
+      stopBtn.hidden = true;
+    }
   }
 
-  function setRendering(active: boolean): void {
+  /**
+   * With no saved recording, "Last Voice Note" can't do anything useful — de-emphasize it
+   * and pull the eye to "One-Time Test", which works immediately from the mic.
+   */
+  function refreshTestEmphasis(): void {
+    const hasRecording = Boolean(lastRecording);
+    testGroup.classList.toggle('is-deemphasized', !hasRecording);
+    micTestGroup.classList.toggle('is-emphasized', !hasRecording);
+  }
+
+  /** Both test buttons are unavailable whenever a capture or a render is in flight. */
+  function refreshActionAvailability(): void {
+    const busy = rendering || capturing;
+    testBtn.disabled = busy;
+    micTestBtn.disabled = busy;
+  }
+
+  function setRendering(active: boolean, source: 'last-note' | 'mic' = 'last-note'): void {
     rendering = active;
-    testBtn.disabled = active;
-    testBtn.textContent = active ? 'Rendering…' : 'Test character voice';
+    refreshActionAvailability();
+    // Show "Rendering…" only on the button that initiated the render.
+    testBtn.textContent = active && source === 'last-note' ? 'Rendering…' : 'Last Voice Note';
+    micTestBtn.textContent = active && source === 'mic' ? 'Rendering…' : 'One-Time Test';
+  }
+
+  function setCapturing(active: boolean): void {
+    capturing = active;
+    micPanel.hidden = !active;
+    micTestBtn.classList.toggle('is-capturing', active);
+    if (!active) setMeter(0);
+    refreshActionAvailability();
+    refreshStopUi();
+  }
+
+  function setMeter(level: number): void {
+    const pct = Math.round(Math.min(1, Math.max(0, level)) * 100);
+    meterFill.style.width = `${pct}%`;
+    meterEl.setAttribute('aria-valuenow', String(pct));
+  }
+
+  /** Map a capture-error code to a user-facing message (aborted is silent-ish). */
+  function captureErrorMessage(code: MicTestCaptureErrorCode): string {
+    const messages: Record<MicTestCaptureErrorCode, string> = {
+      'permission-denied':
+        'Microphone blocked. Allow mic access for this extension in your browser settings, then try again.',
+      unsupported: 'Live mic test isn’t supported in this browser context.',
+      'no-audio': 'No audio captured — check your microphone and try again.',
+      'aborted-empty': 'Mic test cancelled.',
+      'capture-failed': 'Could not capture audio — please try again.',
+    };
+    return messages[code];
+  }
+
+  // v5.3.1: render an ALREADY-captured mic blob through the SAME path as the "Last Voice
+  // Note" button (resolveVoiceGraph → processAudioWithGraph → the shared single preview
+  // player), so the live-mic audition is byte-identical to the bake.
+  async function renderCaptured(blob: Blob, graph: StylizedGraph): Promise<void> {
+    setRendering(true, 'mic');
+    setStatus('Rendering your voice… (one-shot, a few seconds)');
+    try {
+      const { processAudioWithGraph } = await import('@/src/voice/process-audio');
+      const result = await processAudioWithGraph(
+        blob,
+        graph,
+        (ratio) => {
+          setStatus(`Rendering your voice… ${Math.round(Math.min(1, Math.max(0, ratio)) * 100)}%`);
+        },
+        { maxDurationSeconds: PREVIEW_MAX_SECONDS },
+      );
+      await preview.playProcessed(result.blob);
+      refreshStopUi();
+      setStatus(
+        result.applied
+          ? 'Playing your voice with the character effect — this is what bakes.'
+          : 'Played your voice unprocessed — no effect was applied (check console).',
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setStatus(`Mic test failed: ${detail}`);
+    } finally {
+      setRendering(false);
+    }
   }
 
   async function loadRecordingSource(): Promise<void> {
@@ -440,7 +605,7 @@ export function mountVoiceControls(
 
     if (preview.isPlaying()) {
       preview.stop();
-      refreshPlayStopUi();
+      refreshStopUi();
     }
 
     lastRecording = snapshot;
@@ -449,7 +614,7 @@ export function mountVoiceControls(
     if (lastRecording) {
       try {
         await preview.setSource(lastRecording.blob);
-        setStatus('Recording loaded — choose a preset and play preview.');
+        setStatus('Recording loaded — pick a character, then Last Voice Note to hear it.');
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         setStatus(`Could not load last recording: ${detail}`);
@@ -459,6 +624,7 @@ export function mountVoiceControls(
       setStatus('');
     }
     updateSourceCopy();
+    refreshTestEmphasis();
   }
 
   enabledInput.addEventListener('change', () => {
@@ -570,7 +736,7 @@ export function mountVoiceControls(
     if (rendering) return;
     void (async () => {
       if (!lastRecording) {
-        setStatus('Record a voice note first, then reopen Design Studio to test.');
+        setStatus('No saved recording yet — record a voice note on Reddit, or use One-Time Test to audition with your mic now.');
         return;
       }
 
@@ -582,7 +748,7 @@ export function mountVoiceControls(
       }
 
       preview.stop();
-      refreshPlayStopUi();
+      refreshStopUi();
       setRendering(true);
       setStatus('Rendering character voice… (one-shot, a few seconds)');
 
@@ -598,7 +764,7 @@ export function mountVoiceControls(
           { maxDurationSeconds: PREVIEW_MAX_SECONDS },
         );
         await preview.playProcessed(result.blob);
-        refreshPlayStopUi();
+        refreshStopUi();
 
         const trimmed = (lastRecording.meta.durationSeconds ?? 0) > PREVIEW_MAX_SECONDS;
         const baseMsg = result.applied
@@ -618,9 +784,65 @@ export function mountVoiceControls(
     })();
   });
 
-  stopBtn.addEventListener('click', () => {
+  // v5.3.1 live-mic preview: capture the user's OWN voice, then render it through the
+  // exact same path as the character test above (resolveVoiceGraph → processAudioWithGraph
+  // → shared single preview). The capture never persists — mic-test-capture.ts imports no
+  // storage, so the last recording in browser memory is untouched.
+  micTestBtn.addEventListener('click', () => {
+    if (rendering || capturing) return;
+
+    const config = mergeLiveToggles(draftConfig);
+    const graph = resolveVoiceGraph(config);
+    if (!stylizedGraphIsActive(graph)) {
+      setStatus('No active effect to test — enable voice effects or pick a character voice.');
+      return;
+    }
+
     preview.stop();
-    refreshPlayStopUi();
+    refreshStopUi();
+    setCapturing(true);
+    setStatus('Requesting microphone…');
+
+    const prefsForCapture = audioPrefs;
+    const session = startMicTestCapture({
+      maxDurationMs: MIC_TEST_DEFAULT_MAX_MS,
+      // Match the real recorder's mic constraints when prefs are loaded (raw/enhanced +
+      // fallback ladder); otherwise the capture util's plain default applies.
+      acquireStream: prefsForCapture ? () => acquireMicStream(prefsForCapture) : undefined,
+      onStart: () => setStatus('Recording… speak now, then “Stop & render”.'),
+      onAutoStop: () => setStatus('Reached the time limit — rendering…'),
+      onLevel: (level) => setMeter(level),
+    });
+    capture = session;
+
+    session.done.then(
+      (blob) => {
+        if (capture === session) capture = null;
+        setCapturing(false);
+        void renderCaptured(blob, graph);
+      },
+      (error: unknown) => {
+        if (capture === session) capture = null;
+        setCapturing(false);
+        const code = error instanceof MicTestCaptureError ? error.code : 'capture-failed';
+        const message = captureErrorMessage(code);
+        setStatus(message);
+        if (code !== 'aborted-empty') {
+          showToast(message, code === 'permission-denied' ? 'error' : 'info');
+        }
+      },
+    );
+  });
+
+  // One shared Stop button for both modes (only one runs at a time): while capturing it
+  // flushes the mic clip (→ render); otherwise it halts the rendered playback.
+  stopBtn.addEventListener('click', () => {
+    if (capturing) {
+      capture?.stop();
+      return;
+    }
+    preview.stop();
+    refreshStopUi();
     setStatus('Preview stopped.');
   });
 
@@ -647,13 +869,15 @@ export function mountVoiceControls(
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
     currentProfileName = activeProfileNameFrom(prefs);
+    audioPrefs = prefs.audio;
     syncControlsFromDraft();
   });
 
+  refreshTestEmphasis();
   void loadRecordingSource();
 
   const playPoll = window.setInterval(() => {
-    refreshPlayStopUi();
+    refreshStopUi();
   }, 200);
 
   return {
@@ -664,6 +888,7 @@ export function mountVoiceControls(
       syncing = true;
       draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
       currentProfileName = activeProfileNameFrom(prefs);
+      audioPrefs = prefs.audio;
       syncControlsFromDraft();
       syncing = false;
     },
@@ -678,6 +903,9 @@ export function mountVoiceControls(
       if (saveTimer) window.clearTimeout(saveTimer);
       unwireIntensitySlider();
       persistNow();
+      // Stop any in-flight mic capture (stops tracks + closes the meter AudioContext).
+      capture?.cancel();
+      capture = null;
       composer.dispose();
       preview.dispose();
     },
