@@ -45,6 +45,8 @@ export const STUDIO_V4_ASSETS = {
     padlockClosed16: `${BASE}/icons/section-16/padlock-closed-16.svg`,
     copy16: `${BASE}/icons/section-16/copy-16.svg`,
     paste16: `${BASE}/icons/section-16/paste-16.svg`,
+    // Subtitle QoL (v5.3): per-cue delete — nav-chip body + chevron-X.
+    cueDeleteX16: `${BASE}/icons/section-16/cue-delete-x-16.svg`,
     chevronEnter32: `${BASE}/icons/navigation/chevron-enter-32.svg`,
     chevronEnter16: `${BASE}/icons/navigation/chevron-enter-16.svg`,
     chevronBack32: `${BASE}/icons/navigation/chevron-back-32.svg`,

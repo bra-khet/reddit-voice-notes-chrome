@@ -1457,6 +1457,37 @@ body {
   display: none !important;
 }
 
+/* v5.3 — per-cue delete (the SVG carries its own nav-chip body, so the button is bare). */
+.studio__transcript-cue-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: opacity 0.12s ease, filter 0.12s ease;
+}
+
+.studio__transcript-cue-delete:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 213, 79, 0.5));
+}
+
+.studio__transcript-cue-delete:active {
+  transform: translateY(0.5px);
+}
+
+.studio__transcript-cue-delete img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
 .studio__transcript-segment-times {
   display: flex;
   gap: 10px;

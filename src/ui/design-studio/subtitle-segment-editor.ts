@@ -32,6 +32,7 @@ import {
   type MeasureWidth,
 } from '@/src/utils/text-metrics';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
+import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 import { LAST_RECORDING_READY_KEY } from '@/src/settings/user-preferences';
 import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
 
@@ -265,6 +266,8 @@ export function mountSubtitleSegmentEditor(
   let playingSegmentIndex: number | null = null;
 
   const cuePlayer = createSegmentCuePlayer();
+  // CHANGED: v5.3 — per-cue delete affordance (nav-chip + chevron-X asset).
+  const cueDeleteIconUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.cueDeleteX16);
 
   interface CaptionMetrics {
     measure: MeasureWidth;
@@ -573,6 +576,13 @@ export function mountSubtitleSegmentEditor(
               title="Cue end exceeds recording length"
               ${showOob ? '' : 'hidden'}
             >${OOB_LABEL}</span>
+            <button
+              type="button"
+              class="studio__transcript-cue-delete"
+              data-segment-delete
+              aria-label="Delete this cue"
+              title="Delete this cue"
+            ><img src="${cueDeleteIconUrl}" alt="" width="16" height="16" /></button>
           </span>
         </div>
         <div class="studio__transcript-segment-times">
@@ -707,6 +717,16 @@ export function mountSubtitleSegmentEditor(
     renderModalSegments();
   }
 
+  // CHANGED: v5.3 — delete a cue from the working draft. Reverting is the modal's
+  // Cancel/Discard (the deletion isn't committed until Apply to preview), so no
+  // confirm prompt is needed. Operates on the live DOM draft to keep sibling edits.
+  function deleteSegmentAtIndex(index: number): void {
+    syncModalDraftFromDom();
+    if (index < 0 || index >= modalDraft.length) return;
+    modalDraft = [...modalDraft.slice(0, index), ...modalDraft.slice(index + 1)];
+    renderModalSegments();
+  }
+
   function openModal(): void {
     if (!edited) return;
     hideModalUnsavedPrompt();
@@ -785,6 +805,15 @@ export function mountSubtitleSegmentEditor(
   });
 
   segmentsEl.addEventListener('click', (event) => {
+    // CHANGED: v5.3 — per-cue delete.
+    const deleteBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-delete]');
+    if (deleteBtn) {
+      const deleteRow = deleteBtn.closest<HTMLElement>('[data-segment-index]');
+      const deleteIndex = deleteRow ? Number(deleteRow.dataset.segmentIndex) : NaN;
+      if (Number.isFinite(deleteIndex)) deleteSegmentAtIndex(deleteIndex);
+      return;
+    }
+
     // CHANGED: Phase 6 — Smart Split button takes precedence over the play button.
     const splitBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-split]');
     if (splitBtn) {
