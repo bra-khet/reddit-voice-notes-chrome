@@ -956,6 +956,37 @@ use case. See `docs/deferred-issues.md` § DEF-001.
 
 ---
 
+## BUG-035 (2026-06): subtitle bake fails on longer / more-populated clips (drawtext filtergraph explosion)
+
+### Symptoms
+
+- Short clips with 2–3 filled cues bake fine; filling 4–5 cues (or a >30 s clip) fails the burn-in with:
+  `Failed to parse expression: (w-text_w)/2` / `Invalid chars '(w-text_w)/2-1' at the end of expression` and/or
+  `RuntimeError: memory access out of bounds` → `Aborted()` → "Subtitle burn-in failed after 1 attempts."
+- Filter indices in the logs were huge (`Parsed_drawtext_208`, `_1032`) — far more drawtext filters than cues.
+
+### Root cause
+
+The burn-in builds **one drawtext filter per (cue × layer)** in a single `-vf` chain. Two multipliers blow it up:
+1. **Glow** — `buildGlowLayerSpecs` (subtitle-effects.ts) emits `1 + blurSteps×8` layers per cue (≈17 at the default `blurRadius:2` halo).
+2. **Rainbow** — `temporalizeDrawtextColor` slices every animated layer into up to `RAINBOW_BAKE_MAX_SLICES_PER_CUE = 24` time-windows.
+
+So a few glowing/rainbow cues emit hundreds of drawtext filters. ffmpeg.wasm (32-bit, `--disable-asm`) hits its filtergraph / expression-evaluator ceiling — the `(w-text_w)/2` "parse" errors are the **oversized graph string failing mid-parse**, and `memory access out of bounds` is the wasm heap aborting. The variable filter index tracks where it died. Secondary bug: `usableSegments` used `text.trim()`, which does **not** strip the soft-hyphen scaffold placeholder (U+00AD isn't whitespace), so empty scaffold slots were also baked as layers, inflating the graph.
+
+### Fix (2026-06, `subtitle-qol-failure-scaffold-v1`)
+
+- **Layer budget + degradation chain** in `buildBurnInStrategies` (subtitle-burnin.ts): build every effect tier (rich → no-rainbow → soft-glow `blurCap:1` → plain), dedupe, and keep those within `MAX_BURNIN_DRAWTEXT_LAYERS = 64` (richest-in-budget first, so the common case bakes on attempt 1 with no wasted wasm reload). `burnInWithStrategies` already reloads a fresh wasm instance per strategy, so a tier that still OOMs at runtime degrades to the next instead of hard-failing.
+- **Skip empty scaffold slots:** `usableSegments` / `segmentTiming` now use the soft-hyphen-aware `cueTextIsBlank` / `stripScaffoldPlaceholder` (transcript-editing.ts).
+- Tradeoff: very glow/rainbow-heavy clips bake with reduced glow / no rainbow animation rather than failing. Regression test: `scripts/test-burnin-budget.mjs`.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts` — budget, degradation tiers, empty-slot skip
+- `src/transcription/subtitle-effects.ts` — glow/rainbow layer multipliers (unchanged; documented)
+- `src/ffmpeg/ffmpeg-runner.ts` — `burnInWithStrategies` (fresh wasm per strategy = the fallback backbone)
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.
