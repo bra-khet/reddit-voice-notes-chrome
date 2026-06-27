@@ -4,11 +4,11 @@ import {
   DRAWTEXT_BACKDROP_PLATE_FONT_COLOR,
   ffmpegDrawtextColor,
   resolveGlowColorHex,
-  styleUsesSpecialHueRainbow,
   subtitleStyleNeedsGlowLayers,
-  temporalizeDrawtextColor,
+  type GlowRingMode,
 } from '@/src/transcription/subtitle-effects';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
+import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import { BURNIN_PIPELINE_STAMP } from '@/src/utils/constants';
 
 export { BURNIN_PIPELINE_STAMP };
@@ -45,8 +45,32 @@ const OUTPUT_MP4 = 'final.mp4';
 
 const DEFAULT_THEME_BAR = '#00e5ff';
 
+// BUG FIX: bake fails on longer / more-populated clips — drawtext filtergraph explosion (BUG-035)
+// Fix: ffmpeg.wasm aborts (memory access OOB / truncated "(w-text_w)/2" expressions) once the
+//      filtergraph grows past a ceiling (~70+ drawtext filters for a 640×360 clip). The graph
+//      scales as cues × glow-ring layers, so cap the total layer budget and fall back to cheaper
+//      glow rings (see buildBurnInStrategies) so a clip downshifts instead of dying. The soft halo
+//      now uses cheap single/min rings at bake time (subtitle-effects GlowRingMode) so it renders
+//      for realistic cue counts instead of being demoted to no-glow.
+// Sync: subtitle-effects.ts buildGlowLayerSpecs (per-cue glow layer count by GlowRingMode).
+const MAX_BURNIN_DRAWTEXT_LAYERS = 64;
+
+/** Per-tier toggles for the burn-in degradation chain (richest → simplest). */
+interface BurnInFilterOptions {
+  /** Emit glow ring layers when the style asks for them. */
+  allowGlow: boolean;
+  /** Glow ring density for the soft halo (cheaper rings keep the graph small). */
+  glowRingMode: GlowRingMode;
+}
+
+// BUG FIX: empty scaffold slots were baked as drawtext layers
+// Fix: usableSegments used `text.trim()`, which does NOT strip the soft-hyphen scaffold
+//      placeholder (U+00AD is not whitespace) — so every empty scaffold slot became a drawtext
+//      layer (invisible glyph + needless filtergraph bloat). Use the soft-hyphen-aware blank check.
+// Sync: cueTextIsBlank / stripScaffoldPlaceholder in transcript-editing.ts; segmentTiming below
+//       also strips the placeholder from any cue text that does get written.
 function usableSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
-  return segments.filter((segment) => segment.text.trim().length > 0);
+  return segments.filter((segment) => !cueTextIsBlank(segment.text));
 }
 
 /** WASM virtual FS path for cue text — avoids drawtext filter escaping bugs (BUG-031). */
@@ -141,7 +165,9 @@ function drawtextYWithOffset(y: string, offsetY: number): string {
 }
 
 function segmentTiming(segment: TranscriptSegment): { start: number; end: number; text: string } {
-  const text = segment.text.trim();
+  // Strip the soft-hyphen scaffold placeholder so a partly-filled scaffold never
+  // bakes an invisible glyph (mirrors usableSegments' blank check).
+  const text = stripScaffoldPlaceholder(segment.text).trim();
   const start = Math.max(0, segment.start);
   const end = Math.max(start + 0.35, segment.end);
   return { start, end, text };
@@ -190,15 +216,16 @@ function buildBackdropPlateLayer(
 }
 
 /** BUG-025 proven path: drawtext per cue; backdrop plate is a separate first layer. */
-function buildSimpleDrawtextFilter(
+function buildSimpleDrawtextParts(
   segments: TranscriptSegment[],
   style: SubtitleStyleConfig,
   fontFile: string,
   themeBarColor: string,
-): string {
+  opts: BurnInFilterOptions,
+): string[] {
   const fontSize = style.fontSize ?? 22;
   const y = drawtextY(style.position, fontSize);
-  const animateText = styleUsesSpecialHueRainbow(style) && style.textColor === 'special';
+  const textColor = drawtextMainFontColor(style, themeBarColor);
 
   const parts: string[] = [];
   for (let index = 0; index < segments.length; index += 1) {
@@ -213,23 +240,14 @@ function buildSimpleDrawtextFilter(
     }
 
     parts.push(
-      ...emitTemporalDrawtextLayers(
-        {
-          textFilePath,
-          start,
-          end,
-          fontSize,
-          x: drawtextX(0),
-          y,
-        },
-        (timeSeconds) => drawtextMainFontColor(style, themeBarColor, timeSeconds),
-        animateText,
+      buildDrawtextLayer(
+        { textFilePath, start, end, fontSize, fontColor: textColor, x: drawtextX(0), y },
         fontFile,
       ),
     );
   }
 
-  return parts.join(',');
+  return parts;
 }
 
 interface DrawtextLayer {
@@ -253,32 +271,13 @@ function buildDrawtextLayer(layer: DrawtextLayer, fontFile: string): string {
   );
 }
 
-/**
- * FFmpeg drawtext fontcolor is static per filter — rainbow bakes as time-sliced duplicates.
- * Sync: temporalizeDrawtextColor + subtitle-preview previewTimeMs (live RAF path).
- */
-function emitTemporalDrawtextLayers(
-  base: Omit<DrawtextLayer, 'fontColor'>,
-  colorAtTime: (timeSeconds: number) => string,
-  animate: boolean,
-  fontFile: string,
-): string[] {
-  if (!animate) {
-    const mid = (base.start + base.end) / 2;
-    return [buildDrawtextLayer({ ...base, fontColor: colorAtTime(mid) }, fontFile)];
-  }
-
-  return temporalizeDrawtextColor(base.start, base.end, colorAtTime).map((slice) =>
-    buildDrawtextLayer({ ...base, start: slice.start, end: slice.end, fontColor: slice.fontColor }, fontFile),
-  );
-}
-
 function buildSegmentGlowLayers(
   segment: TranscriptSegment,
   segmentIndex: number,
   style: SubtitleStyleConfig,
   fontFile: string,
   themeBarColor: string,
+  opts: BurnInFilterOptions,
 ): string[] {
   const { start, end, text } = segmentTiming(segment);
   if (!text) return [];
@@ -287,9 +286,7 @@ function buildSegmentGlowLayers(
   const fontSize = style.fontSize ?? 22;
   const yBase = drawtextY(style.position, fontSize);
   const glow = style.glow!;
-  const rainbow = styleUsesSpecialHueRainbow(style);
-  const animateGlow = rainbow && glow.colorSource === 'special';
-  const animateText = rainbow && style.textColor === 'special';
+  const glowHex = resolveGlowColorHex(glow.colorSource, themeBarColor, style.specialHue);
   const parts: string[] = [];
 
   const plate = buildBackdropPlateLayer(textFilePath, start, end, fontSize, yBase, style);
@@ -297,45 +294,34 @@ function buildSegmentGlowLayers(
     parts.push(buildDrawtextLayer(plate, fontFile));
   }
 
-  for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
+  for (const spec of buildGlowLayerSpecs(glow, fontSize, opts.glowRingMode)) {
     parts.push(
-      ...emitTemporalDrawtextLayers(
+      buildDrawtextLayer(
         {
           textFilePath,
           start,
           end,
           fontSize: spec.fontSize,
+          fontColor: ffmpegDrawtextColor(glowHex, spec.opacity),
           x: drawtextX(spec.offsetX),
           y: drawtextYWithOffset(yBase, spec.offsetY),
         },
-        (timeSeconds) => {
-          const hex = resolveGlowColorHex(
-            glow.colorSource,
-            themeBarColor,
-            style.specialHue,
-            timeSeconds,
-            animateGlow,
-          );
-          return ffmpegDrawtextColor(hex, spec.opacity);
-        },
-        animateGlow,
         fontFile,
       ),
     );
   }
 
   parts.push(
-    ...emitTemporalDrawtextLayers(
+    buildDrawtextLayer(
       {
         textFilePath,
         start,
         end,
         fontSize,
+        fontColor: drawtextMainFontColor(style, themeBarColor),
         x: drawtextX(0),
         y: yBase,
       },
-      (timeSeconds) => drawtextMainFontColor(style, themeBarColor, timeSeconds),
-      animateText,
       fontFile,
     ),
   );
@@ -343,20 +329,22 @@ function buildSegmentGlowLayers(
   return parts;
 }
 
-function buildDrawtextFilter(
+/** Collect the per-tier drawtext layer list (length = filtergraph cost for the budget). */
+function collectBurnInDrawtextParts(
   segments: TranscriptSegment[],
   style: SubtitleStyleConfig,
   fontFile: string,
   themeBarColor: string,
-): string {
-  if (!subtitleStyleNeedsGlowLayers(style)) {
-    return buildSimpleDrawtextFilter(segments, style, fontFile, themeBarColor);
+  opts: BurnInFilterOptions,
+): string[] {
+  const useGlow = opts.allowGlow && subtitleStyleNeedsGlowLayers(style);
+  if (!useGlow) {
+    return buildSimpleDrawtextParts(segments, style, fontFile, themeBarColor, opts);
   }
 
-  const parts = segments.flatMap((segment, index) =>
-    buildSegmentGlowLayers(segment, index, style, fontFile, themeBarColor),
+  return segments.flatMap((segment, index) =>
+    buildSegmentGlowLayers(segment, index, style, fontFile, themeBarColor, opts),
   );
-  return parts.join(',');
 }
 
 /** Detect ffmpeg.wasm no-op / missing-filter attempts that still return exit 0. */
@@ -401,6 +389,46 @@ export interface BurnInStrategy {
   fontAsset?: string;
 }
 
+/** Degradation tiers for the burn-in filtergraph — richest first, each cheaper. */
+const BURNIN_FILTER_TIERS: ReadonlyArray<{ name: string; opts: BurnInFilterOptions }> = [
+  // Soft halo as a single 8-neighbour ring + centre (≈9 glow layers/cue). Border mode
+  // ignores ring density and always uses its fixed ring.
+  { name: 'drawtext-glow', opts: { allowGlow: true, glowRingMode: 'single' } },
+  // Cheaper 4-neighbour ring (≈4 glow layers/cue) so glow still renders on busier clips.
+  { name: 'drawtext-glow-min', opts: { allowGlow: true, glowRingMode: 'min' } },
+  // Backdrop plate + caption only — guaranteed small (≈2 layers/cue).
+  { name: 'drawtext-plain', opts: { allowGlow: false, glowRingMode: 'min' } },
+];
+
+function buildBurnInArgs(drawtextFilter: string): string[] {
+  return [
+    '-i',
+    INPUT_MP4,
+    '-vf',
+    drawtextFilter,
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    '-pix_fmt',
+    'yuv420p',
+    '-c:a',
+    'copy',
+    '-movflags',
+    '+faststart',
+    OUTPUT_MP4,
+  ];
+}
+
+// BUG FIX: silent burn-in success with no visible subs (BUG-025 / BUG-030)
+// Fix: drawtext + bundled DejaVu TTF only — subtitles/libass fallback removed (wasm exit-0 no-op).
+// Sync: ffmpeg-runner.ts burnInLogIndicatesFailure, public/assets/fonts/DejaVuSans.ttf
+//
+// Filtergraph-explosion guard: build every tier, drop duplicates, then keep the tiers within the
+// layer budget (the richest in-budget tier runs first, so the common case bakes on attempt 1 with
+// no wasted wasm reload). If even the simplest tier is over budget (very many cues), fall back to it
+// alone — it's the smallest possible graph. ffmpeg-runner reloads a fresh wasm instance per tier,
+// so a tier that still OOMs at runtime degrades to the next instead of hard-failing.
 export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
   const segments = normalizeSegmentsForBurnIn(input.segments, input.videoDurationSeconds);
   if (segments.length === 0) {
@@ -410,36 +438,36 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
   const themeBarColor = input.themeBarColor ?? DEFAULT_THEME_BAR;
   const cueTextFiles = buildCueTextFiles(segments);
   const fontAsset = resolveBurnInFontAsset(input.style?.fontFamily);
-  const drawtextFilter = buildDrawtextFilter(segments, input.style, BURNIN_FONT_FS_PATH, themeBarColor);
 
-  // BUG FIX: silent burn-in success with no visible subs (BUG-025 / BUG-030)
-  // Fix: drawtext + bundled DejaVu TTF only — subtitles/libass fallback removed (wasm exit-0 no-op).
-  // Sync: ffmpeg-runner.ts burnInLogIndicatesFailure, public/assets/fonts/DejaVuSans.ttf
-  return [
-    {
-      name: 'drawtext-font',
-      requiresFont: true,
-      fontAsset,
-      extraFiles: cueTextFiles,
-      args: [
-        '-i',
-        INPUT_MP4,
-        '-vf',
-        drawtextFilter,
-        '-c:v',
-        'libx264',
-        '-preset',
-        'ultrafast',
-        '-pix_fmt',
-        'yuv420p',
-        '-c:a',
-        'copy',
-        '-movflags',
-        '+faststart',
-        OUTPUT_MP4,
-      ],
-    },
-  ];
+  const built: { name: string; filter: string; layers: number }[] = [];
+  const seenFilters = new Set<string>();
+  for (const tier of BURNIN_FILTER_TIERS) {
+    const parts = collectBurnInDrawtextParts(
+      segments,
+      input.style,
+      BURNIN_FONT_FS_PATH,
+      themeBarColor,
+      tier.opts,
+    );
+    const filter = parts.join(',');
+    // Dedupe: when the style has no glow, every tier collapses to the same filter.
+    if (seenFilters.has(filter)) continue;
+    seenFilters.add(filter);
+    built.push({ name: tier.name, filter, layers: parts.length });
+  }
+
+  const withinBudget = built.filter((tier) => tier.layers <= MAX_BURNIN_DRAWTEXT_LAYERS);
+  // built is ordered richest→simplest; keep that order. If nothing fits, the last
+  // (simplest) tier is the smallest graph we can produce.
+  const chosen = withinBudget.length > 0 ? withinBudget : built.slice(-1);
+
+  return chosen.map((tier) => ({
+    name: tier.name,
+    requiresFont: true,
+    fontAsset,
+    extraFiles: cueTextFiles,
+    args: buildBurnInArgs(tier.filter),
+  }));
 }
 
 export const BURNIN_INPUT_MP4 = INPUT_MP4;

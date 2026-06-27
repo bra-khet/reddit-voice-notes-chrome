@@ -13,6 +13,14 @@ export const TRANSCRIBE_CHUNK_SAMPLES = 4096;
 /** Model load + 2:00 inference — generous for eloquent-0 spike. */
 export const TRANSCRIBE_TIMEOUT_MS = 120_000;
 
+/**
+ * Stable marker embedded in the host's no-speech error (vosk-sandbox-host.ts) so
+ * the content-script failure classifier (transcribe-failure.ts) can tell a
+ * no-speech result apart from a real inference error WITHOUT importing the Vosk
+ * host (which would pull WASM into the content-script bundle). v5.3 subtitle QoL.
+ */
+export const VOSK_NO_SPEECH_ERROR_MARKER = 'no speech';
+
 export function resolveVoskModelUrl(): string {
   return normalizeAbsoluteExtensionUrl(browser.runtime.getURL(VOSK_MODEL_PATH as never));
 }

@@ -42,7 +42,16 @@ function ctaText(phase: WorkflowPhase, status: WorkflowBannerStatus): string {
       return 'Recording ready — subtitles are loading. Edit & bake once they arrive.';
     }
     if (status.transcriptDelivery === 'timeout') {
-      return 'Recording ready — subtitles timed out. Poor audio? Add captions manually in the Subtitles panel, or record again.';
+      return 'Recording ready — subtitles timed out. A timecode template is ready: type your captions in the Subtitles panel, then Bake.';
+    }
+    // CHANGED: scaffold-aware CTAs (v5.3 Phase 3) — these must precede the
+    // hasTranscriptCues check, since a scaffold HAS cues (empty timed slots) and
+    // would otherwise read as "review subtitles".
+    if (status.transcriptDelivery === 'no-speech' || status.transcriptDelivery === 'failed') {
+      return 'Recording ready — no speech detected. A timecode scaffold is ready: type your captions in the Subtitles panel, then Bake.';
+    }
+    if (status.transcriptDelivery === 'scaffolded') {
+      return 'Recording ready — scaffold generated. Type your captions in the Subtitles panel, then Bake.';
     }
     if (status.hasTranscriptCues) {
       return 'Recording ready — review subtitles in the Subtitles panel, then Bake.';

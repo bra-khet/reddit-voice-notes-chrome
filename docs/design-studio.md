@@ -363,12 +363,14 @@ This section is the largest integrated subsystem: prefs + session IDB + offscree
 | Backdrop + opacity | `subtitleStyle` | prefs |
 | Text color | `subtitleStyle.textColor` — `theme` \| `white` \| `black` \| `special` | prefs |
 | Special hue (shared) | `subtitleStyle.specialHue` — HSV/HEX picker when text or glow uses `special` | prefs |
-| Rainbow pulse | `subtitleStyle.specialHueRainbow` — time-varying hue on special layers | prefs |
 | Theme glow | `subtitleStyle.glow` | prefs |
 | Glow mode / color / strength | `glow.mode` (`halo` \| `border`), `colorSource`, `opacity` (halo only) | prefs |
-
+| Generate scaffold | editor action (§7.3) — evenly-timed empty slots spanning the clip | Session IDB on Confirm & save |
+| Smart Split / delete cue | editor cue actions (§7.3) | Session IDB on Confirm & save |
 | Bake subtitles into MP4 | — | `rvnLastBakedMp4` IDB |
 | Clear transcript | — | Clears session IDB |
+
+> **Rainbow pulse removed (v5.3):** the `specialHueRainbow` time-varying hue was dropped — low value and the worst FFmpeg-drawtext multiplier (see §7.4 / BUG-035). `specialHue` (static) remains.
 
 **Position dropdown order:** **top → center → bottom** (matches on-screen vertical order). This has regressed before — keep `POSITION_OPTIONS` in that sequence in `subtitle-controls.ts`, not lexical/reverse order.
 
@@ -380,7 +382,7 @@ stopRecording() [Reddit]
   └─ fork transcribe (if subtitles on) → Vosk → relay to rvnSessionTranscript
 
 Design Studio
-  ├─ Poll/load session transcript (Pending → Ready / Timed out badges)
+  ├─ Poll/load session transcript (Pending → Ready / Timed out / No speech / Failed / Scaffolded)
   ├─ Edit cues in modal → Apply to preview → Confirm & save (IDB)
   ├─ Style controls → prefs (live preview overlay)
   └─ Bake → MSG_BURNIN_* → offscreen FFmpeg drawtext → rvnLastBakedMp4
@@ -388,6 +390,10 @@ Design Studio
 ```
 
 Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not block the progress bar.
+
+**Graceful failure → scaffold (v5.3):** Vosk no-speech / empty / inference-error / timeout no longer hang on amber "Pending". The content script classifies the outcome (`transcribe-failure.ts` → `no-speech` \| `inference-error` \| `empty-result` \| `timeout`), builds an evenly-timed **scaffold** (`buildScaffoldTranscriptResult`, soft-hyphen `­` slots), and persists it with `{ error, isScaffolded }`. The Studio resolves a terminal **delivery status** (`deliveryStatusForSnapshot`) and the segment editor opens in scaffolding mode (red status + timed empty slots ready to type). See `docs/transcription-architecture.md` § failure emission.
+
+**Delivery status taxonomy** (`TranscriptDeliveryStatus` in `subtitle-segment-editor.ts`): `idle · pending · ready · timeout · failed · no-speech · scaffolded`. The last three short-circuit the 120 s pending timer.
 
 ### 7.3 Segment editor (YouTube-style)
 
@@ -404,19 +410,33 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 **Bake guard:** If panel dirty, bake shows unsaved dialog — Save & bake / Edit transcript / Cancel.
 
+**Scaffolding mode (v5.3):** when delivery status ∈ {`no-speech`, `failed`, `scaffolded`} the editor shows a magenta "Scaffolding mode" banner + **Scaffold** badge and preserves empty timed slots through edits (`normalizeEditedTranscriptResult(..., { keepEmptyTimedSegments })`) — empty slots bake to nothing (skipped by `usableSegments`). Filling a slot and saving clears the red state (delivery re-resolves to `ready`). Empty slots use a soft hyphen (`­`, U+00AD) so they survive `.trim()`-based emptiness filters; everything blank-aware uses `cueTextIsBlank` / `stripScaffoldPlaceholder`.
+
+**Cue actions (v5.3):**
+- **Generate scaffold** (panel button) — replaces cues with evenly-timed empty slots spanning the clip (`buildScaffoldTranscriptResult`, default 3 s/slot, runt-tail merge). Confirms before discarding real text.
+- **Smart Split** (per-cue ✂) — splits a long cue into shorter timed cues that each fit one caption line. Measures cue text against the preview caption box (`text-metrics.ts` canvas measurer, WYSIWYG with the preview) and divides the time span proportionally to each chunk's character length (`splitSegmentIntoChunks`). Enabled only when the cue actually breaks into >1 line; a **⚠ LONG** overflow badge flags cues that would trail off screen.
+- **Delete cue** (per-cue X — nav-chip + chevron-X asset `cue-delete-x-16.svg`) — removes the cue from the working draft; reverted by the modal's Cancel/Discard (not committed until Apply to preview).
+
 ### 7.4 Preview vs bake fidelity
 
 | Aspect | Preview | Bake |
 |--------|---------|------|
 | Text | `getPreviewOptions()` — flat `previewText()` today* | Per-segment `textfile=` drawtext |
 | Style | `subtitle-effects.ts` layering | `subtitle-burnin.ts` same layer order |
-| Glow/border/backdrop | Canvas overlay | FFmpeg drawtext duplicates |
+| Glow/border/backdrop | Canvas overlay (`single` ring) | FFmpeg drawtext duplicates (`single`/`min` ring) |
 
 **Subtitle effects (v3.6.1+):** Drop shadow removed (theme glow covers contrast). Glow modes: **halo** (soft, opacity slider) or **border** (solid 1 px ring, no alpha). **Special hue** is one shared `specialHue` field for both text and glow when either selects `special`.
 
-**Rainbow pulse (`specialHueRainbow`):** Rotates special-hue text/glow through the hue wheel (~**3 s** per cycle at `RAINBOW_CYCLES_PER_SECOND = 0.35`). **Preview** uses `previewTimeMs` from the Live preview RAF (~12 fps). **Bake** cannot animate `fontcolor` in FFmpeg drawtext — rainbow is **quantized into 0.25 s static-color slices** per cue (max 24).
+**Glow layer cost & `GlowRingMode` (v5.3):** Each glow is rendered as offset drawtext/`fillText` duplicates. The soft halo used to stack concentric rings (`blurRadius` = ring *count* → up to ~17 layers/cue), which overran ffmpeg.wasm on multi-cue clips and got demoted to no-glow. Now `blurRadius` sets ring **spread** (offset distance) at a **flat** layer cost via `buildGlowLayerSpecs(glow, fontSize, ringMode)`:
+- `single` (preview **and** the bake's richest tier) — centre + one 8-neighbour ring (~9 glow layers/cue).
+- `min` (bake degrade) — one 4-neighbour ring (~4/cue).
+- `full` (lush multi-ring) — retained but currently unused; preview switched to `single` for redraw perf while dragging.
 
-**Why faster rotation looked *choppier* (counterintuitive):** The **step rate is fixed** by `RAINBOW_BAKE_SLICE_SECONDS` (0.25 s), not by cycle speed. Each slice holds one static `fontcolor` for ¼ s. Cycle speed only changes **how many degrees of hue advance between slices** (`Δhue ≈ sliceSeconds × cyclesPerSecond × 360°`). Faster rotation → larger color jumps per step → more visible stepping. Slower rotation → smaller jumps → smaller appearance change but **same step cadence**. To change step *frequency*, adjust slice duration (costs more drawtext filters). UI hint: **Bake: stepped** on the Rainbow pulse toggle. See **pipeline-native solutions** in `docs/engineering-principles.md`.
+Border mode ignores ring density (fixed 8-neighbour ring).
+
+**Burn-in filtergraph budget (BUG-035):** `buildBurnInStrategies` builds tiers `drawtext-glow` → `drawtext-glow-min` → `drawtext-plain`, dedupes, and keeps those within `MAX_BURNIN_DRAWTEXT_LAYERS = 64` (richest-in-budget first). `burnInWithStrategies` reloads a fresh wasm instance per tier, so a tier that still OOMs degrades instead of hard-failing. Halo now bakes for ~10 cues instead of crashing/dropping at 4. Empty scaffold slots are excluded from the graph.
+
+**Rainbow removed (v5.3):** the former `specialHueRainbow` animated hue (and its bake-time 0.25 s `fontcolor` slicing) is gone — low value and the dominant drawtext multiplier. Bake colors are static per cue.
 
 \*Segment-aware timed preview on canvas is **open** (eloquent-4b) — preview may lag bake until implemented.
 
@@ -428,12 +448,15 @@ Progress/failure from offscreen must reach Reddit tab via `relay-registry.ts` se
 
 | File | Role |
 |------|------|
-| `subtitle-controls.ts` | Panel orchestration, bake, prefs debounce |
-| `subtitle-segment-editor.ts` | Cue list, modal, pending badges |
+| `subtitle-controls.ts` | Panel orchestration, bake, prefs debounce, delivery-status resolve |
+| `subtitle-segment-editor.ts` | Cue list, modal, badges, scaffold/Smart Split/delete actions |
+| `src/transcription/transcript-editing.ts` | Pure cue helpers: scaffold, `splitSegmentIntoChunks`, blank/soft-hyphen |
+| `src/transcription/transcribe-failure.ts` | Classify Vosk outcome → failure type (graceful failure) |
+| `src/utils/text-metrics.ts` | Canvas width measurer + greedy word grouping (Smart Split / overflow badge) |
 | `subtitle-bake.ts` | Load base MP4, call burn-in client |
 | `src/ffmpeg/burnin-client.ts` | MSG_BURNIN_* client |
-| `src/ffmpeg/subtitle-burnin.ts` | drawtext strategies |
-| `src/storage/session-transcript-db.ts` | Transcript persistence |
+| `src/ffmpeg/subtitle-burnin.ts` | drawtext strategies, layer budget + degradation chain |
+| `src/storage/session-transcript-db.ts` | Transcript persistence (`error`, `isScaffolded`) |
 
 ---
 
@@ -795,6 +818,8 @@ reddit.com).
 ## 13. Future: temporal effects & optional in-Studio recording
 
 ### 13.1 Temporal subtitle effects (tack-ons)
+
+> **Note (v5.3):** the shipped rainbow pulse was **removed** (low value, dominant drawtext multiplier — see §7.4 / BUG-035). The rainbow-slice rows below are retained as historical reference should expressive/temporal color ever be revisited via a different burn path.
 
 | Direction | Bake fidelity | Cost |
 |-----------|---------------|------|

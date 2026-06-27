@@ -9,6 +9,12 @@ export const MSG_TRANSCODE_COMPLETE = 'rvn/transcode-complete' as const;
 export const MSG_TRANSCODE_CANCEL = 'rvn/transcode-cancel' as const;
 export const MSG_OFFSCREEN_PING = 'rvn/offscreen-ping' as const;
 export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
+// BUG FIX: BUG-034 cold-start offscreen dispatch race
+// Fix: recorder asks the background to create the offscreen doc at record START so it
+//      is warm (and stamp-matching) by stop time, shrinking the cold window in which a
+//      concurrent transcribe+transcode dispatch could recycle a still-loading doc.
+// Sync: handled in entrypoints/background.ts; sent from src/transcription/transcribe-client.ts.
+export const MSG_OFFSCREEN_PREWARM = 'rvn/offscreen-prewarm' as const;
 export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
 export const MSG_OPEN_DESIGN_STUDIO = 'rvn/open-design-studio' as const;
 
@@ -92,6 +98,11 @@ export interface OffscreenPingRequest {
   target: 'offscreen';
 }
 
+/** Best-effort offscreen warm-up (BUG-034) — no response expected. */
+export interface OffscreenPrewarmRequest {
+  type: typeof MSG_OFFSCREEN_PREWARM;
+}
+
 export interface OffscreenPongResponse {
   type: typeof MSG_OFFSCREEN_PONG;
   ready: boolean;
@@ -122,6 +133,11 @@ export interface SaveSessionTranscriptRequest {
   type: typeof MSG_SAVE_SESSION_TRANSCRIPT;
   transcriptJson: string;
   jobId?: string;
+  // CHANGED: graceful-failure metadata relayed alongside the (scaffold) result (v5.3).
+  // WHY: lets the IDB snapshot record *why* Vosk failed + that segments are scaffold.
+  /** JSON of TranscriptFailureReason; present only on the failure/scaffold path. */
+  errorJson?: string;
+  isScaffolded?: boolean;
 }
 
 export interface SaveSessionTranscriptResponse {

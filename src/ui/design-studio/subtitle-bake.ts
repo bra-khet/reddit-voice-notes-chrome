@@ -6,6 +6,7 @@ import {
 import { saveLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
+import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
 
 export interface SubtitleBakeProgress {
@@ -34,7 +35,11 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
     throw new Error('No base MP4 found — record a clip on Reddit first.');
   }
 
-  const segments = options.editedResult.segments.filter((segment) => segment.text.trim());
+  // CHANGED: drop soft-hyphen-only scaffold slots + clean placeholders from the
+  // cues that do carry text, so scaffolding never leaks into the burn-in (v5.3).
+  const segments = options.editedResult.segments
+    .filter((segment) => !cueTextIsBlank(segment.text))
+    .map((segment) => ({ ...segment, text: stripScaffoldPlaceholder(segment.text).trim() }));
   if (segments.length === 0) {
     throw new Error('Transcript has no subtitle cues to burn in.');
   }

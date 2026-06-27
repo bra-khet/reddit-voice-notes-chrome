@@ -1,10 +1,15 @@
 import { createSegmentCuePlayer } from '@/src/transcription/segment-cue-player';
 import {
   buildDefaultNewSegment,
+  buildScaffoldTranscriptResult,
+  cueTextIsBlank,
   formatCueRange,
   isTranscriptDirty,
   cloneTranscriptResult,
   normalizeEditedTranscriptResult,
+  SCAFFOLD_SOFT_HYPHEN,
+  splitSegmentIntoChunks,
+  stripScaffoldPlaceholder,
 } from '@/src/transcription/transcript-editing';
 import {
   isSegmentEndOutOfBounds,
@@ -13,7 +18,21 @@ import {
   resolveClipDurationSeconds,
   segmentHasOutOfBoundsEnd,
 } from '@/src/transcription/segment-timing';
-import type { TranscriptResult, TranscriptSegment } from '@/src/transcription/types';
+import type {
+  SubtitleStyleConfig,
+  TranscriptResult,
+  TranscriptSegment,
+} from '@/src/transcription/types';
+import {
+  createTextMeasurer,
+  groupWordsByWidth,
+  previewCaptionMaxWidth,
+  textOverflowsWidth,
+  PREVIEW_FONT_WEIGHT,
+  type MeasureWidth,
+} from '@/src/utils/text-metrics';
+import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
+import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 import { LAST_RECORDING_READY_KEY } from '@/src/settings/user-preferences';
 import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
 
@@ -27,7 +46,19 @@ export interface SegmentEditorState {
   confirmed: boolean;
 }
 
-export type TranscriptDeliveryStatus = 'idle' | 'pending' | 'ready' | 'timeout';
+// CHANGED: added 'failed' | 'no-speech' | 'scaffolded' (v5.3 subtitle QoL)
+// WHY: graceful Vosk failure needs explicit terminal states so the editor/status
+//      strip can short-circuit the pending timer and surface scaffolding.
+// Sync: studio-status-strip.ts (status→icon/label map) and subtitle-controls.ts
+//       (refresh/load logic) must handle these same three members.
+export type TranscriptDeliveryStatus =
+  | 'idle'
+  | 'pending'
+  | 'ready'
+  | 'timeout'
+  | 'failed'
+  | 'no-speech'
+  | 'scaffolded';
 
 export interface SegmentEditorHandle {
   dispose(): void;
@@ -48,10 +79,19 @@ export interface SegmentEditorHandlers {
   onStateChange?: (state: SegmentEditorState) => void;
   onSaveEdits?: (edited: TranscriptResult) => void | Promise<void>;
   onDiscardEdits?: () => void | Promise<void>;
+  /**
+   * Live subtitle style accessor (Phase 6). Smart Split + the overflow badge
+   * measure cue text against the same font the preview uses, so the fit estimate
+   * is WYSIWYG. Optional — falls back to the default DejaVu-Sans 22px style.
+   */
+  getSubtitleStyle?: () => SubtitleStyleConfig;
 }
 
 const RECORDING_POLL_MS = 2000;
 const OOB_LABEL = '⚠ OOB';
+const OVERFLOW_LABEL = '⚠ LONG';
+const DEFAULT_CAPTION_FONT_SIZE = 22;
+const DEFAULT_CAPTION_FONT_KEY = 'dejavu-sans';
 
 function escapeHtml(text: string): string {
   return text
@@ -70,16 +110,30 @@ export function renderSubtitleSegmentEditorFields(): string {
         <span class="studio__transcript-badge studio__transcript-badge--pending" data-transcript-pending-badge hidden>Pending</span>
         <span class="studio__transcript-badge studio__transcript-badge--timeout" data-transcript-timeout-badge hidden>Timed out</span>
         <span class="studio__transcript-badge studio__transcript-badge--saved" data-transcript-saved-badge hidden>Ready</span>
+        <span class="studio__transcript-badge studio__transcript-badge--scaffold" data-transcript-scaffold-badge hidden>Scaffold</span>
       </div>
       <p class="studio__transcript-hint popup__field-desc">
         Review what Vosk produced. Open the editor to fix wording or timing before baking.
       </p>
+      <div class="studio__transcript-scaffold-banner" data-transcript-scaffold-banner hidden role="status">
+        <strong>Scaffolding mode active</strong> — evenly timed slots are ready for your
+        text. Type directly into each cue, then Confirm &amp; save. Empty slots are skipped
+        when baking, so fill only the ones you need.
+      </div>
       <div class="studio__transcript-preview" data-transcript-preview>
         <p class="studio__transcript-empty">No transcript yet — record on Reddit first.</p>
       </div>
       <div class="popup__profile-actions studio__inline-actions studio__transcript-actions">
         <button type="button" class="popup__profile-btn popup__profile-btn--save" data-transcript-edit-open>
           Edit transcript
+        </button>
+        <button
+          type="button"
+          class="popup__profile-btn"
+          data-transcript-scaffold-generate
+          title="Replace cues with evenly timed empty slots spanning the clip"
+        >
+          Generate scaffold
         </button>
         <button
           type="button"
@@ -110,7 +164,8 @@ export function renderSubtitleSegmentEditorFields(): string {
             Adjust each cue’s text and timing. Confirm &amp; save in the main panel when you are done.
           </p>
           <p class="studio__transcript-dialog-copy popup__field-desc" style="margin-top:4px;opacity:0.65;">
-            Keep each cue to 1–2 short phrases to avoid text overflow in the baked video.
+            Keep each cue to 1–2 short phrases to avoid text overflow. A ⚠ LONG badge marks
+            cues that will trail off screen — use ✂ Split to break one into shorter timed cues.
           </p>
           <div class="studio__transcript-segments" data-transcript-segments></div>
           <button
@@ -173,7 +228,12 @@ export function mountSubtitleSegmentEditor(
   const pendingBadge = panel.querySelector<HTMLElement>('[data-transcript-pending-badge]')!;
   const timeoutBadge = panel.querySelector<HTMLElement>('[data-transcript-timeout-badge]')!;
   const savedBadge = panel.querySelector<HTMLElement>('[data-transcript-saved-badge]')!;
+  const scaffoldBadge = panel.querySelector<HTMLElement>('[data-transcript-scaffold-badge]')!;
+  const scaffoldBanner = panel.querySelector<HTMLElement>('[data-transcript-scaffold-banner]')!;
   const editOpenBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')!;
+  const generateScaffoldBtn = panel.querySelector<HTMLButtonElement>(
+    '[data-transcript-scaffold-generate]',
+  )!;
   const saveBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-save]')!;
   const discardBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-discard]')!;
   const modalEl = panel.querySelector<HTMLElement>('[data-transcript-modal]')!;
@@ -206,6 +266,29 @@ export function mountSubtitleSegmentEditor(
   let playingSegmentIndex: number | null = null;
 
   const cuePlayer = createSegmentCuePlayer();
+  // CHANGED: v5.3 — per-cue delete affordance (nav-chip + chevron-X asset).
+  const cueDeleteIconUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.cueDeleteX16);
+
+  interface CaptionMetrics {
+    measure: MeasureWidth;
+    maxWidth: number;
+  }
+
+  // CHANGED: Phase 6 — build a width measurer matching the live subtitle style so
+  // Smart Split + the overflow badge are WYSIWYG with the preview. Burn-in renders
+  // each cue on a single line, so "needs >1 preview line" == "trails off screen in
+  // the baked video". Built once per render pass and reused across cue rows.
+  function buildCaptionMetrics(): CaptionMetrics {
+    const style = handlers?.getSubtitleStyle?.();
+    const fontSize =
+      typeof style?.fontSize === 'number' && Number.isFinite(style.fontSize)
+        ? style.fontSize
+        : DEFAULT_CAPTION_FONT_SIZE;
+    const fontFamily =
+      PREVIEW_FAMILY_FOR_KEY[style?.fontFamily ?? DEFAULT_CAPTION_FONT_KEY] ?? 'RVN-DejaVu-Sans';
+    const measure = createTextMeasurer({ fontSize, fontFamily, fontWeight: PREVIEW_FONT_WEIGHT });
+    return { measure, maxWidth: previewCaptionMaxWidth() };
+  }
 
   function computeDirty(): boolean {
     if (!edited || !savedBaseline) return false;
@@ -265,6 +348,42 @@ export function mountSubtitleSegmentEditor(
     );
   }
 
+  // CHANGED: manual "Generate scaffold" (v5.3 Phase 5) — broader QoL even when
+  // transcription succeeded. Replaces the working cues with evenly timed empty
+  // slots spanning the clip; the user confirms/saves like any other edit.
+  function resolveScaffoldClipDuration(): number | null {
+    return (
+      clipDurationForPlayback() ??
+      clipDurationForOob() ??
+      (typeof lastRecording?.meta.durationSeconds === 'number' &&
+      lastRecording.meta.durationSeconds > 0
+        ? lastRecording.meta.durationSeconds
+        : null)
+    );
+  }
+
+  function generateScaffoldFromClip(): void {
+    const duration = resolveScaffoldClipDuration();
+    if (duration === null || duration <= 0) return;
+
+    // Confirm before discarding real work (design §8: "with confirm").
+    const hasRealCues = (edited?.segments ?? []).some((segment) => segment.text.trim().length > 0);
+    if (
+      (hasRealCues || computeDirty()) &&
+      !window.confirm(
+        'Replace the current cues with a fresh timecode scaffold? Unsaved edits will be lost.',
+      )
+    ) {
+      return;
+    }
+
+    edited = buildScaffoldTranscriptResult(duration);
+    deliveryStatus = 'scaffolded';
+    renderPreview();
+    syncActionButtons();
+    notify();
+  }
+
   function notify(): void {
     const dirty = computeDirty();
     handlers?.onStateChange?.({
@@ -294,18 +413,25 @@ export function mountSubtitleSegmentEditor(
         '<p class="studio__transcript-empty">No cues yet — open the editor to add one.</p>';
       return;
     }
+    const metrics = buildCaptionMetrics();
     const lines = segments
       .map((segment) => {
         const time = formatCueRange(segment.start, segment.end);
-        const text = escapeHtml(segment.text.trim() || '(empty)');
+        // CHANGED: scaffold soft-hyphen slots read as "(empty)" (v5.3 QA fix).
+        const stripped = stripScaffoldPlaceholder(segment.text);
+        const text = escapeHtml(stripped.trim() || '(empty)');
         const oob =
           clipDuration !== null && segmentHasOutOfBoundsEnd(segment, clipDuration)
             ? `<span class="studio__transcript-oob-badge" title="Cue end exceeds recording length">${OOB_LABEL}</span>`
             : '';
+        // CHANGED: Phase 6 — flag cues too long for one line (burn-in trails off).
+        const overflow = textOverflowsWidth(stripped, metrics.maxWidth, metrics.measure)
+          ? `<span class="studio__transcript-overflow-badge" title="Too long for one line — will trail off screen in the baked video. Open the editor and use Split.">${OVERFLOW_LABEL}</span>`
+          : '';
         return `
           <div class="studio__transcript-cue">
             <span class="studio__transcript-cue-time">${time}</span>
-            <span class="studio__transcript-cue-text">${text}${oob}</span>
+            <span class="studio__transcript-cue-text">${text}${oob}${overflow}</span>
           </div>
         `;
       })
@@ -314,15 +440,32 @@ export function mountSubtitleSegmentEditor(
     previewEl.innerHTML = lines;
   }
 
+  // CHANGED: scaffold mode = a graceful-failure / manual scaffold delivery state
+  // (v5.3 Phase 4). Drives the banner, badge, empty-slot preservation, and focus.
+  function inScaffoldMode(): boolean {
+    return (
+      deliveryStatus === 'no-speech' ||
+      deliveryStatus === 'failed' ||
+      deliveryStatus === 'scaffolded'
+    );
+  }
+
   function syncActionButtons(): void {
     const dirty = computeDirty();
     const hasTranscript = Boolean(edited?.segments?.length);
+    const scaffold = inScaffoldMode();
     dirtyBadge.hidden = !dirty;
     pendingBadge.hidden = dirty || deliveryStatus !== 'pending';
     timeoutBadge.hidden = dirty || deliveryStatus !== 'timeout';
     savedBadge.hidden = dirty || deliveryStatus !== 'ready' || !hasTranscript;
+    // Scaffold badge replaces the timed-out/ready badges while in scaffold mode;
+    // the dirty "Unsaved" badge still wins once the user starts editing.
+    scaffoldBadge.hidden = dirty || !scaffold;
+    scaffoldBanner.hidden = !scaffold;
     saveBtn.hidden = !dirty;
     discardBtn.hidden = !dirty;
+    // Manual scaffold needs a known clip length to span.
+    generateScaffoldBtn.disabled = resolveScaffoldClipDuration() === null;
   }
 
   function setTranscriptDeliveryStatus(status: TranscriptDeliveryStatus): void {
@@ -365,14 +508,36 @@ export function mountSubtitleSegmentEditor(
     playBtn.textContent = playingSegmentIndex === index ? '■' : '▶';
   }
 
-  function syncSegmentRowUi(row: HTMLElement, index: number): void {
+  // CHANGED: Phase 6 — reflect overflow + Split availability from the row's live
+  // textarea text. A cue that won't fit one caption line shows ⚠ LONG; Split is
+  // enabled only when the text actually breaks into >1 chunk (a single over-long
+  // word can't be split without hyphenation, so Split stays disabled there).
+  function syncRowOverflowUi(row: HTMLElement, metrics: CaptionMetrics): void {
+    const textInput = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
+    const text = stripScaffoldPlaceholder(textInput?.value ?? '');
+    const overflow = textOverflowsWidth(text, metrics.maxWidth, metrics.measure);
+    const canSplit = groupWordsByWidth(text, metrics.maxWidth, metrics.measure).length > 1;
+
+    const badge = row.querySelector<HTMLElement>('[data-segment-overflow]');
+    if (badge) badge.hidden = !overflow;
+    const splitBtn = row.querySelector<HTMLButtonElement>('[data-segment-split]');
+    if (splitBtn) splitBtn.disabled = !canSplit;
+  }
+
+  function syncSegmentRowUi(
+    row: HTMLElement,
+    index: number,
+    metrics: CaptionMetrics = buildCaptionMetrics(),
+  ): void {
     syncRowOobBadge(row);
     syncPlayButtonState(row, index);
+    syncRowOverflowUi(row, metrics);
   }
 
   function renderModalSegments(): void {
     segmentsEl.innerHTML = '';
     const clipDuration = clipDurationForOob();
+    const metrics = buildCaptionMetrics();
 
     for (let index = 0; index < modalDraft.length; index += 1) {
       const segment = modalDraft[index];
@@ -392,12 +557,32 @@ export function mountSubtitleSegmentEditor(
               aria-label="Play cue audio"
               ${cuePlayer.hasSource() ? '' : 'disabled'}
             >▶</button>
+            <button
+              type="button"
+              class="studio__transcript-cue-split"
+              data-segment-split
+              aria-label="Smart split this cue into shorter timed cues"
+              title="Split this cue into shorter timed cues that each fit on screen"
+            >✂ Split</button>
+            <span
+              class="studio__transcript-overflow-badge"
+              data-segment-overflow
+              title="Too long for one line — will trail off screen in the baked video. Use Split."
+              hidden
+            >${OVERFLOW_LABEL}</span>
             <span
               class="studio__transcript-oob-badge"
               data-segment-oob
               title="Cue end exceeds recording length"
               ${showOob ? '' : 'hidden'}
             >${OOB_LABEL}</span>
+            <button
+              type="button"
+              class="studio__transcript-cue-delete"
+              data-segment-delete
+              aria-label="Delete this cue"
+              title="Delete this cue"
+            ><img src="${cueDeleteIconUrl}" alt="" width="16" height="16" /></button>
           </span>
         </div>
         <div class="studio__transcript-segment-times">
@@ -416,17 +601,20 @@ export function mountSubtitleSegmentEditor(
         </label>
       `;
       const textArea = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
-      if (textArea) textArea.value = segment.text;
-      syncSegmentRowUi(row, index);
+      // CHANGED: strip the soft-hyphen placeholder so the user types into a clean
+      // textarea (not after an invisible char) — re-inserted on read if left blank.
+      if (textArea) textArea.value = stripScaffoldPlaceholder(segment.text);
+      syncSegmentRowUi(row, index, metrics);
       segmentsEl.append(row);
     }
   }
 
   function refreshModalSegmentUi(): void {
+    const metrics = buildCaptionMetrics();
     const rows = segmentsEl.querySelectorAll<HTMLElement>('[data-segment-index]');
     rows.forEach((row) => {
       const index = Number(row.dataset.segmentIndex);
-      syncSegmentRowUi(row, Number.isFinite(index) ? index : -1);
+      syncSegmentRowUi(row, Number.isFinite(index) ? index : -1, metrics);
     });
   }
 
@@ -440,10 +628,16 @@ export function mountSubtitleSegmentEditor(
       const textInput = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
       if (!startInput || !endInput || !textInput) return;
 
+      // CHANGED: re-insert the soft-hyphen placeholder for slots left blank, so
+      // empty scaffold cues persist through normalize instead of being scrubbed
+      // (v5.3 QA fix). Filled cues keep the user's text verbatim.
+      const rawText = textInput.value;
+      const text = cueTextIsBlank(rawText) ? SCAFFOLD_SOFT_HYPHEN : rawText;
+
       next.push({
         start: normalizeSegmentSeconds(Number(startInput.value)),
         end: normalizeSegmentSeconds(Number(endInput.value)),
-        text: textInput.value,
+        text,
       });
     });
 
@@ -499,6 +693,40 @@ export function mountSubtitleSegmentEditor(
     segmentsEl.scrollTop = segmentsEl.scrollHeight;
   }
 
+  // CHANGED: Phase 6 — Smart Split. Break one long cue into shorter timed cues,
+  // each fitting a single caption line, dividing time proportionally to text length
+  // (transcript-editing.splitSegmentIntoChunks). Operates on the live DOM draft so
+  // unsaved edits to the cue are respected before splitting.
+  function splitSegmentAtIndex(index: number): void {
+    syncModalDraftFromDom();
+    const segment = modalDraft[index];
+    if (!segment) return;
+    const text = stripScaffoldPlaceholder(segment.text).trim();
+    if (!text) return;
+
+    const { measure, maxWidth } = buildCaptionMetrics();
+    const chunks = groupWordsByWidth(text, maxWidth, measure);
+    if (chunks.length <= 1) return; // already fits, or a single un-splittable word
+
+    const replacement = splitSegmentIntoChunks({ ...segment, text }, chunks);
+    modalDraft = [
+      ...modalDraft.slice(0, index),
+      ...replacement,
+      ...modalDraft.slice(index + 1),
+    ];
+    renderModalSegments();
+  }
+
+  // CHANGED: v5.3 — delete a cue from the working draft. Reverting is the modal's
+  // Cancel/Discard (the deletion isn't committed until Apply to preview), so no
+  // confirm prompt is needed. Operates on the live DOM draft to keep sibling edits.
+  function deleteSegmentAtIndex(index: number): void {
+    syncModalDraftFromDom();
+    if (index < 0 || index >= modalDraft.length) return;
+    modalDraft = [...modalDraft.slice(0, index), ...modalDraft.slice(index + 1)];
+    renderModalSegments();
+  }
+
   function openModal(): void {
     if (!edited) return;
     hideModalUnsavedPrompt();
@@ -506,6 +734,11 @@ export function mountSubtitleSegmentEditor(
     modalOpenBaseline = modalDraft.map((segment) => ({ ...segment }));
     renderModalSegments();
     modalEl.hidden = false;
+    // CHANGED: drop the caret into the first slot when scaffolding (v5.3 Phase 4)
+    // so the user can start typing captions immediately.
+    if (inScaffoldMode()) {
+      segmentsEl.querySelector<HTMLTextAreaElement>('[data-segment-text]')?.focus();
+    }
     void loadRecordingSource();
   }
 
@@ -521,7 +754,11 @@ export function mountSubtitleSegmentEditor(
   function applyModalDraft(): void {
     if (!edited) return;
     const segments = readModalDraft();
-    edited = normalizeEditedTranscriptResult(edited, segments);
+    // CHANGED: keep empty timed slots while in scaffold mode (v5.3 Phase 4) so the
+    // template survives partial fills — empties still bake to nothing.
+    edited = normalizeEditedTranscriptResult(edited, segments, {
+      keepEmptyTimedSegments: inScaffoldMode(),
+    });
     renderPreview();
     syncActionButtons();
     notify();
@@ -559,7 +796,8 @@ export function mountSubtitleSegmentEditor(
 
   segmentsEl.addEventListener('input', (event) => {
     const target = event.target as HTMLElement;
-    if (!target.matches('[data-segment-start], [data-segment-end]')) return;
+    // CHANGED: Phase 6 — text edits also drive the overflow badge + Split state.
+    if (!target.matches('[data-segment-start], [data-segment-end], [data-segment-text]')) return;
     const row = target.closest<HTMLElement>('[data-segment-index]');
     if (!row) return;
     const index = Number(row.dataset.segmentIndex);
@@ -567,6 +805,25 @@ export function mountSubtitleSegmentEditor(
   });
 
   segmentsEl.addEventListener('click', (event) => {
+    // CHANGED: v5.3 — per-cue delete.
+    const deleteBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-delete]');
+    if (deleteBtn) {
+      const deleteRow = deleteBtn.closest<HTMLElement>('[data-segment-index]');
+      const deleteIndex = deleteRow ? Number(deleteRow.dataset.segmentIndex) : NaN;
+      if (Number.isFinite(deleteIndex)) deleteSegmentAtIndex(deleteIndex);
+      return;
+    }
+
+    // CHANGED: Phase 6 — Smart Split button takes precedence over the play button.
+    const splitBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-split]');
+    if (splitBtn) {
+      if (splitBtn.disabled) return;
+      const splitRow = splitBtn.closest<HTMLElement>('[data-segment-index]');
+      const splitIndex = splitRow ? Number(splitRow.dataset.segmentIndex) : NaN;
+      if (Number.isFinite(splitIndex)) splitSegmentAtIndex(splitIndex);
+      return;
+    }
+
     const playBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-play]');
     if (!playBtn || playBtn.disabled) return;
     const row = playBtn.closest<HTMLElement>('[data-segment-index]');
@@ -577,6 +834,7 @@ export function mountSubtitleSegmentEditor(
   });
 
   editOpenBtn.addEventListener('click', openModal);
+  generateScaffoldBtn.addEventListener('click', generateScaffoldFromClip);
   addSegmentBtn.addEventListener('click', addSegment);
   modalCloseBtn.addEventListener('click', requestCloseModal);
   modalCancelBtn.addEventListener('click', requestCloseModal);

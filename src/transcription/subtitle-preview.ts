@@ -2,6 +2,7 @@ import {
   buildGlowLayerSpecs,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
+import { stripScaffoldPlaceholder } from './transcript-editing';
 import type { SubtitleStyleConfig, TranscriptSegment } from './types';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
 
@@ -13,7 +14,7 @@ export interface SubtitlePreviewOptions {
   style: SubtitleStyleConfig;
   /** Active theme bar color — resolves theme-hue glow in preview. */
   themeBarColor?: string;
-  /** Wall-clock ms for animated special-hue rainbow (from preview RAF). */
+  /** @deprecated Reserved (was special-hue rainbow animation time); no longer used. */
   previewTimeMs?: number;
 }
 
@@ -112,8 +113,9 @@ export function drawSubtitlePreview(
 ): void {
   if (!options.enabled) return;
 
-  const previewTimeSec = (options.previewTimeMs ?? performance.now()) / 1000;
-  const displayText = options.text.trim() || PREVIEW_PLACEHOLDER;
+  // CHANGED: strip soft-hyphen scaffold placeholders so blank slots don't render
+  // an invisible glyph instead of the preview placeholder (v5.3 QA fix).
+  const displayText = stripScaffoldPlaceholder(options.text).trim() || PREVIEW_PLACEHOLDER;
   const style = options.style;
   const fontSize = style.fontSize ?? 22;
   const fontFamily = previewCssFontFamily(style.fontFamily ?? 'dejavu-sans');
@@ -122,7 +124,7 @@ export function drawSubtitlePreview(
   const paddingX = 14;
   const paddingY = 10;
   const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
-  const palette = resolveSubtitleEffectPalette(style, themeBarColor, previewTimeSec);
+  const palette = resolveSubtitleEffectPalette(style, themeBarColor);
 
   ctx.save();
   ctx.font = `600 ${fontSize}px ${fontFamily}`;
@@ -157,7 +159,10 @@ export function drawSubtitlePreview(
 
   if (glow?.enabled === true) {
     ctx.fillStyle = hexToRgba(palette.glowHex, 1);
-    for (const spec of buildGlowLayerSpecs(glow, fontSize)) {
+    // CHANGED: preview uses the same cheap 'single' halo ring as the bake (v5.3) —
+    // WYSIWYG parity + far fewer fillText passes per RAF/redraw, so dragging the
+    // sliders / color wheel stays smooth.
+    for (const spec of buildGlowLayerSpecs(glow, fontSize, 'single')) {
       ctx.globalAlpha = spec.opacity;
       drawTextLines(ctx, lines, textX, textY, lineHeight, spec.offsetX, spec.offsetY);
     }

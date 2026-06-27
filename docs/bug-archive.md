@@ -915,6 +915,96 @@ Transcode may still proceed; transcribe fork may miss `MSG_TRANSCRIBE_COMPLETE` 
 
 ---
 
+## BUG-034 (2026-06): cold-start first-recording transcribe fails as “inference-error” (offscreen dispatch race)
+
+### Symptoms
+
+- On a **fresh** offscreen session, the **first** recording's transcription fails and the Design Studio scaffolds with `reason: 'inference-error'`. The **second** and later recordings classify correctly (`no-speech`, or succeed).
+- Reproducible from cold every time: "first fire fails, then it works." Looks like Vosk cold-start flakiness but is not.
+
+### Root cause (confirmed via 3-console logs)
+
+The first `stopRecording` dispatches **transcribe** (`voice-recorder.ts` `forkTranscribe`, fire-and-forget) and **transcode** **concurrently**. On a cold start there's no offscreen document, so both race through `ensureOffscreenDocument` / `waitForOffscreenReady`:
+
+1. `pingOffscreenWorker()` returns `null` for **both** "no receiver / still loading" **and** "ready but stale stamp" — a syntactic conflation (cf. BUG-003/006 lesson).
+2. `ensureFreshOffscreenWorker()` recycled (closed) the doc on **any** non-matching pong, so the second concurrent dispatch **closed the freshly-created doc the first was still loading**.
+3. The transcribe (first dispatch) loses → `dispatchToOffscreen` throws → `relayTranscribeFailure` → generic `ok:false` → `classifyTranscribeFailure` buckets it as **`inference-error`**.
+
+Proof: clip 1's transcribe **never appears** in the offscreen log (no "job started", no model load, no `console.error`); the cold model load happens during **clip 2**; clip 1's **transcode** survives (it's the second dispatch — it recreates the doc for itself). Same race **class** as BUG-033 (burn-in vs transcribe) and BUG-032 (dispatch-failure relay) — but the **transcribe-vs-transcode cold pairing was unguarded**.
+
+### Fix (2026-06, `subtitle-qol-failure-scaffold-v1`)
+
+- **Serialize** `dispatchToOffscreen` behind an async chain (mutex) — each dispatch finishes ensure → wait-ready → send (fast; returns on ACK, not job completion) before the next begins. Jobs still run concurrently inside the offscreen via their own queues.
+- **Ping guard:** `ensureFreshOffscreenWorker` only recycles on a **non-null** pong with a mismatched stamp; a `null` (still-loading) ping is left for `waitForOffscreenReady` to poll. Stale-bundle recycling (BUG-030) is preserved there.
+- **Eager prewarm:** `MSG_OFFSCREEN_PREWARM` fired at record **start** creates the doc during recording (routed through the same dispatch chain), so it's warm + stamp-matching by stop time.
+- Removed the misdirected cold-retry in `vosk-sandbox-host.ts` (the first fire never reached the worker).
+
+### Related files
+
+- `entrypoints/background.ts` — dispatch mutex, ping guard, prewarm handler
+- `src/transcription/transcribe-client.ts` — `prewarmOffscreen()`
+- `src/recorder/voice-recorder.ts` — prewarm on `startRecording`
+- `src/messaging/types.ts` — `MSG_OFFSCREEN_PREWARM`
+- `src/transcription/vosk-sandbox-host.ts` — cold-retry removed
+
+### Residual edge case (deferred)
+
+The common-path first-fire is fixed. A residual variant — forcing the race by **spamming
+record/stop during cold offscreen boot** (or sub-2 s silent clips back-to-back), worsened by
+split-tab mode — is **consciously deferred** as an MV3 offscreen-boot characteristic, not a real
+use case. See `docs/deferred-issues.md` § DEF-001.
+
+---
+
+## BUG-035 (2026-06): subtitle bake fails on longer / more-populated clips (drawtext filtergraph explosion)
+
+### Symptoms
+
+- Short clips with 2–3 filled cues bake fine; filling 4–5 cues (or a >30 s clip) fails the burn-in with:
+  `Failed to parse expression: (w-text_w)/2` / `Invalid chars '(w-text_w)/2-1' at the end of expression` and/or
+  `RuntimeError: memory access out of bounds` → `Aborted()` → "Subtitle burn-in failed after 1 attempts."
+- Filter indices in the logs were huge (`Parsed_drawtext_208`, `_1032`) — far more drawtext filters than cues.
+
+### Root cause
+
+The burn-in builds **one drawtext filter per (cue × layer)** in a single `-vf` chain. Two multipliers blow it up:
+1. **Glow** — `buildGlowLayerSpecs` (subtitle-effects.ts) emits `1 + blurSteps×8` layers per cue (≈17 at the default `blurRadius:2` halo).
+2. **Rainbow** — `temporalizeDrawtextColor` slices every animated layer into up to `RAINBOW_BAKE_MAX_SLICES_PER_CUE = 24` time-windows.
+
+So a few glowing/rainbow cues emit hundreds of drawtext filters. ffmpeg.wasm (32-bit, `--disable-asm`) hits its filtergraph / expression-evaluator ceiling — the `(w-text_w)/2` "parse" errors are the **oversized graph string failing mid-parse**, and `memory access out of bounds` is the wasm heap aborting. The variable filter index tracks where it died. Secondary bug: `usableSegments` used `text.trim()`, which does **not** strip the soft-hyphen scaffold placeholder (U+00AD isn't whitespace), so empty scaffold slots were also baked as layers, inflating the graph.
+
+### Fix (2026-06, `subtitle-qol-failure-scaffold-v1`)
+
+Initial fix added a layer budget + degradation chain. **Follow-up (per QA): the soft-halo glow
+regressed** — the expensive 17–19-layer halo got demoted to no-glow by the budget for any clip with
+≥4 cues (border, ~10/cue, still fit, so "border worked, halo didn't"). Final fix:
+
+- **Removed the rainbow feature entirely** (it was the worst multiplier — ×24 time-slices — and low
+  value): bake slicing, `temporalizeDrawtextColor`, `specialHueRainbow` style field + UI toggle,
+  preview animation gate, and the rainbow color paths in `subtitle-effects.ts`.
+- **Cheap soft-halo rings** via `GlowRingMode` (subtitle-effects `buildGlowLayerSpecs`): preview
+  keeps the lush `'full'` multi-ring; the bake uses `'single'` (centre + one 8-ring ≈9 glow
+  layers/cue) then degrades to `'min'` (one 4-ring ≈4/cue) then plain. `blurRadius` now sets ring
+  spread, not layer count — so glow cost is flat. Halo now renders up to ~10 cues (first attempt
+  ≤60 layers, safely under the ceiling) instead of being dropped.
+- **Layer budget + degradation chain** in `buildBurnInStrategies`: tiers `drawtext-glow` →
+  `drawtext-glow-min` → `drawtext-plain`, deduped, kept within `MAX_BURNIN_DRAWTEXT_LAYERS = 64`
+  (richest-in-budget first). `burnInWithStrategies` reloads a fresh wasm instance per strategy, so a
+  tier that still OOMs degrades instead of hard-failing.
+- **Skip empty scaffold slots:** `usableSegments` / `segmentTiming` use the soft-hyphen-aware
+  `cueTextIsBlank` / `stripScaffoldPlaceholder`.
+- Regression test: `scripts/test-burnin-budget.mjs`.
+
+### Related files
+
+- `src/ffmpeg/subtitle-burnin.ts` — budget, ring-mode tiers, static colors, empty-slot skip
+- `src/transcription/subtitle-effects.ts` — `GlowRingMode`; rainbow paths removed
+- `src/transcription/types.ts` — `specialHueRainbow` removed
+- `src/ui/design-studio/subtitle-controls.ts` — rainbow toggle removed; `mount-clip-studio.ts` — preview animation gate removed
+- `src/ffmpeg/ffmpeg-runner.ts` — `burnInWithStrategies` (fresh wasm per strategy = the fallback backbone)
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.

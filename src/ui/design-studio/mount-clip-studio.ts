@@ -55,7 +55,6 @@ import {
   mountBackgroundLayoutControls,
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
-import { subtitlePreviewNeedsAnimation } from '@/src/transcription/subtitle-effects';
 import { drawSubtitleTextOnlyPreview } from '@/src/transcription/subtitle-preview';
 import { loadDejaVuPreviewFonts } from '@/src/ui/design-studio/preview-font-loader';
 import {
@@ -504,13 +503,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const theme = resolvedTheme();
     const presetBokeh = backgroundIsBokeh(theme.background);
     const animatedOverlay = themeHasAnimatedOverlay(theme);
-    const subtitlePreview = subtitleControls?.getPreviewOptions();
-    const rainbowPreview = subtitlePreview?.enabled && subtitlePreviewNeedsAnimation(subtitlePreview.style);
     // CHANGED: an animated GIF personal background must drive the preview RAF too.
     // WHY: animated branch Phase 2 — otherwise the Studio preview would freeze while the
     //      recorder/export loop, breaking the WYSIWYG promise.
     const animatedBackground = isAnimatedBackgroundCached(activeCustomBackgroundId());
-    const shouldAnimate = presetBokeh || animatedOverlay || rainbowPreview || animatedBackground;
+    const shouldAnimate = presetBokeh || animatedOverlay || animatedBackground;
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
       // Freeze the GIF to its first frame so the reduced-motion preview matches the recorder.

@@ -1113,14 +1113,6 @@ body {
   margin: 0 0 4px;
 }
 
-.studio__rainbow-bake-hint {
-  margin-left: 6px;
-  font-weight: 500;
-  color: #818384;
-  text-transform: none;
-  letter-spacing: normal;
-}
-
 .studio__transcript {
   margin-bottom: 12px;
 }
@@ -1159,6 +1151,32 @@ body {
 .studio__transcript-badge--saved {
   background: rgba(76, 175, 80, 0.18);
   color: #81c784;
+}
+
+/* v5.3 subtitle QoL — scaffolding mode (magenta = "special template", distinct
+   from the red failure status on the strip so the banner reads as help, not alarm). */
+.studio__transcript-badge--scaffold {
+  background: rgba(224, 64, 251, 0.18);
+  color: #e497fb;
+}
+
+.studio__transcript-scaffold-banner {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(224, 64, 251, 0.45);
+  border-radius: 8px;
+  background: rgba(224, 64, 251, 0.1);
+  font-size: 12px;
+  line-height: 1.45;
+  color: #d9c2e8;
+}
+
+.studio__transcript-scaffold-banner strong {
+  color: #f0c6ff;
+}
+
+.studio__transcript-scaffold-banner[hidden] {
+  display: none;
 }
 
 .studio__bake-unsaved {
@@ -1381,6 +1399,85 @@ body {
 .studio__transcript-cue-play:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Phase 6 — Smart Split button + overflow ("too long for one line") badge. */
+.studio__transcript-cue-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 1.75rem;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--studio-teal-action-edge, #0e6b6b);
+  background: #061a1a;
+  color: var(--studio-teal-action, #2bd4d4);
+  box-shadow: 0 0 6px rgba(43, 212, 212, 0.2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.studio__transcript-cue-split:hover:not(:disabled) {
+  background: #082424;
+  border-color: var(--studio-teal-action, #2bd4d4);
+  box-shadow: 0 0 10px rgba(43, 212, 212, 0.4);
+}
+
+.studio__transcript-cue-split:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.studio__transcript-overflow-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(255, 112, 67, 0.14);
+  color: #ff8a65;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.studio__transcript-overflow-badge[hidden] {
+  display: none !important;
+}
+
+/* v5.3 — per-cue delete (the SVG carries its own nav-chip body, so the button is bare). */
+.studio__transcript-cue-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: opacity 0.12s ease, filter 0.12s ease;
+}
+
+.studio__transcript-cue-delete:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(255, 213, 79, 0.5));
+}
+
+.studio__transcript-cue-delete:active {
+  transform: translateY(0.5px);
+}
+
+.studio__transcript-cue-delete img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
 }
 
 .studio__transcript-segment-times {

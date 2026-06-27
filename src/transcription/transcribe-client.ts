@@ -1,11 +1,13 @@
 import { packBinary } from '@/src/messaging/binary';
 import { verifyWebmPackedBinary } from '@/src/messaging/binary-verify';
 import {
+  MSG_OFFSCREEN_PREWARM,
   MSG_TRANSCRIBE_ACK,
   MSG_TRANSCRIBE_CANCEL,
   MSG_TRANSCRIBE_COMPLETE,
   MSG_TRANSCRIBE_PROGRESS,
   MSG_TRANSCRIBE_START,
+  type OffscreenPrewarmRequest,
   type TranscribeAckResponse,
   type TranscribeCancelRequest,
   type TranscribeCompleteMessage,
@@ -24,6 +26,20 @@ function isExtensionContextValid(): boolean {
   } catch {
     return false;
   }
+}
+
+// BUG FIX: BUG-034 cold-start offscreen dispatch race
+// Fix: warm the offscreen document at record START (best-effort, fire-and-forget) so it
+//      is loaded + stamp-matching by the time stopRecording dispatches transcribe AND
+//      transcode together. A warm doc makes background ensureFreshOffscreenWorker() return
+//      early instead of recycling a still-loading doc out from under the transcribe job.
+// Sync: handled by MSG_OFFSCREEN_PREWARM in entrypoints/background.ts.
+export function prewarmOffscreen(): void {
+  if (!isExtensionContextValid()) return;
+  const request: OffscreenPrewarmRequest = { type: MSG_OFFSCREEN_PREWARM };
+  void browser.runtime.sendMessage(request).catch(() => {
+    // Best-effort — the real dispatch still creates the doc on demand if this misses.
+  });
 }
 
 function requestOffscreenCancel(jobId: string): void {

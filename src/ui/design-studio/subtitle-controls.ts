@@ -272,23 +272,6 @@ export function renderSubtitleControlFields(): string {
           <p class="popup__field-label studio__subtitle-special-hue-label">Special hue</p>
           <p class="popup__field-desc">Shared by text and glow when either uses Special hue.</p>
           ${renderColorPickerFields()}
-          <label class="popup__toggle-row studio__subtitles-toggle">
-            <span class="popup__toggle-copy">
-              <span class="popup__toggle-label">
-                Rainbow pulse
-                <span class="popup__micro studio__rainbow-bake-hint">Bake: stepped</span>
-              </span>
-              <p class="popup__field-desc">
-                Rotates special-hue text and glow through the wheel over time (~3 s per cycle). Live preview is smoother than baked MP4.
-              </p>
-            </span>
-            <input
-              class="popup__toggle-input"
-              type="checkbox"
-              data-subtitle-special-hue-rainbow
-              aria-label="Rainbow pulse on special hue"
-            />
-          </label>
         </div>
         <div class="popup__profile-actions studio__inline-actions">
           <button
@@ -361,9 +344,6 @@ export function mountSubtitleControls(
   )!;
   const textColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-text-color]')!;
   const specialHuePanel = panel.querySelector<HTMLElement>('[data-subtitle-special-hue-panel]')!;
-  const specialHueRainbowInput = panel.querySelector<HTMLInputElement>(
-    '[data-subtitle-special-hue-rainbow]',
-  )!;
   const glowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow]')!;
   const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
   const glowModeSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-mode]')!;
@@ -394,6 +374,9 @@ export function mountSubtitleControls(
   let pendingTranscriptSince = 0;
 
   const segmentEditor = mountSubtitleSegmentEditor(panel, {
+    // CHANGED: Phase 6 — give the editor the live subtitle style so Smart Split +
+    // the overflow badge measure cue text against the same font the preview uses.
+    getSubtitleStyle: () => mergeStyleFromControls(),
     onStateChange: () => {
       syncBakeButton();
       syncDraftFromEditor();
@@ -402,6 +385,11 @@ export function mountSubtitleControls(
     async onSaveEdits(edited) {
       await saveSessionTranscriptEdits(edited, { confirmed: true });
       lastSnapshot = await loadSessionTranscript();
+      // CHANGED: recompute delivery status after a confirmed save (v5.3 Phase 4).
+      // WHY: saveSessionTranscriptEdits drops error/isScaffolded, so a filled-in
+      //      scaffold must leave the red 'no-speech'/'failed' state for 'ready'
+      //      instead of staying alarmed after the user has added captions.
+      await refreshTranscriptDeliveryStatus();
       syncDraftFromEditor();
       syncBakeButton();
       updateSourceCopy();
@@ -578,6 +566,21 @@ export function mountSubtitleControls(
     bakeUnsavedDialog.hidden = false;
   }
 
+  // CHANGED: map a current snapshot to its delivery status (v5.3 Phase 3).
+  // WHY: a graceful-failure scaffold snapshot carries error/isScaffolded — without
+  //      this it read as plain 'ready' (the "transcribed" QA symptom). A current
+  //      snapshot of any kind short-circuits the 120s pending timer.
+  function deliveryStatusForSnapshot(
+    snapshot: SessionTranscriptSnapshot | null,
+  ): TranscriptDeliveryStatus {
+    const errorType = snapshot?.error?.type;
+    if (errorType === 'no-speech') return 'no-speech';
+    if (errorType === 'timeout') return 'timeout';
+    if (errorType === 'inference-error' || errorType === 'empty-result') return 'failed';
+    if (snapshot?.isScaffolded) return 'scaffolded';
+    return 'ready';
+  }
+
   async function refreshTranscriptDeliveryStatus(): Promise<void> {
     try {
       if (!draftConfig.transcriptionEnabled) {
@@ -593,7 +596,17 @@ export function mountSubtitleControls(
 
       if (snapshotAt > 0 && recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
         clearPendingTranscriptTimer();
-        segmentEditor.setTranscriptDeliveryStatus('ready');
+        const resolved = deliveryStatusForSnapshot(lastSnapshot);
+        // Diagnostic (v5.3): confirm the Studio sees the scaffold's failure metadata.
+        // If `resolved` is 'ready'/'scaffolded' for a known failure, the snapshot
+        // lost its error somewhere upstream; if it's correct here but the strip
+        // still shows "Transcribed", the strip input is stale.
+        console.log('[Reddit Voice Notes] Subtitle delivery resolved', {
+          resolved,
+          errorType: lastSnapshot?.error?.type ?? null,
+          isScaffolded: lastSnapshot?.isScaffolded ?? false,
+        });
+        segmentEditor.setTranscriptDeliveryStatus(resolved);
         return;
       }
 
@@ -624,7 +637,7 @@ export function mountSubtitleControls(
       // BUG FIX: stale IDB transcript marked delivery ready without a current recording
       // Fix: only ready when snapshot capturedAt is at or after last recording ready.
       if (recordingReadyAt > 0 && snapshotAt >= recordingReadyAt) {
-        segmentEditor.setTranscriptDeliveryStatus('ready');
+        segmentEditor.setTranscriptDeliveryStatus(deliveryStatusForSnapshot(lastSnapshot));
       } else {
         segmentEditor.setTranscriptDeliveryStatus('idle');
       }
@@ -850,7 +863,6 @@ export function mountSubtitleControls(
     backdropOpacityValueEl.textContent = `${opacityPct}%`;
     backdropOpacityInput.classList.toggle('is-disabled', !backdropInput.checked);
     textColorSelect.value = style.textColor ?? 'white';
-    specialHueRainbowInput.checked = style.specialHueRainbow === true;
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
@@ -898,7 +910,6 @@ export function mountSubtitleControls(
         opacity,
       },
       specialHue: draftConfig.style.specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE,
-      specialHueRainbow: specialHueRainbowInput.checked,
       glow: {
         ...draftConfig.style.glow,
         enabled: glowInput.checked,
@@ -1109,13 +1120,6 @@ export function mountSubtitleControls(
   glowColorSelect.addEventListener('change', () => {
     if (syncing) return;
     syncSpecialHueUi();
-    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
-    schedulePersist();
-    notifyDraftChange();
-  });
-
-  specialHueRainbowInput.addEventListener('change', () => {
-    if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();
