@@ -311,6 +311,13 @@ Missing blob → theme fallback; never blocks recording.
 **Panel id:** `data-studio-panel="voice"`  
 **Summary:** `formatVoiceEffectSummary` — e.g. `Voice: Robot · 7/10` or `Voice: Off`.
 
+> ⚠️ **Stale below (6.1–6.4):** §6.1–6.4 predate the Dulcet II (v5) graph rebuild and
+> still describe the removed flat-config / Web-Audio preview world (`presetId`, pitch
+> radial, `preview-chain.ts` as a Web-Audio graph). For the **current** voice model
+> (`StylizedGraph`, the authoritative one-shot render, the dry `playProcessed` player),
+> `docs/dsp-foundation-design.md` is canonical. §6.5 (current) documents the v5.3.1
+> audition controls. A full §6 refresh is tracked separately.
+
 ### 6.1 Controls inventory
 
 | Control | Data field | Persist path |
@@ -342,6 +349,26 @@ AudioParam properties use `.value` assignment — never assign to the property i
 | `src/voice/preview-chain.ts` | Web Audio graph |
 | `src/voice/resolve-config.ts` | Intensity scaling, preset resolution |
 | `src/storage/last-recording-db.ts` | Preview source blob |
+
+### 6.5 Voice audition controls — current (v5.3.1)
+
+Two buttons audition the **active** voice graph, both routing through the *same*
+authoritative path (`resolveVoiceGraph` → `processAudioWithGraph` → one shared
+`VoicePreviewHandle.playProcessed`), so what you hear equals the bake:
+
+| Control | Input source | Stores anything? |
+|---------|--------------|------------------|
+| **Last Voice Note** | `rvnLastRecording` (last Reddit WebM) | No (reads IDB) |
+| **One-Time Test** | a fresh, transient live-mic capture | **No — never persisted** |
+
+- **One shared Stop button** governs both ("Stop & render" while capturing → "Stop" while
+  playing). Only one audition runs at a time.
+- **Storage-safety invariant:** the One-Time Test capture is in-memory only —
+  `src/voice/mic-test-capture.ts` imports no storage module, so it cannot overwrite
+  `rvnLastRecording`. With no saved recording, the UI de-emphasizes *Last Voice Note* and
+  steers the user to *One-Time Test*.
+- **Canonical design + plan:** `docs/v5.3.1-voice-live-mic-preview-design-document.md`.
+  Extension seam: `docs/architecture/extension-points.md` → "Voice live-mic preview — v1".
 
 ---
 

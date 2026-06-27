@@ -37,6 +37,14 @@ export class MicTestCaptureError extends Error {
 export interface MicTestCaptureOptions {
   /** Hard cap; auto-stop (graceful) after this many ms. Default {@link MIC_TEST_DEFAULT_MAX_MS}. */
   maxDurationMs?: number;
+  /**
+   * Inject the stream acquisition so the caller can honor user mic prefs (e.g.
+   * `acquireMicStream(prefs.audio)` — same constraints + fallback ladder as the real
+   * recorder). Keeps this module a pure leaf with no prefs/storage import. Defaults to
+   * a plain audio `getUserMedia` with browser DSP on. Must reject with a DOMException
+   * (e.g. `NotAllowedError`) on denial so error classification works.
+   */
+  acquireStream?: () => Promise<MediaStream>;
   /** Fires once the stream is live and recording has started — UI flips to "Recording". */
   onStart?: () => void;
   /** Fires when the {@link maxDurationMs} cap triggers the auto-stop. */
@@ -191,7 +199,10 @@ export function startMicTestCapture(options: MicTestCaptureOptions = {}): MicTes
     }
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: defaultAudioConstraints() });
+      const acquire =
+        options.acquireStream ??
+        (() => navigator.mediaDevices.getUserMedia({ audio: defaultAudioConstraints() }));
+      stream = await acquire();
     } catch (error) {
       const denied =
         error instanceof DOMException &&

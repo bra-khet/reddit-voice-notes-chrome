@@ -49,6 +49,8 @@ import {
   type MicTestCaptureController,
   type MicTestCaptureErrorCode,
 } from '@/src/voice/mic-test-capture';
+import { acquireMicStream } from '@/src/recorder/mic-constraints';
+import type { AudioPreferences } from '@/src/settings/user-preferences';
 
 export interface VoiceControlsHandle {
   dispose(): void;
@@ -290,6 +292,9 @@ export function mountVoiceControls(
   let rendering = false;
   let capturing = false;
   let capture: MicTestCaptureController | null = null;
+  // Mic-capture prefs (raw/enhanced) so the One-Time Test uses the SAME constraints as the
+  // real recorder — keeps the audition faithful to the eventual bake. Null until prefs load.
+  let audioPrefs: AudioPreferences | null = null;
   let saveTimer = 0;
 
   const preview = createVoicePreviewPlayer();
@@ -798,8 +803,12 @@ export function mountVoiceControls(
     setCapturing(true);
     setStatus('Requesting microphone…');
 
+    const prefsForCapture = audioPrefs;
     const session = startMicTestCapture({
       maxDurationMs: MIC_TEST_DEFAULT_MAX_MS,
+      // Match the real recorder's mic constraints when prefs are loaded (raw/enhanced +
+      // fallback ladder); otherwise the capture util's plain default applies.
+      acquireStream: prefsForCapture ? () => acquireMicStream(prefsForCapture) : undefined,
       onStart: () => setStatus('Recording… speak now, then “Stop & render”.'),
       onAutoStop: () => setStatus('Reached the time limit — rendering…'),
       onLevel: (level) => setMeter(level),
@@ -860,6 +869,7 @@ export function mountVoiceControls(
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
     currentProfileName = activeProfileNameFrom(prefs);
+    audioPrefs = prefs.audio;
     syncControlsFromDraft();
   });
 
@@ -878,6 +888,7 @@ export function mountVoiceControls(
       syncing = true;
       draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
       currentProfileName = activeProfileNameFrom(prefs);
+      audioPrefs = prefs.audio;
       syncControlsFromDraft();
       syncing = false;
     },
