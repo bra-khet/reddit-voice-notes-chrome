@@ -947,6 +947,13 @@ Proof: clip 1's transcribe **never appears** in the offscreen log (no "job start
 - `src/messaging/types.ts` — `MSG_OFFSCREEN_PREWARM`
 - `src/transcription/vosk-sandbox-host.ts` — cold-retry removed
 
+### Residual edge case (deferred)
+
+The common-path first-fire is fixed. A residual variant — forcing the race by **spamming
+record/stop during cold offscreen boot** (or sub-2 s silent clips back-to-back), worsened by
+split-tab mode — is **consciously deferred** as an MV3 offscreen-boot characteristic, not a real
+use case. See `docs/deferred-issues.md` § DEF-001.
+
 ---
 
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
