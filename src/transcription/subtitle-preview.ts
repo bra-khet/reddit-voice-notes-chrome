@@ -14,7 +14,7 @@ export interface SubtitlePreviewOptions {
   style: SubtitleStyleConfig;
   /** Active theme bar color — resolves theme-hue glow in preview. */
   themeBarColor?: string;
-  /** Wall-clock ms for animated special-hue rainbow (from preview RAF). */
+  /** @deprecated Reserved (was special-hue rainbow animation time); no longer used. */
   previewTimeMs?: number;
 }
 
@@ -113,7 +113,6 @@ export function drawSubtitlePreview(
 ): void {
   if (!options.enabled) return;
 
-  const previewTimeSec = (options.previewTimeMs ?? performance.now()) / 1000;
   // CHANGED: strip soft-hyphen scaffold placeholders so blank slots don't render
   // an invisible glyph instead of the preview placeholder (v5.3 QA fix).
   const displayText = stripScaffoldPlaceholder(options.text).trim() || PREVIEW_PLACEHOLDER;
@@ -125,7 +124,7 @@ export function drawSubtitlePreview(
   const paddingX = 14;
   const paddingY = 10;
   const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
-  const palette = resolveSubtitleEffectPalette(style, themeBarColor, previewTimeSec);
+  const palette = resolveSubtitleEffectPalette(style, themeBarColor);
 
   ctx.save();
   ctx.font = `600 ${fontSize}px ${fontFamily}`;

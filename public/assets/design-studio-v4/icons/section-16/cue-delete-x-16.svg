@@ -5,7 +5,7 @@
   A scaled-down "normal" nav chip (navChipBevel body) with an X formed by two
   opposite-pointing chevrons whose tips touch at center (arms radiate to the four
   corners). Amber strokes match the navigation chevrons.
-  NOTE FOR GIMP: CSS-style /* */ comments inside <svg>, not XML <!-- -->.
+  NOTE FOR GIMP: CSS-style comments inside svg, not XML.
 */
   <defs>
     <linearGradient id="cueDeleteBevel" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">

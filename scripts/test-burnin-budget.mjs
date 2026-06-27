@@ -94,19 +94,19 @@ check('all-blank input throws (nothing usable to burn in)', () => {
   assert.throws(() => buildBurnInStrategies({ segments, style: style(), videoDurationSeconds: 6 }));
 });
 
-check('glow halo, few cues → rich tier runs first within budget', () => {
+check('glow halo, few cues → soft-halo tier runs first with glow layers', () => {
   const strategies = buildBurnInStrategies({
     segments: cues(2),
     style: style({ glow: { enabled: true, mode: 'halo', colorSource: 'theme', opacity: 0.55, blurRadius: 2 } }),
     videoDurationSeconds: 2,
   });
   const first = strategies[0];
-  assert.equal(first.name, 'drawtext-rich');
+  assert.equal(first.name, 'drawtext-glow');
   assert.ok(drawtextCount(first) > 4, 'glow adds ring layers beyond plate+text');
   assert.ok(drawtextCount(first) <= MAX_LAYERS, 'still within budget');
 });
 
-check('glow halo, many cues → first strategy stays within budget + chain degrades', () => {
+check('glow halo, many cues → first within budget + degrades to cheaper ring', () => {
   const strategies = buildBurnInStrategies({
     segments: cues(10),
     style: style({ glow: { enabled: true, mode: 'halo', colorSource: 'theme', opacity: 0.55, blurRadius: 2 } }),
@@ -117,20 +117,8 @@ check('glow halo, many cues → first strategy stays within budget + chain degra
     drawtextCount(strategies[0]) <= MAX_LAYERS,
     `first attempt must be within budget (got ${drawtextCount(strategies[0])})`,
   );
-  // The richest tier (10 cues × ~19 layers) is over budget, so it must NOT be first.
-  assert.notEqual(strategies[0].name, 'drawtext-rich');
-});
-
-check('rainbow special text → first attempt within budget (no explosion)', () => {
-  const strategies = buildBurnInStrategies({
-    segments: cues(6),
-    style: style({ textColor: 'special', specialHue: '#e040fb', specialHueRainbow: true }),
-    videoDurationSeconds: 6,
-  });
-  assert.ok(
-    drawtextCount(strategies[0]) <= MAX_LAYERS,
-    `rainbow first attempt within budget (got ${drawtextCount(strategies[0])})`,
-  );
+  // The single-ring halo (10 cues × ~11 layers) is over budget, so a cheaper tier runs first.
+  assert.notEqual(strategies[0].name, 'drawtext-glow');
 });
 
 check('every emitted strategy that is kept stays within budget (unless it is the sole floor)', () => {

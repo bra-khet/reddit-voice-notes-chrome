@@ -1,4 +1,4 @@
-import { deriveGlowColor, hexToHsv, hsvToHex, normalizeHexColor } from '@/src/theme/color-utils';
+import { deriveGlowColor, normalizeHexColor } from '@/src/theme/color-utils';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   type SubtitleGlowColorSource,
@@ -13,100 +13,35 @@ export interface GlowLayerSpec {
   opacity: number;
 }
 
-/** ~2.9 s per full hue cycle — slower rotation = smaller hue jump per bake slice (looks smoother). */
-export const RAINBOW_CYCLES_PER_SECOND = 0.35;
-
-/** Bake quantizes rainbow into static drawtext slices (FFmpeg fontcolor is not time-expressive). */
-export const RAINBOW_BAKE_SLICE_SECONDS = 0.25;
-
-export const RAINBOW_BAKE_MAX_SLICES_PER_CUE = 24;
-
-export function rainbowHueHexAtTime(
-  timeSeconds: number,
-  phaseHueHex: string,
-  cyclesPerSecond = RAINBOW_CYCLES_PER_SECOND,
-): string {
-  const phase = hexToHsv(phaseHueHex)?.h ?? 0;
-  const hue = (phase + timeSeconds * cyclesPerSecond * 360) % 360;
-  return hsvToHex(hue, 100, 100);
-}
-
-export function styleUsesSpecialHueRainbow(style: SubtitleStyleConfig): boolean {
-  if (style.specialHueRainbow !== true) return false;
-  const textSpecial = style.textColor === 'special';
-  const glowSpecial = style.glow?.enabled === true && style.glow.colorSource === 'special';
-  return textSpecial || glowSpecial;
-}
-
-export function subtitlePreviewNeedsAnimation(style: SubtitleStyleConfig): boolean {
-  return styleUsesSpecialHueRainbow(style);
-}
-
-export interface TemporalDrawtextSlice {
-  start: number;
-  end: number;
-  fontColor: string;
-}
-
-export function temporalizeDrawtextColor(
-  start: number,
-  end: number,
-  colorAtTime: (timeSeconds: number) => string,
-): TemporalDrawtextSlice[] {
-  const duration = end - start;
-  if (duration <= 0) {
-    return [{ start, end, fontColor: colorAtTime(start) }];
-  }
-
-  const sliceCount = Math.min(
-    RAINBOW_BAKE_MAX_SLICES_PER_CUE,
-    Math.max(1, Math.ceil(duration / RAINBOW_BAKE_SLICE_SECONDS)),
-  );
-  const sliceDur = duration / sliceCount;
-  const slices: TemporalDrawtextSlice[] = [];
-
-  for (let index = 0; index < sliceCount; index += 1) {
-    const sliceStart = start + index * sliceDur;
-    const sliceEnd = index === sliceCount - 1 ? end : start + (index + 1) * sliceDur;
-    const mid = (sliceStart + sliceEnd) / 2;
-    slices.push({
-      start: sliceStart,
-      end: sliceEnd,
-      fontColor: colorAtTime(mid),
-    });
-  }
-
-  return slices;
-}
+/**
+ * Glow ring density for the soft halo. The preview uses 'full' (lush multi-ring
+ * gradient); the burn-in uses cheaper rings so the drawtext filtergraph stays
+ * under ffmpeg.wasm's ceiling for multi-cue clips (see subtitle-burnin.ts):
+ *  - 'full'   — centre + up-to-3 concentric rings (≈9–25 layers) — preview only
+ *  - 'single' — centre + one 8-neighbour ring at the blur offset (9 layers)
+ *  - 'min'    — one 4-neighbour ring at the blur offset (4 layers)
+ * Border mode ignores this (always its fixed 8-neighbour ring).
+ */
+export type GlowRingMode = 'full' | 'single' | 'min';
 
 export function resolveGlowColorHex(
   source: SubtitleGlowColorSource | undefined,
   themeBarColor: string,
   specialHue?: string,
-  timeSeconds?: number,
-  rainbowEnabled?: boolean,
 ): string {
   if (source === 'black') return '#000000';
   if (source === 'white') return '#ffffff';
   if (source === 'special') {
     // BUG FIX: undefined arg to normalizeHexColor when specialHue is not set
     // Fix: guard argument with ?? so normalizeHexColor always receives a string; keep result fallback for invalid hex
-    const base = normalizeHexColor(specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
-    if (rainbowEnabled && timeSeconds !== undefined) {
-      return rainbowHueHexAtTime(timeSeconds, base);
-    }
-    return base;
+    return normalizeHexColor(specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
   }
   const bar = normalizeHexColor(themeBarColor) ?? '#00e5ff';
   const derived = deriveGlowColor(bar);
   return derived.slice(0, 7);
 }
 
-export function resolveTextColorHex(
-  style: SubtitleStyleConfig,
-  themeBarColor: string,
-  timeSeconds?: number,
-): string {
+export function resolveTextColorHex(style: SubtitleStyleConfig, themeBarColor: string): string {
   if (style.textColor === 'black') return '#000000';
   if (style.textColor === 'white') return '#ffffff';
   if (style.textColor === 'theme') {
@@ -115,22 +50,14 @@ export function resolveTextColorHex(
   if (style.textColor === 'special') {
     // BUG FIX: undefined arg to normalizeHexColor when style.specialHue is not set
     // Fix: guard argument with ?? so normalizeHexColor always receives a string; keep result fallback for invalid hex
-    const base = normalizeHexColor(style.specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
-    if (style.specialHueRainbow && timeSeconds !== undefined) {
-      return rainbowHueHexAtTime(timeSeconds, base);
-    }
-    return base;
+    return normalizeHexColor(style.specialHue ?? DEFAULT_SUBTITLE_SPECIAL_HUE) ?? DEFAULT_SUBTITLE_SPECIAL_HUE;
   }
   return '#ffffff';
 }
 
 /** drawtext fontcolor for main caption — white/black names or opaque 0xRRGGBBAA. */
-export function drawtextMainFontColor(
-  style: SubtitleStyleConfig,
-  themeBarColor?: string,
-  timeSeconds?: number,
-): string {
-  const hex = resolveTextColorHex(style, themeBarColor ?? '#00e5ff', timeSeconds);
+export function drawtextMainFontColor(style: SubtitleStyleConfig, themeBarColor?: string): string {
+  const hex = resolveTextColorHex(style, themeBarColor ?? '#00e5ff');
   if (hex === '#ffffff') return 'white';
   if (hex === '#000000') return 'black';
   return `0x${hex.slice(1).toUpperCase()}FF`;
@@ -177,7 +104,18 @@ const BORDER_RING: [number, number][] = [
  * Glow layers for halo (soft ring) or border (solid outline, no alpha).
  * Halo uses the same font size as the main caption so bake/preview stay aligned.
  */
-export function buildGlowLayerSpecs(glow: SubtitleGlowConfig, baseFontSize: number): GlowLayerSpec[] {
+const CARDINAL_RING: [number, number][] = [
+  [0, -1],
+  [-1, 0],
+  [1, 0],
+  [0, 1],
+];
+
+export function buildGlowLayerSpecs(
+  glow: SubtitleGlowConfig,
+  baseFontSize: number,
+  ringMode: GlowRingMode = 'full',
+): GlowLayerSpec[] {
   if (glow.enabled !== true) return [];
 
   const mode = glow.mode ?? 'halo';
@@ -192,17 +130,38 @@ export function buildGlowLayerSpecs(glow: SubtitleGlowConfig, baseFontSize: numb
     }));
   }
 
-  const blurSteps = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
-  const specs: GlowLayerSpec[] = [
-    {
-      fontSize: baseFontSize,
-      offsetX: 0,
-      offsetY: 0,
-      opacity: baseOpacity * 0.5,
-    },
-  ];
+  // Halo. blurRadius (1–3) sets the ring spread distance in px.
+  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
 
-  for (let step = 1; step <= blurSteps; step += 1) {
+  // Cheap single-ring halos for the burn-in (flat layer cost regardless of spread).
+  if (ringMode === 'min') {
+    return CARDINAL_RING.map(([dx, dy]) => ({
+      fontSize: baseFontSize,
+      offsetX: dx * spread,
+      offsetY: dy * spread,
+      opacity: baseOpacity * 0.4,
+    }));
+  }
+  if (ringMode === 'single') {
+    const specs: GlowLayerSpec[] = [
+      { fontSize: baseFontSize, offsetX: 0, offsetY: 0, opacity: baseOpacity * 0.5 },
+    ];
+    for (const [dx, dy] of BORDER_RING) {
+      specs.push({
+        fontSize: baseFontSize,
+        offsetX: dx * spread,
+        offsetY: dy * spread,
+        opacity: baseOpacity * 0.4,
+      });
+    }
+    return specs;
+  }
+
+  // 'full' — lush multi-ring gradient (preview).
+  const specs: GlowLayerSpec[] = [
+    { fontSize: baseFontSize, offsetX: 0, offsetY: 0, opacity: baseOpacity * 0.5 },
+  ];
+  for (let step = 1; step <= spread; step += 1) {
     const falloff = 1 - (step - 1) * 0.22;
     for (const [dx, dy] of BORDER_RING) {
       specs.push({
@@ -220,19 +179,11 @@ export function buildGlowLayerSpecs(glow: SubtitleGlowConfig, baseFontSize: numb
 export function resolveSubtitleEffectPalette(
   style: SubtitleStyleConfig,
   themeBarColor: string,
-  timeSeconds?: number,
 ): { textHex: string; glowHex: string } {
   const glow = style.glow;
-  const rainbow = style.specialHueRainbow === true;
   return {
-    textHex: resolveTextColorHex(style, themeBarColor, timeSeconds),
-    glowHex: resolveGlowColorHex(
-      glow?.colorSource,
-      themeBarColor,
-      style.specialHue,
-      timeSeconds,
-      rainbow && glow?.colorSource === 'special',
-    ),
+    textHex: resolveTextColorHex(style, themeBarColor),
+    glowHex: resolveGlowColorHex(glow?.colorSource, themeBarColor, style.specialHue),
   };
 }
 

@@ -975,14 +975,32 @@ So a few glowing/rainbow cues emit hundreds of drawtext filters. ffmpeg.wasm (32
 
 ### Fix (2026-06, `subtitle-qol-failure-scaffold-v1`)
 
-- **Layer budget + degradation chain** in `buildBurnInStrategies` (subtitle-burnin.ts): build every effect tier (rich → no-rainbow → soft-glow `blurCap:1` → plain), dedupe, and keep those within `MAX_BURNIN_DRAWTEXT_LAYERS = 64` (richest-in-budget first, so the common case bakes on attempt 1 with no wasted wasm reload). `burnInWithStrategies` already reloads a fresh wasm instance per strategy, so a tier that still OOMs at runtime degrades to the next instead of hard-failing.
-- **Skip empty scaffold slots:** `usableSegments` / `segmentTiming` now use the soft-hyphen-aware `cueTextIsBlank` / `stripScaffoldPlaceholder` (transcript-editing.ts).
-- Tradeoff: very glow/rainbow-heavy clips bake with reduced glow / no rainbow animation rather than failing. Regression test: `scripts/test-burnin-budget.mjs`.
+Initial fix added a layer budget + degradation chain. **Follow-up (per QA): the soft-halo glow
+regressed** — the expensive 17–19-layer halo got demoted to no-glow by the budget for any clip with
+≥4 cues (border, ~10/cue, still fit, so "border worked, halo didn't"). Final fix:
+
+- **Removed the rainbow feature entirely** (it was the worst multiplier — ×24 time-slices — and low
+  value): bake slicing, `temporalizeDrawtextColor`, `specialHueRainbow` style field + UI toggle,
+  preview animation gate, and the rainbow color paths in `subtitle-effects.ts`.
+- **Cheap soft-halo rings** via `GlowRingMode` (subtitle-effects `buildGlowLayerSpecs`): preview
+  keeps the lush `'full'` multi-ring; the bake uses `'single'` (centre + one 8-ring ≈9 glow
+  layers/cue) then degrades to `'min'` (one 4-ring ≈4/cue) then plain. `blurRadius` now sets ring
+  spread, not layer count — so glow cost is flat. Halo now renders up to ~10 cues (first attempt
+  ≤60 layers, safely under the ceiling) instead of being dropped.
+- **Layer budget + degradation chain** in `buildBurnInStrategies`: tiers `drawtext-glow` →
+  `drawtext-glow-min` → `drawtext-plain`, deduped, kept within `MAX_BURNIN_DRAWTEXT_LAYERS = 64`
+  (richest-in-budget first). `burnInWithStrategies` reloads a fresh wasm instance per strategy, so a
+  tier that still OOMs degrades instead of hard-failing.
+- **Skip empty scaffold slots:** `usableSegments` / `segmentTiming` use the soft-hyphen-aware
+  `cueTextIsBlank` / `stripScaffoldPlaceholder`.
+- Regression test: `scripts/test-burnin-budget.mjs`.
 
 ### Related files
 
-- `src/ffmpeg/subtitle-burnin.ts` — budget, degradation tiers, empty-slot skip
-- `src/transcription/subtitle-effects.ts` — glow/rainbow layer multipliers (unchanged; documented)
+- `src/ffmpeg/subtitle-burnin.ts` — budget, ring-mode tiers, static colors, empty-slot skip
+- `src/transcription/subtitle-effects.ts` — `GlowRingMode`; rainbow paths removed
+- `src/transcription/types.ts` — `specialHueRainbow` removed
+- `src/ui/design-studio/subtitle-controls.ts` — rainbow toggle removed; `mount-clip-studio.ts` — preview animation gate removed
 - `src/ffmpeg/ffmpeg-runner.ts` — `burnInWithStrategies` (fresh wasm per strategy = the fallback backbone)
 
 ---

@@ -83,8 +83,6 @@ export interface SubtitleStyleConfig {
   textColor?: SubtitleTextColor;
   /** Shared by text + glow when either uses `special` color source. */
   specialHue?: string;
-  /** Rotate special-hue layers through the wheel over time (preview RAF + baked time slices). */
-  specialHueRainbow?: boolean;
   backdrop?: SubtitleBackdropConfig;
   glow?: SubtitleGlowConfig;
   /** @deprecated Drop shadow removed — theme glow covers contrast; kept for prefs migration only. */
@@ -118,7 +116,6 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
     offsetY: 2,
   },
   specialHue: DEFAULT_SUBTITLE_SPECIAL_HUE,
-  specialHueRainbow: false,
   shadow: { enabled: false, offsetX: 2, offsetY: 2, opacity: 0.85 },
   outline: { enabled: false, width: 1 },
 };
@@ -180,7 +177,6 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
       typeof raw?.specialHue === 'string' && raw.specialHue.trim().length > 0
         ? raw.specialHue
         : DEFAULT_SUBTITLE_STYLE.specialHue,
-    specialHueRainbow: raw?.specialHueRainbow === true,
     backdrop: {
       enabled: backdrop.enabled !== false,
       opacity: typeof backdrop.opacity === 'number' ? backdrop.opacity : DEFAULT_SUBTITLE_STYLE.backdrop!.opacity,
