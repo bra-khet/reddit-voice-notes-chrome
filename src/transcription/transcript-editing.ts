@@ -256,3 +256,65 @@ export function buildScaffoldTranscriptResult(
     duration: Number.isFinite(clipDuration) && clipDuration > 0 ? clipDuration : undefined,
   };
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// v5.3 Subtitle QoL — Phase 6: Long-Segment Smart Split (design doc §9–§10)
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Round cue seconds to 0.01s — tidy editor values without visible float drift. */
+function roundCueSeconds(value: number): number {
+  return Math.round(normalizeCueSeconds(value) * 100) / 100;
+}
+
+/**
+ * Split one segment into N sub-segments carrying `chunks`, dividing the original
+ * time span PROPORTIONALLY to each chunk's character length (design doc §10:
+ * "word split → proportional char-length time interpolation"). Longer text gets
+ * proportionally more screen time. Pure + node-tested (scripts/test-smart-split.mjs).
+ *
+ * The caller (segment editor) computes `chunks` via the canvas width measurer
+ * (text-metrics.groupWordsByWidth) so each chunk fits one caption line; this
+ * function only owns the timing math, which keeps it canvas-free and testable.
+ *
+ * CONTRACT — asserted by scripts/test-smart-split.mjs:
+ *  - chunks.length <= 1                       → [{ ...segment }] (nothing to split)
+ *  - non-positive span (start >= end)         → single cue with chunks rejoined
+ *  - sub-segments are contiguous + gap-free + non-overlapping
+ *  - first.start === segment.start; last.end === segment.end EXACTLY (drift clamp)
+ *  - weight = chunk trimmed length, floored at 1 so a near-empty chunk still gets time
+ */
+export function splitSegmentIntoChunks(
+  segment: TranscriptSegment,
+  chunks: string[],
+): TranscriptSegment[] {
+  if (chunks.length <= 1) return [{ ...segment }];
+
+  const start = normalizeCueSeconds(segment.start);
+  const end = normalizeCueSeconds(segment.end);
+  const span = end - start;
+  if (span <= 0) {
+    // No interpolable span — collapse to a single cue with the text rejoined.
+    return [{ ...segment, text: chunks.join(' ') }];
+  }
+
+  const weights = chunks.map((chunk) => Math.max(1, chunk.trim().length));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+
+  // Cumulative proportional boundaries: boundaries[i] = end of chunk i (interior
+  // only, rounded). Computing from the original start (not a running cursor) keeps
+  // boundaries exact before rounding and guarantees contiguity.
+  const boundaries: number[] = [];
+  let acc = 0;
+  for (let i = 0; i < chunks.length - 1; i += 1) {
+    acc += weights[i];
+    boundaries.push(roundCueSeconds(start + (span * acc) / totalWeight));
+  }
+
+  const out: TranscriptSegment[] = [];
+  for (let i = 0; i < chunks.length; i += 1) {
+    const cueStart = i === 0 ? start : boundaries[i - 1];
+    const cueEnd = i === chunks.length - 1 ? end : boundaries[i];
+    out.push({ start: cueStart, end: cueEnd, text: chunks[i] });
+  }
+  return out;
+}

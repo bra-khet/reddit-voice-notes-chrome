@@ -8,6 +8,7 @@ import {
   cloneTranscriptResult,
   normalizeEditedTranscriptResult,
   SCAFFOLD_SOFT_HYPHEN,
+  splitSegmentIntoChunks,
   stripScaffoldPlaceholder,
 } from '@/src/transcription/transcript-editing';
 import {
@@ -17,7 +18,20 @@ import {
   resolveClipDurationSeconds,
   segmentHasOutOfBoundsEnd,
 } from '@/src/transcription/segment-timing';
-import type { TranscriptResult, TranscriptSegment } from '@/src/transcription/types';
+import type {
+  SubtitleStyleConfig,
+  TranscriptResult,
+  TranscriptSegment,
+} from '@/src/transcription/types';
+import {
+  createTextMeasurer,
+  groupWordsByWidth,
+  previewCaptionMaxWidth,
+  textOverflowsWidth,
+  PREVIEW_FONT_WEIGHT,
+  type MeasureWidth,
+} from '@/src/utils/text-metrics';
+import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
 import { LAST_RECORDING_READY_KEY } from '@/src/settings/user-preferences';
 import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
 
@@ -64,10 +78,19 @@ export interface SegmentEditorHandlers {
   onStateChange?: (state: SegmentEditorState) => void;
   onSaveEdits?: (edited: TranscriptResult) => void | Promise<void>;
   onDiscardEdits?: () => void | Promise<void>;
+  /**
+   * Live subtitle style accessor (Phase 6). Smart Split + the overflow badge
+   * measure cue text against the same font the preview uses, so the fit estimate
+   * is WYSIWYG. Optional — falls back to the default DejaVu-Sans 22px style.
+   */
+  getSubtitleStyle?: () => SubtitleStyleConfig;
 }
 
 const RECORDING_POLL_MS = 2000;
 const OOB_LABEL = '⚠ OOB';
+const OVERFLOW_LABEL = '⚠ LONG';
+const DEFAULT_CAPTION_FONT_SIZE = 22;
+const DEFAULT_CAPTION_FONT_KEY = 'dejavu-sans';
 
 function escapeHtml(text: string): string {
   return text
@@ -140,7 +163,8 @@ export function renderSubtitleSegmentEditorFields(): string {
             Adjust each cue’s text and timing. Confirm &amp; save in the main panel when you are done.
           </p>
           <p class="studio__transcript-dialog-copy popup__field-desc" style="margin-top:4px;opacity:0.65;">
-            Keep each cue to 1–2 short phrases to avoid text overflow in the baked video.
+            Keep each cue to 1–2 short phrases to avoid text overflow. A ⚠ LONG badge marks
+            cues that will trail off screen — use ✂ Split to break one into shorter timed cues.
           </p>
           <div class="studio__transcript-segments" data-transcript-segments></div>
           <button
@@ -241,6 +265,27 @@ export function mountSubtitleSegmentEditor(
   let playingSegmentIndex: number | null = null;
 
   const cuePlayer = createSegmentCuePlayer();
+
+  interface CaptionMetrics {
+    measure: MeasureWidth;
+    maxWidth: number;
+  }
+
+  // CHANGED: Phase 6 — build a width measurer matching the live subtitle style so
+  // Smart Split + the overflow badge are WYSIWYG with the preview. Burn-in renders
+  // each cue on a single line, so "needs >1 preview line" == "trails off screen in
+  // the baked video". Built once per render pass and reused across cue rows.
+  function buildCaptionMetrics(): CaptionMetrics {
+    const style = handlers?.getSubtitleStyle?.();
+    const fontSize =
+      typeof style?.fontSize === 'number' && Number.isFinite(style.fontSize)
+        ? style.fontSize
+        : DEFAULT_CAPTION_FONT_SIZE;
+    const fontFamily =
+      PREVIEW_FAMILY_FOR_KEY[style?.fontFamily ?? DEFAULT_CAPTION_FONT_KEY] ?? 'RVN-DejaVu-Sans';
+    const measure = createTextMeasurer({ fontSize, fontFamily, fontWeight: PREVIEW_FONT_WEIGHT });
+    return { measure, maxWidth: previewCaptionMaxWidth() };
+  }
 
   function computeDirty(): boolean {
     if (!edited || !savedBaseline) return false;
@@ -365,19 +410,25 @@ export function mountSubtitleSegmentEditor(
         '<p class="studio__transcript-empty">No cues yet — open the editor to add one.</p>';
       return;
     }
+    const metrics = buildCaptionMetrics();
     const lines = segments
       .map((segment) => {
         const time = formatCueRange(segment.start, segment.end);
         // CHANGED: scaffold soft-hyphen slots read as "(empty)" (v5.3 QA fix).
-        const text = escapeHtml(stripScaffoldPlaceholder(segment.text).trim() || '(empty)');
+        const stripped = stripScaffoldPlaceholder(segment.text);
+        const text = escapeHtml(stripped.trim() || '(empty)');
         const oob =
           clipDuration !== null && segmentHasOutOfBoundsEnd(segment, clipDuration)
             ? `<span class="studio__transcript-oob-badge" title="Cue end exceeds recording length">${OOB_LABEL}</span>`
             : '';
+        // CHANGED: Phase 6 — flag cues too long for one line (burn-in trails off).
+        const overflow = textOverflowsWidth(stripped, metrics.maxWidth, metrics.measure)
+          ? `<span class="studio__transcript-overflow-badge" title="Too long for one line — will trail off screen in the baked video. Open the editor and use Split.">${OVERFLOW_LABEL}</span>`
+          : '';
         return `
           <div class="studio__transcript-cue">
             <span class="studio__transcript-cue-time">${time}</span>
-            <span class="studio__transcript-cue-text">${text}${oob}</span>
+            <span class="studio__transcript-cue-text">${text}${oob}${overflow}</span>
           </div>
         `;
       })
@@ -454,14 +505,36 @@ export function mountSubtitleSegmentEditor(
     playBtn.textContent = playingSegmentIndex === index ? '■' : '▶';
   }
 
-  function syncSegmentRowUi(row: HTMLElement, index: number): void {
+  // CHANGED: Phase 6 — reflect overflow + Split availability from the row's live
+  // textarea text. A cue that won't fit one caption line shows ⚠ LONG; Split is
+  // enabled only when the text actually breaks into >1 chunk (a single over-long
+  // word can't be split without hyphenation, so Split stays disabled there).
+  function syncRowOverflowUi(row: HTMLElement, metrics: CaptionMetrics): void {
+    const textInput = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
+    const text = stripScaffoldPlaceholder(textInput?.value ?? '');
+    const overflow = textOverflowsWidth(text, metrics.maxWidth, metrics.measure);
+    const canSplit = groupWordsByWidth(text, metrics.maxWidth, metrics.measure).length > 1;
+
+    const badge = row.querySelector<HTMLElement>('[data-segment-overflow]');
+    if (badge) badge.hidden = !overflow;
+    const splitBtn = row.querySelector<HTMLButtonElement>('[data-segment-split]');
+    if (splitBtn) splitBtn.disabled = !canSplit;
+  }
+
+  function syncSegmentRowUi(
+    row: HTMLElement,
+    index: number,
+    metrics: CaptionMetrics = buildCaptionMetrics(),
+  ): void {
     syncRowOobBadge(row);
     syncPlayButtonState(row, index);
+    syncRowOverflowUi(row, metrics);
   }
 
   function renderModalSegments(): void {
     segmentsEl.innerHTML = '';
     const clipDuration = clipDurationForOob();
+    const metrics = buildCaptionMetrics();
 
     for (let index = 0; index < modalDraft.length; index += 1) {
       const segment = modalDraft[index];
@@ -481,6 +554,19 @@ export function mountSubtitleSegmentEditor(
               aria-label="Play cue audio"
               ${cuePlayer.hasSource() ? '' : 'disabled'}
             >▶</button>
+            <button
+              type="button"
+              class="studio__transcript-cue-split"
+              data-segment-split
+              aria-label="Smart split this cue into shorter timed cues"
+              title="Split this cue into shorter timed cues that each fit on screen"
+            >✂ Split</button>
+            <span
+              class="studio__transcript-overflow-badge"
+              data-segment-overflow
+              title="Too long for one line — will trail off screen in the baked video. Use Split."
+              hidden
+            >${OVERFLOW_LABEL}</span>
             <span
               class="studio__transcript-oob-badge"
               data-segment-oob
@@ -508,16 +594,17 @@ export function mountSubtitleSegmentEditor(
       // CHANGED: strip the soft-hyphen placeholder so the user types into a clean
       // textarea (not after an invisible char) — re-inserted on read if left blank.
       if (textArea) textArea.value = stripScaffoldPlaceholder(segment.text);
-      syncSegmentRowUi(row, index);
+      syncSegmentRowUi(row, index, metrics);
       segmentsEl.append(row);
     }
   }
 
   function refreshModalSegmentUi(): void {
+    const metrics = buildCaptionMetrics();
     const rows = segmentsEl.querySelectorAll<HTMLElement>('[data-segment-index]');
     rows.forEach((row) => {
       const index = Number(row.dataset.segmentIndex);
-      syncSegmentRowUi(row, Number.isFinite(index) ? index : -1);
+      syncSegmentRowUi(row, Number.isFinite(index) ? index : -1, metrics);
     });
   }
 
@@ -596,6 +683,30 @@ export function mountSubtitleSegmentEditor(
     segmentsEl.scrollTop = segmentsEl.scrollHeight;
   }
 
+  // CHANGED: Phase 6 — Smart Split. Break one long cue into shorter timed cues,
+  // each fitting a single caption line, dividing time proportionally to text length
+  // (transcript-editing.splitSegmentIntoChunks). Operates on the live DOM draft so
+  // unsaved edits to the cue are respected before splitting.
+  function splitSegmentAtIndex(index: number): void {
+    syncModalDraftFromDom();
+    const segment = modalDraft[index];
+    if (!segment) return;
+    const text = stripScaffoldPlaceholder(segment.text).trim();
+    if (!text) return;
+
+    const { measure, maxWidth } = buildCaptionMetrics();
+    const chunks = groupWordsByWidth(text, maxWidth, measure);
+    if (chunks.length <= 1) return; // already fits, or a single un-splittable word
+
+    const replacement = splitSegmentIntoChunks({ ...segment, text }, chunks);
+    modalDraft = [
+      ...modalDraft.slice(0, index),
+      ...replacement,
+      ...modalDraft.slice(index + 1),
+    ];
+    renderModalSegments();
+  }
+
   function openModal(): void {
     if (!edited) return;
     hideModalUnsavedPrompt();
@@ -665,7 +776,8 @@ export function mountSubtitleSegmentEditor(
 
   segmentsEl.addEventListener('input', (event) => {
     const target = event.target as HTMLElement;
-    if (!target.matches('[data-segment-start], [data-segment-end]')) return;
+    // CHANGED: Phase 6 — text edits also drive the overflow badge + Split state.
+    if (!target.matches('[data-segment-start], [data-segment-end], [data-segment-text]')) return;
     const row = target.closest<HTMLElement>('[data-segment-index]');
     if (!row) return;
     const index = Number(row.dataset.segmentIndex);
@@ -673,6 +785,16 @@ export function mountSubtitleSegmentEditor(
   });
 
   segmentsEl.addEventListener('click', (event) => {
+    // CHANGED: Phase 6 — Smart Split button takes precedence over the play button.
+    const splitBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-split]');
+    if (splitBtn) {
+      if (splitBtn.disabled) return;
+      const splitRow = splitBtn.closest<HTMLElement>('[data-segment-index]');
+      const splitIndex = splitRow ? Number(splitRow.dataset.segmentIndex) : NaN;
+      if (Number.isFinite(splitIndex)) splitSegmentAtIndex(splitIndex);
+      return;
+    }
+
     const playBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-segment-play]');
     if (!playBtn || playBtn.disabled) return;
     const row = playBtn.closest<HTMLElement>('[data-segment-index]');

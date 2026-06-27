@@ -1409,6 +1409,54 @@ body {
   cursor: not-allowed;
 }
 
+/* Phase 6 — Smart Split button + overflow ("too long for one line") badge. */
+.studio__transcript-cue-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 1.75rem;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--studio-teal-action-edge, #0e6b6b);
+  background: #061a1a;
+  color: var(--studio-teal-action, #2bd4d4);
+  box-shadow: 0 0 6px rgba(43, 212, 212, 0.2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.studio__transcript-cue-split:hover:not(:disabled) {
+  background: #082424;
+  border-color: var(--studio-teal-action, #2bd4d4);
+  box-shadow: 0 0 10px rgba(43, 212, 212, 0.4);
+}
+
+.studio__transcript-cue-split:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.studio__transcript-overflow-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(255, 112, 67, 0.14);
+  color: #ff8a65;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.studio__transcript-overflow-badge[hidden] {
+  display: none !important;
+}
+
 .studio__transcript-segment-times {
   display: flex;
   gap: 10px;

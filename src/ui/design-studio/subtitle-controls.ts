@@ -394,6 +394,9 @@ export function mountSubtitleControls(
   let pendingTranscriptSince = 0;
 
   const segmentEditor = mountSubtitleSegmentEditor(panel, {
+    // CHANGED: Phase 6 — give the editor the live subtitle style so Smart Split +
+    // the overflow badge measure cue text against the same font the preview uses.
+    getSubtitleStyle: () => mergeStyleFromControls(),
     onStateChange: () => {
       syncBakeButton();
       syncDraftFromEditor();
