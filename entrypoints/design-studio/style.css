@@ -739,6 +739,49 @@ body {
   min-height: 1.2em;
 }
 
+/* v5.3.1 — Live-mic voice preview ("Test with my voice") */
+.studio__mic-test-btn.is-capturing {
+  outline: 2px solid var(--studio-amber);
+  outline-offset: 1px;
+}
+
+.studio__voice-mic {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.studio__voice-meter {
+  flex: 1 1 auto;
+  height: 8px;
+  min-width: 80px;
+  border-radius: 999px;
+  background: var(--studio-amber-dim, rgba(255, 213, 79, 0.18));
+  overflow: hidden;
+}
+
+.studio__voice-meter-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--studio-amber, #ffd54f);
+  transition: width 80ms linear;
+}
+
+/* DEV PROBE (v5.3.1 §6.0) — temporary; removed before merge with the button markup. */
+.studio__mic-probe-btn {
+  margin-bottom: 6px;
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__voice-meter-fill {
+    transition: none;
+  }
+}
+
 /* Dulcet II (v5 / Branch 4) — Custom voice composer */
 .voice-composer {
   margin: 4px 0 12px;

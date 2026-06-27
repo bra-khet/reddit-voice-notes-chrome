@@ -96,12 +96,28 @@ export function startMicTestCapture(options: MicTestCaptureOptions = {}): MicTes
   let stream: MediaStream | null = null;
   let recorder: MediaRecorder | null = null;
   let autoStopTimer = 0;
+  let audioContext: AudioContext | null = null;
+  let levelRaf = 0;
   const chunks: Blob[] = [];
 
   const clearTimer = (): void => {
     if (autoStopTimer) {
       window.clearTimeout(autoStopTimer);
       autoStopTimer = 0;
+    }
+  };
+
+  /** Best-effort teardown of the level-meter AudioContext + rAF (never leaks). */
+  const stopMeter = (): void => {
+    if (levelRaf) {
+      window.cancelAnimationFrame(levelRaf);
+      levelRaf = 0;
+    }
+    if (audioContext) {
+      void audioContext.close().catch(() => {
+        /* already closed */
+      });
+      audioContext = null;
     }
   };
 
@@ -116,6 +132,7 @@ export function startMicTestCapture(options: MicTestCaptureOptions = {}): MicTes
     if (settled) return;
     settled = true;
     clearTimer();
+    stopMeter();
     try {
       if (recorder && recorder.state !== 'inactive') recorder.stop();
     } catch {
@@ -131,6 +148,7 @@ export function startMicTestCapture(options: MicTestCaptureOptions = {}): MicTes
     if (settled) return;
     settled = true;
     clearTimer();
+    stopMeter();
     stopTracks();
     const type = recorder?.mimeType || 'audio/webm';
     recorder = null;
@@ -224,11 +242,31 @@ export function startMicTestCapture(options: MicTestCaptureOptions = {}): MicTes
       controller.stop();
     }, maxDurationMs);
 
-    // TODO(Phase 1 — user contribution): drive `options.onLevel(level)` with a live
-    // RMS meter. Sketch: new AudioContext() → createMediaStreamSource(stream) →
-    // AnalyserNode → requestAnimationFrame loop computing 0..1 RMS from
-    // getFloatTimeDomainData. Tear the AudioContext + cancel the rAF down in BOTH
-    // fail() and finish() so no AudioContext leaks. Keep it cheap (reduced-motion safe).
+    // Phase 1 — live RMS level meter (0..1) for the UI. Best-effort: a meter failure
+    // must never break the capture itself. Torn down in fail()/finish() via stopMeter().
+    if (options.onLevel && stream) {
+      try {
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+        const samples = new Float32Array(analyser.fftSize);
+        const tick = (): void => {
+          if (settled || !audioContext) return;
+          analyser.getFloatTimeDomainData(samples);
+          let sumSquares = 0;
+          for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
+          const rms = Math.sqrt(sumSquares / samples.length);
+          // Speech RMS sits well below 1.0; scale with headroom and clamp.
+          options.onLevel?.(Math.min(1, rms * 2.5));
+          levelRaf = window.requestAnimationFrame(tick);
+        };
+        levelRaf = window.requestAnimationFrame(tick);
+      } catch {
+        stopMeter();
+      }
+    }
   })();
 
   return controller;
