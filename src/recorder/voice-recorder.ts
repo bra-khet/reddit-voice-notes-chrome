@@ -16,7 +16,7 @@ import {
   shouldReduceMotion,
 } from '@/src/settings/user-preferences';
 import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
-import { forkTranscribeWebm } from '@/src/transcription/transcribe-client';
+import { forkTranscribeWebm, prewarmOffscreen } from '@/src/transcription/transcribe-client';
 
 import { relaySaveSessionTranscript } from '@/src/storage/session-transcript-relay';
 import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
@@ -283,6 +283,13 @@ export class VoiceRecorderSession {
     };
 
     this.mediaRecorder.start(RECORDER_TIMESLICE_MS);
+
+    // BUG FIX: BUG-034 cold-start offscreen dispatch race
+    // Fix: warm the offscreen worker now, during recording, so it is fully loaded by the
+    //      time stopRecording dispatches transcribe + transcode together (the offscreen is
+    //      needed for both transcode and STT, so this is unconditional).
+    prewarmOffscreen();
+
     this.startedAt = Date.now();
     this.elapsedSeconds = 0;
     this.setPhase('recording', {

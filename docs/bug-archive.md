@@ -915,6 +915,40 @@ Transcode may still proceed; transcribe fork may miss `MSG_TRANSCRIBE_COMPLETE` 
 
 ---
 
+## BUG-034 (2026-06): cold-start first-recording transcribe fails as “inference-error” (offscreen dispatch race)
+
+### Symptoms
+
+- On a **fresh** offscreen session, the **first** recording's transcription fails and the Design Studio scaffolds with `reason: 'inference-error'`. The **second** and later recordings classify correctly (`no-speech`, or succeed).
+- Reproducible from cold every time: "first fire fails, then it works." Looks like Vosk cold-start flakiness but is not.
+
+### Root cause (confirmed via 3-console logs)
+
+The first `stopRecording` dispatches **transcribe** (`voice-recorder.ts` `forkTranscribe`, fire-and-forget) and **transcode** **concurrently**. On a cold start there's no offscreen document, so both race through `ensureOffscreenDocument` / `waitForOffscreenReady`:
+
+1. `pingOffscreenWorker()` returns `null` for **both** "no receiver / still loading" **and** "ready but stale stamp" — a syntactic conflation (cf. BUG-003/006 lesson).
+2. `ensureFreshOffscreenWorker()` recycled (closed) the doc on **any** non-matching pong, so the second concurrent dispatch **closed the freshly-created doc the first was still loading**.
+3. The transcribe (first dispatch) loses → `dispatchToOffscreen` throws → `relayTranscribeFailure` → generic `ok:false` → `classifyTranscribeFailure` buckets it as **`inference-error`**.
+
+Proof: clip 1's transcribe **never appears** in the offscreen log (no "job started", no model load, no `console.error`); the cold model load happens during **clip 2**; clip 1's **transcode** survives (it's the second dispatch — it recreates the doc for itself). Same race **class** as BUG-033 (burn-in vs transcribe) and BUG-032 (dispatch-failure relay) — but the **transcribe-vs-transcode cold pairing was unguarded**.
+
+### Fix (2026-06, `subtitle-qol-failure-scaffold-v1`)
+
+- **Serialize** `dispatchToOffscreen` behind an async chain (mutex) — each dispatch finishes ensure → wait-ready → send (fast; returns on ACK, not job completion) before the next begins. Jobs still run concurrently inside the offscreen via their own queues.
+- **Ping guard:** `ensureFreshOffscreenWorker` only recycles on a **non-null** pong with a mismatched stamp; a `null` (still-loading) ping is left for `waitForOffscreenReady` to poll. Stale-bundle recycling (BUG-030) is preserved there.
+- **Eager prewarm:** `MSG_OFFSCREEN_PREWARM` fired at record **start** creates the doc during recording (routed through the same dispatch chain), so it's warm + stamp-matching by stop time.
+- Removed the misdirected cold-retry in `vosk-sandbox-host.ts` (the first fire never reached the worker).
+
+### Related files
+
+- `entrypoints/background.ts` — dispatch mutex, ping guard, prewarm handler
+- `src/transcription/transcribe-client.ts` — `prewarmOffscreen()`
+- `src/recorder/voice-recorder.ts` — prewarm on `startRecording`
+- `src/messaging/types.ts` — `MSG_OFFSCREEN_PREWARM`
+- `src/transcription/vosk-sandbox-host.ts` — cold-retry removed
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.

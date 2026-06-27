@@ -46,6 +46,7 @@ import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-stu
 import { BURNIN_PIPELINE_STAMP, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
 import {
   MSG_OFFSCREEN_PING,
+  MSG_OFFSCREEN_PREWARM,
   MSG_OPEN_DESIGN_STUDIO,
   MSG_SAVE_LAST_RECORDING,
   MSG_SAVE_LAST_BASE_MP4,
@@ -509,9 +510,20 @@ function offscreenStampMatches(response: OffscreenPongResponse | null): boolean 
 
 // BUG FIX: stale offscreen bundle after extension reload (BUG-030 loop)
 // Fix: surviving offscreen docs lack current codeStamp — close and recreate before dispatch.
+// BUG FIX: BUG-034 cold-start offscreen dispatch race
+// Fix: a doc that is merely mid-load answers the ping with `null` (no receiver yet).
+//      The old code recycled on any non-matching pong, so a concurrent dispatch would
+//      CLOSE a freshly-created doc the first dispatch was still loading — silently killing
+//      its job (the cold-start "inference-error"). Only recycle when the worker IS alive
+//      but stale (a non-null pong with a mismatched stamp). A null pong means "still
+//      loading" — leave it for waitForOffscreenReady to poll. Stale bundles are still
+//      recycled there (it recycles on a ready pong with a mismatched stamp).
+// Sync: waitForOffscreenReady() retains the ready-but-stale recycle path; dispatch mutex
+//       in dispatchToOffscreen() serializes concurrent setup.
 async function ensureFreshOffscreenWorker(): Promise<void> {
   if (!(await hasOffscreenDocument())) return;
   const pong = await pingOffscreenWorker();
+  if (pong === null) return;
   if (offscreenStampMatches(pong)) return;
   await recycleOffscreenDocument();
 }
@@ -570,7 +582,30 @@ async function waitForOffscreenReady(): Promise<void> {
   throw new Error('FFmpeg offscreen worker failed to start.');
 }
 
+// BUG FIX: BUG-034 cold-start offscreen dispatch race
+// Fix: the first recording dispatches transcribe + transcode CONCURRENTLY; on a cold
+//      offscreen they interleaved through ensure/recycle and one job's doc was closed by
+//      the other's freshness check. Serialize all offscreen dispatches so each completes
+//      its ensure → wait-ready → send (fast; returns on ACK, not job completion) before
+//      the next begins. Jobs still run concurrently inside the offscreen (own queues).
+// Sync: ensureFreshOffscreenWorker() null-ping guard handles the same race defensively.
+let offscreenDispatchChain: Promise<unknown> = Promise.resolve();
+
 async function dispatchToOffscreen(
+  request: TranscodeOffscreenRequest | TranscribeOffscreenRequest | BurnInOffscreenRequest,
+): Promise<void> {
+  // Chain onto the previous dispatch regardless of whether it resolved or rejected,
+  // so one failed dispatch never wedges the queue. The caller still sees this dispatch's
+  // own outcome via `run`.
+  const run = offscreenDispatchChain.then(
+    () => dispatchToOffscreenLocked(request),
+    () => dispatchToOffscreenLocked(request),
+  );
+  offscreenDispatchChain = run.catch(() => {});
+  return run;
+}
+
+async function dispatchToOffscreenLocked(
   request: TranscodeOffscreenRequest | TranscribeOffscreenRequest | BurnInOffscreenRequest,
 ): Promise<void> {
   // BUG FIX: partial WXT HMR leaves stale subtitle-burnin chunk (BUG-030 loop)
@@ -791,6 +826,20 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
+
+      if (type === MSG_OFFSCREEN_PREWARM) {
+        // BUG FIX: BUG-034 cold-start offscreen dispatch race
+        // Fix: eagerly create the offscreen doc at record START so it is loaded +
+        //      stamp-matching by stop time. Best-effort, fire-and-forget (no response).
+        //      Routed through the SAME dispatch chain so the warm-up create serializes
+        //      with the later transcribe/transcode dispatches (no double-create race).
+        offscreenDispatchChain = offscreenDispatchChain
+          .then(() => ensureOffscreenDocument())
+          .catch((error) => {
+            console.warn('[Reddit Voice Notes] Offscreen prewarm failed (non-blocking):', error);
+          });
+        return false;
+      }
 
       if (type === MSG_OPEN_DESIGN_STUDIO) {
         void browser.tabs
