@@ -309,46 +309,97 @@ Missing blob → theme fallback; never blocks recording.
 ## 6. Section — Voice
 
 **Panel id:** `data-studio-panel="voice"`  
-**Summary:** `formatVoiceEffectSummary` — e.g. `Voice: Robot · 7/10` or `Voice: Off`.
+**Summary:** `formatVoiceEffectSummary` (graph-world) — e.g. `Incognito · 7/10`, `Custom · 9/10`, or `Off`.
 
-> ⚠️ **Stale below (6.1–6.4):** §6.1–6.4 predate the Dulcet II (v5) graph rebuild and
-> still describe the removed flat-config / Web-Audio preview world (`presetId`, pitch
-> radial, `preview-chain.ts` as a Web-Audio graph). For the **current** voice model
-> (`StylizedGraph`, the authoritative one-shot render, the dry `playProcessed` player),
-> `docs/dsp-foundation-design.md` is canonical. §6.5 (current) documents the v5.3.1
-> audition controls. A full §6 refresh is tracked separately.
+> **Canonical DSP reference:** the voice **model** — the `StylizedGraph`, its 21
+> fragment kinds / 7 categories, the FFmpeg renderer, the `-af` vs `-filter_complex`
+> split, and the two-tier preview design — lives in **`docs/dsp-foundation-design.md`**,
+> the source of truth. This section documents only the **Design Studio panel** that
+> authors and auditions a graph; it links out rather than restating DSP internals.
 
 ### 6.1 Controls inventory
 
-| Control | Data field | Persist path |
-|---------|------------|--------------|
-| Enable toggle | `voiceEffect.enabled` | Debounced `saveVoiceEffectPreferences` (250 ms) |
-| Preset select | `voiceEffect.presetId` |同上 |
-| Intensity slider | `voiceEffect.intensity` |同上 (does not force Custom — BUG-009) |
-| Turbo toggle | maps intensity to 12 |同上 |
-| Pitch radial knob | `semitoneOffset` → switches to Custom when moved |同上 |
-| Play preview / Stop | — (no persist) | — |
+A voice is **one `StylizedGraph` per profile**. The panel authors it via a **character
+chip picker** plus a **composer**, with global Intensity/Turbo layered on top. The
+*audition* controls (Last Voice Note / One-Time Test / shared Stop / mic meter) are
+documented in **§6.5** — this table is the persisted authoring surface.
+
+| Control | `data-*` | Data field | Persist path |
+|---------|----------|------------|--------------|
+| Enable toggle | `data-voice-enabled` | `voiceEffect.enabled` | Debounced `saveVoiceEffectPreferences` (`VOICE_SAVE_DEBOUNCE_MS` = 250 ms) |
+| Character chips | `data-char-chips` (one per `CHARACTER_PRESETS`) | `voiceEffect.characterPresetId` (clears `graph`) | 〃 |
+| Intensity slider (physical) | `data-voice-intensity` | `voiceEffect.intensity` | 〃 — never forces Custom; intensity only modulates the active voice |
+| Turbo toggle | `data-voice-turbo` | `voiceEffect.turbo` (maps to magic intensity `VOICE_INTENSITY_TURBO`) | 〃 |
+| Custom composer | `data-voice-composer` (mounts `voice-composer.ts`) | `voiceEffect.graph` | 〃 — first edit **forks to Custom**: materializes `graph`, clears `characterPresetId` |
+| Copy / Paste character | `data-voice-copy` / `data-voice-paste` | clipboard JSON (`rvn-voice-character-v1`) | None — Paste applies to the draft like a manual edit (lights profile dirty), never auto-saves |
+| Lock | `data-voice-lock` | transient module guard (custom voice only) | None — reset per Studio open, not persisted |
+
+The composer (`voice-composer.ts`) is a **controlled** `StylizedGraph` editor: the seven
+fragment categories as accordions, a curated **core** of high-impact effects with
+**Show advanced effects** + **Fine-tune** (per-effect strength dials) reveals, each
+fragment a toggle + 1–3 high-level sliders + a tooltip, plus **Blank slate** (clear) and
+**Reset order** (canonical re-sort). It is graph-in / graph-out only — every edit calls
+back with a normalized clone; the panel owns persistence and the seed-then-tweak wiring.
 
 ### 6.2 Semantic model
 
-- **Preview path:** `rvnLastRecording` WebM → Web Audio chain (`preview-chain.ts`) — post-capture, no transcode.
-- **Export path:** Same prefs → FFmpeg `-af` on WebM→MP4 in offscreen — failure falls back to raw audio + toast on recorder.
-- **STT input:** Transcription uses **raw** WebM clone (pre-voice-effect) for recognition quality; burn-in timing still aligns on final MP4.
+- **One voice = one `StylizedGraph`.** There is no flat `presetId` / `pitchShift` / `eq`
+  / `dynamics` / `reverb` and no pitch-radial knob — those were removed in Branch 4.
+  `VoiceEffectConfig` now carries `graph`, `characterPresetId`, and the global
+  `enabled` / `intensity` / `turbo`.
+- **Two entry points, one editor (seed-then-tweak).** Picking a character chip seeds the
+  composer with that preset's graph **for display** and stores only `characterPresetId`;
+  the **first composer edit** materializes `voiceEffect.graph` and clears the character,
+  forking the voice to Custom.
+- **Resolution is centralized.** `resolveVoiceGraph(config)` (`dsp/resolve-graph.ts`) is
+  the single source of truth: a composed `graph` wins; else the selected character builds
+  its native graph (`characterPresetGraph`); else the voice is off. Global Intensity/Turbo
+  override the graph's stored baseline at resolve time, so the panel sliders keep
+  modulating a custom voice.
+- **Preview = bake, by construction.** Both the audition (§6.5) and the live export
+  (`ffmpeg-runner.ts`) resolve through the *same* `resolveVoiceGraph` and render the *same*
+  graph (`buildStylizedGraph` → ffmpeg.wasm). The audition renders the active graph
+  **once** via `processAudioWithGraph` and plays the finished clip dry — what you hear is
+  what bakes. See `docs/dsp-foundation-design.md` § "Preview pipeline".
+- **What the effect touches.** Voice processing is an audio-track pass at transcode (`-af`
+  for linear graphs, `-filter_complex` + aux IR `-i` for parallel ones — §3.4).
+  Transcription recognizes the **raw**, pre-effect audio for recognition quality (see §7 /
+  `docs/transcription-architecture.md`).
 
-Preview reload: `LAST_RECORDING_READY_KEY` storage signal + 2 s IDB poll while Studio stays open.
+**Preview reload:** the `LAST_RECORDING_READY_KEY` storage signal + a 2 s IDB poll
+(`RECORDING_POLL_MS`) refresh the *Last Voice Note* source while the Studio stays open.
 
-### 6.3 Web Audio rule
+### 6.3 Invariants — preview fidelity & import safety
 
-AudioParam properties use `.value` assignment — never assign to the property itself (BUG-008).
+- **Never re-process a rendered clip.** `preview-chain.ts` is a **dry** player
+  (`playProcessed` → a plain `<audio>` element); there is no Web-Audio effect chain. The
+  blob it plays already went through the full graph in ffmpeg.wasm and is authoritative.
+- **Single master playback.** One `VoicePreviewHandle`; `playProcessed` calls `stop()`
+  first, so only one rendered clip plays at a time and the shared Stop button governs it.
+- **Non-destructive.** A disabled / no-op graph (`mode: 'none'`) or any ffmpeg failure
+  returns the input unchanged — the audition falls back to the original audio (and the
+  live export to raw audio + a recorder toast).
+- **WASM stays out of the panel's initial load.** The `@/src/voice/dsp` barrel is
+  **WASM-free** (pure data + string emitters), so the Studio imports it directly;
+  `processAudioWithGraph` is **lazy-imported** (`await import('@/src/voice/process-audio')`)
+  only when an audition runs. Do **not** import the `@/src/voice` barrel from the panel —
+  it pulls ffmpeg via `process-audio`.
 
 ### 6.4 Module map
 
 | File | Role |
 |------|------|
-| `voice-controls.ts` | UI + preview player |
-| `src/voice/preview-chain.ts` | Web Audio graph |
-| `src/voice/resolve-config.ts` | Intensity scaling, preset resolution |
-| `src/storage/last-recording-db.ts` | Preview source blob |
+| `voice-controls.ts` | Voice panel: enable / intensity / turbo, character chips, composer host, audition buttons, prefs debounce + `flushPersist` |
+| `voice-composer.ts` | Controlled `StylizedGraph` editor (categories, core / advanced / fine-tune, per-fragment toggles + sliders, Blank slate / Reset order) |
+| `src/voice/dsp/` (barrel) | **WASM-free** fragment model, renderer, `buildStylizedGraph`, `resolveVoiceGraph`, `CHARACTER_PRESETS` — canonical: `docs/dsp-foundation-design.md` |
+| `src/voice/dsp/resolve-graph.ts` | `resolveVoiceGraph` — config → graph (one source of truth for preview + export) |
+| `src/voice/dsp/preset-graphs.ts` | `CHARACTER_PRESETS` + `characterPresetGraph` (native graphs behind the chips) |
+| `src/voice/process-audio.ts` | `processAudioWithGraph` — one-shot render of a graph through ffmpeg.wasm (`-af` / `-filter_complex`); lazy-loaded |
+| `src/voice/preview-chain.ts` | **Dry** rendered-clip player (`playProcessed`) — no Web Audio |
+| `src/voice/voice-summary.ts` | `formatVoiceEffectSummary` (graph-world card summary) |
+| `src/voice/resolve-config.ts` | `voiceEffectUserIntentKey` / `voiceEffectConfigsEqual` — stable, id-independent voice-intent key for profile dirty-checks (no longer "preset resolution") |
+| `src/voice/mic-test-capture.ts` | One-Time Test live-mic capture — imports no storage (see §6.5) |
+| `src/storage/last-recording-db.ts` | Preview source blob (Last Voice Note) |
 
 ### 6.5 Voice audition controls — current (v5.3.1)
 
