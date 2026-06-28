@@ -137,7 +137,18 @@ footer.foot {
   font-size: 0.78rem;
 }
 
-/* --- Studio placeholder card (Phases 1–5 fill this in) --- */
+.studio-intro {
+  max-width: 65ch;
+  color: var(--studio-text-muted);
+  font-size: 0.92rem;
+  margin: 0 0 1.5rem;
+}
+.studio-intro em {
+  color: var(--studio-amber);
+  font-style: normal;
+}
+
+/* --- Studio placeholder card (unused after Phase 2; kept for reference) --- */
 .studio-main {
   padding: 1.5rem 1.25rem 4rem;
   max-width: 980px;
