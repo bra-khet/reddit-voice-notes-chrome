@@ -1,5 +1,6 @@
 /* Orientation hub entry (Phase 0 placeholder). Content is static HTML; JS only
  * pulls in the styles and stamps the footer year. */
+import '../styles/fonts.css';
 import '../styles/tokens.css';
 import '../styles/base.css';
 

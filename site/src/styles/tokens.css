@@ -2,9 +2,8 @@
  * Design tokens — ported subset of the extension's studio-palette.css.
  * CVD-friendly indigo → amber (Cividis) axis; do NOT introduce off-axis hues.
  *
- * Phase 0 uses a system display-font stack so there are no font 404s. The
- * extension's self-hosted display face (Chakra Petch) can be copied into
- * site/public/assets/fonts/ in a later polish phase (Phase 5/7) and wired here.
+ * The display face (Chakra Petch) is self-hosted in styles/fonts.css (Phase 5);
+ * --studio-font-display below uses it with a system-stack fallback for swap.
  */
 :root {
   /* Surfaces */

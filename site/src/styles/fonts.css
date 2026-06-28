@@ -1,0 +1,20 @@
+/*
+ * Self-hosted display face — Chakra Petch (the extension's studio font).
+ *
+ * Phase 5 polish: previously tokens.css fell back to a system stack so there
+ * were no font 404s. The woff2 is vendored under src/assets/fonts/ (NOT public/)
+ * on purpose — Vite fingerprints and rewrites this url() with the correct Pages
+ * base (/reddit-voice-notes-chrome/), so it resolves in dev and on the deployed
+ * gh-pages root without hand-managed BASE_URL paths.
+ *
+ * Only Bold (700) is shipped: every display-font element in the studio (titles,
+ * wordmark, chip labels) renders at 700, so SemiBold would be dead weight. Add a
+ * second @font-face here only if a real SemiBold tier is introduced.
+ */
+@font-face {
+  font-family: 'Chakra Petch';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/ChakraPetch-Bold.woff2') format('woff2');
+}

@@ -1,6 +1,7 @@
 /* Voice Studio entry. Mounts the themed nav banner + the voice authoring panel,
  * the copy/paste transfer block (Phase 4), and session restore. Audition
  * (Phase 3) mounts into the panel's audition slot. */
+import '../styles/fonts.css';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/nav-banner.css';
