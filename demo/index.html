@@ -3,61 +3,152 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Reddit Voice Notes — Orientation</title>
+    <title>Reddit Voice Notes</title>
     <meta
       name="description"
-      content="Create and test character voices for Reddit Voice Notes — a faithful, install-free demo of the extension's Design Studio Voice panel."
+      content="Shape your voice, capture your story. Reddit Voice Notes adds expressive, character-driven audio to Reddit — a browser extension with a built-in Design Studio. No install required to try it."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <!--
-      WIP / FUTURE FEATURE (Phase 6): This Orientation hub is a Phase-0 PLACEHOLDER.
-      The full 3-phase workflow explainer, "why use the demo", tutorial links, and
-      the copy/paste voice-transfer guide are written in Phase 6.
-      See docs/static-voice-studio-design.md §3 and §7.
-    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <main class="page hub">
+
+      <!-- Brand mark -->
       <header class="hub__head">
-        <!-- Inlined mic-wave mark (Design Studio v4 asset) — avoids any asset-path concerns on the hub. -->
-        <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
-          <g fill="#ffd54f" stroke="#8a6f1a" stroke-width="0.5">
-            <rect x="12" y="6" width="8" height="14" rx="3" />
-            <rect x="15" y="20" width="2" height="8" />
-            <rect x="11" y="26" width="10" height="2" rx="1" />
-            <path d="M22 10 Q25 14 22 18" fill="none" stroke="#ffd54f" stroke-width="1.5" />
-            <path d="M25 8 Q29 14 25 20" fill="none" stroke="#ffd54f" stroke-width="1" />
+        <svg width="36" height="36" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="1" y="1" width="30" height="30" rx="7" fill="#1d1f6e" stroke="#8a6f1a" stroke-width="0.75"/>
+          <g fill="#ffd54f" stroke="#8a6f1a" stroke-width="0.4">
+            <rect x="12" y="6" width="8" height="14" rx="3"/>
+            <rect x="15" y="20" width="2" height="8"/>
+            <rect x="11" y="26" width="10" height="2" rx="1"/>
+            <path d="M22 10 Q25 14 22 18" fill="none" stroke="#ffd54f" stroke-width="1.5"/>
+            <path d="M25 8 Q29 14 25 20" fill="none" stroke="#ffd54f" stroke-width="1"/>
           </g>
         </svg>
         <span>
           <p class="hub__title">Reddit Voice Notes</p>
-          <p class="hub__sub">Orientation</p>
+          <p class="hub__sub">v5.3.3 · Dulcet II</p>
         </span>
       </header>
 
-      <h1>Create a character voice — no install required</h1>
-      <p class="hub__lede">
-        A faithful, browser-only demo of the extension's Design Studio Voice panel.
-        Build a character voice, test it on a sample clip or with your own mic, then
-        copy it straight into the extension (or paste one out). Nothing is installed;
-        nothing is stored on a server.
-      </p>
+      <!-- Hero -->
+      <div class="hub__hero">
+        <p class="hub__eyebrow">A Chromium browser extension</p>
+        <h1>Give your voice<br><span class="hub__accent">a character.</span></h1>
+        <p class="hub__lede">
+          Post expressive, private voice notes on Reddit — with a built-in
+          Design Studio for shaping pitch, timbre, and ambience before you post.
+          Everything runs on your machine; no audio ever leaves it.
+        </p>
+        <div class="hub__wave" aria-hidden="true">
+          <span style="--d:0s"></span>
+          <span style="--d:.10s"></span>
+          <span style="--d:.20s"></span>
+          <span style="--d:.05s"></span>
+          <span style="--d:.15s"></span>
+          <span style="--d:.25s"></span>
+          <span style="--d:.08s"></span>
+          <span style="--d:.18s"></span>
+        </div>
+      </div>
 
-      <ul class="hub__phases">
-        <li><b>1 · Design</b> — shape a voice in the Studio</li>
-        <li><b>2 · Capture</b> — record on Reddit</li>
-        <li><b>3 · Polish &amp; bake</b> — finish back in the Studio</li>
-      </ul>
+      <!-- 3-Phase Creative Workflow -->
+      <section class="hub__workflow" aria-labelledby="hub-workflow-h">
+        <p class="hub__section-eyebrow" id="hub-workflow-h">3-Phase Creative Workflow</p>
+        <div class="hub__phaserail">
+          <article class="hub__phasecard hub__phasecard--studio">
+            <span class="hub__phase-n">01 · Design</span>
+            <h2 class="hub__phase-t">Voice Studio</h2>
+            <p class="hub__phase-d">Shape pitch, timbre, room presence, and texture. Hear every change in the live preview before you record.</p>
+          </article>
+          <span class="hub__phase-arrow" aria-hidden="true">→</span>
+          <article class="hub__phasecard hub__phasecard--reddit">
+            <span class="hub__phase-n">02 · Capture</span>
+            <h2 class="hub__phase-t">On Reddit</h2>
+            <p class="hub__phase-d">Record your note on any thread. The extension captures and processes audio entirely on-device.</p>
+          </article>
+          <span class="hub__phase-arrow" aria-hidden="true">→</span>
+          <article class="hub__phasecard hub__phasecard--studio">
+            <span class="hub__phase-n">03 · Polish</span>
+            <h2 class="hub__phase-t">Back in Studio</h2>
+            <p class="hub__phase-d">Fine-tune the final render. Bake to MP4 and post — nothing leaves your machine until you choose to share.</p>
+          </article>
+        </div>
+      </section>
 
-      <a class="cta" href="studio/">Open Voice Studio Demo →</a>
+      <!-- Two destinations -->
+      <section class="hub__destinations" aria-labelledby="hub-dest-h">
+        <p class="hub__section-eyebrow" id="hub-dest-h">Choose your starting point</p>
+        <div class="hub__dest-grid">
 
-      <p class="wip-note">
-        This orientation hub is a work in progress — the full workflow guide,
-        tutorial links, and voice-transfer how-to arrive in a later phase.
-      </p>
+          <article class="hub__dest hub__dest--tutorial">
+            <header class="hub__dest-head">
+              <svg class="hub__dest-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="4" y="2" width="16" height="20" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 7h8M8 11h8M8 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <div>
+                <h2 class="hub__dest-name">Field Guide</h2>
+                <p class="hub__dest-tag">Interactive tutorial</p>
+              </div>
+            </header>
+            <p class="hub__dest-desc">
+              The complete workflow from cold install to your first posted voice note.
+              Covers the Design Studio in depth, friction points, power-user techniques,
+              and the reasoning behind every design decision.
+            </p>
+            <ul class="hub__dest-features">
+              <li>Install paths — packed &amp; unpacked</li>
+              <li>Voice panel deep-dive</li>
+              <li>3-phase workflow mental model</li>
+            </ul>
+            <a class="hub__dest-cta" href="tutorial/">Open Field Guide →</a>
+          </article>
+
+          <article class="hub__dest hub__dest--studio">
+            <header class="hub__dest-head">
+              <svg class="hub__dest-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2 12h2M20 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M6 8v8M10 5v14M14 9v6M18 7v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <div>
+                <h2 class="hub__dest-name">Voice Studio</h2>
+                <p class="hub__dest-tag">No-install demo</p>
+              </div>
+            </header>
+            <p class="hub__dest-desc">
+              The extension's Design Studio Voice panel, live in your browser.
+              Shape a voice, audition it on a sample clip or your own mic,
+              then copy the profile straight into the extension.
+            </p>
+            <ul class="hub__dest-features">
+              <li>WYSIWYG voice shaping</li>
+              <li>Live FFmpeg render preview</li>
+              <li>Copy / paste voice profiles</li>
+            </ul>
+            <a class="hub__dest-cta hub__dest-cta--primary" href="studio/">Open Voice Studio →</a>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- Project links -->
+      <nav class="hub__links" aria-label="Project resources">
+        <a class="hub__link" href="https://github.com/bra-khet/reddit-voice-notes-chrome" target="_blank" rel="noopener noreferrer">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12c0-5.523-4.477-10-10-10z"/></svg>
+          GitHub
+        </a>
+        <span class="hub__link-sep" aria-hidden="true">·</span>
+        <a class="hub__link" href="https://github.com/bra-khet/reddit-voice-notes-chrome/releases" target="_blank" rel="noopener noreferrer">Release notes</a>
+        <span class="hub__link-sep" aria-hidden="true">·</span>
+        <a class="hub__link" href="https://github.com/bra-khet/reddit-voice-notes-chrome#installation" target="_blank" rel="noopener noreferrer">Install instructions</a>
+      </nav>
 
       <footer class="foot">
-        100% separate from the extension — own origin, no shared storage.
+        100% browser-only — audio never leaves your machine.
         &copy; <span data-year>2026</span> Reddit Voice Notes.
       </footer>
     </main>

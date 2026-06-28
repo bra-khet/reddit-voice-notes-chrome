@@ -48,16 +48,6 @@
   gap: 0.4rem;
 }
 
-/* WIP badge — remove when the real Orientation page ships (Phase 6). */
-.nav-banner__wip {
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  padding: 0.05rem 0.35rem;
-  color: var(--studio-bg-deep);
-  background: var(--studio-warning);
-  border-radius: 4px;
-}
 
 .nav-banner__wordmark {
   display: inline-flex;
