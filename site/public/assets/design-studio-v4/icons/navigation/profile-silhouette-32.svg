@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
+/*
+  Design Studio v4 — Profile silhouette (32px) for profile/status cluster
+*/
+  <defs>
+    <linearGradient id="profilePlate" gradientTransform="rotate(135)" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a3a5a"/>
+      <stop offset="50%" stop-color="#1d1f6e"/>
+      <stop offset="100%" stop-color="#12001f"/>
+    </linearGradient>
+  </defs>
+  <circle cx="16" cy="16" r="14" fill="url(#profilePlate)" stroke="#0a0014" stroke-width="1.5"/>
+  <circle cx="16" cy="13" r="5" fill="#ffd54f" stroke="#8a6f1a" stroke-width="0.75"/>
+  <path d="M8 26 C8 21 11 18 16 18 C21 18 24 21 24 26" fill="#ffd54f" stroke="#8a6f1a" stroke-width="0.75" stroke-linejoin="round"/>
+</svg>

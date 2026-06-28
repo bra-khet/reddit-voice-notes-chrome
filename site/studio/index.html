@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Static Voice Studio — Reddit Voice Notes</title>
+    <meta
+      name="description"
+      content="Build and audition character voices in the browser, then copy them into the Reddit Voice Notes extension. A faithful static demo of the Design Studio Voice panel."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!--
+      The header below is mounted by src/studio/nav-banner.ts.
+      WIP / FUTURE FEATURE: it anticipates an Orientation index page (Phase 6).
+      See docs/static-voice-studio-design.md §7.
+    -->
+  </head>
+  <body>
+    <header data-nav-banner></header>
+
+    <main class="studio-main">
+      <p class="studio-intro">
+        Build a character voice below — it runs the exact graph resolver and renderer as the
+        extension, so what you hear is what bakes. Expand <em>“what bakes”</em> to see the live
+        FFmpeg filter graph.
+      </p>
+      <section data-voice-panel></section>
+    </main>
+
+    <script type="module" src="/src/studio/main.ts"></script>
+  </body>
+</html>

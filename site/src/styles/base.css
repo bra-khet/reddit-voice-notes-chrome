@@ -1,0 +1,181 @@
+/* Base layout + shared chrome for the static studio (Phase 0). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--studio-font-sans);
+  color: var(--studio-text);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #241a4a 0%, transparent 60%),
+    var(--studio-bg-deep);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--studio-amber);
+}
+
+:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+}
+
+/* --- WIP banner: this whole surface is a work in progress (Phase 0). --- */
+.wip-note {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 1.25rem 0;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--studio-warning);
+  background: rgba(255, 184, 77, 0.08);
+  border: 1px solid rgba(255, 184, 77, 0.35);
+  border-radius: 8px;
+}
+.wip-note::before {
+  content: '🚧';
+  font-size: 1rem;
+}
+
+/* --- Primary CTA (themed amber pill) --- */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.2rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  color: var(--studio-bg-deep);
+  background: linear-gradient(180deg, var(--studio-amber) 0%, var(--studio-amber-action) 100%);
+  border: 1px solid var(--studio-amber-edge);
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgba(255, 213, 79, 0.25);
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px rgba(255, 213, 79, 0.35);
+}
+
+/* --- Hub (orientation placeholder) --- */
+.hub__head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 2rem;
+}
+.hub__head svg {
+  flex: none;
+}
+.hub__title {
+  margin: 0;
+  font-family: var(--studio-font-display);
+  font-size: 1.1rem;
+  letter-spacing: var(--studio-letter-label);
+  text-transform: uppercase;
+}
+.hub__sub {
+  color: var(--studio-text-muted);
+  font-size: 0.8rem;
+}
+.hub h1 {
+  font-family: var(--studio-font-display);
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1.15;
+  margin: 0 0 0.75rem;
+}
+.hub__lede {
+  color: var(--studio-text-muted);
+  font-size: 1.02rem;
+  max-width: 60ch;
+}
+.hub__phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.25rem 0 2rem;
+  padding: 0;
+  list-style: none;
+}
+.hub__phases li {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--studio-text-muted);
+  background: var(--studio-surface-raised);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 999px;
+}
+.hub__phases b {
+  color: var(--studio-text);
+}
+
+footer.foot {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--studio-hairline);
+  color: var(--studio-text-muted);
+  font-size: 0.78rem;
+}
+
+.studio-intro {
+  max-width: 65ch;
+  color: var(--studio-text-muted);
+  font-size: 0.92rem;
+  margin: 0 0 1.5rem;
+}
+.studio-intro em {
+  color: var(--studio-amber);
+  font-style: normal;
+}
+
+/* --- Studio placeholder card (unused after Phase 2; kept for reference) --- */
+.studio-main {
+  padding: 1.5rem 1.25rem 4rem;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.placeholder-card {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: var(--studio-surface-raised);
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 12px;
+}
+.placeholder-card h2 {
+  margin-top: 0;
+  font-family: var(--studio-font-display);
+}
+.placeholder-card ol {
+  color: var(--studio-text-muted);
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.placeholder-card li + li {
+  margin-top: 0.3rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta {
+    transition: none;
+  }
+}

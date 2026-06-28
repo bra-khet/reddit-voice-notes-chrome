@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reddit Voice Notes — Orientation</title>
+    <meta
+      name="description"
+      content="Create and test character voices for Reddit Voice Notes — a faithful, install-free demo of the extension's Design Studio Voice panel."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!--
+      WIP / FUTURE FEATURE (Phase 6): This Orientation hub is a Phase-0 PLACEHOLDER.
+      The full 3-phase workflow explainer, "why use the demo", tutorial links, and
+      the copy/paste voice-transfer guide are written in Phase 6.
+      See docs/static-voice-studio-design.md §3 and §7.
+    -->
+  </head>
+  <body>
+    <main class="page hub">
+      <header class="hub__head">
+        <!-- Inlined mic-wave mark (Design Studio v4 asset) — avoids any asset-path concerns on the hub. -->
+        <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
+          <g fill="#ffd54f" stroke="#8a6f1a" stroke-width="0.5">
+            <rect x="12" y="6" width="8" height="14" rx="3" />
+            <rect x="15" y="20" width="2" height="8" />
+            <rect x="11" y="26" width="10" height="2" rx="1" />
+            <path d="M22 10 Q25 14 22 18" fill="none" stroke="#ffd54f" stroke-width="1.5" />
+            <path d="M25 8 Q29 14 25 20" fill="none" stroke="#ffd54f" stroke-width="1" />
+          </g>
+        </svg>
+        <span>
+          <p class="hub__title">Reddit Voice Notes</p>
+          <p class="hub__sub">Orientation</p>
+        </span>
+      </header>
+
+      <h1>Create a character voice — no install required</h1>
+      <p class="hub__lede">
+        A faithful, browser-only demo of the extension's Design Studio Voice panel.
+        Build a character voice, test it on a sample clip or with your own mic, then
+        copy it straight into the extension (or paste one out). Nothing is installed;
+        nothing is stored on a server.
+      </p>
+
+      <ul class="hub__phases">
+        <li><b>1 · Design</b> — shape a voice in the Studio</li>
+        <li><b>2 · Capture</b> — record on Reddit</li>
+        <li><b>3 · Polish &amp; bake</b> — finish back in the Studio</li>
+      </ul>
+
+      <a class="cta" href="studio/">Open Voice Studio Demo →</a>
+
+      <p class="wip-note">
+        This orientation hub is a work in progress — the full workflow guide,
+        tutorial links, and voice-transfer how-to arrive in a later phase.
+      </p>
+
+      <footer class="foot">
+        100% separate from the extension — own origin, no shared storage.
+        &copy; <span data-year>2026</span> Reddit Voice Notes.
+      </footer>
+    </main>
+    <script type="module" src="/src/hub/main.ts"></script>
+  </body>
+</html>

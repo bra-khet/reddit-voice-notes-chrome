@@ -1,0 +1,28 @@
+{
+  /*
+   * Strictness mirrors the extension's tsconfig (.wxt/tsconfig.json: strict, but
+   * no noUnusedLocals / verbatimModuleSyntax) so the 10 verbatim-ported voice
+   * modules under src/voice and src/settings compile UNCHANGED. Do not add flags
+   * stricter than the extension's here — it would force forking the ported files
+   * and break the "delta-port = file copy" guarantee.
+   */
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* "@/*" -> site root, matching the extension's alias so ported modules copy verbatim. */
+    "baseUrl": ".",
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": ["src"]
+}
