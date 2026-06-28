@@ -6,9 +6,11 @@ import '../styles/base.css';
 import '../styles/nav-banner.css';
 import '../styles/voice-panel.css';
 import '../styles/transfer.css';
+import '../styles/audition.css';
 import { mountNavBanner } from './nav-banner';
 import { mountVoicePanel } from './voice-panel';
 import { mountTransfer } from './transfer';
+import { mountAudition } from './audition';
 import { loadLastVoice, saveLastVoice } from './session-store';
 
 const navHost = document.querySelector<HTMLElement>('[data-nav-banner]');
@@ -24,6 +26,9 @@ if (panelHost) {
 
   // Copy / Paste voice transfer (rvn-voice-character-v1).
   mountTransfer(panel.transferSlot, panel);
+
+  // Audition: render the active voice via ffmpeg.wasm (mic test + upload).
+  mountAudition(panel.auditionSlot, panel);
 
   // Persist the live voice locally (debounced) so a refresh keeps your work.
   let saveTimer = 0;

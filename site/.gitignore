@@ -2,3 +2,5 @@
 # The site is published to the gh-pages branch root via `npm run publish:pages`.
 node_modules/
 dist/
+# Vendored ffmpeg.wasm core (~30 MB) — produced from node_modules by scripts/copy-ffmpeg-core.mjs
+public/assets/ffmpeg/

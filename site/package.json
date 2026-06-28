@@ -6,12 +6,20 @@
   "description": "Static GitHub Pages companion for reddit-voice-notes-chrome — a faithful, install-free demo of the Design Studio Voice panel. 100% separate from the extension (own build, own origin, no shared storage).",
   "scripts": {
     "dev": "vite",
+    "vendor:ffmpeg": "node scripts/copy-ffmpeg-core.mjs",
+    "prebuild": "npm run vendor:ffmpeg",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "smoke": "esbuild scripts/smoke.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/smoke.mjs && node node_modules/.cache/smoke.mjs",
-    "publish:pages": "node scripts/publish-pages.mjs"
+    "publish:pages": "node scripts/publish-pages.mjs",
+    "postinstall": "npm run vendor:ffmpeg"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2"
   },
   "devDependencies": {
+    "@ffmpeg/core": "^0.12.10",
     "typescript": "^5.9.3",
     "vite": "^6.0.0"
   }
