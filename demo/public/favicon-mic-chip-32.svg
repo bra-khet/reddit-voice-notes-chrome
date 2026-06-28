@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a081f"/>
+      <stop offset="100%" stop-color="#1a1535"/>
+    </linearGradient>
+    
+    <linearGradient id="micGradient" x1="0%" y1="10%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd54f"/>
+      <stop offset="45%" stop-color="#ffd54f"/>
+      <stop offset="100%" stop-color="#ffd54f"/>
+    </linearGradient>
+    
+    <linearGradient id="borderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <linearGradient id="highlightGrad" x1="0%" y1="0%" x2="0%" y2="40%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  
+  <rect 
+    x="28" y="28" 
+    width="456" height="456" 
+    rx="92" ry="92" 
+    fill="url(#bgGradient)" 
+    stroke="url(#borderGradient)" 
+    stroke-width="14"
+  />
+  
+  <rect 
+    x="52" y="52" 
+    width="408" height="408" 
+    rx="72" ry="72" 
+    fill="none" 
+    stroke="#fcd34d" 
+    stroke-width="3" 
+    stroke-opacity="0.25"
+  />
+  
+  <rect 
+    x="52" y="52" 
+    width="408" height="120" 
+    rx="72" ry="72" 
+    fill="url(#highlightGrad)"
+  />
+  
+  <rect 
+    x="192" y="96" 
+    width="128" height="224" 
+    rx="48" ry="48" 
+    fill="url(#micGradient)"
+    filter="url(#softGlow)"
+  />
+  
+  <rect 
+    x="208" y="112" 
+    width="96" height="16" 
+    rx="8" ry="8" 
+    fill="#ffffff" 
+    fill-opacity="0.15"
+  />
+  
+  <rect 
+    x="240" y="320" 
+    width="32" height="128" 
+    fill="#ffd54f"
+  />
+  
+  <rect 
+    x="176" y="416" 
+    width="160" height="32" 
+    rx="16" ry="16" 
+    fill="#ffd54f"
+  />
+  
+  <path 
+    d="M 352 160 Q 400 224 352 288" 
+    fill="none" 
+    stroke="#ffd54f" 
+    stroke-width="24" 
+    stroke-linecap="square" 
+    stroke-opacity="0.85"
+  />
+  
+  <path 
+    d="M 400 128 Q 464 224 400 320" 
+    fill="none" 
+    stroke="#ffd54f" 
+    stroke-width="16" 
+    stroke-linecap="square" 
+    stroke-opacity="0.70"
+  />
+  
+
+</svg>
