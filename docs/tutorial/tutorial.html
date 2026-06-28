@@ -383,6 +383,16 @@
   .reset-link { background: none; border: none; color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 0; }
   .reset-link:hover { color: var(--amber); }
 
+  /* Topbar link to the no-install Voice Studio demo */
+  .studio-nav-link {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    color: var(--text-muted); text-decoration: none; white-space: nowrap;
+    padding: 4px 9px; border-radius: 999px; border: 1px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .studio-nav-link:hover { color: var(--cyan); border-color: rgba(94,200,232,0.35); text-decoration: none; }
+  @media (max-width: 480px) { .studio-nav-link { display: none; } }
+
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
   /* Boot reveal + motion safety. Hidden state is gated behind html.js so the page is
@@ -412,6 +422,8 @@
       <span class="brand__name">Reddit Voice Notes <span>· Field Guide</span></span>
     </div>
 
+    <a href="https://bra-khet.github.io/reddit-voice-notes-chrome/studio/" class="studio-nav-link" target="_blank" rel="noopener noreferrer" title="No-install Voice Studio demo — same DSP engine as the extension">Voice Studio ↗</a>
+
     <div class="context-chip" id="ctxChip" data-ctx="setup" role="status" aria-live="polite">
       <span class="context-chip__dot" aria-hidden="true"></span>
       <span id="ctxLabel">Setup</span>
@@ -428,7 +440,7 @@
 
 <!-- ── Hero ── -->
 <div class="hero wrap reveal">
-  <p class="eyebrow">A hands-on field guide · v5.0.0 “Dulcet II”</p>
+  <p class=”eyebrow”>A hands-on field guide · v5.3.3 “Dulcet II”</p>
   <h1>Post an <span class="accent">expressive, private</span> voice note on Reddit.</h1>
   <p class="lede">
     Reddit Voice Notes records short voice comments right inside Reddit’s comment box and exports
@@ -590,7 +602,7 @@
           <span class="step__n">1</span>
           <div class="step__body">
             <h4>Unzip the build</h4>
-            <p>Unzip <span class="ui">reddit-voice-notes-5.0.0-chrome.zip</span> to a folder you’ll keep
+            <p>Unzip <span class="ui">reddit-voice-notes-5.3.3-chrome.zip</span> to a folder you’ll keep
             (the extension loads from this folder, so don’t delete it afterward). The zip is roughly
             <strong>57 MB</strong> — it bundles the Vosk speech model, fonts, and the FFmpeg WASM core.</p>
           </div>
@@ -724,6 +736,24 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       <p>When the look is set, use the banner’s <span class="ui--btn ui">Switch to Reddit →</span> button. The banner’s
       guidance reads <span class="ui--status ui">Design saved — switch to your Reddit tab and hit Record.</span> and the
       workflow advances to Phase 2.</p>
+
+      <details class="disc">
+        <summary>◆ Also available: no-install Voice Studio demo</summary>
+        <div class="disc__body">
+          <p>Before recording your first clip, you can explore and audition character voices at the
+          <a href="https://bra-khet.github.io/reddit-voice-notes-chrome/studio/" target="_blank" rel="noopener noreferrer">Voice Studio demo ↗</a>
+          — no extension, no install. It replicates the extension’s Voice panel with the same
+          character chips, Intensity/Turbo controls, the StylizedGraph composer, and a live-mic
+          <span class="ui--btn ui">One-Time Test</span> button.</p>
+          <p>Because it ports the extension’s DSP modules verbatim, the rendered audio is byte-identical to what
+          bakes in the extension. Build a voice there, copy it via the
+          <span class="ui">rvn-voice-character-v1</span> clipboard format, and paste it into the extension’s Voice
+          panel — or copy a voice out of the extension and paste it into the demo to share or iterate.</p>
+          <p class="muted" style="margin-bottom:0">Voice panel only. Bar style, Background, and Subtitle settings live
+          in the extension. First load downloads ~30 MB of FFmpeg WASM (local rendering — same privacy model as the
+          extension). Subsequent loads use the browser cache.</p>
+        </div>
+      </details>
 
       <div class="done-row">
         <input type="checkbox" id="chk-p1" class="step-check" />
@@ -906,24 +936,47 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       Turbo is driving). Higher intensity = a more extreme version of the same character — it doesn’t switch effects, it
       scales them.</p>
 
-      <h3>Hear it: Test character voice</h3>
-      <p>Click <span class="ui--btn ui">Test character voice</span>. It renders your <em>active</em> graph through the
-      real exporter on your last recording, then plays the result (the button reads <span class="ui">Rendering…</span>,
-      then offers <span class="ui">Stop</span>).</p>
+      <h3>Hear it: two audition buttons, one source of truth</h3>
+      <p>The Voice panel has two audition buttons that share a single <span class=”ui”>Stop</span> button and a single
+      rendering path. Both feed the <em>same</em> <code>resolveVoiceGraph</code> → FFmpeg chain as the final export —
+      what you hear is what bakes:</p>
 
-      <div class="note note--why">
-        <p class="note__h">▸ Why this matters — WYSIWYG, for audio</p>
-        <p style="margin-bottom:0">The Test button and the final export run the <em>same</em> graph through the
-        <em>same</em> renderer. <strong>What you hear is what bakes</strong> — there’s no separate “preview-quality”
-        approximation that drifts from the export. The trade-off is honest: the first Test spins up FFmpeg (~32 MB) and
-        costs a few seconds. The product’s stance: you’ll happily wait a moment for a true test.</p>
+      <div class=”table-wrap”>
+        <table>
+          <thead><tr><th>Button</th><th>Input source</th><th>Stored?</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class=”ui--btn ui”>Last Voice Note</span></td>
+              <td>Your last Reddit recording (<code>rvnLastRecording</code>)</td>
+              <td>No — reads IDB only</td>
+            </tr>
+            <tr>
+              <td><span class=”ui--btn ui”>One-Time Test</span></td>
+              <td>A fresh live-mic capture (~10 s) — captured right now in the Studio</td>
+              <td><strong>Never.</strong> Transient, in-memory only. Cannot overwrite your last recording.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
-      <div class="note note--warn">
-        <p class="note__h">⚠ Test needs a recording to chew on</p>
-        <p style="margin-bottom:0">Voice preview auditions your <em>last recording</em>, so it only works once you’ve
-        recorded at least once in this browser session. No recording yet? Do a quick Phase 2 take first, then come back —
-        the Studio picks it up automatically while it’s open.</p>
+      <p>While capturing (One-Time Test), a live level meter shows mic input and the shared button reads
+      <span class=”ui”>Stop &amp; render</span>. While rendering, the initiating button reads
+      <span class=”ui”>Rendering…</span>. The single <span class=”ui”>Stop</span> governs both.</p>
+
+      <div class=”note note--why”>
+        <p class=”note__h”>▸ Why this matters — WYSIWYG, for audio</p>
+        <p style=”margin-bottom:0”>Both buttons and the final export route through the <em>same</em>
+        <code>processAudioWithGraph</code> (ffmpeg.wasm) renderer. <strong>What you hear is what bakes.</strong>
+        There’s no separate “preview-quality” approximation. The first render spins up FFmpeg (~32 MB) once per session;
+        subsequent tests are fast.</p>
+      </div>
+
+      <div class=”note note--warn”>
+        <p class=”note__h”>⚠ No recording yet?</p>
+        <p style=”margin-bottom:0”>With no saved recording, <span class=”ui--btn ui”>Last Voice Note</span> is
+        de-emphasized — use <span class=”ui--btn ui”>One-Time Test</span> instead. It captures a fresh mic sample
+        right here in the Studio (never stored), so you can audition character voices before ever going to Reddit.
+        The Studio prompts once for mic permission on its own origin.</p>
       </div>
 
       <details class="disc">
@@ -953,11 +1006,13 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
           press-and-hold steppers. It multiplies that one stage’s strength at every intensity level — so you can ease a
           single effect back without touching the rest.</p>
 
-          <div class="flow" aria-label="The voice pipeline: a draft graph resolves to a bake, then builds for either the FFmpeg export or the Web Audio preview.">Voice draft <span class="arr">(StylizedGraph)</span>
-  <span class="arr">→</span> resolveVoiceGraph <b>(the “bake”)</b>
-  <span class="arr">→</span> buildStylizedGraph(graph, renderer)
-       <span class="arr">├─</span> <b>FFmpeg</b>     → final MP4 (export)
-       <span class="arr">└─</span> <b>Web Audio</b>  → Test preview</div>
+          <div class=”flow” aria-label=”The voice pipeline: both audition buttons and the final export route through the same resolveVoiceGraph → processAudioWithGraph path via ffmpeg.wasm.”>Voice draft <span class=”arr”>(StylizedGraph)</span>
+  <span class=”arr”>→</span> resolveVoiceGraph
+  <span class=”arr”>→</span> buildStylizedGraph(graph, renderer)
+  <span class=”arr”>→</span> processAudioWithGraph <b>(ffmpeg.wasm — one path for all)</b>
+       <span class=”arr”>├─</span> <b>Last Voice Note</b>  → auditions last Reddit recording
+       <span class=”arr”>├─</span> <b>One-Time Test</b>   → auditions live mic capture (transient)
+       <span class=”arr”>└─</span> <b>Final export</b>    → audio track in the baked MP4</div>
 
           <p class="muted" style="margin-bottom:0">One source of truth feeds both the Test and the export, which is why
           they can’t disagree. Try this: start from <span class="ui">Cyber Oracle</span>, push the ring-mod, swap the
@@ -967,7 +1022,7 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
 
       <div class="done-row">
         <input type="checkbox" id="chk-voice" class="step-check" />
-        <label for="chk-voice"><b>Done:</b> I enabled a character voice, set Intensity, and heard it via Test character voice.</label>
+        <label for="chk-voice"><b>Done:</b> I enabled a character voice, set Intensity, and heard it via Last Voice Note or One-Time Test.</label>
       </div>
     </div>
   </section>
@@ -996,8 +1051,9 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
         <div class="step__body">
           <h4>Watch for the badge</h4>
           <p>In the Studio, the transcript status moves through honest states: <span class="ui--status ui">Pending</span>
-          while Vosk works → <span class="ui--status ui">Ready</span> when cues land. (If audio was rough you may see
-          <span class="ui--status ui">Timed out</span> — see recovery below.)</p>
+          while Vosk works → <span class="ui--status ui">Ready</span> when cues land. If transcription fails (no speech
+          detected, poor audio, or timeout), the extension classifies the failure and automatically builds a
+          <strong>scaffold</strong> of empty timed slots — see recovery below.</p>
         </div>
       </div>
 
@@ -1007,9 +1063,15 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
           <h4>Edit the cues</h4>
           <p>Open the segment editor — a YouTube-style cue list. Its own hint says it best:
           <span class="ui--status ui">Adjust each cue’s text and timing. Confirm &amp; save in the main panel when you are
-          done.</span> Speech-to-text is good, not perfect; this is where you fix names and punctuation. When you’re
-          happy, click <span class="ui--btn ui">Confirm &amp; save</span> (or <span class="ui">Discard edits</span> to
-          revert to the original transcript).</p>
+          done.</span> Speech-to-text is good, not perfect; this is where you fix names and punctuation.</p>
+          <p>Per-cue tools: a <span class="ui">✂</span> <strong>Smart Split</strong> button bisects an overlong cue into
+          shorter timed chunks proportional to text length (only visible when the cue overflows a caption line — a
+          <span class="ui--amber ui">⚠ LONG</span> badge flags those); a <span class="ui">×</span>
+          <strong>Delete cue</strong> button removes a cue from the draft (reversible with Discard). A
+          <span class="ui--btn ui">Generate scaffold</span> button in the panel replaces all cues with evenly-timed
+          empty slots — useful when transcription produced nothing usable.</p>
+          <p>When you’re happy, click <span class="ui--btn ui">Confirm &amp; save</span> (or
+          <span class="ui">Discard edits</span> to revert to the original transcript).</p>
         </div>
       </div>
 
@@ -1042,22 +1104,26 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       </div>
 
       <div class="note note--warn">
-        <p class="note__h">⚠ When the transcript struggles</p>
-        <p style="margin-bottom:0">If you see <span class="ui--status ui">Timed out</span>, the banner is candid about it:
-        <span class="ui--status ui">Recording ready — subtitles timed out. Poor audio? Add captions manually in the
-        Subtitles panel, or record again.</span> Noisy or quiet input is the usual cause. You can hand-write cues in the
-        segment editor and bake those, or re-record somewhere quieter.</p>
+        <p class="note__h">⚠ When transcription struggles — scaffold mode</p>
+        <p style="margin-bottom:0">If Vosk can't get a clean read (no speech detected, poor audio, or timeout), it no
+        longer hangs indefinitely on <span class="ui--status ui">Pending</span>. The extension classifies the failure and
+        automatically builds a <strong>scaffold</strong> — evenly-timed empty cue slots spanning your clip. The segment
+        editor opens in red "Scaffolding mode." Fill the empty slots with your own text and
+        <span class="ui--btn ui">Confirm &amp; save</span>; empty slots bake to nothing (they're silently skipped). Or
+        re-record somewhere quieter for a clean Vosk pass.</p>
       </div>
 
-      <details class="disc">
-        <summary>A note on honesty: the “Bake: stepped” caveat (advanced styling)</summary>
-        <div class="disc__body">
+      <details class=”disc”>
+        <summary>Subtitle styling options (advanced)</summary>
+        <div class=”disc__body”>
           <p>Subtitle styling lives in the same panel — position (ordered <strong>top → center → bottom</strong>, matching
-          on-screen order), font size, backdrop, glow, and color. Most of it bakes exactly as previewed.</p>
-          <p style="margin-bottom:0">One effect is openly flagged: the <strong>Rainbow pulse</strong> carries a
-          <span class="ui--amber ui">Bake: stepped</span> hint. The preview animates color smoothly, but FFmpeg’s
-          burn-in can’t animate a caption’s color per-frame, so the bake quantizes it into short static-color slices. The
-          product surfaces this gap rather than hiding it — preview and bake are close, not identical, and it tells you so.</p>
+          on-screen order), font size, backdrop opacity, glow mode, and text color. All bake faithfully via FFmpeg
+          drawtext.</p>
+          <p><strong>Glow modes:</strong> <em>Halo</em> renders a soft outer glow (with an opacity slider and spread
+          control); <em>Border</em> gives a solid 1 px ring. Both bake via stacked offset drawtext layers. The budget
+          system means longer clips with halo now bake reliably where they used to drop to no-glow.</p>
+          <p style=”margin-bottom:0”><strong>Text colors:</strong> theme · white · black · special (a custom static
+          hue). All colors are static per cue — the preview and bake match exactly.</p>
         </div>
       </details>
 
@@ -1126,11 +1192,12 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       </ul>
 
       <h3>Power-user next steps</h3>
-      <div class="cat-grid">
-        <div class="cat" style="border-top-color:var(--acc-voice)"><p class="cat__h">Compose, don’t just pick</p><p class="cat__kinds">Start from a chip, then reorder fragments and try the same effect in two positions. Place the limiter last; move reverb before vs. after saturation. Order is the instrument.</p></div>
-        <div class="cat" style="border-top-color:var(--acc-voice)"><p class="cat__h">Fine-tune, then Turbo</p><p class="cat__kinds">Ease one fragment’s gain back under Fine-tune to tame a harsh preset, then audition the whole thing at Intensity 10 vs. Turbo (12).</p></div>
-        <div class="cat" style="border-top-color:var(--acc-subs)"><p class="cat__h">Style subtitles with intent</p><p class="cat__kinds">Experiment with position, backdrop, and glow — and remember the honest <span class="ui">Bake: stepped</span> caveat on Rainbow pulse.</p></div>
-        <div class="cat" style="border-top-color:var(--acc-bars)"><p class="cat__h">Profile strategy</p><p class="cat__kinds">Build a small library: a clean “Incognito” profile, a signature character, a captioned look. Use Clone to branch safely and keep each one consistent.</p></div>
+      <div class=”cat-grid”>
+        <div class=”cat” style=”border-top-color:var(--acc-voice)”><p class=”cat__h”>Compose, don’t just pick</p><p class=”cat__kinds”>Start from a chip, then reorder fragments and try the same effect in two positions. Place the limiter last; move reverb before vs. after saturation. Order is the instrument.</p></div>
+        <div class=”cat” style=”border-top-color:var(--acc-voice)”><p class=”cat__h”>Fine-tune + One-Time Test</p><p class=”cat__kinds”>Ease one fragment’s gain back under Fine-tune to tame a harsh preset. Use <span class=”ui--btn ui”>One-Time Test</span> to audition any change on your live mic right in the Studio — no prior recording needed, nothing stored.</p></div>
+        <div class=”cat” style=”border-top-color:var(--acc-subs)”><p class=”cat__h”>Style subtitles with intent</p><p class=”cat__kinds”>Experiment with position, backdrop, and glow modes (halo vs. border). Use Smart Split on any cue that shows the <span class=”ui--amber ui”>⚠ LONG</span> overflow badge. All styling bakes faithfully.</p></div>
+        <div class=”cat” style=”border-top-color:var(--acc-bars)”><p class=”cat__h”>Profile strategy</p><p class=”cat__kinds”>Build a small library: a clean “Incognito” profile, a signature character, a captioned look. Use Clone to branch safely and keep each one consistent.</p></div>
+        <div class=”cat” style=”border-top-color:var(--acc-voice)”><p class=”cat__h”>Voice Studio demo</p><p class=”cat__kinds”>Explore voices without the extension at <a href=”https://bra-khet.github.io/reddit-voice-notes-chrome/studio/” target=”_blank” rel=”noopener noreferrer”>the Voice Studio demo ↗</a>. Copy a voice (<span class=”ui”>rvn-voice-character-v1</span>), paste it into the extension — or the reverse. Same DSP, byte-identical output.</p></div>
       </div>
 
       <h3>Where to find deeper reference</h3>
@@ -1154,11 +1221,12 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
           <tbody>
             <tr><td>No <span class="ui">Voice Note</span> mic button in the comment box</td><td>The composer isn’t one with video comments, or the page loaded before a reload.</td><td>Open a comment box that allows <b>video comments</b>; hard-refresh Reddit. After any update, click <span class="ui">Reload extension</span> in the popup first.</td></tr>
             <tr><td><span class="ui--status ui">Comment box not found — download the MP4 and upload manually.</span></td><td>Best-effort attach couldn’t find Reddit’s uploader (UI changed).</td><td>Use <span class="ui--amber ui">Download MP4</span> and upload via Reddit’s video control. The download path always works.</td></tr>
-            <tr><td><span class="ui--btn ui">Test character voice</span> does nothing / no preview</td><td>No recording exists in this browser session yet.</td><td>Record once in Phase 2, then return to the Studio (it auto-loads the clip while open).</td></tr>
+            <tr><td><span class="ui--btn ui">Last Voice Note</span> is disabled / does nothing</td><td>No recording exists in this browser session yet — the button needs a stored clip to audition.</td><td>Use <span class="ui--btn ui">One-Time Test</span> to audition on your live mic right now (no prior recording required), or record once in Phase 2 first.</td></tr>
             <tr><td>Long pause on <span class="ui--status ui">Loading FFmpeg WASM… %</span></td><td>First-run, one-time WASM core download (~32 MB).</td><td>Wait it out once per session. Subsequent processing is fast.</td></tr>
             <tr><td>Recording stopped on its own</td><td>You hit the <b>2-minute</b> hard cap.</td><td>Expected. Your MP4 is ready — <span class="ui--status ui">2-minute limit reached — your MP4 is ready.</span></td></tr>
             <tr><td>Waveform froze but audio kept going</td><td>The Reddit tab went to the background; canvas animation pauses to save power.</td><td>Nothing — audio still records. The waveform resumes when the tab is visible.</td></tr>
-            <tr><td><span class="ui--status ui">Timed out</span> on the transcript</td><td>Vosk couldn’t get a clean read (poor audio).</td><td>Add cues manually in the segment editor and bake those, or re-record somewhere quieter.</td></tr>
+            <tr><td>Transcript shows <span class="ui--status ui">Timed out</span>, <span class="ui--status ui">No speech</span>, or enters Scaffolding mode</td><td>Vosk classified the audio as unusable. A scaffold of empty timed cue slots was auto-created.</td><td>Open the segment editor (it will be in "Scaffolding mode"). Type your captions into the empty slots and <span class="ui--btn ui">Confirm &amp; save</span> — empty slots bake to nothing. Or re-record in a quieter environment.</td></tr>
+            <tr><td>Recorder shows <span class="ui--status ui">Extension was reloaded. Refresh this Reddit tab, then try again.</span></td><td>The extension was updated or reloaded while the Reddit tab was open. The content script is orphaned and can’t reach the background.</td><td>Click the one-click <span class="ui--btn ui">Refresh page</span> button. A fresh content script injects and the recorder works again immediately.</td></tr>
             <tr><td>Toast: <span class="ui--status ui">Voice effect could not be applied — your clip used the original audio.</span></td><td>A voice filter failed; the pipeline fell back to raw audio rather than fail the export.</td><td>Your clip is fine (un-effected). Re-check the voice graph and re-record if you want the effect.</td></tr>
             <tr><td>Changes don’t seem to “take”</td><td>You’re expecting an Apply button.</td><td>There isn’t one — design syncs live to the <em>next</em> recording. Record again to hear/see changes.</td></tr>
           </tbody>
@@ -1186,7 +1254,7 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       </div>
     </div>
     <p class="muted" style="font-size:0.8rem; border-top:1px solid var(--hairline); padding-top:18px; margin:0">
-      Reddit Voice Notes · v5.0.0 “Dulcet II” · A privacy-first Chrome MV3 extension. This guide reflects the shipped UI and
+      Reddit Voice Notes · v5.3.3 “Dulcet II” · A privacy-first Chrome MV3 extension. This guide reflects the shipped UI and
       uses the product’s own labels throughout.</p>
   </div>
 </footer>
