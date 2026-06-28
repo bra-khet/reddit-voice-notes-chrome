@@ -1,0 +1,68 @@
+name: Deploy demo to GitHub Pages
+
+# Builds demo/ and publishes it straight to GitHub Pages — no gh-pages branch,
+# no manual publish step. Runs on pushes to main that touch the demo (and can be
+# run by hand). REQUIRES a one-time setting: Settings → Pages → Source → "GitHub Actions".
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demo/**'
+      - '.github/workflows/deploy-demo.yml'
+  workflow_dispatch:
+
+# Least-privilege token plus what Pages deployment needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deploy at a time; don't cancel an in-progress deploy (avoids half-publishes).
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
+
+      # npm ci runs the demo's postinstall, which vendors the ~30 MB ffmpeg core
+      # from node_modules — so it never needs to be committed.
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Path is relative to the repo root, not the job's working-directory.
+          path: demo/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

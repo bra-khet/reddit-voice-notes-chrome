@@ -6,18 +6,19 @@ import { resolve } from 'node:path';
  *
  * Self-contained mini-project; 100% separate from the WXT extension at the repo
  * root. Builds the orientation hub (index.html) + the studio (studio/index.html)
- * to ./dist, which is published to the gh-pages branch ROOT (see scripts/publish-pages.mjs).
+ * to ./dist, which GitHub Actions uploads as the Pages artifact on push to main
+ * (see .github/workflows/deploy-demo.yml — no gh-pages branch, no manual publish).
  */
 const root = import.meta.dirname;
 
 export default defineConfig({
-  // Project Pages serve under /<repo>/ even when deploying from the gh-pages root,
-  // so every absolute asset/route URL is prefixed with this base.
+  // Project Pages serve under /<repo>/, so every absolute asset/route URL is
+  // prefixed with this base.
   base: '/reddit-voice-notes-chrome/',
   resolve: {
     alias: {
       // Mirror the extension's "@/..." alias so the ported leaf modules copy VERBATIM.
-      //   @  ->  site/   ⇒   "@/src/voice/types"  resolves to  site/src/voice/types.ts
+      //   @  ->  demo/   ⇒   "@/src/voice/types"  resolves to  demo/src/voice/types.ts
       '@': root,
     },
   },

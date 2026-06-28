@@ -5,7 +5,7 @@
  * were no font 404s. The woff2 is vendored under src/assets/fonts/ (NOT public/)
  * on purpose — Vite fingerprints and rewrites this url() with the correct Pages
  * base (/reddit-voice-notes-chrome/), so it resolves in dev and on the deployed
- * gh-pages root without hand-managed BASE_URL paths.
+ * Pages site without hand-managed BASE_URL paths.
  *
  * Only Bold (700) is shipped: every display-font element in the studio (titles,
  * wordmark, chip labels) renders at 700, so SemiBold would be dead weight. Add a

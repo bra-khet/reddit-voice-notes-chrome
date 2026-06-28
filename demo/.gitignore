@@ -1,5 +1,6 @@
 # Static Voice Studio (self-contained subproject) — build + deps are never committed.
-# The site is published to the gh-pages branch root via `npm run publish:pages`.
+# Deployed to GitHub Pages by .github/workflows/deploy-demo.yml (builds dist/ and
+# uploads it as the Pages artifact — no gh-pages branch, no manual publish step).
 node_modules/
 dist/
 # Vendored ffmpeg.wasm core (~30 MB) — produced from node_modules by scripts/copy-ffmpeg-core.mjs

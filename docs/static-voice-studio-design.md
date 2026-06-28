@@ -31,21 +31,23 @@ static front-end over them.
 These were confirmed with the repo owner and drive everything below.
 
 1. **Build:** **Vite + TypeScript**, as a self-contained mini-project under
-   **`site/`** (its own `package.json`; never entangled with the WXT extension
-   build at repo root).
-2. **Deploy:** Vite builds to `site/dist/`; that output is published to the
-   **root of a dedicated `gh-pages` branch**. GitHub Pages → *Deploy from a
-   branch* → **`gh-pages` / `(root)`**. Keeps the extension's repo root pristine;
-   nothing generated is committed to `main`.
+   **`demo/`** (its own `package.json`; never entangled with the WXT extension
+   build at repo root). *(Originally `site/`; renamed to `demo/` and merged to
+   `main` on 2026-06-28 — see §9.)*
+2. **Deploy:** Vite builds to `demo/dist/`; a GitHub Actions workflow uploads
+   that output **directly to GitHub Pages** on push to `main`. Pages *Source* =
+   **GitHub Actions**. No `gh-pages` branch and no manual publish step. *(This
+   superseded the original `gh-pages`-branch + `publish-pages.mjs` worktree
+   approach on 2026-06-28.)*
 3. **Verbatim DSP port via path alias.** The extension's folder structure is
-   mirrored under `site/src/` and `@` is aliased to the `site/` root, so the
+   mirrored under `demo/src/` and `@` is aliased to the `demo/` root, so the
    ported modules are **byte-for-byte copies** (zero edits). Re-syncing after an
    extension DSP change is a literal file copy — see §4.
 
 ### 2.1 Base path
 
 Project Pages are served under `/<repo>/`, so Vite `base` is
-`'/reddit-voice-notes-chrome/'` even when deploying from the `gh-pages` root.
+`'/reddit-voice-notes-chrome/'`.
 Hub → `…/reddit-voice-notes-chrome/`, studio → `…/reddit-voice-notes-chrome/studio/`.
 
 ## 3. Why this exists (product context)
@@ -64,12 +66,12 @@ placeholder hub and is **clearly marked WIP** (see §7).
 
 ## 4. The port set (the whole "voice brain")
 
-Everything the studio needs is **10 pure-data / string-emitting leaf modules** —
-no WASM, no `chrome.*`, no DOM. They are copied **verbatim** under `site/src/`
-mirroring their extension paths; `@` → `site/` makes even alias imports resolve
-unchanged.
+Everything the studio needs is a handful of **pure-data / string-emitting leaf
+modules** — no WASM, no `chrome.*`, no DOM. They are copied **verbatim** under
+`demo/src/` mirroring their extension paths; `@` → `demo/` makes even alias
+imports resolve unchanged.
 
-| Extension path → mirrored under `site/src/…` | Role |
+| Extension path → mirrored under `demo/src/…` | Role |
 |---|---|
 | `src/voice/dsp/fragment-types.ts` | Canonical `StylizedGraph`, 21 fragment kinds, `FRAGMENT_DEFS`, normalize |
 | `src/voice/dsp/preset-graphs.ts` | `CHARACTER_PRESETS` (Incognito, Cyber Oracle, NerdRage, …) |
@@ -145,7 +147,7 @@ full tutorial/orientation integration.
 - Single static site, no server. Vanilla HTML5 + modern CSS (Grid/Flex, custom
   properties) + ES modules, TypeScript for logic.
 - Audio rendering (fidelity): `@ffmpeg/ffmpeg` (v0.12+) + **self-hosted**
-  `ffmpeg-core.wasm` under `site/public/assets/ffmpeg/` (added in Phase 3).
+  `ffmpeg-core.wasm` under `demo/public/assets/ffmpeg/` (added in Phase 3).
 - Assets ported: a curated subset of `public/assets/design-studio-v4/` SVGs (nav
   banner, section icons), the palette tokens from `studio-palette.css`, the exact
   `CHARACTER_PRESETS`.
@@ -170,8 +172,8 @@ the orientation page is built.
 
 | Phase | Scope | Status |
 |---|---|---|
-| **0** | Repo + Pages skeleton: `site/` Vite project, hub placeholder, studio skeleton, themed WIP nav banner, `.nojekyll`, deploy script + docs | ✅ done (`83e979a`) |
-| **1** | Verbatim DSP port under `site/src/` + runtime smoke (`resolveVoiceGraph` → `buildStylizedGraph`; all 8 presets render) | ✅ done (`ef55824`) |
+| **0** | Repo + Pages skeleton: `demo/` Vite project (originally `site/`), hub placeholder, studio skeleton, themed WIP nav banner, `.nojekyll`, deploy + docs | ✅ done (`83e979a`) |
+| **1** | Verbatim DSP port under `demo/src/` + runtime smoke (`resolveVoiceGraph` → `buildStylizedGraph`; all 8 presets render) | ✅ done (`ef55824`) |
 | **2** | Composer UI (accordions, toggles, native sliders, advanced/Fine-tune, Blank/Reset), character chips seed → Custom fork, live summary + filter-graph readout | ✅ done (`094bfe7`) — verified in-browser |
 | **3** | Audition: self-hosted single-threaded ffmpeg.wasm, `processAudioWithGraph` (mirrors `process-audio.ts`, incl. aux-IR FS writes), mic One-Time Test + level meter, upload fallback, shared Stop / single player | ✅ done (`e2719cb`) — **audio render/fidelity + round-trip QA confirmed by user (2026-06-28)** |
 | **4** | Copy/Paste (`rvn-voice-character-v1`) + localStorage session restore + toasts | ✅ done (`bdde6de`) — round-trip verified in-browser |
@@ -203,16 +205,23 @@ the orientation page is built.
 > launch config) rendered a sample through the active graph correctly. **QA the
 > audition against a build or a deploy, never against `vite dev`.**
 
-## 9. Deploy mechanics (gh-pages root)
+## 9. Deploy mechanics (GitHub Actions → Pages)
 
-1. `cd site && npm install`
-2. `npm run build` → `site/dist/` (includes `index.html`, `studio/index.html`,
-   `assets/`, `.nojekyll`).
-3. Publish `site/dist/**` to the **root** of the `gh-pages` branch
-   (`npm run publish:pages`, a git-worktree push — no extra deps).
-4. **One-time:** GitHub → Settings → Pages → *Deploy from a branch* →
-   **`gh-pages` / `(root)`**.
-5. Verify: hub at the root URL, `/studio/` shows the skeleton, no 404s.
+**As of 2026-06-28** the demo lives in `demo/` on `main` and deploys itself via
+GitHub Actions. The old `gh-pages` branch + `publish-pages.mjs` worktree flow is
+**retired** (fragile branch-switching, missing-file confusion).
+
+- **Workflow:** `.github/workflows/deploy-demo.yml`. On push to `main` touching
+  `demo/**` (or manual *Run workflow*), it: `npm ci` in `demo/` → `npm run build`
+  → uploads `demo/dist/` as the Pages artifact → `actions/deploy-pages`.
+  `postinstall` re-vendors the ~30 MB ffmpeg core, so it is **not** committed.
+- **One-time setup (human):** GitHub → *Settings → Pages → Build and deployment
+  → Source* → **GitHub Actions**. (If it was on *Deploy from a branch*, switch
+  it; the `gh-pages` branch can then be deleted.)
+- **Local check before pushing:** `cd demo && npm run build && npm run preview`,
+  then confirm hub at the root URL, `/studio/` works, audition renders, no 404s.
+- **Why this is lower-pain:** no deploy branch to manage, no manual publish, and
+  the demo updates automatically when `demo/` changes land on `main`.
 
 ## 10. Risks & mitigations
 
@@ -236,11 +245,13 @@ Pages deploy succeeds; URL is clean and shareable.
 
 ## Resume in a new chat (carry-forward)
 
-- Static **Voice Studio** companion page. Source: **`site/`** (Vite + TS,
-  self-contained). Served: Vite `dist/` → **`gh-pages` branch root**; base
-  `/reddit-voice-notes-chrome/`. Branch: `feature/static-voice-studio`.
-- The "voice brain" is **10 verbatim-copied leaf modules** under `site/src/`
-  (mirror extension paths; `@`→`site/`). Fidelity = preview/export both call
+- Static **Voice Studio** companion page. Source: **`demo/`** (Vite + TS,
+  self-contained) on **`main`**. Served: GitHub Actions builds `demo/dist/` and
+  deploys it to Pages (Source = GitHub Actions, **no `gh-pages` branch**); base
+  `/reddit-voice-notes-chrome/`. *(Was `site/` on branch
+  `feature/static-voice-studio` until the 2026-06-28 restructure.)*
+- The "voice brain" is the verbatim-copied leaf modules under `demo/src/`
+  (mirror extension paths; `@`→`demo/`). Fidelity = preview/export both call
   `resolveVoiceGraph` → `buildStylizedGraph(graph, ffmpegRenderer)` and run the
   identical `-af`/`-filter_complex` through ffmpeg.wasm. ConvReverb needs aux-IR
   WAVs written to the FFmpeg FS.
@@ -251,5 +262,5 @@ Pages deploy succeeds; URL is clean and shareable.
 - **Status (2026-06-28): Phases 0–5 + 7-samples done; audio + round-trip QA
   confirmed.** Next = Phase 6 (Orientation hub, user-owned), then favicon +
   `docs/design-studio.md` link + publish/verify on Pages.
-- **Never** modify extension code or touch extension storage. Keep `site/` 100%
+- **Never** modify extension code or touch extension storage. Keep `demo/` 100%
   separate.

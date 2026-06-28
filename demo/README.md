@@ -1,4 +1,4 @@
-# Static Voice Studio (`site/`)
+# Static Voice Studio (`demo/`)
 
 A **static, install-free** GitHub Pages companion for
 [reddit-voice-notes-chrome](../). It replicates the Design Studio's **Voice
@@ -16,12 +16,12 @@ extension's pure voice DSP modules. Full spec: [`../docs/static-voice-studio-des
 > the self-hosted Chakra Petch display face (Phase 5). Render fidelity and the
 > copy-paste round-trip are hands-on verified. **Remaining: Phase 6 — the
 > Orientation index/hub content** (still a placeholder; the nav banner's `WIP:`
-> markers retire when it ships) — then final publish/release.
+> markers retire when it ships).
 
 ## Run locally
 
 ```bash
-cd site
+cd demo
 npm install
 npm run dev        # http://localhost:5173/reddit-voice-notes-chrome/
 ```
@@ -36,29 +36,33 @@ npm run build      # tsc --noEmit + vite build → ./dist
 npm run preview    # serve ./dist exactly as it will deploy
 ```
 
-## Deploy (GitHub Pages, gh-pages branch root)
+> **Audition QA must use a build, not `vite dev`.** Under the dev server the
+> audition render can freeze at "5%" (HMR/dep re-optimization reloads the page
+> and aborts the ~30 MB `ffmpeg.load()`). Use `npm run preview` or a real deploy.
+> See `vite.config.ts` for the full note.
 
-```bash
-npm run build
-npm run publish:pages   # pushes ./dist to the ROOT of the gh-pages branch (git worktree, no extra deps)
-```
+## Deploy (automatic, GitHub Pages via Actions)
 
-**One-time setup:** GitHub → *Settings → Pages → Deploy from a branch* →
-**`gh-pages` / `(root)`**. The extension's `main` branch root stays pristine;
-nothing built is committed there.
+There is **nothing to run by hand.** On every push to `main` that touches
+`demo/`, the workflow [`.github/workflows/deploy-demo.yml`](../.github/workflows/deploy-demo.yml)
+builds `demo/dist/` and publishes it straight to GitHub Pages — **no `gh-pages`
+branch, no publish script.**
+
+**One-time setup:** GitHub → *Settings → Pages → Build and deployment → Source*
+→ **GitHub Actions**.
 
 ## How it's wired (for the next developer)
 
 - **`vite.config.ts`** — multi-page (`index.html` hub + `studio/index.html`),
-  `base: '/reddit-voice-notes-chrome/'`, and the key alias **`@` → `site/`**.
-- **The voice "brain" is a verbatim port.** The 10 pure-data/string-emitter leaf
-  modules from the extension are copied **unchanged** under `site/src/` mirroring
+  `base: '/reddit-voice-notes-chrome/'`, and the key alias **`@` → `demo/`**.
+- **The voice "brain" is a verbatim port.** The pure-data / string-emitter leaf
+  modules from the extension are copied **unchanged** under `demo/src/` mirroring
   their original paths; the `@` alias makes even `@/src/voice/types` imports
-  resolve. Re-syncing after an extension DSP change is a file copy. (Added in
-  Phase 1 — see the design doc §4.)
+  resolve. Re-syncing after an extension DSP change is a file copy. (See the
+  design doc §4.)
 - **Fidelity = preview/export call the same code:** `resolveVoiceGraph` →
   `buildStylizedGraph(graph, ffmpegRenderer)` → the identical
-  `-af` / `-filter_complex` run through ffmpeg.wasm (Phase 3).
+  `-af` / `-filter_complex` run through ffmpeg.wasm.
 - **Copy-paste contract:** `rvn-voice-character-v1` (the ported
   `clipboard-backup.ts`) — round-trips losslessly with the extension.
 - **Sample chips (Phase 7):** `public/assets/samples/*.mp3` ("Tina" reading the
@@ -72,7 +76,7 @@ nothing built is committed there.
 
 ### Prompting the next phase
 
-> "Continue the static voice studio at `site/` (Vite + TS, branch
-> `feature/static-voice-studio`). Read `docs/static-voice-studio-design.md`, then
-> do **Phase N**: <scope>. Keep `site/` 100% separate from the extension; never
-> modify extension code or touch extension storage."
+> "Continue the static voice studio at `demo/` (Vite + TS, now on `main`). Read
+> `docs/static-voice-studio-design.md`, then do **Phase N**: <scope>. Keep
+> `demo/` 100% separate from the extension; never modify extension code or touch
+> extension storage."

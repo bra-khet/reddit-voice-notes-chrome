@@ -20,7 +20,7 @@
 // the /reddit-voice-notes-chrome/ Pages base. WIP: final target TBD (Phase 6).
 const ORIENTATION_HREF = '../';
 
-/** Public asset dir (site/public/…), copied from the extension's design-studio-v4 set. */
+/** Public asset dir (demo/public/…), copied from the extension's design-studio-v4 set. */
 const ASSETS = 'assets/design-studio-v4';
 
 /** Base-aware public asset URL — resolves in dev and under the Pages base. */

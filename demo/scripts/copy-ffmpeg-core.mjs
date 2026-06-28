@@ -5,13 +5,13 @@
  * which cannot set COOP/COEP headers).
  *
  * Idempotent + tolerant: runs on postinstall and prebuild. The vendored files
- * are git-ignored (see site/.gitignore) — they are produced from node_modules.
+ * are git-ignored (see demo/.gitignore) — they are produced from node_modules.
  */
 import { cpSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..'); // site/
+const root = join(dirname(fileURLToPath(import.meta.url)), '..'); // demo/
 const coreDir = join(root, 'node_modules', '@ffmpeg', 'core', 'dist', 'esm');
 const target = join(root, 'public', 'assets', 'ffmpeg');
 const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];

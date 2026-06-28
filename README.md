@@ -18,6 +18,17 @@ Incompatible:
 - Safari
 - Tor Browser
 
+## Try it without installing
+
+Want to shape and test a character voice before installing anything? The
+**[Static Voice Studio demo](https://bra-khet.github.io/reddit-voice-notes-chrome/)**
+runs the Design Studio's Voice panel entirely in your browser — build a voice,
+audition it on bundled clips or your own mic, and copy it straight into the
+extension (or paste one back out). It's a self-contained Vite app in
+[`demo/`](demo/) that deploys automatically to GitHub Pages via
+[`.github/workflows/deploy-demo.yml`](.github/workflows/deploy-demo.yml).
+*(The full Orientation hub is still a work in progress.)*
+
 ## Status
 
 **Stable `main` v5.2.0 — Voice QoL** (2026-06-26) — two small quality-of-life additions to the Design Studio voice panel: a **character lock** padlock that guards a tuned custom voice against an accidental preset-chip click, and **clipboard copy/paste** to back up a voice character (and restore it later) as portable versioned JSON. Both build directly on the v5.0.0 Dulcet II voice engine — see `docs/release-notes-v5.0.0.md` for the full voice system. (v5.1.0 added animated GIF backgrounds.)

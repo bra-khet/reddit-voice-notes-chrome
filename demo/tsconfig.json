@@ -20,7 +20,7 @@
     "isolatedModules": true,
     "noEmit": true,
 
-    /* "@/*" -> site root, matching the extension's alias so ported modules copy verbatim. */
+    /* "@/*" -> demo root, matching the extension's alias so ported modules copy verbatim. */
     "baseUrl": ".",
     "paths": { "@/*": ["./*"] }
   },
