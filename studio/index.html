@@ -14,34 +14,21 @@
       WIP / FUTURE FEATURE: it anticipates an Orientation index page (Phase 6).
       See docs/static-voice-studio-design.md §7.
     -->
-    <script type="module" crossorigin src="/reddit-voice-notes-chrome/assets/studio-CJLeWbqX.js"></script>
-    <link rel="modulepreload" crossorigin href="/reddit-voice-notes-chrome/assets/base-vTrF1r9Z.js">
-    <link rel="stylesheet" crossorigin href="/reddit-voice-notes-chrome/assets/base-BHDPSvUL.css">
-    <link rel="stylesheet" crossorigin href="/reddit-voice-notes-chrome/assets/studio-CFAJmHMA.css">
+    <script type="module" crossorigin src="/reddit-voice-notes-chrome/assets/studio-Br2f9M_l.js"></script>
+    <link rel="modulepreload" crossorigin href="/reddit-voice-notes-chrome/assets/base-CzQOnCts.js">
+    <link rel="stylesheet" crossorigin href="/reddit-voice-notes-chrome/assets/base-Da0z3isW.css">
+    <link rel="stylesheet" crossorigin href="/reddit-voice-notes-chrome/assets/studio-BP0m68cZ.css">
   </head>
   <body>
     <header data-nav-banner></header>
 
     <main class="studio-main">
-      <h1>Static Voice Studio</h1>
-      <p class="hub__lede">
-        The voice authoring surface is being built in phases. This page will host the
-        character chips, composer, intensity/Turbo, and audition controls — running the
-        exact same graph resolver and renderer as the extension, so what you hear is
-        what bakes.
+      <p class="studio-intro">
+        Build a character voice below — it runs the exact graph resolver and renderer as the
+        extension, so what you hear is what bakes. Expand <em>“what bakes”</em> to see the live
+        FFmpeg filter graph.
       </p>
-
-      <div class="placeholder-card">
-        <h2>Coming together in phases</h2>
-        <ol>
-          <li><b>Phase 0 (now)</b> — skeleton, themed navigation, deploy pipeline.</li>
-          <li><b>Phase 1</b> — port the voice DSP (presets, graph resolver, renderer).</li>
-          <li><b>Phase 2</b> — the composer UI (chips, accordions, sliders, summary).</li>
-          <li><b>Phase 3</b> — audition via ffmpeg.wasm (sample clips + mic test).</li>
-          <li><b>Phase 4</b> — copy / paste voices to and from the extension.</li>
-          <li><b>Phase 5</b> — polish, accessibility, empty states, error handling.</li>
-        </ol>
-      </div>
+      <section data-voice-panel></section>
     </main>
 
   </body>
