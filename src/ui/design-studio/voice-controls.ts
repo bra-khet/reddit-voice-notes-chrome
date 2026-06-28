@@ -287,7 +287,11 @@ export function mountVoiceControls(
   let draftConfig: VoiceEffectConfig = normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
   let currentProfileName: string | undefined;
   let lastRecording: LastRecordingSnapshot | null = null;
-  let loadedSavedAt = 0;
+  // BUG FIX: cold One-Time Test playback cut off by the recording poll
+  // Fix: seed to -1 (an impossible savedAt) so the first load still runs once for the
+  // initial paint, while later "no recording" polls (savedAt 0) short-circuit. See the
+  // guard in loadRecordingSource().
+  let loadedSavedAt = -1;
   let syncing = false;
   let rendering = false;
   let capturing = false;
@@ -599,10 +603,19 @@ export function mountVoiceControls(
   async function loadRecordingSource(): Promise<void> {
     const snapshot = await loadLastRecording();
     const savedAt = snapshot?.meta.savedAt ?? 0;
-    if (snapshot && savedAt <= loadedSavedAt && lastRecording) {
+    // BUG FIX: cold One-Time Test playback cut off by the recording poll
+    // Fix: bail whenever the stored recording is UNCHANGED. The old guard
+    // (`snapshot && savedAt <= loadedSavedAt && lastRecording`) only returned when a
+    // snapshot existed, so with NO recording (savedAt 0) every RECORDING_POLL_MS tick
+    // fell through to preview.stop() below and killed an in-flight One-Time Test render.
+    // Keying purely on savedAt covers the no-recording steady state too (0 === 0).
+    // Sync: loadedSavedAt is seeded to -1 (declaration) so the first paint still runs.
+    if (savedAt === loadedSavedAt) {
       return;
     }
 
+    // Reaching here means the stored recording genuinely changed (appeared, updated, or
+    // was cleared) — only then is it right to drop a now-stale preview.
     if (preview.isPlaying()) {
       preview.stop();
       refreshStopUi();
