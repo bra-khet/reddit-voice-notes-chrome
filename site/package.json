@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "smoke": "esbuild scripts/smoke.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/smoke.mjs && node node_modules/.cache/smoke.mjs",
     "publish:pages": "node scripts/publish-pages.mjs"
   },
   "devDependencies": {
