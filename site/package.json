@@ -1,0 +1,17 @@
+{
+  "name": "rvn-static-voice-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Static GitHub Pages companion for reddit-voice-notes-chrome — a faithful, install-free demo of the Design Studio Voice panel. 100% separate from the extension (own build, own origin, no shared storage).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "publish:pages": "node scripts/publish-pages.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  }
+}

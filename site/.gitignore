@@ -1,0 +1,4 @@
+# Static Voice Studio (self-contained subproject) — build + deps are never committed.
+# The site is published to the gh-pages branch root via `npm run publish:pages`.
+node_modules/
+dist/

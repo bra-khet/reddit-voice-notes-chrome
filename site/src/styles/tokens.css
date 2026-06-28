@@ -1,0 +1,49 @@
+/*
+ * Design tokens — ported subset of the extension's studio-palette.css.
+ * CVD-friendly indigo → amber (Cividis) axis; do NOT introduce off-axis hues.
+ *
+ * Phase 0 uses a system display-font stack so there are no font 404s. The
+ * extension's self-hosted display face (Chakra Petch) can be copied into
+ * site/public/assets/fonts/ in a later polish phase (Phase 5/7) and wired here.
+ */
+:root {
+  /* Surfaces */
+  --studio-bg-deep: #12001f;
+  --studio-panel: #1d1f6e;
+  --studio-panel-edge: #0a0014;
+  --studio-surface-raised: #241a4a;
+
+  /* Amber anchor */
+  --studio-amber: #ffd54f;
+  --studio-amber-dim: #c9a63d;
+  --studio-amber-edge: #8a6f1a;
+  --studio-amber-action: #d4a020;
+
+  /* Indigo + cool accents */
+  --studio-indigo-accent: #4a4a8a;
+  --studio-indigo-muted: #8a86b0;
+  --studio-cyan-ready: #5ec8e8;
+
+  /* Text */
+  --studio-text: #e8e6f0;
+  --studio-text-muted: #a8a4c0;
+  --studio-warning: #ffb84d;
+
+  /* Hairlines */
+  --studio-hairline: rgba(138, 134, 176, 0.18);
+  --studio-hairline-strong: rgba(138, 134, 176, 0.32);
+
+  /* Focus — one ring, studio-wide */
+  --studio-focus: var(--studio-amber);
+
+  /* Section ramp (paired with icon + label, never colour-only) */
+  --studio-accent-bars: #8f93e6;
+  --studio-accent-background: #7aa6c8;
+  --studio-accent-voice: #d8b24a;
+  --studio-accent-subtitles: #ffd54f;
+
+  /* Type */
+  --studio-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --studio-font-display: 'Chakra Petch', var(--studio-font-sans);
+  --studio-letter-label: 0.08em;
+}
