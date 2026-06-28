@@ -22,6 +22,57 @@
   font-size: 0.74rem;
   color: var(--studio-text-muted);
 }
+
+/* --- Phase 7: bundled "Tina" sample voice-note chips --- */
+.audition__samples {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.audition__samples-caption {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--studio-text-muted);
+}
+.audition__samples-caption strong {
+  color: var(--studio-amber);
+  font-weight: 700;
+}
+.audition__samples-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* 9-slice nav-chip frame (border-image-source set base-aware in audition.ts). */
+.sample-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+  color: var(--studio-text);
+  background: transparent;
+  border: 9px solid transparent;
+  border-image-slice: 10 fill;
+  border-image-repeat: stretch;
+  transition: color 0.12s ease, transform 0.08s ease;
+}
+.sample-chip__label {
+  font-family: var(--studio-font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: var(--studio-letter-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sample-chip:hover:not(:disabled) {
+  color: var(--studio-amber);
+  transform: translateY(-1px);
+}
+.sample-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .audition__tests {
   display: flex;
   flex-wrap: wrap;
@@ -111,5 +162,11 @@
   }
   .audition__meter-fill {
     transition: none;
+  }
+  .sample-chip {
+    transition: none;
+  }
+  .sample-chip:hover:not(:disabled) {
+    transform: none;
   }
 }
