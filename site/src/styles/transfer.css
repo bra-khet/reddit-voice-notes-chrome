@@ -1,0 +1,86 @@
+/* Copy/Paste transfer block + toasts (Phase 4). */
+
+.transfer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--studio-surface-raised);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 8px;
+}
+.transfer__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--studio-text);
+}
+.transfer__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.transfer__btn {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--studio-amber);
+  background: transparent;
+  border: 1px solid var(--studio-amber-edge);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.transfer__btn:hover {
+  color: var(--studio-bg-deep);
+  background: var(--studio-amber);
+}
+.transfer__hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--studio-text-muted);
+}
+.transfer__hint code {
+  color: var(--studio-cyan-ready);
+  font-size: 0.95em;
+}
+
+/* ---- Toasts ---- */
+.toast-host {
+  position: fixed;
+  bottom: 1.1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  z-index: 1000;
+  pointer-events: none;
+}
+.toast {
+  padding: 0.55rem 0.95rem;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  color: var(--studio-text);
+  background: var(--studio-panel);
+  border: 1px solid var(--studio-hairline-strong);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.toast.is-in {
+  opacity: 1;
+  transform: none;
+}
+.toast--error {
+  color: var(--studio-bg-deep);
+  background: var(--studio-warning);
+  border-color: var(--studio-amber-edge);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    transition: opacity 0.2s ease;
+    transform: none;
+  }
+}
