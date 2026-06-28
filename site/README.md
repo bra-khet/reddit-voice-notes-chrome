@@ -9,8 +9,12 @@ It is **100% separate from the extension**: its own Vite build, its own origin,
 no shared storage, and it never modifies extension code — it *reuses* the
 extension's pure voice DSP modules. Full spec: [`../docs/static-voice-studio-design.md`](../docs/static-voice-studio-design.md).
 
-> **Status: Phase 0** — skeleton, themed (WIP) navigation, and the deploy
-> pipeline. The voice authoring surface is built in Phases 1–5.
+> **Status: Phases 0–4 done.** Verbatim DSP port, full composer + voice panel
+> (chips, intensity/Turbo, fork-to-custom, live summary + filter-graph readout),
+> audition via self-hosted ffmpeg.wasm (mic test + upload), and copy/paste
+> transfer + session restore. **Phase 3 audio output needs hands-on QA on a real
+> deploy** (mic/upload + ears). Remaining: polish (5), orientation hub (6),
+> bundled sample clips + release (7).
 
 ## Run locally
 

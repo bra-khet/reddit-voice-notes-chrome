@@ -170,15 +170,22 @@ the orientation page is built.
 
 | Phase | Scope | Status |
 |---|---|---|
-| **0** | Repo + Pages skeleton: `site/` Vite project, hub placeholder, studio skeleton, themed WIP nav banner, `.nojekyll`, deploy script + docs | **in progress** |
-| **1** | Verbatim DSP port under `site/src/` + console smoke test (`resolveVoiceGraph` → `buildStylizedGraph`) | next |
-| **2** | Composer UI (accordions, toggles, sliders, advanced/Fine-tune, Blank/Reset), character chips seed → Custom fork, live summary | |
-| **3** | Audition: ffmpeg.wasm integration, sample clips, mic One-Time Test + level meter, shared Stop / single player, aux-IR FS writes | |
-| **4** | Copy/Paste + state mgmt (`rvn-voice-character-v1`), localStorage restore, dirty indicator | |
-| **5** | Polish, a11y, empty states, error toasts (mic perm / short capture / render fail), reduced-motion | |
-| **6** | **Orientation hub content** (3-phase workflow, why-the-demo, links to tutorial + studio, transfer guide) + finalize nav banner | |
-| **7** | Real sample clips, favicon, build/deploy scripts, link from `docs/design-studio.md`, `site/README.md`, publish + verify | |
-| **8** | Post-MVP (documented only): Web Audio lite mode, A/B, auto re-test, save favorite take, iframe/tab embed | |
+| **0** | Repo + Pages skeleton: `site/` Vite project, hub placeholder, studio skeleton, themed WIP nav banner, `.nojekyll`, deploy script + docs | ✅ done (`83e979a`) |
+| **1** | Verbatim DSP port under `site/src/` + runtime smoke (`resolveVoiceGraph` → `buildStylizedGraph`; all 8 presets render) | ✅ done (`ef55824`) |
+| **2** | Composer UI (accordions, toggles, native sliders, advanced/Fine-tune, Blank/Reset), character chips seed → Custom fork, live summary + filter-graph readout | ✅ done (`094bfe7`) — verified in-browser |
+| **3** | Audition: self-hosted single-threaded ffmpeg.wasm, `processAudioWithGraph` (mirrors `process-audio.ts`, incl. aux-IR FS writes), mic One-Time Test + level meter, upload fallback, shared Stop / single player | ✅ code done (`e2719cb`) — **needs hands-on audio QA** (real render/fidelity verified by ear on deploy); bundled sample clips deferred to Phase 7 |
+| **4** | Copy/Paste (`rvn-voice-character-v1`) + localStorage session restore + toasts | ✅ done (`bdde6de`) — round-trip verified in-browser |
+| **5** | Polish, a11y, empty states, error toasts — *largely in already* (aria labels, `role=meter`, keyboard-native controls, reduced-motion, mic-permission/short-capture/render-fail messaging). Remaining: visual polish pass, dirty/reset affordances | partial |
+| **6** | **Orientation hub content** (3-phase workflow, why-the-demo, links to tutorial + studio, transfer guide) + finalize nav banner (drop WIP) | pending |
+| **7** | Real bundled sample clips, favicon polish, link from `docs/design-studio.md`, publish + verify on Pages | pending |
+| **8** | Post-MVP (documented only): Web Audio lite mode, A/B, auto re-test, save favorite take, iframe/tab embed | pending |
+
+> **Verification note (2026-06-27):** Phases 1, 2, 4 verified in a headless browser
+> (DSP smoke; chip→summary→fork; copy/paste round-trip to `rvn-voice-character-v1`).
+> Phase 3 verified as far as headless allows — clean build, lazy-chunked ffmpeg,
+> UI mounts, self-hosted core serves (200, ~30 MB). The actual render + audio
+> fidelity is the user's deploy-time QA (real mic/upload + ears) — it could not be
+> exercised headlessly (Vite dev re-optimize churn + 30 MB wasm > 30 s eval cap).
 
 ## 9. Deploy mechanics (gh-pages root)
 
