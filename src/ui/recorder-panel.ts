@@ -550,8 +550,19 @@ export class RecorderPanel {
       await this.session.prepare();
       this.panelEl.focus();
       void this.tryApplyBakedMp4();
-    } catch {
-      // Error state rendered via subscription.
+    } catch (error) {
+      // BUG FIX: recorder panel frozen on an invalidated extension context (fresh install / auto-update)
+      // Fix: a failure BEFORE session.prepare() — e.g. loadUserPreferences() throwing "Extension
+      //   context invalidated" when this content script was orphaned by an extension reload/update —
+      //   left the session in 'idle', so the panel froze on "Initializing microphone…" with a grayed
+      //   Record button (the old catch wrongly assumed prepare() had already rendered the error).
+      //   Route it through the session so friendlyRecorderError renders the actionable "Extension was
+      //   reloaded. Refresh this Reddit tab…" message + a one-click Refresh. The misdiagnosed 200ms
+      //   "service worker race" retry is removed: an orphaned content script never recovers in place,
+      //   so retrying just threw the same error and still left the panel frozen.
+      // Sync: VoiceRecorderSession.failWith() no-ops unless still 'idle'; render() + onPrimaryClick()
+      //   map errorCode 'context-invalidated' to the Refresh-page button.
+      this.session?.failWith(error);
       this.panelEl.focus();
     }
   }
@@ -623,6 +634,13 @@ export class RecorderPanel {
         showToast('MP4 downloaded.', 'info', 4000);
         break;
       case 'error':
+        // BUG FIX: recorder panel frozen on an invalidated extension context (fresh install / auto-update)
+        // Fix: a dead content script never recovers in place — reload the tab to inject a fresh one.
+        //   Other errors (mic, transcode) still retry by re-running open(). Sync: render() 'error' case.
+        if (this.currentState.errorCode === 'context-invalidated') {
+          window.location.reload();
+          return;
+        }
         void this.open();
         break;
     }
@@ -858,7 +876,11 @@ export class RecorderPanel {
       case 'error':
         this.statusEl.textContent = state.errorMessage ?? 'Something went wrong.';
         this.statusEl.classList.add('status--error');
-        this.primaryBtn.textContent = 'Retry';
+        // BUG FIX: recorder panel frozen on an invalidated extension context (fresh install / auto-update)
+        // Fix: an orphaned content script can only recover via a page reload, so offer a one-click
+        //   Refresh instead of a Retry that would just rethrow. Sync: onPrimaryClick() 'error' case.
+        this.primaryBtn.textContent =
+          state.errorCode === 'context-invalidated' ? 'Refresh page' : 'Retry';
         this.primaryBtn.disabled = false;
         this.secondaryBtn.textContent = 'Close';
         if (

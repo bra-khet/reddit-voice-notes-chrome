@@ -193,6 +193,18 @@ export class VoiceRecorderSession {
     });
   }
 
+  // BUG FIX: recorder panel frozen on an invalidated extension context (fresh install / auto-update)
+  // Fix: surface a fatal failure that happened BEFORE prepare() ran (e.g. the panel's own
+  //   loadUserPreferences() throwing "Extension context invalidated" when this content script was
+  //   orphaned by an extension reload/update). Without this the session stayed 'idle' and the panel
+  //   froze on "Initializing microphone…" with a grayed Record button. No-op once prepare() has
+  //   taken over — prepare() surfaces its own (more specific) failures, which we must not clobber.
+  // Sync: called from RecorderPanel.open()'s catch.
+  failWith(error: unknown): void {
+    if (this.phase !== 'idle') return;
+    this.setError(error);
+  }
+
   async prepare(): Promise<void> {
     if (this.phase === 'ready' || this.phase === 'recording' || this.phase === 'processing') {
       return;
