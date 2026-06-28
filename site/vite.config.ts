@@ -21,6 +21,20 @@ export default defineConfig({
       '@': root,
     },
   },
+  // ffmpeg.wasm is only reached via a lazy import('./audio-render'), so without
+  // this Vite discovers @ffmpeg/* at first render and re-optimizes deps — a
+  // full page reload. Pre-bundling them removes that one reload trigger.
+  //
+  // KNOWN DEV LIMITATION (deferred): even so, the audition render is unreliable
+  // under `vite dev` — the dev server reloads the page (HMR / re-optimization)
+  // and that aborts the long (~30 MB) ffmpeg.load(), which has no timeout, so the
+  // audition can freeze at "5%". This is DEV-ONLY: production statically bundles
+  // ffmpeg + the worker and has no reload mechanism. QA the audition against a
+  // build — `npm run preview` (or the "voice-studio-prod" launch config) — or a
+  // real deploy. (Verified 2026-06-28: prod build renders correctly.)
+  optimizeDeps: {
+    include: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

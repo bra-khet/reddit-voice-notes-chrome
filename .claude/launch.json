@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "site", "run", "dev", "--", "--base=/", "--port", "6173", "--strictPort"],
       "port": 6173
+    },
+    {
+      "name": "voice-studio-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "site", "run", "preview", "--", "--port", "6174", "--strictPort"],
+      "port": 6174
     }
   ]
 }
