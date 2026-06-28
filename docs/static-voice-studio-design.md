@@ -8,7 +8,7 @@ This file wins on the topic of the public static Voice Studio companion page.
 |---|---|
 | **Repo** | `bra-khet/reddit-voice-notes-chrome` |
 | **Baseline** | `main@4383593` (v5.3.1) → feature branch `feature/static-voice-studio` |
-| **Status** | Phase 0 (repo + Pages skeleton) — **in progress** |
+| **Status** | Phases 0–5 + 7-samples done (audio + round-trip QA confirmed 2026-06-28); Phase 6 Orientation hub (user-owned) + publish remain |
 | **Public URL (target)** | `https://bra-khet.github.io/reddit-voice-notes-chrome/` (hub) · `/studio/` (the studio) |
 
 ---
@@ -173,11 +173,11 @@ the orientation page is built.
 | **0** | Repo + Pages skeleton: `site/` Vite project, hub placeholder, studio skeleton, themed WIP nav banner, `.nojekyll`, deploy script + docs | ✅ done (`83e979a`) |
 | **1** | Verbatim DSP port under `site/src/` + runtime smoke (`resolveVoiceGraph` → `buildStylizedGraph`; all 8 presets render) | ✅ done (`ef55824`) |
 | **2** | Composer UI (accordions, toggles, native sliders, advanced/Fine-tune, Blank/Reset), character chips seed → Custom fork, live summary + filter-graph readout | ✅ done (`094bfe7`) — verified in-browser |
-| **3** | Audition: self-hosted single-threaded ffmpeg.wasm, `processAudioWithGraph` (mirrors `process-audio.ts`, incl. aux-IR FS writes), mic One-Time Test + level meter, upload fallback, shared Stop / single player | ✅ code done (`e2719cb`) — **needs hands-on audio QA** (real render/fidelity verified by ear on deploy); bundled sample clips deferred to Phase 7 |
+| **3** | Audition: self-hosted single-threaded ffmpeg.wasm, `processAudioWithGraph` (mirrors `process-audio.ts`, incl. aux-IR FS writes), mic One-Time Test + level meter, upload fallback, shared Stop / single player | ✅ done (`e2719cb`) — **audio render/fidelity + round-trip QA confirmed by user (2026-06-28)** |
 | **4** | Copy/Paste (`rvn-voice-character-v1`) + localStorage session restore + toasts | ✅ done (`bdde6de`) — round-trip verified in-browser |
-| **5** | Polish, a11y, empty states, error toasts — *largely in already* (aria labels, `role=meter`, keyboard-native controls, reduced-motion, mic-permission/short-capture/render-fail messaging). Remaining: visual polish pass, dirty/reset affordances | partial |
-| **6** | **Orientation hub content** (3-phase workflow, why-the-demo, links to tutorial + studio, transfer guide) + finalize nav banner (drop WIP) | pending |
-| **7** | Real bundled sample clips, favicon polish, link from `docs/design-studio.md`, publish + verify on Pages | pending |
+| **5** | Polish, a11y, empty states, error toasts — aria labels, `role=meter`, keyboard-native controls, reduced-motion, mic-permission/short-capture/render-fail messaging; self-hosted Chakra Petch **Bold** display face | ✅ done (`0607573`) — font verified live |
+| **6** | **Orientation hub content** (3-phase workflow, why-the-demo, links to tutorial + studio, transfer guide) + finalize nav banner (drop WIP) | pending — **user-owned** (the nav banner stays WIP until this index page ships) |
+| **7** | Bundled "Tina" sample chips (9-slice, rendered through the active graph) + favicon polish, link from `docs/design-studio.md`, publish + verify on Pages | ◐ sample chips ✅ done (`b33c8b3`) — verified live; remaining: favicon, doc link, publish/verify |
 | **8** | Post-MVP (documented only): Web Audio lite mode, A/B, auto re-test, save favorite take, iframe/tab embed | pending |
 
 > **Verification note (2026-06-27):** Phases 1, 2, 4 verified in a headless browser
@@ -186,6 +186,22 @@ the orientation page is built.
 > UI mounts, self-hosted core serves (200, ~30 MB). The actual render + audio
 > fidelity is the user's deploy-time QA (real mic/upload + ears) — it could not be
 > exercised headlessly (Vite dev re-optimize churn + 30 MB wasm > 30 s eval cap).
+>
+> **Update (2026-06-28):** User confirmed audio render/fidelity and the copy-paste
+> round-trip are good ("everything looks and sounds good"). Phase 5 font + Phase 7
+> sample chips verified live: 5 chips render (Chakra Petch Bold, 9-slice frame),
+> the no-effect branch plays the original clip, the active-effect branch enters the
+> render pipeline, console clean. Only **Bold** is shipped (SemiBold dropped — no
+> 600-weight tier in use).
+>
+> **⚠ Auditioning is DEV-only flaky (deferred):** under `vite dev` the audition
+> render can freeze at "5%". Root cause: the dev server reloads the page (HMR /
+> dependency re-optimization) and aborts the long ~30 MB `ffmpeg.load()`, which
+> has no timeout → no fallback. **Production is unaffected** — the build statically
+> bundles ffmpeg + the worker and has no reload mechanism. Confirmed 2026-06-28:
+> the production build (`npm run preview`, served by the `voice-studio-prod`
+> launch config) rendered a sample through the active graph correctly. **QA the
+> audition against a build or a deploy, never against `vite dev`.**
 
 ## 9. Deploy mechanics (gh-pages root)
 
@@ -229,8 +245,11 @@ Pages deploy succeeds; URL is clean and shareable.
   identical `-af`/`-filter_complex` through ffmpeg.wasm. ConvReverb needs aux-IR
   WAVs written to the FFmpeg FS.
 - Copy-paste contract = `rvn-voice-character-v1` (`clipboard-backup.ts`).
-- Orientation hub + nav banner are **WIP placeholders** (full hub = Phase 6);
-  search `WIP:` comments.
-- Phase 0 done = scaffold builds + nav banner themed. Next = Phase 1 DSP port.
+- Orientation hub + nav banner are **WIP placeholders** (full hub = Phase 6,
+  **user-owned**); search `WIP:` comments. Leave these markers until that index
+  page ships.
+- **Status (2026-06-28): Phases 0–5 + 7-samples done; audio + round-trip QA
+  confirmed.** Next = Phase 6 (Orientation hub, user-owned), then favicon +
+  `docs/design-studio.md` link + publish/verify on Pages.
 - **Never** modify extension code or touch extension storage. Keep `site/` 100%
   separate.

@@ -9,12 +9,14 @@ It is **100% separate from the extension**: its own Vite build, its own origin,
 no shared storage, and it never modifies extension code — it *reuses* the
 extension's pure voice DSP modules. Full spec: [`../docs/static-voice-studio-design.md`](../docs/static-voice-studio-design.md).
 
-> **Status: Phases 0–4 done.** Verbatim DSP port, full composer + voice panel
-> (chips, intensity/Turbo, fork-to-custom, live summary + filter-graph readout),
-> audition via self-hosted ffmpeg.wasm (mic test + upload), and copy/paste
-> transfer + session restore. **Phase 3 audio output needs hands-on QA on a real
-> deploy** (mic/upload + ears). Remaining: polish (5), orientation hub (6),
-> bundled sample clips + release (7).
+> **Status: Phases 0–5 + 7 done; audio QA confirmed.** Verbatim DSP port, full
+> composer + voice panel (chips, intensity/Turbo, fork-to-custom, live summary +
+> filter-graph readout), audition via self-hosted ffmpeg.wasm (bundled "Tina"
+> sample chips + mic test + upload), copy/paste transfer + session restore, and
+> the self-hosted Chakra Petch display face (Phase 5). Render fidelity and the
+> copy-paste round-trip are hands-on verified. **Remaining: Phase 6 — the
+> Orientation index/hub content** (still a placeholder; the nav banner's `WIP:`
+> markers retire when it ships) — then final publish/release.
 
 ## Run locally
 
@@ -59,6 +61,11 @@ nothing built is committed there.
   `-af` / `-filter_complex` run through ffmpeg.wasm (Phase 3).
 - **Copy-paste contract:** `rvn-voice-character-v1` (the ported
   `clipboard-backup.ts`) — round-trips losslessly with the extension.
+- **Sample chips (Phase 7):** `public/assets/samples/*.mp3` ("Tina" reading the
+  sources in that folder's `README.md`). `src/studio/audition.ts` renders a
+  clicked clip through the active graph, or plays it raw when no effect is on.
+- **Display font:** Chakra Petch **Bold only**, self-hosted in
+  `src/styles/fonts.css` from `src/assets/fonts/` (Vite-processed → base-correct).
 - **Navigation banner is WIP** (`src/studio/nav-banner.ts`): it anticipates a
   future Orientation index page (Phase 6). Search the repo for `WIP:` to find
   everything that should be revisited when that page ships.
