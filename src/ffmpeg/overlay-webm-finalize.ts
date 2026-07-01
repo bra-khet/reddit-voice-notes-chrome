@@ -8,7 +8,7 @@
  */
 
 import type { FFmpeg } from '@ffmpeg/ffmpeg';
-import { loadFfmpeg } from '@/src/ffmpeg/ffmpeg-runner';
+import { attachLogCollector, loadFfmpeg } from '@/src/ffmpeg/ffmpeg-runner';
 import { withTranscodeLock } from '@/src/ffmpeg/transcode-lock';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
@@ -51,7 +51,26 @@ async function execFinalize(ffmpeg: FFmpeg, args: string[]): Promise<void> {
 }
 
 function buildFinalizeStrategies(fps: number): { name: string; args: string[] }[] {
+  // BUG FIX: compare harness canvas video vanished after drawtext finished
+  // Fix: try stream-copy remux first — preserves MediaRecorder alpha, fast, and avoids
+  //      noisy libvpx-vp8 failures in the trimmed FFmpeg WASM build.
+  // Sync: subtitle-controls.ts compare harness (canvas overlay must stay visible)
   return [
+    {
+      name: 'vp8-copy-remux',
+      args: [
+        '-fflags',
+        '+genpts',
+        '-i',
+        INPUT_WEBM,
+        '-an',
+        '-c:v',
+        'copy',
+        '-f',
+        'webm',
+        OUTPUT_WEBM,
+      ],
+    },
     {
       name: 'vp8-yuva-reencode',
       args: [
@@ -79,21 +98,6 @@ function buildFinalizeStrategies(fps: number): { name: string; args: string[] }[
         OUTPUT_WEBM,
       ],
     },
-    {
-      name: 'vp8-copy-remux',
-      args: [
-        '-fflags',
-        '+genpts',
-        '-i',
-        INPUT_WEBM,
-        '-an',
-        '-c:v',
-        'copy',
-        '-f',
-        'webm',
-        OUTPUT_WEBM,
-      ],
-    },
   ];
 }
 
@@ -112,6 +116,7 @@ export async function finalizeOverlayWebm(rawBlob: Blob, fps: number): Promise<B
     for (const strategy of buildFinalizeStrategies(fps)) {
       await safeDeleteFile(ffmpeg, OUTPUT_WEBM);
 
+      const { lines, detach } = attachLogCollector(ffmpeg);
       try {
         await execFinalize(ffmpeg, strategy.args);
         const output = (await ffmpeg.readFile(OUTPUT_WEBM)) as Uint8Array;
@@ -125,10 +130,17 @@ export async function finalizeOverlayWebm(rawBlob: Blob, fps: number): Promise<B
         }
       } catch (error: unknown) {
         lastError = error;
+        const tail = lines
+          .filter((line) => /error|invalid|unknown encoder|failed|cannot|not found/i.test(line))
+          .slice(-4)
+          .join(' | ');
         console.warn(
           `${EXTENSION_LOG_PREFIX} Overlay WebM finalize strategy ${strategy.name} failed`,
           error,
+          tail || undefined,
         );
+      } finally {
+        detach();
       }
     }
 

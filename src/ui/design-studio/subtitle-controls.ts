@@ -133,6 +133,7 @@ const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
     <div class="studio__transcript-modal" data-subtitle-overlay-preview-modal hidden>
       <div
         class="studio__transcript-dialog"
+        data-subtitle-overlay-preview-dialog
         role="dialog"
         aria-labelledby="subtitle-overlay-preview-title"
       >
@@ -158,13 +159,15 @@ const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
             muted
           ></video>
           <p class="popup__field-label studio__subtitle-overlay-compare-label">New Canvas v5.3.4 (overlay only)</p>
-          <video
-            class="studio__subtitle-overlay-preview-video"
-            data-subtitle-overlay-compare-canvas
-            controls
-            playsinline
-            muted
-          ></video>
+          <div class="studio__subtitle-overlay-canvas-wrap">
+            <video
+              class="studio__subtitle-overlay-preview-video studio__subtitle-overlay-preview-video--alpha"
+              data-subtitle-overlay-compare-canvas
+              controls
+              playsinline
+              muted
+            ></video>
+          </div>
         </div>
         <video
           class="studio__subtitle-overlay-preview-video"
@@ -1191,6 +1194,9 @@ export function mountSubtitleControls(
     const overlayPreviewFrameImg = panel.querySelector<HTMLImageElement>(
       '[data-subtitle-overlay-preview-frame]',
     );
+    const overlayPreviewDialog = panel.querySelector<HTMLElement>(
+      '[data-subtitle-overlay-preview-dialog]',
+    );
     const overlayComparePanel = panel.querySelector<HTMLElement>(
       '[data-subtitle-overlay-compare-panel]',
     );
@@ -1201,9 +1207,18 @@ export function mountSubtitleControls(
       '[data-subtitle-overlay-compare-canvas]',
     );
 
+    const revokeOverlayBlobUrl = (url: string | null): void => {
+      if (!url) return;
+      URL.revokeObjectURL(url);
+      if (overlayPreviewObjectUrl === url) overlayPreviewObjectUrl = null;
+      if (overlayCompareDrawtextUrl === url) overlayCompareDrawtextUrl = null;
+      if (overlayCompareCanvasUrl === url) overlayCompareCanvasUrl = null;
+    };
+
     const setOverlayPreviewMode = (mode: 'single' | 'compare'): void => {
       if (overlayComparePanel) overlayComparePanel.hidden = mode !== 'compare';
       if (overlayPreviewVideo) overlayPreviewVideo.hidden = mode !== 'single';
+      overlayPreviewDialog?.classList.toggle('studio__transcript-dialog--overlay-compare', mode === 'compare');
     };
 
     const hideOverlayPreviewModal = (): void => {
@@ -1228,18 +1243,9 @@ export function mountSubtitleControls(
         overlayCompareCanvasVideo.removeAttribute('src');
         overlayCompareCanvasVideo.load();
       }
-      if (overlayPreviewObjectUrl) {
-        URL.revokeObjectURL(overlayPreviewObjectUrl);
-        overlayPreviewObjectUrl = null;
-      }
-      if (overlayCompareDrawtextUrl) {
-        URL.revokeObjectURL(overlayCompareDrawtextUrl);
-        overlayCompareDrawtextUrl = null;
-      }
-      if (overlayCompareCanvasUrl) {
-        URL.revokeObjectURL(overlayCompareCanvasUrl);
-        overlayCompareCanvasUrl = null;
-      }
+      revokeOverlayBlobUrl(overlayPreviewObjectUrl);
+      revokeOverlayBlobUrl(overlayCompareDrawtextUrl);
+      revokeOverlayBlobUrl(overlayCompareCanvasUrl);
       if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
     };
 
@@ -1300,7 +1306,7 @@ export function mountSubtitleControls(
           );
           console.timeEnd('canvas-overlay-render');
 
-          if (overlayPreviewObjectUrl) URL.revokeObjectURL(overlayPreviewObjectUrl);
+          revokeOverlayBlobUrl(overlayPreviewObjectUrl);
           overlayPreviewObjectUrl = objectUrl;
 
           if (overlayPreviewVideo) {
@@ -1351,6 +1357,11 @@ export function mountSubtitleControls(
         }
         if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
         if (overlayPreviewFrameImg) overlayPreviewFrameImg.hidden = true;
+        if (overlayPreviewVideo) {
+          overlayPreviewVideo.pause();
+          overlayPreviewVideo.removeAttribute('src');
+          overlayPreviewVideo.load();
+        }
 
         console.time('canvas-overlay-compare');
         try {
@@ -1359,11 +1370,27 @@ export function mountSubtitleControls(
             style,
             durationSeconds,
             themeBarColor,
+            {
+              onCanvasOverlayReady: (canvasUrl) => {
+                revokeOverlayBlobUrl(overlayCompareCanvasUrl);
+                overlayCompareCanvasUrl = canvasUrl;
+                overlayPreviewObjectUrl = canvasUrl;
+                if (overlayCompareCanvasVideo) {
+                  overlayCompareCanvasVideo.src = canvasUrl;
+                  void overlayCompareCanvasVideo.play().catch(() => {});
+                }
+                if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
+              },
+            },
           );
           console.timeEnd('canvas-overlay-compare');
 
-          if (overlayCompareDrawtextUrl) URL.revokeObjectURL(overlayCompareDrawtextUrl);
-          if (overlayCompareCanvasUrl) URL.revokeObjectURL(overlayCompareCanvasUrl);
+          if (overlayCompareDrawtextUrl !== result.drawtextBakedUrl) {
+            revokeOverlayBlobUrl(overlayCompareDrawtextUrl);
+          }
+          if (overlayCompareCanvasUrl !== result.canvasOverlayUrl) {
+            revokeOverlayBlobUrl(overlayCompareCanvasUrl);
+          }
           overlayCompareDrawtextUrl = result.drawtextBakedUrl;
           overlayCompareCanvasUrl = result.canvasOverlayUrl;
           overlayPreviewObjectUrl = result.canvasOverlayUrl;

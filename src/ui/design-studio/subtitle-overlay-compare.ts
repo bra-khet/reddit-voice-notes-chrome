@@ -34,6 +34,8 @@ export async function renderSubtitleOverlayComparison(
   options?: {
     singleFrameDebug?: boolean;
     onFrameDebug?: (info: SubtitleOverlayFrameDebugInfo) => void | Promise<void>;
+    /** Fires when canvas overlay is ready (before drawtext burn-in may finish). */
+    onCanvasOverlayReady?: (canvasOverlayUrl: string) => void;
   },
 ): Promise<SubtitleOverlayCompareResult> {
   const segments = usableSegments(edited.segments);
@@ -46,17 +48,22 @@ export async function renderSubtitleOverlayComparison(
     throw new Error('No base MP4 found — record a clip on Reddit first for drawtext comparison.');
   }
 
+  const canvasOverlayPromise = renderSubtitleOverlayForPreview(segments, style, durationSeconds, {
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT,
+    fps: 30,
+    background: 'transparent',
+    offline: true,
+    themeBarColor,
+    singleFrameDebug: options?.singleFrameDebug,
+    onFrameDebug: options?.onFrameDebug,
+  }).then((canvasOverlayUrl) => {
+    options?.onCanvasOverlayReady?.(canvasOverlayUrl);
+    return canvasOverlayUrl;
+  });
+
   const [canvasOverlayUrl, drawtextBlob] = await Promise.all([
-    renderSubtitleOverlayForPreview(segments, style, durationSeconds, {
-      width: CANVAS_WIDTH,
-      height: CANVAS_HEIGHT,
-      fps: 30,
-      background: 'transparent',
-      offline: true,
-      themeBarColor,
-      singleFrameDebug: options?.singleFrameDebug,
-      onFrameDebug: options?.onFrameDebug,
-    }),
+    canvasOverlayPromise,
     burnInSubtitlesToMp4(base.blob, {
       segments,
       style,

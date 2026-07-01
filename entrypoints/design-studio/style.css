@@ -1388,6 +1388,44 @@ body {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
+/* BUG FIX: compare harness canvas video clipped when drawtext MP4 loaded */
+.studio__transcript-dialog--overlay-compare {
+  max-width: 560px;
+  max-height: min(92vh, 760px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.studio__subtitle-overlay-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.studio__subtitle-overlay-compare-label {
+  margin: 0;
+}
+
+.studio__subtitle-overlay-preview-video {
+  width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  background: #0b0b0c;
+  object-fit: contain;
+}
+
+.studio__subtitle-overlay-canvas-wrap {
+  border-radius: 8px;
+  overflow: hidden;
+  background:
+    conic-gradient(#3a3a3c 25%, #2a2a2c 0 50%, #3a3a3c 0 75%, #2a2a2c 0) 0 0 / 16px 16px;
+}
+
+.studio__subtitle-overlay-preview-video--alpha {
+  background: transparent;
+}
+
 .studio__transcript-dialog-header {
   display: flex;
   align-items: center;
