@@ -225,14 +225,14 @@ function fillRoundedRect(
 function glowSafeInset(style: SubtitleStyleConfig, fontSize: number): number {
   const glow = style.glow;
   if (glow?.enabled !== true) return 4;
-  if ((glow.mode ?? 'halo') === 'border') {
-    return Math.max(4, Math.round(fontSize * 0.12) + 4);
-  }
-  const blurRadius = glow.blurRadius ?? 2;
-  const baseBlur = Math.max(2, blurRadius * 2);
-  const spread = Math.max(1, Math.min(3, Math.round(blurRadius)));
-  const maxOffset = spread * 3;
-  return Math.ceil(baseBlur * 1.35 + maxOffset + Math.abs(glow.offsetX ?? 0) + Math.abs(glow.offsetY ?? 0) + 8);
+  // CHANGED: inset sized for offset duplicate layers (not shadowBlur radius).
+  // WHY: halo/border both use buildGlowLayerSpecs pixel offsets — large shadow-based
+  //      inset clipped the visible glow and fought VP8 edge containment.
+  void fontSize;
+  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
+  const mode = glow.mode ?? 'halo';
+  if (mode === 'border') return Math.max(4, spread + 2);
+  return Math.max(6, spread + 6);
 }
 
 function resetPaintContextState(
@@ -285,40 +285,28 @@ function paintGlowText(
   y: number,
   style: SubtitleStyleConfig,
   glowHex: string,
-  opacity: number,
 ): void {
   const glow = style.glow;
   if (glow?.enabled !== true) return;
 
-  const mode = glow.mode ?? 'halo';
   const fontSize = style.fontSize ?? 22;
-
-  if (mode === 'border') {
-    ctx.save();
-    ctx.strokeStyle = glowHex;
-    ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.08));
-    ctx.lineJoin = 'round';
-    ctx.globalAlpha = opacity;
-    ctx.strokeText(text, x, y);
-    ctx.restore();
-    return;
-  }
-
-  // Halo mapping (v5.3.4 design doc §3.2):
-  //   glow.blurRadius 1–3 (drawtext ring spread) → shadowBlur = blurRadius * 2
-  //   Offset passes mirror buildGlowLayerSpecs(..., 'single') used at bake time.
-  const blurRadius = glow.blurRadius ?? 2;
-  const baseShadowBlur = Math.max(2, blurRadius * 2);
+  // BUG FIX: canvas halo glow invisible; border glow jagged/bleeding vs drawtext
+  // Fix: duplicate offset fillText layers from buildGlowLayerSpecs('single') — same
+  //      path as subtitle-preview.ts and subtitle-burnin.ts drawtext-glow tier.
+  //      shadowBlur + transparent fillText casts no shadow in Canvas2D; strokeText
+  //      does not match drawtext's 8-neighbour duplicate outline.
+  // Sync: subtitle-preview.ts drawSubtitlePreview(), subtitle-effects.ts buildGlowLayerSpecs
   const specs = buildGlowLayerSpecs(glow, fontSize, 'single');
+  ctx.fillStyle = hexToRgba(glowHex, 1);
 
   for (const spec of specs) {
     ctx.save();
-    ctx.shadowBlur = baseShadowBlur + Math.hypot(spec.offsetX, spec.offsetY) * 0.2;
-    ctx.shadowColor = hexToRgba(glowHex, spec.opacity * opacity);
-    ctx.shadowOffsetX = (glow.offsetX ?? 0) + spec.offsetX;
-    ctx.shadowOffsetY = (glow.offsetY ?? 0) + spec.offsetY;
-    ctx.fillStyle = 'rgba(0,0,0,0)';
-    ctx.fillText(text, x, y);
+    ctx.globalAlpha = spec.opacity;
+    ctx.fillText(
+      text,
+      Math.round(x + spec.offsetX),
+      Math.round(y + spec.offsetY),
+    );
     ctx.restore();
   }
 }
@@ -347,7 +335,6 @@ function paintCue(
   const fontSize = style.fontSize ?? 22;
   const fontFamily = overlayCssFontFamily(style.fontFamily);
   const palette = resolveSubtitleEffectPalette(style, themeBarColor);
-  const glowOpacity = style.glow?.opacity ?? 0.55;
 
   ctx.save();
   ctx.font = `normal ${fontSize}px ${fontFamily}, sans-serif`;
@@ -364,8 +351,11 @@ function paintCue(
   ctx.beginPath();
   ctx.rect(inset, inset, width - inset * 2, height - inset * 2);
   ctx.clip();
-  paintGlowText(ctx, cue.text, centerX, textTopY, style, palette.glowHex, glowOpacity);
-  paintMainText(ctx, cue.text, centerX, textTopY, style, palette.textHex);
+  const textX = Math.round(centerX);
+  const textY = Math.round(textTopY);
+  paintGlowText(ctx, cue.text, textX, textY, style, palette.glowHex);
+  resetPaintContextState(ctx);
+  paintMainText(ctx, cue.text, textX, textY, style, palette.textHex);
   ctx.restore();
   ctx.restore();
 }
