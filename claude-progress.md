@@ -2,7 +2,8 @@
 
 ## v5.3.4 — Subtitle Canvas Overlay (`feature/v5.3.4-subtitle-canvas-overlay`) — IN PROGRESS (2026-07-01)
 
-**Plan (source of truth):** `docs/v5.3.4-subtitle-canvas-overlay.md` (includes live progress table + open items)
+**Plan (source of truth):** `docs/v5.3.4-subtitle-canvas-overlay.md` (progress table, Phase 3.5 spec, handoff checklists)  
+**Task tracker:** `TODO.md` (short pointer only — detail lives in design doc)
 
 Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) to an offline Canvas 2D overlay WebM, then cheap FFmpeg composite. Additive; drawtext path remains fallback until Phase 4 wires strategy selection.
 
@@ -12,14 +13,17 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 2 — render loop + MediaRecorder capture | DONE, user-QA'd | `88f856c` |
 | 2½ — empty WebM, seek/scrub, VP8 edge hardening | DONE, user-QA'd | `224c361`, `9ab41fe` |
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
-| 4 — burn-in pipeline integration | **next** | — |
-| 5 — polish, lab panel, arch docs | pending | — |
+| **3.5 — canvas visual polish** | **next** | — |
+| 4 — burn-in pipeline integration | pending (after 3.5) | — |
+| 5 — production polish, lab panel, arch docs | pending | — |
 
-**User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix.
+**User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 
-**Open before Phase 4:** halo diffusion polish — glow works but is too sharp / border-like; consider `'full'` ring mode on canvas path and/or hybrid `shadowBlur` under duplicate layers (`docs/v5.3.4-subtitle-canvas-overlay.md` Open items).
+**Phase 3.5 scope (before Phase 4):** (1) halo diffusion, (2) dual contrasting border, (3) opinionated text gradient, (4) backdrop rounding QA/tune (`borderRadius` already wired), (5) rainbow per-frame glow. Canvas-only — no drawtext layer explosion. See design doc Phase 3.5 for full spec.
+
+**Doc refresh (2026-07-01):** Integrated `TODO.md` polish deliverables into `docs/v5.3.4-subtitle-canvas-overlay.md` as Phase 3.5; reconciled phase order (3.5 before 4); aligned API notes with existing `SubtitleGlowConfig` / `specialHue` / `backdrop.borderRadius`; noted rounded rects already ship in Phase 3.
 
 ### Restore / test
 
