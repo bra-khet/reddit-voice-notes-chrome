@@ -1,4 +1,4 @@
-import { deriveGlowColor, normalizeHexColor } from '@/src/theme/color-utils';
+import { deriveGlowColor, hexToHsv, hsvToHex, normalizeHexColor } from '@/src/theme/color-utils';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   type SubtitleGlowColorSource,
@@ -23,6 +23,28 @@ export interface GlowLayerSpec {
  * Border mode ignores this (always its fixed 8-neighbour ring).
  */
 export type GlowRingMode = 'full' | 'single' | 'min';
+
+/**
+ * Inner dual-border accent — specialHue when valid, else complementary hue with clamped saturation.
+ * Canvas overlay only (v5.3.4 Phase 3.5.2).
+ */
+export function resolveContrastingBorderColor(baseHex: string, specialHex?: string): string {
+  const special = specialHex ? normalizeHexColor(specialHex) : null;
+  if (special) return special;
+
+  const normalized = normalizeHexColor(baseHex) ?? '#ffffff';
+  if (normalized === '#000000') return '#e0e0e0';
+  if (normalized === '#ffffff') return '#2c2c2c';
+
+  const hsv = hexToHsv(normalized);
+  if (!hsv) return '#ffffff';
+
+  const hue = (hsv.h + 180) % 360;
+  const saturation = Math.max(38, Math.min(68, hsv.s * 0.85 + 12));
+  const value =
+    hsv.v > 55 ? Math.max(30, Math.min(70, hsv.v * 0.65)) : Math.min(88, hsv.v * 1.4 + 25);
+  return hsvToHex(hue, saturation, value);
+}
 
 export function resolveGlowColorHex(
   source: SubtitleGlowColorSource | undefined,

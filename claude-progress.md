@@ -13,13 +13,15 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 2 — render loop + MediaRecorder capture | DONE, user-QA'd | `88f856c` |
 | 2½ — empty WebM, seek/scrub, VP8 edge hardening | DONE, user-QA'd | `224c361`, `9ab41fe` |
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
-| **3.5 — canvas visual polish** | **in progress** (3.5.1 impl, pending QA) | — |
+| **3.5 — canvas visual polish** | **in progress** (3.5.1 done; 3.5.2 impl → QA) | `dbbc9cb` … |
 | 4 — burn-in pipeline integration | pending (after 3.5) | — |
 | 5 — production polish, lab panel, arch docs | pending | — |
 
 **User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
 
-**Phase 3.5.1 (2026-07-01):** Canvas halo path now uses `buildGlowLayerSpecs(..., 'full')` multi-ring layers plus a tuned `shadowBlur` underpass (`paintHaloDiffusionUnderpass`). Border mode unchanged (`single` ring). `glowSafeInset` expanded for larger halo extent. Drawtext/preview still use `'single'` — compare harness will show canvas softer than drawtext (expected). **Pending:** user visual QA via Dev compare harness.
+**Phase 3.5.1 (2026-07-01):** DONE — user QA pass. Canvas halo uses `buildGlowLayerSpecs(..., 'full')` + `shadowBlur` underpass (`dbbc9cb`). Softness acceptable; no VP8 bleed.
+
+**Phase 3.5.2 (2026-07-01):** Dual contrasting border — `glow.dualBorder` on `SubtitleGlowConfig`; `resolveContrastingBorderColor()` in `subtitle-effects.ts`; `paintDualBorderText` / inner ring before halo in overlay renderer. Theme Glow panel: **Dual border** toggle (canvas bake only). **Pending:** user visual QA.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

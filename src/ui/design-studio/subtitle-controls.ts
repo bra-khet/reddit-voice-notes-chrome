@@ -385,6 +385,20 @@ export function renderSubtitleControlFields(): string {
               dataAttrs: { 'subtitle-glow-opacity': '' },
             })}
           </label>
+          <label class="popup__toggle-row studio__subtitles-toggle">
+            <span class="popup__toggle-copy">
+              <span class="popup__toggle-label">Dual border</span>
+              <p class="popup__field-desc">
+                Inner + outer contrasting outline — canvas overlay bake only; drawtext compare stays single border.
+              </p>
+            </span>
+            <input
+              class="popup__toggle-input"
+              type="checkbox"
+              data-subtitle-glow-dual-border
+              aria-label="Canvas dual contrasting border"
+            />
+          </label>
         </div>
         <div class="studio__subtitle-special-hue" data-subtitle-special-hue-panel hidden>
           <p class="popup__field-label studio__subtitle-special-hue-label">Special hue</p>
@@ -468,6 +482,7 @@ export function mountSubtitleControls(
   const glowColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-color]')!;
   const glowOpacityInput = panel.querySelector<HTMLElement>('[data-subtitle-glow-opacity]')!;
   const glowOpacityValueEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-opacity-value]')!;
+  const glowDualBorderInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow-dual-border]')!;
   const resetBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-reset]')!;
   const bakeBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-bake]')!;
   const bakeStatusEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-status]')!;
@@ -953,6 +968,7 @@ export function mountSubtitleControls(
     glowOptionsEl.hidden = !glowOn;
     glowModeSelect.disabled = !glowOn;
     glowColorSelect.disabled = !glowOn;
+    glowDualBorderInput.disabled = !glowOn;
     glowOpacityInput.classList.toggle('is-disabled', !glowOn || borderMode);
   }
 
@@ -984,6 +1000,7 @@ export function mountSubtitleControls(
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
+    glowDualBorderInput.checked = style.glow?.dualBorder === true;
     const glowOpacityPct = Math.round((style.glow?.opacity ?? 0.55) * 100);
     setPhysicalSliderValue(glowOpacityInput, glowOpacityPct);
     glowOpacityValueEl.textContent = `${glowOpacityPct}%`;
@@ -1034,6 +1051,7 @@ export function mountSubtitleControls(
         mode: glowModeSelect.value as SubtitleGlowMode,
         colorSource: glowColorSelect.value as SubtitleGlowColorSource,
         opacity: glowOpacity,
+        dualBorder: glowDualBorderInput.checked,
       },
     });
   }
@@ -1506,6 +1524,13 @@ export function mountSubtitleControls(
   glowColorSelect.addEventListener('change', () => {
     if (syncing) return;
     syncSpecialHueUi();
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  glowDualBorderInput.addEventListener('change', () => {
+    if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();

@@ -73,6 +73,8 @@ export interface SubtitleGlowConfig {
   blurRadius?: number;
   offsetX?: number;
   offsetY?: number;
+  /** Inner + outer contrasting outline — canvas overlay only (v5.3.4 Phase 3.5.2). */
+  dualBorder?: boolean;
 }
 
 export interface SubtitleStyleConfig {
@@ -195,6 +197,7 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
         typeof glow.blurRadius === 'number' ? glow.blurRadius : DEFAULT_SUBTITLE_STYLE.glow!.blurRadius,
       offsetX: typeof glow.offsetX === 'number' ? glow.offsetX : DEFAULT_SUBTITLE_STYLE.glow!.offsetX,
       offsetY: typeof glow.offsetY === 'number' ? glow.offsetY : DEFAULT_SUBTITLE_STYLE.glow!.offsetY,
+      dualBorder: glow.dualBorder === true,
     },
     shadow: {
       enabled: false,
