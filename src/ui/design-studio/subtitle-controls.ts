@@ -18,6 +18,7 @@ import {
 } from '@/src/settings/user-preferences';
 import { TRANSCRIBE_TIMEOUT_MS } from '@/src/transcription/constants';
 import { renderSubtitleOverlayForPreview } from '@/src/transcription/subtitle-overlay-renderer';
+import { renderSubtitleOverlayComparison } from '@/src/ui/design-studio/subtitle-overlay-compare';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   DEFAULT_TRANSCRIPT_CONFIG,
@@ -120,6 +121,13 @@ const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
         >
           Dev: Render Canvas Subtitle Overlay (v5.3.4)
         </button>
+        <button
+          type="button"
+          class="popup__profile-btn popup__profile-btn--negate"
+          data-subtitle-canvas-overlay-compare-btn
+        >
+          Dev: Compare drawtext vs canvas (v5.3.4)
+        </button>
       </div>
     </div>
     <div class="studio__transcript-modal" data-subtitle-overlay-preview-modal hidden>
@@ -140,6 +148,24 @@ const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
           alt="Canvas overlay frame debug preview"
           hidden
         />
+        <div class="studio__subtitle-overlay-compare" data-subtitle-overlay-compare-panel hidden>
+          <p class="popup__field-label studio__subtitle-overlay-compare-label">Old drawtext (baked on base MP4)</p>
+          <video
+            class="studio__subtitle-overlay-preview-video"
+            data-subtitle-overlay-compare-drawtext
+            controls
+            playsinline
+            muted
+          ></video>
+          <p class="popup__field-label studio__subtitle-overlay-compare-label">New Canvas v5.3.4 (overlay only)</p>
+          <video
+            class="studio__subtitle-overlay-preview-video"
+            data-subtitle-overlay-compare-canvas
+            controls
+            playsinline
+            muted
+          ></video>
+        </div>
         <video
           class="studio__subtitle-overlay-preview-video"
           data-subtitle-overlay-preview-video
@@ -1134,10 +1160,15 @@ export function mountSubtitleControls(
   });
 
   let overlayPreviewObjectUrl: string | null = null;
+  let overlayCompareDrawtextUrl: string | null = null;
+  let overlayCompareCanvasUrl: string | null = null;
 
   if (import.meta.env.DEV) {
     const devOverlayBtn = panel.querySelector<HTMLButtonElement>(
       '[data-subtitle-canvas-overlay-dev-btn]',
+    );
+    const devOverlayCompareBtn = panel.querySelector<HTMLButtonElement>(
+      '[data-subtitle-canvas-overlay-compare-btn]',
     );
     const overlayPreviewModal = panel.querySelector<HTMLElement>(
       '[data-subtitle-overlay-preview-modal]',
@@ -1160,9 +1191,24 @@ export function mountSubtitleControls(
     const overlayPreviewFrameImg = panel.querySelector<HTMLImageElement>(
       '[data-subtitle-overlay-preview-frame]',
     );
+    const overlayComparePanel = panel.querySelector<HTMLElement>(
+      '[data-subtitle-overlay-compare-panel]',
+    );
+    const overlayCompareDrawtextVideo = panel.querySelector<HTMLVideoElement>(
+      '[data-subtitle-overlay-compare-drawtext]',
+    );
+    const overlayCompareCanvasVideo = panel.querySelector<HTMLVideoElement>(
+      '[data-subtitle-overlay-compare-canvas]',
+    );
+
+    const setOverlayPreviewMode = (mode: 'single' | 'compare'): void => {
+      if (overlayComparePanel) overlayComparePanel.hidden = mode !== 'compare';
+      if (overlayPreviewVideo) overlayPreviewVideo.hidden = mode !== 'single';
+    };
 
     const hideOverlayPreviewModal = (): void => {
       if (overlayPreviewModal) overlayPreviewModal.hidden = true;
+      setOverlayPreviewMode('single');
       if (overlayPreviewFrameImg) {
         overlayPreviewFrameImg.hidden = true;
         overlayPreviewFrameImg.removeAttribute('src');
@@ -1172,9 +1218,27 @@ export function mountSubtitleControls(
         overlayPreviewVideo.removeAttribute('src');
         overlayPreviewVideo.load();
       }
+      if (overlayCompareDrawtextVideo) {
+        overlayCompareDrawtextVideo.pause();
+        overlayCompareDrawtextVideo.removeAttribute('src');
+        overlayCompareDrawtextVideo.load();
+      }
+      if (overlayCompareCanvasVideo) {
+        overlayCompareCanvasVideo.pause();
+        overlayCompareCanvasVideo.removeAttribute('src');
+        overlayCompareCanvasVideo.load();
+      }
       if (overlayPreviewObjectUrl) {
         URL.revokeObjectURL(overlayPreviewObjectUrl);
         overlayPreviewObjectUrl = null;
+      }
+      if (overlayCompareDrawtextUrl) {
+        URL.revokeObjectURL(overlayCompareDrawtextUrl);
+        overlayCompareDrawtextUrl = null;
+      }
+      if (overlayCompareCanvasUrl) {
+        URL.revokeObjectURL(overlayCompareCanvasUrl);
+        overlayCompareCanvasUrl = null;
       }
       if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
     };
@@ -1192,6 +1256,7 @@ export function mountSubtitleControls(
         const durationSeconds = resolveOverlayDurationSeconds(edited);
 
         if (overlayPreviewModal) overlayPreviewModal.hidden = false;
+        setOverlayPreviewMode('single');
         if (overlayPreviewStatus) {
           overlayPreviewStatus.textContent =
             `Rendering ${segments.length} cue(s)… (capture + FFmpeg finalize)`;
@@ -1257,6 +1322,72 @@ export function mountSubtitleControls(
             overlayPreviewStatus.textContent = `Render failed: ${message}`;
           }
           console.error('[Reddit Voice Notes] Canvas overlay dev harness failed', error);
+        }
+      })();
+    });
+
+    devOverlayCompareBtn?.addEventListener('click', () => {
+      void (async () => {
+        const edited = segmentEditor.getEditedResult();
+        if (!edited) {
+          console.warn('[Reddit Voice Notes] Overlay compare: no transcript loaded');
+          return;
+        }
+        const segments: TranscriptSegment[] = edited.segments ?? [];
+        if (segments.length === 0) {
+          console.warn('[Reddit Voice Notes] Overlay compare: no segments to render');
+          return;
+        }
+
+        const style = mergeStyleFromControls();
+        const durationSeconds = resolveOverlayDurationSeconds(edited);
+        const themeBarColor = handlers?.getThemeBarColor?.();
+
+        if (overlayPreviewModal) overlayPreviewModal.hidden = false;
+        setOverlayPreviewMode('compare');
+        if (overlayPreviewStatus) {
+          overlayPreviewStatus.textContent =
+            `Comparing drawtext vs canvas (${segments.length} cue(s))…`;
+        }
+        if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
+        if (overlayPreviewFrameImg) overlayPreviewFrameImg.hidden = true;
+
+        console.time('canvas-overlay-compare');
+        try {
+          const result = await renderSubtitleOverlayComparison(
+            edited,
+            style,
+            durationSeconds,
+            themeBarColor,
+          );
+          console.timeEnd('canvas-overlay-compare');
+
+          if (overlayCompareDrawtextUrl) URL.revokeObjectURL(overlayCompareDrawtextUrl);
+          if (overlayCompareCanvasUrl) URL.revokeObjectURL(overlayCompareCanvasUrl);
+          overlayCompareDrawtextUrl = result.drawtextBakedUrl;
+          overlayCompareCanvasUrl = result.canvasOverlayUrl;
+          overlayPreviewObjectUrl = result.canvasOverlayUrl;
+
+          if (overlayCompareDrawtextVideo) {
+            overlayCompareDrawtextVideo.src = result.drawtextBakedUrl;
+            void overlayCompareDrawtextVideo.play().catch(() => {});
+          }
+          if (overlayCompareCanvasVideo) {
+            overlayCompareCanvasVideo.src = result.canvasOverlayUrl;
+            void overlayCompareCanvasVideo.play().catch(() => {});
+          }
+          if (overlayPreviewStatus) {
+            overlayPreviewStatus.textContent =
+              'Side-by-side ready — Old drawtext (full MP4) vs New Canvas (overlay.webm).';
+          }
+          if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
+        } catch (error: unknown) {
+          console.timeEnd('canvas-overlay-compare');
+          const message = error instanceof Error ? error.message : String(error);
+          if (overlayPreviewStatus) {
+            overlayPreviewStatus.textContent = `Compare failed: ${message}`;
+          }
+          console.error('[Reddit Voice Notes] Overlay compare failed', error);
         }
       })();
     });
@@ -1441,6 +1572,14 @@ export function mountSubtitleControls(
       if (overlayPreviewObjectUrl) {
         URL.revokeObjectURL(overlayPreviewObjectUrl);
         overlayPreviewObjectUrl = null;
+      }
+      if (overlayCompareDrawtextUrl) {
+        URL.revokeObjectURL(overlayCompareDrawtextUrl);
+        overlayCompareDrawtextUrl = null;
+      }
+      if (overlayCompareCanvasUrl) {
+        URL.revokeObjectURL(overlayCompareCanvasUrl);
+        overlayCompareCanvasUrl = null;
       }
       hideDisableGuard();
       clearPendingTranscriptTimer();

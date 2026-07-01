@@ -11,7 +11,11 @@
  */
 
 import { finalizeOverlayWebm } from '@/src/ffmpeg/overlay-webm-finalize';
-import { resolveSubtitleEffectPalette } from '@/src/transcription/subtitle-effects';
+import { buildGlowLayerSpecs, resolveSubtitleEffectPalette } from '@/src/transcription/subtitle-effects';
+import {
+  loadSubtitleOverlayFonts,
+  overlayCssFontFamily,
+} from '@/src/transcription/subtitle-overlay-fonts';
 import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
 
@@ -23,14 +27,8 @@ const RECORDER_WARMUP_MS = 50;
 const RECORDER_FLUSH_MS = 800;
 /** Extra empty tail frames so MediaRecorder writes duration/cluster metadata. */
 const RECORDER_TAIL_FRAME_COUNT = 3;
-
-// Sync: preview-font-loader.ts PREVIEW_FAMILY_FOR_KEY
-const OVERLAY_FONT_FAMILY: Readonly<Record<string, string>> = {
-  'dejavu-sans': 'RVN-DejaVu-Sans',
-  'dejavu-serif': 'RVN-DejaVu-Serif',
-  'dejavu-mono': 'RVN-DejaVu-Mono',
-  'dejavu-bold': 'RVN-DejaVu-Bold',
-};
+/** Sync: subtitle-burnin.ts buildBackdropBoxOpt boxborderw=12 */
+const BACKDROP_BOX_BORDER_W = 12;
 
 export interface SubtitleOverlayFrameDebugInfo {
   frameIndex: number;
@@ -87,14 +85,8 @@ function pickOverlayMimeType(): string | undefined {
   return candidates.find((type) => MediaRecorder.isTypeSupported(type));
 }
 
-function overlayCssFontFamily(key: string | undefined): string {
-  return OVERLAY_FONT_FAMILY[key ?? 'dejavu-sans'] ?? 'RVN-DejaVu-Sans';
-}
-
 async function ensureOverlayFonts(): Promise<void> {
-  if (typeof document === 'undefined') return;
-  const { loadDejaVuPreviewFonts } = await import('@/src/ui/design-studio/preview-font-loader');
-  await loadDejaVuPreviewFonts();
+  await loadSubtitleOverlayFonts();
 }
 
 function normalizeOverlaySegments(
@@ -180,16 +172,31 @@ function createRenderTarget(width: number, height: number): RenderTarget {
   };
 }
 
-function verticalTextY(
+/** Mirrors subtitle-burnin.ts drawtextY — margin + text_h positioning. */
+function drawtextMarginPx(fontSize: number): number {
+  return Math.max(16, Math.round(fontSize * 0.9));
+}
+
+/** FFmpeg drawtext text_h proxy for single-line DejaVu cues. */
+function drawtextTextHeightPx(fontSize: number): number {
+  return fontSize;
+}
+
+function drawtextYpx(
   position: SubtitleStyleConfig['position'],
   fontSize: number,
   canvasHeight: number,
-  textHeight: number,
 ): number {
-  const margin = Math.max(16, Math.round(fontSize * 0.9));
+  const margin = drawtextMarginPx(fontSize);
+  const textHeight = drawtextTextHeightPx(fontSize);
   if (position === 'top') return margin;
   if (position === 'center') return Math.round((canvasHeight - textHeight) / 2);
   return canvasHeight - textHeight - margin;
+}
+
+/** Mirrors subtitle-burnin.ts drawtextX(0) — centered caption anchor. */
+function drawtextXpx(canvasWidth: number): number {
+  return canvasWidth / 2;
 }
 
 function fillRoundedRect(
@@ -215,15 +222,17 @@ function fillRoundedRect(
   ctx.fill();
 }
 
-function glowSafeInset(style: SubtitleStyleConfig): number {
+function glowSafeInset(style: SubtitleStyleConfig, fontSize: number): number {
   const glow = style.glow;
   if (glow?.enabled !== true) return 4;
   if ((glow.mode ?? 'halo') === 'border') {
-    return Math.max(4, Math.round((style.fontSize ?? 22) * 0.12) + 4);
+    return Math.max(4, Math.round(fontSize * 0.12) + 4);
   }
-  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
-  const blurPx = spread * 4 * 1.35;
-  return Math.ceil(blurPx + Math.abs(glow.offsetX ?? 0) + Math.abs(glow.offsetY ?? 0) + 8);
+  const blurRadius = glow.blurRadius ?? 2;
+  const baseBlur = Math.max(2, blurRadius * 2);
+  const spread = Math.max(1, Math.min(3, Math.round(blurRadius)));
+  const maxOffset = spread * 3;
+  return Math.ceil(baseBlur * 1.35 + maxOffset + Math.abs(glow.offsetX ?? 0) + Math.abs(glow.offsetY ?? 0) + 8);
 }
 
 function resetPaintContextState(
@@ -249,18 +258,16 @@ function paintBackdropPlate(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
   centerX: number,
-  topY: number,
+  textTopY: number,
   style: SubtitleStyleConfig,
   fontSize: number,
-  lineHeight: number,
-): { blockX: number; blockY: number; textY: number } {
-  const paddingX = 12;
-  const paddingY = 10;
+): void {
   const textWidth = ctx.measureText(text).width;
-  const blockWidth = textWidth + paddingX * 2;
-  const blockHeight = lineHeight + paddingY * 2;
+  const textHeight = drawtextTextHeightPx(fontSize);
+  const blockWidth = textWidth + BACKDROP_BOX_BORDER_W * 2;
+  const blockHeight = textHeight + BACKDROP_BOX_BORDER_W * 2;
   const blockX = Math.round(centerX - blockWidth / 2);
-  const blockY = topY;
+  const blockY = textTopY - BACKDROP_BOX_BORDER_W;
 
   const backdrop = style.backdrop;
   if (backdrop?.enabled !== false) {
@@ -269,8 +276,6 @@ function paintBackdropPlate(
     ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
     fillRoundedRect(ctx, blockX, blockY, blockWidth, blockHeight, radius);
   }
-
-  return { blockX, blockY, textY: blockY + paddingY };
 }
 
 function paintGlowText(
@@ -280,39 +285,42 @@ function paintGlowText(
   y: number,
   style: SubtitleStyleConfig,
   glowHex: string,
+  opacity: number,
 ): void {
   const glow = style.glow;
   if (glow?.enabled !== true) return;
 
   const mode = glow.mode ?? 'halo';
-  const glowOpacity = glow.opacity ?? 0.55;
+  const fontSize = style.fontSize ?? 22;
 
   if (mode === 'border') {
     ctx.save();
     ctx.strokeStyle = glowHex;
-    ctx.lineWidth = Math.max(2, Math.round((style.fontSize ?? 22) * 0.08));
+    ctx.lineWidth = Math.max(2, Math.round(fontSize * 0.08));
     ctx.lineJoin = 'round';
+    ctx.globalAlpha = opacity;
     ctx.strokeText(text, x, y);
     ctx.restore();
     return;
   }
 
-  // Halo: shadow-only fills avoid double-painted fringe at VP8 block edges (v5.3.4 QA).
-  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
-  const blurPx = spread * 4;
+  // Halo mapping (v5.3.4 design doc §3.2):
+  //   glow.blurRadius 1–3 (drawtext ring spread) → shadowBlur = blurRadius * 2
+  //   Offset passes mirror buildGlowLayerSpecs(..., 'single') used at bake time.
+  const blurRadius = glow.blurRadius ?? 2;
+  const baseShadowBlur = Math.max(2, blurRadius * 2);
+  const specs = buildGlowLayerSpecs(glow, fontSize, 'single');
 
-  ctx.save();
-  ctx.shadowBlur = blurPx;
-  ctx.shadowColor = hexToRgba(glowHex, glowOpacity);
-  ctx.shadowOffsetX = glow.offsetX ?? 0;
-  ctx.shadowOffsetY = glow.offsetY ?? 0;
-  ctx.fillStyle = 'rgba(0,0,0,0)';
-  ctx.fillText(text, x, y);
-
-  ctx.shadowBlur = blurPx * 1.35;
-  ctx.globalAlpha = glowOpacity * 0.55;
-  ctx.fillText(text, x, y);
-  ctx.restore();
+  for (const spec of specs) {
+    ctx.save();
+    ctx.shadowBlur = baseShadowBlur + Math.hypot(spec.offsetX, spec.offsetY) * 0.2;
+    ctx.shadowColor = hexToRgba(glowHex, spec.opacity * opacity);
+    ctx.shadowOffsetX = (glow.offsetX ?? 0) + spec.offsetX;
+    ctx.shadowOffsetY = (glow.offsetY ?? 0) + spec.offsetY;
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
 }
 
 function paintMainText(
@@ -320,8 +328,10 @@ function paintMainText(
   text: string,
   x: number,
   y: number,
+  _style: SubtitleStyleConfig,
   textHex: string,
 ): void {
+  void _style;
   ctx.fillStyle = textHex;
   ctx.fillText(text, x, y);
 }
@@ -336,26 +346,26 @@ function paintCue(
 ): void {
   const fontSize = style.fontSize ?? 22;
   const fontFamily = overlayCssFontFamily(style.fontFamily);
-  const lineHeight = Math.round(fontSize * 1.25);
   const palette = resolveSubtitleEffectPalette(style, themeBarColor);
+  const glowOpacity = style.glow?.opacity ?? 0.55;
 
   ctx.save();
-  ctx.font = `600 ${fontSize}px ${fontFamily}, sans-serif`;
+  ctx.font = `normal ${fontSize}px ${fontFamily}, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
 
-  const centerX = width / 2;
-  const textHeight = lineHeight;
-  const anchorY = verticalTextY(style.position, fontSize, height, textHeight);
-  const { textY } = paintBackdropPlate(ctx, cue.text, centerX, anchorY, style, fontSize, lineHeight);
+  const centerX = drawtextXpx(width);
+  const textTopY = drawtextYpx(style.position, fontSize, height);
 
-  const inset = glowSafeInset(style);
+  paintBackdropPlate(ctx, cue.text, centerX, textTopY, style, fontSize);
+
+  const inset = glowSafeInset(style, fontSize);
   ctx.save();
   ctx.beginPath();
   ctx.rect(inset, inset, width - inset * 2, height - inset * 2);
   ctx.clip();
-  paintGlowText(ctx, cue.text, centerX, textY, style, palette.glowHex);
-  paintMainText(ctx, cue.text, centerX, textY, palette.textHex);
+  paintGlowText(ctx, cue.text, centerX, textTopY, style, palette.glowHex, glowOpacity);
+  paintMainText(ctx, cue.text, centerX, textTopY, style, palette.textHex);
   ctx.restore();
   ctx.restore();
 }
