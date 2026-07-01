@@ -1,5 +1,36 @@
 # Reddit Voice Notes — Session Progress
 
+## v5.3.4 — Subtitle Canvas Overlay (`feature/v5.3.4-subtitle-canvas-overlay`) — IN PROGRESS (2026-07-01)
+
+**Plan (source of truth):** `docs/v5.3.4-subtitle-canvas-overlay.md` (includes live progress table + open items)
+
+Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) to an offline Canvas 2D overlay WebM, then cheap FFmpeg composite. Additive; drawtext path remains fallback until Phase 4 wires strategy selection.
+
+| Phase | Status | Commit |
+|-------|--------|--------|
+| 1 — skeleton + dev harness | DONE, user-QA'd | `2c8c450` |
+| 2 — render loop + MediaRecorder capture | DONE, user-QA'd | `88f856c` |
+| 2½ — empty WebM, seek/scrub, VP8 edge hardening | DONE, user-QA'd | `224c361`, `9ab41fe` |
+| 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
+| 4 — burn-in pipeline integration | **next** | — |
+| 5 — polish, lab panel, arch docs | pending | — |
+
+**User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix.
+
+**Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
+
+**Open before Phase 4:** halo diffusion polish — glow works but is too sharp / border-like; consider `'full'` ring mode on canvas path and/or hybrid `shadowBlur` under duplicate layers (`docs/v5.3.4-subtitle-canvas-overlay.md` Open items).
+
+### Restore / test
+
+```bash
+git checkout feature/v5.3.4-subtitle-canvas-overlay && npm install && npm run dev
+```
+
+Design Studio → Subtitles → DEV buttons. Record on Reddit first for compare drawtext side.
+
+---
+
 ## Dulcet II Branch 4 `dulcet-ii/character-system` — ✅ COMPLETE (2026-06-25)
 
 Graph-native voice system, merged to `dulcet-ii/integration`. Six commits 9b4a443 → 5cfa5c1.
