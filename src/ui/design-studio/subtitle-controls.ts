@@ -99,14 +99,28 @@ const FONT_FAMILY_OPTIONS: { value: string; label: string }[] = [
 
 const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
   ? `
-    <div class="studio__subtitle-dev-harness popup__profile-actions studio__inline-actions" data-subtitle-canvas-overlay-dev>
-      <button
-        type="button"
-        class="popup__profile-btn popup__profile-btn--negate"
-        data-subtitle-canvas-overlay-dev-btn
-      >
-        Dev: Render Canvas Subtitle Overlay (v5.3.4)
-      </button>
+    <div class="studio__subtitle-dev-harness" data-subtitle-canvas-overlay-dev>
+      <label class="popup__toggle-row studio__subtitles-toggle">
+        <span class="popup__toggle-copy">
+          <span class="popup__toggle-label">Single-frame debug</span>
+          <p class="popup__field-desc">Pause after each painted frame during overlay render.</p>
+        </span>
+        <input
+          class="popup__toggle-input"
+          type="checkbox"
+          data-subtitle-overlay-single-frame-debug
+          aria-label="Single-frame debug for canvas overlay render"
+        />
+      </label>
+      <div class="popup__profile-actions studio__inline-actions">
+        <button
+          type="button"
+          class="popup__profile-btn popup__profile-btn--negate"
+          data-subtitle-canvas-overlay-dev-btn
+        >
+          Dev: Render Canvas Subtitle Overlay (v5.3.4)
+        </button>
+      </div>
     </div>
     <div class="studio__transcript-modal" data-subtitle-overlay-preview-modal hidden>
       <div
@@ -120,6 +134,12 @@ const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
         <p class="popup__field-desc" data-subtitle-overlay-preview-status>
           Rendering…
         </p>
+        <img
+          class="studio__subtitle-overlay-preview-frame"
+          data-subtitle-overlay-preview-frame
+          alt="Canvas overlay frame debug preview"
+          hidden
+        />
         <video
           class="studio__subtitle-overlay-preview-video"
           data-subtitle-overlay-preview-video
@@ -1134,9 +1154,19 @@ export function mountSubtitleControls(
     const overlayPreviewDownload = panel.querySelector<HTMLButtonElement>(
       '[data-subtitle-overlay-preview-download]',
     );
+    const overlaySingleFrameDebugInput = panel.querySelector<HTMLInputElement>(
+      '[data-subtitle-overlay-single-frame-debug]',
+    );
+    const overlayPreviewFrameImg = panel.querySelector<HTMLImageElement>(
+      '[data-subtitle-overlay-preview-frame]',
+    );
 
     const hideOverlayPreviewModal = (): void => {
       if (overlayPreviewModal) overlayPreviewModal.hidden = true;
+      if (overlayPreviewFrameImg) {
+        overlayPreviewFrameImg.hidden = true;
+        overlayPreviewFrameImg.removeAttribute('src');
+      }
       if (overlayPreviewVideo) {
         overlayPreviewVideo.pause();
         overlayPreviewVideo.removeAttribute('src');
@@ -1166,6 +1196,13 @@ export function mountSubtitleControls(
           overlayPreviewStatus.textContent = `Rendering ${segments.length} cue(s)…`;
         }
         if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
+        if (overlayPreviewFrameImg) {
+          overlayPreviewFrameImg.hidden = !overlaySingleFrameDebugInput?.checked;
+          overlayPreviewFrameImg.removeAttribute('src');
+        }
+
+        const singleFrameDebug = overlaySingleFrameDebugInput?.checked === true;
+        const themeBarColor = handlers?.getThemeBarColor?.();
 
         console.time('canvas-overlay-render');
         try {
@@ -1179,6 +1216,20 @@ export function mountSubtitleControls(
               fps: 30,
               background: 'transparent',
               offline: true,
+              themeBarColor,
+              singleFrameDebug,
+              onFrameDebug: singleFrameDebug
+                ? async (info) => {
+                    if (overlayPreviewFrameImg) {
+                      overlayPreviewFrameImg.hidden = false;
+                      overlayPreviewFrameImg.src = info.imageUrl;
+                    }
+                    if (overlayPreviewStatus) {
+                      overlayPreviewStatus.textContent =
+                        `Frame ${info.frameIndex + 1} @ ${info.timestampSeconds.toFixed(2)}s…`;
+                    }
+                  }
+                : undefined,
             },
           );
           console.timeEnd('canvas-overlay-render');
@@ -1190,10 +1241,12 @@ export function mountSubtitleControls(
             overlayPreviewVideo.src = objectUrl;
             void overlayPreviewVideo.play().catch(() => {});
           }
+          if (overlayPreviewFrameImg && !singleFrameDebug) {
+            overlayPreviewFrameImg.hidden = true;
+          }
           if (overlayPreviewStatus) {
             overlayPreviewStatus.textContent =
-              `Overlay ready (${durationSeconds.toFixed(1)}s, ${segments.length} cue(s)). ` +
-              'Phase 1 stub — video may be empty until Phase 2.';
+              `Overlay ready (${durationSeconds.toFixed(1)}s, ${segments.length} cue(s)).`;
           }
           if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
         } catch (error: unknown) {
