@@ -17,6 +17,9 @@ import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription
 const DEFAULT_THEME_BAR = '#00e5ff';
 const OVERLAY_VIDEO_BPS = 1_500_000;
 const SINGLE_FRAME_DEBUG_PAUSE_MS = 180;
+/** Wall-clock pacing so MediaRecorder receives encodable canvas frames. */
+const RECORDER_WARMUP_MS = 50;
+const RECORDER_FLUSH_MS = 400;
 
 // Sync: preview-font-loader.ts PREVIEW_FAMILY_FOR_KEY
 const OVERLAY_FONT_FAMILY: Readonly<Record<string, string>> = {
@@ -356,9 +359,18 @@ function paintFrame(
   target.blitToCapture();
 }
 
-async function yieldToEventLoop(): Promise<void> {
+function frameCaptureIntervalMs(fps: number): number {
+  return Math.max(4, Math.ceil(1000 / fps));
+}
+
+async function waitForNextCaptureTick(
+  fps: number,
+  singleFrameDebug: boolean,
+): Promise<void> {
+  // Single-frame debug already pauses long enough for MediaRecorder to ingest frames.
+  if (singleFrameDebug) return;
   await new Promise<void>((resolve) => {
-    queueMicrotask(() => resolve());
+    window.setTimeout(resolve, frameCaptureIntervalMs(fps));
   });
 }
 
@@ -378,8 +390,12 @@ async function recordOverlayTimeline(
   const fps = Math.max(1, options.fps);
   const totalFrames = Math.max(1, Math.ceil(durationSeconds * fps));
   const mimeType = pickOverlayMimeType();
-  const stream = target.captureCanvas.captureStream(0);
-  const videoTrack = stream.getVideoTracks()[0] as CanvasCaptureMediaStreamTrack | undefined;
+  const singleFrameDebug = options.singleFrameDebug === true;
+  // BUG FIX: regular dev harness produced empty overlay.webm (Phase 2 QA)
+  // Fix: captureStream(fps) + wall-clock frame pacing — MediaRecorder cannot encode
+  //      when frames are painted in a tight microtask loop (~164ms total); single-frame
+  //      debug worked only because its 180ms pause gave the encoder time to run.
+  const stream = target.captureCanvas.captureStream(fps);
 
   const chunks: Blob[] = [];
   const recorder = new MediaRecorder(stream, {
@@ -400,15 +416,15 @@ async function recordOverlayTimeline(
 
     void (async () => {
       try {
+        await new Promise<void>((r) => {
+          window.setTimeout(() => r(), RECORDER_WARMUP_MS);
+        });
+
         for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
           const timestamp = frameIndex / fps;
           paintFrame(target, cues, style, options, timestamp, durationSeconds);
 
-          if (typeof videoTrack?.requestFrame === 'function') {
-            videoTrack.requestFrame();
-          }
-
-          if (options.singleFrameDebug && options.onFrameDebug) {
+          if (singleFrameDebug && options.onFrameDebug) {
             const png = await canvasToPngBlob(target.captureCanvas);
             if (png) {
               const imageUrl = URL.createObjectURL(png);
@@ -425,15 +441,13 @@ async function recordOverlayTimeline(
             await new Promise<void>((r) => {
               window.setTimeout(() => r(), SINGLE_FRAME_DEBUG_PAUSE_MS);
             });
-          }
-
-          if (options.offline !== false) {
-            await yieldToEventLoop();
+          } else {
+            await waitForNextCaptureTick(fps, singleFrameDebug);
           }
         }
 
         await new Promise<void>((r) => {
-          window.setTimeout(() => r(), 120);
+          window.setTimeout(() => r(), RECORDER_FLUSH_MS);
         });
 
         if (recorder.state === 'recording') {
