@@ -11,10 +11,9 @@
  */
 
 import { finalizeOverlayWebm } from '@/src/ffmpeg/overlay-webm-finalize';
-import { normalizeHexColor } from '@/src/theme/color-utils';
 import {
   buildGlowLayerSpecs,
-  resolveContrastingBorderColor,
+  resolveInnerBorderColor,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
 import {
@@ -22,11 +21,13 @@ import {
   overlayCssFontFamily,
 } from '@/src/transcription/subtitle-overlay-fonts';
 import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
-import type {
-  SubtitleGlowConfig,
-  SubtitleStyleConfig,
-  TranscriptSegment,
+import {
+  DEFAULT_SUBTITLE_SPECIAL_HUE,
+  type SubtitleGlowConfig,
+  type SubtitleStyleConfig,
+  type TranscriptSegment,
 } from '@/src/transcription/types';
+import { normalizeHexColor } from '@/src/theme/color-utils';
 
 const DEFAULT_THEME_BAR = '#00e5ff';
 const OVERLAY_VIDEO_BPS = 1_500_000;
@@ -332,17 +333,13 @@ function paintHaloDiffusionUnderpass(
 }
 
 function resolveDualBorderInnerHex(outerHex: string, style: SubtitleStyleConfig): string {
-  const outer = normalizeHexColor(outerHex) ?? '#ffffff';
   const glow = style.glow;
-  const usesSpecial =
-    style.textColor === 'special' || glow?.colorSource === 'special';
-  if (usesSpecial) {
-    const special = normalizeHexColor(style.specialHue ?? '');
-    if (special && special !== outer) return special;
-  }
-  const contrasting = resolveContrastingBorderColor(outer);
-  if (contrasting !== outer) return contrasting;
-  return outer === '#000000' ? '#ffffff' : '#000000';
+  const userChoseSpecialHue =
+    style.textColor === 'special' ||
+    glow?.colorSource === 'special' ||
+    normalizeHexColor(style.specialHue ?? '') !==
+      normalizeHexColor(DEFAULT_SUBTITLE_SPECIAL_HUE);
+  return resolveInnerBorderColor(outerHex, userChoseSpecialHue ? style.specialHue : undefined);
 }
 
 function paintDualBorderStrokes(

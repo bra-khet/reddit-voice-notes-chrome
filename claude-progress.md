@@ -21,7 +21,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 3.5.1 (2026-07-01):** DONE — user QA pass. Canvas halo uses `buildGlowLayerSpecs(..., 'full')` + `shadowBlur` underpass (`dbbc9cb`). Softness acceptable; no VP8 bleed.
 
-**Phase 3.5.2 (2026-07-01):** Dual contrasting border — `glow.dualBorder`; `resolveContrastingBorderColor()`; Theme Glow **Dual border** toggle. **QA fix:** first impl used 1–2px `fillText` offset rings + always forced `specialHue` as inner color → invisible when colors matched, sparse VP8 dot artifacts otherwise. Replaced with font-scaled `strokeText` (outer wide / inner narrow) and contrast-aware inner color resolution. **Pending:** re-QA.
+**Phase 3.5.2 (2026-07-01):** Dual contrasting border — `glow.dualBorder`; `resolveInnerBorderColor()` (monochromatic dark/light keyline + optional clamped `specialHue`); stroke-based `paintDualBorderStrokes`. Replaced muddy 180° complementary `resolveContrastingBorderColor`. **Pending:** re-QA color matrix.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

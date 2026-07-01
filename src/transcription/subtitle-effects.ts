@@ -1,4 +1,10 @@
-import { deriveGlowColor, hexToHsv, hsvToHex, normalizeHexColor } from '@/src/theme/color-utils';
+import {
+  deriveGlowColor,
+  hexToHsv,
+  hexToRgb,
+  hsvToHex,
+  normalizeHexColor,
+} from '@/src/theme/color-utils';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   type SubtitleGlowColorSource,
@@ -24,23 +30,100 @@ export interface GlowLayerSpec {
  */
 export type GlowRingMode = 'full' | 'single' | 'min';
 
-/**
- * Complementary inner accent for dual border — clamped saturation to avoid neon cheese.
- * Canvas overlay only (v5.3.4 Phase 3.5.2).
- */
-export function resolveContrastingBorderColor(baseHex: string): string {
-  const normalized = normalizeHexColor(baseHex) ?? '#ffffff';
-  if (normalized === '#000000') return '#e0e0e0';
-  if (normalized === '#ffffff') return '#2c2c2c';
+/** sRGB relative luminance — picks dark vs light monochromatic keyline. */
+function hexRelativeLuminance(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0.5;
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const r = channel(rgb.r);
+  const g = channel(rgb.g);
+  const b = channel(rgb.b);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function monochromaticKeylineHex(outerHex: string): string {
+  const normalized = normalizeHexColor(outerHex) ?? '#ffffff';
+  if (normalized === '#000000') return '#e8e8e8';
+  if (normalized === '#ffffff') return '#1a1a1a';
 
   const hsv = hexToHsv(normalized);
-  if (!hsv) return '#ffffff';
+  if (!hsv) return '#1a1a1a';
 
-  const hue = (hsv.h + 180) % 360;
-  const saturation = Math.max(38, Math.min(68, hsv.s * 0.85 + 12));
-  const value =
-    hsv.v > 55 ? Math.max(30, Math.min(70, hsv.v * 0.65)) : Math.min(88, hsv.v * 1.4 + 25);
+  const luminance = hexRelativeLuminance(normalized);
+  // HSV value catches saturated reds/blues that sRGB luminance underrates as "dark".
+  const useDarkKeyline = hsv.v >= 48 || luminance >= 0.45;
+  const hueShift = useDarkKeyline ? 8 : -8;
+  const hue = (hsv.h + hueShift + 360) % 360;
+
+  if (useDarkKeyline) {
+    const saturation = Math.max(8, Math.min(24, hsv.s * 0.2 + 6));
+    const value = Math.max(12, Math.min(20, 17 - (hsv.v > 72 ? 3 : 0)));
+    return hsvToHex(hue, saturation, value);
+  }
+
+  const saturation = Math.max(4, Math.min(16, hsv.s * 0.12 + 4));
+  const value = Math.max(86, Math.min(93, 90 + (hsv.v < 22 ? 2 : 0)));
   return hsvToHex(hue, saturation, value);
+}
+
+function clampSpecialHueForKeyline(specialHex: string, outerHex: string): string {
+  const special = normalizeHexColor(specialHex);
+  const outer = normalizeHexColor(outerHex);
+  if (!special || !outer || special === outer) {
+    return monochromaticKeylineHex(outerHex);
+  }
+
+  const outerLum = hexRelativeLuminance(outer);
+  const specialHsv = hexToHsv(special);
+  if (!specialHsv) return monochromaticKeylineHex(outerHex);
+
+  const outerHsv = hexToHsv(outer);
+  const useDarkKeyline = (outerHsv?.v ?? 0) >= 48 || outerLum >= 0.45;
+  const specialLum = hexRelativeLuminance(special);
+
+  if (useDarkKeyline) {
+    if (specialLum >= 0.42) {
+      return hsvToHex(
+        specialHsv.h,
+        Math.min(specialHsv.s, 42),
+        Math.max(12, Math.min(24, specialHsv.v * 0.32)),
+      );
+    }
+    return hsvToHex(
+      specialHsv.h,
+      Math.min(specialHsv.s, 52),
+      Math.max(10, Math.min(28, specialHsv.v)),
+    );
+  }
+
+  if (specialLum <= 0.38) {
+    return hsvToHex(
+      specialHsv.h,
+      Math.min(specialHsv.s, 32),
+      Math.max(84, Math.min(93, specialHsv.v * 1.2 + 48)),
+    );
+  }
+  return hsvToHex(
+    specialHsv.h,
+    Math.min(specialHsv.s, 40),
+    Math.max(84, Math.min(94, specialHsv.v)),
+  );
+}
+
+/**
+ * Inner dual-border keyline — monochromatic dark/light definition, not complementary RGB.
+ * Canvas overlay only (v5.3.4 Phase 3.5.2).
+ */
+export function resolveInnerBorderColor(baseHex: string, specialHue?: string): string {
+  const special = specialHue ? normalizeHexColor(specialHue) : null;
+  const outer = normalizeHexColor(baseHex) ?? '#ffffff';
+  if (special && special !== outer) {
+    return clampSpecialHueForKeyline(special, outer);
+  }
+  return monochromaticKeylineHex(outer);
 }
 
 export function resolveGlowColorHex(
