@@ -278,6 +278,70 @@ export function buildGlowLayerSpecs(
   return specs;
 }
 
+/** Fraction of glow.opacity routed to offset rings (canvas overlay halo). */
+export const CANVAS_HALO_RING_OPACITY_BUDGET = 0.68;
+
+/** Fraction of glow.opacity routed to shadowBlur core (canvas overlay halo). */
+export const CANVAS_HALO_UNDERPASS_OPACITY_BUDGET = 0.32;
+
+/**
+ * Scale layer opacities so their sum equals targetSum — constant integral regardless of ring count.
+ * Canvas overlay only; drawtext tiers keep per-layer opacities from buildGlowLayerSpecs.
+ */
+export function normalizeGlowLayerOpacityIntegral(
+  specs: GlowLayerSpec[],
+  targetSum: number,
+): GlowLayerSpec[] {
+  if (specs.length === 0 || targetSum <= 0) return specs;
+  const sum = specs.reduce((total, spec) => total + spec.opacity, 0);
+  if (sum <= 0) return specs;
+  const scale = targetSum / sum;
+  return specs.map((spec) => ({ ...spec, opacity: spec.opacity * scale }));
+}
+
+/**
+ * Integral-normalized multi-ring halo for canvas overlay.
+ * Rings only — core diffusion is paintHaloDiffusionUnderpass (no centre duplicate; avoids muddy stack).
+ * Sync: subtitle-overlay-renderer.ts paintGlowText halo branch.
+ */
+export function buildCanvasOverlayHaloLayerSpecs(
+  glow: SubtitleGlowConfig,
+  baseFontSize: number,
+): GlowLayerSpec[] {
+  if (glow.enabled !== true) return [];
+
+  const baseOpacity = glow.opacity ?? 0.55;
+  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
+  const raw: GlowLayerSpec[] = [];
+
+  for (let step = 1; step <= spread; step += 1) {
+    // CHANGED: exp falloff vs linear 0.22/step — smoother taper, less octagonal fence at max spread.
+    const falloff = Math.exp(-0.42 * (step - 1));
+    for (const [dx, dy] of BORDER_RING) {
+      raw.push({
+        fontSize: baseFontSize,
+        offsetX: dx * step,
+        offsetY: dy * step,
+        opacity: falloff,
+      });
+    }
+  }
+
+  // Whisper ring one step beyond spread — soft outer tail without a hard cutoff.
+  const outerFalloff = Math.exp(-0.42 * spread) * 0.42;
+  for (const [dx, dy] of BORDER_RING) {
+    raw.push({
+      fontSize: baseFontSize,
+      offsetX: dx * (spread + 1),
+      offsetY: dy * (spread + 1),
+      opacity: outerFalloff,
+    });
+  }
+
+  const ringBudget = baseOpacity * CANVAS_HALO_RING_OPACITY_BUDGET;
+  return normalizeGlowLayerOpacityIntegral(raw, ringBudget);
+}
+
 export function resolveSubtitleEffectPalette(
   style: SubtitleStyleConfig,
   themeBarColor: string,

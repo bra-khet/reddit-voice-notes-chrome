@@ -12,7 +12,9 @@
 
 import { finalizeOverlayWebm } from '@/src/ffmpeg/overlay-webm-finalize';
 import {
+  buildCanvasOverlayHaloLayerSpecs,
   buildGlowLayerSpecs,
+  CANVAS_HALO_UNDERPASS_OPACITY_BUDGET,
   resolveInnerBorderColor,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
@@ -318,15 +320,22 @@ function paintHaloDiffusionUnderpass(
   glowHex: string,
 ): void {
   const baseOpacity = glow.opacity ?? 0.55;
+  const underpassBudget = baseOpacity * CANVAS_HALO_UNDERPASS_OPACITY_BUDGET;
   const blur = haloShadowBlurPx(glow);
+  const darkGlow = (normalizeHexColor(glowHex) ?? glowHex) === '#000000';
 
   ctx.save();
-  ctx.shadowColor = hexToRgba(glowHex, Math.min(1, baseOpacity * 0.65));
+  // BUG FIX: patchy/muddy canvas halo (black glow + dual border edge case)
+  // Fix: budget-split underpass vs rings; lower dark-glow fill alpha so shadowBlur tapers
+  //      smoothly without stacking opaque centre duplicates on top.
+  ctx.shadowColor = hexToRgba(glowHex, Math.min(0.72, underpassBudget * 1.4));
   ctx.shadowBlur = blur;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
   ctx.fillStyle = hexToRgba(glowHex, 1);
-  ctx.globalAlpha = Math.min(0.42, baseOpacity * 0.55);
+  ctx.globalAlpha = darkGlow
+    ? Math.min(0.2, underpassBudget * 0.65)
+    : Math.min(0.36, underpassBudget * 1.05);
   ctx.fillText(text, x, y);
   ctx.restore();
   resetPaintContextState(ctx);
@@ -447,16 +456,17 @@ function paintGlowText(
   }
 
   if (mode === 'halo') {
-    // CHANGED: canvas halo uses lush multi-ring + shadowBlur underpass (v5.3.4 Phase 3.5.1).
-    // WHY: 'single' ring matched drawtext but reads too sharp; canvas has no layer budget.
-    // Sync: drawtext/burn-in still uses 'single' in subtitle-burnin.ts; preview uses 'single' in subtitle-preview.ts
+    // CHANGED: integral-normalized ring budget + shadowBlur core (v5.3.4 Phase 3.5.1 polish).
+    // WHY: raw 'full' specs stack ~3× opacity at spread=2 and double-paint the core — patchy/muddy
+    //      halos (especially black glow). Rings-only specs normalize to constant glow.opacity integral.
+    // Sync: drawtext/burn-in still uses buildGlowLayerSpecs('single') in subtitle-burnin.ts
     paintHaloDiffusionUnderpass(ctx, text, x, y, glow, glowHex);
     paintGlowDuplicateLayers(
       ctx,
       text,
       x,
       y,
-      buildGlowLayerSpecs(glow, fontSize, 'full'),
+      buildCanvasOverlayHaloLayerSpecs(glow, fontSize),
       glowHex,
     );
     return;
