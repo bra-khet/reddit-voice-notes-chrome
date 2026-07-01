@@ -17,6 +17,7 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { TRANSCRIBE_TIMEOUT_MS } from '@/src/transcription/constants';
+import { renderSubtitleOverlayForPreview } from '@/src/transcription/subtitle-overlay-renderer';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   DEFAULT_TRANSCRIPT_CONFIG,
@@ -29,7 +30,9 @@ import {
   type SubtitleTextColor,
   type TranscriptConfig,
   type TranscriptResult,
+  type TranscriptSegment,
 } from '@/src/transcription/types';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
 import {
   mountColorPickerControls,
   renderColorPickerFields,
@@ -93,6 +96,71 @@ const FONT_FAMILY_OPTIONS: { value: string; label: string }[] = [
   { value: 'dejavu-mono', label: 'Mono' },
   { value: 'dejavu-bold', label: 'Bold' },
 ];
+
+const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
+  ? `
+    <div class="studio__subtitle-dev-harness popup__profile-actions studio__inline-actions" data-subtitle-canvas-overlay-dev>
+      <button
+        type="button"
+        class="popup__profile-btn popup__profile-btn--negate"
+        data-subtitle-canvas-overlay-dev-btn
+      >
+        Dev: Render Canvas Subtitle Overlay (v5.3.4)
+      </button>
+    </div>
+    <div class="studio__transcript-modal" data-subtitle-overlay-preview-modal hidden>
+      <div
+        class="studio__transcript-dialog"
+        role="dialog"
+        aria-labelledby="subtitle-overlay-preview-title"
+      >
+        <h3 class="studio__transcript-dialog-title" id="subtitle-overlay-preview-title">
+          Canvas subtitle overlay (v5.3.4)
+        </h3>
+        <p class="popup__field-desc" data-subtitle-overlay-preview-status>
+          Rendering…
+        </p>
+        <video
+          class="studio__subtitle-overlay-preview-video"
+          data-subtitle-overlay-preview-video
+          controls
+          autoplay
+          playsinline
+          muted
+        ></video>
+        <div class="popup__profile-actions studio__inline-actions studio-v4__guard-actions">
+          <button
+            type="button"
+            class="popup__button popup__button--secondary studio-v4__guard-cancel"
+            data-subtitle-overlay-preview-close
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply"
+            data-subtitle-overlay-preview-download
+            disabled
+          >
+            Download overlay.webm
+          </button>
+        </div>
+      </div>
+    </div>
+  `
+  : '';
+
+function resolveOverlayDurationSeconds(edited: TranscriptResult | null): number {
+  if (typeof edited?.duration === 'number' && edited.duration > 0) {
+    return edited.duration;
+  }
+  const segments = edited?.segments ?? [];
+  if (segments.length > 0) {
+    const lastEnd = Math.max(...segments.map((segment) => segment.end));
+    if (lastEnd > 0) return lastEnd;
+  }
+  return 10;
+}
 
 function formatSavedAt(ms: number): string {
   try {
@@ -163,6 +231,7 @@ export function renderSubtitleControlFields(): string {
             </p>
           </div>
         </div>
+        ${CANVAS_OVERLAY_DEV_HARNESS_HTML}
         ${renderSubtitleSegmentEditorFields()}
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Position</span>
@@ -1044,6 +1113,111 @@ export function mountSubtitleControls(
     panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')?.focus();
   });
 
+  let overlayPreviewObjectUrl: string | null = null;
+
+  if (import.meta.env.DEV) {
+    const devOverlayBtn = panel.querySelector<HTMLButtonElement>(
+      '[data-subtitle-canvas-overlay-dev-btn]',
+    );
+    const overlayPreviewModal = panel.querySelector<HTMLElement>(
+      '[data-subtitle-overlay-preview-modal]',
+    );
+    const overlayPreviewVideo = panel.querySelector<HTMLVideoElement>(
+      '[data-subtitle-overlay-preview-video]',
+    );
+    const overlayPreviewStatus = panel.querySelector<HTMLElement>(
+      '[data-subtitle-overlay-preview-status]',
+    );
+    const overlayPreviewClose = panel.querySelector<HTMLButtonElement>(
+      '[data-subtitle-overlay-preview-close]',
+    );
+    const overlayPreviewDownload = panel.querySelector<HTMLButtonElement>(
+      '[data-subtitle-overlay-preview-download]',
+    );
+
+    const hideOverlayPreviewModal = (): void => {
+      if (overlayPreviewModal) overlayPreviewModal.hidden = true;
+      if (overlayPreviewVideo) {
+        overlayPreviewVideo.pause();
+        overlayPreviewVideo.removeAttribute('src');
+        overlayPreviewVideo.load();
+      }
+      if (overlayPreviewObjectUrl) {
+        URL.revokeObjectURL(overlayPreviewObjectUrl);
+        overlayPreviewObjectUrl = null;
+      }
+      if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
+    };
+
+    devOverlayBtn?.addEventListener('click', () => {
+      void (async () => {
+        const edited = segmentEditor.getEditedResult();
+        const segments: TranscriptSegment[] = edited?.segments ?? [];
+        if (segments.length === 0) {
+          console.warn('[Reddit Voice Notes] Canvas overlay dev harness: no segments to render');
+          return;
+        }
+
+        const style = mergeStyleFromControls();
+        const durationSeconds = resolveOverlayDurationSeconds(edited);
+
+        if (overlayPreviewModal) overlayPreviewModal.hidden = false;
+        if (overlayPreviewStatus) {
+          overlayPreviewStatus.textContent = `Rendering ${segments.length} cue(s)…`;
+        }
+        if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
+
+        console.time('canvas-overlay-render');
+        try {
+          const objectUrl = await renderSubtitleOverlayForPreview(
+            segments,
+            style,
+            durationSeconds,
+            {
+              width: CANVAS_WIDTH,
+              height: CANVAS_HEIGHT,
+              fps: 30,
+              background: 'transparent',
+              offline: true,
+            },
+          );
+          console.timeEnd('canvas-overlay-render');
+
+          if (overlayPreviewObjectUrl) URL.revokeObjectURL(overlayPreviewObjectUrl);
+          overlayPreviewObjectUrl = objectUrl;
+
+          if (overlayPreviewVideo) {
+            overlayPreviewVideo.src = objectUrl;
+            void overlayPreviewVideo.play().catch(() => {});
+          }
+          if (overlayPreviewStatus) {
+            overlayPreviewStatus.textContent =
+              `Overlay ready (${durationSeconds.toFixed(1)}s, ${segments.length} cue(s)). ` +
+              'Phase 1 stub — video may be empty until Phase 2.';
+          }
+          if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
+        } catch (error: unknown) {
+          console.timeEnd('canvas-overlay-render');
+          const message = error instanceof Error ? error.message : String(error);
+          if (overlayPreviewStatus) {
+            overlayPreviewStatus.textContent = `Render failed: ${message}`;
+          }
+          console.error('[Reddit Voice Notes] Canvas overlay dev harness failed', error);
+        }
+      })();
+    });
+
+    overlayPreviewClose?.addEventListener('click', hideOverlayPreviewModal);
+
+    overlayPreviewDownload?.addEventListener('click', () => {
+      if (!overlayPreviewObjectUrl) return;
+      const anchor = document.createElement('a');
+      anchor.href = overlayPreviewObjectUrl;
+      anchor.download = 'overlay.webm';
+      anchor.click();
+    });
+  }
+
   bakeUnsavedCancelBtn.addEventListener('click', () => {
     hideBakeUnsavedDialog();
     bakeStatusEl.textContent = 'Bake cancelled.';
@@ -1210,6 +1384,10 @@ export function mountSubtitleControls(
     },
     dispose(): void {
       bakeAbort?.abort();
+      if (overlayPreviewObjectUrl) {
+        URL.revokeObjectURL(overlayPreviewObjectUrl);
+        overlayPreviewObjectUrl = null;
+      }
       hideDisableGuard();
       clearPendingTranscriptTimer();
       document.removeEventListener('keydown', onDisableGuardKeydown);
