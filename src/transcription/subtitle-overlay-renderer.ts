@@ -11,6 +11,7 @@
  */
 
 import { finalizeOverlayWebm } from '@/src/ffmpeg/overlay-webm-finalize';
+import { normalizeHexColor } from '@/src/theme/color-utils';
 import {
   buildGlowLayerSpecs,
   resolveContrastingBorderColor,
@@ -37,19 +38,18 @@ const RECORDER_FLUSH_MS = 800;
 const RECORDER_TAIL_FRAME_COUNT = 3;
 /** Sync: subtitle-burnin.ts buildBackdropBoxOpt boxborderw=12 */
 const BACKDROP_BOX_BORDER_W = 12;
-/** 8-neighbour ring offsets for duplicate-layer borders (sync: subtitle-effects.ts BORDER_RING). */
-const GLOW_NEIGHBOUR_RING: ReadonlyArray<readonly [number, number]> = [
-  [-1, -1],
-  [0, -1],
-  [1, -1],
-  [-1, 0],
-  [1, 0],
-  [-1, 1],
-  [0, 1],
-  [1, 1],
-];
-const DUAL_BORDER_INNER_OFFSET_PX = 1;
-const DUAL_BORDER_OUTER_OFFSET_PX = 2;
+
+function dualBorderOuterStrokeWidthPx(fontSize: number): number {
+  return Math.max(4, Math.round(fontSize * 0.18));
+}
+
+function dualBorderInnerStrokeWidthPx(fontSize: number): number {
+  return Math.max(2, Math.round(fontSize * 0.1));
+}
+
+function dualBorderStrokeExtentPx(fontSize: number): number {
+  return Math.ceil(dualBorderOuterStrokeWidthPx(fontSize) / 2) + 2;
+}
 
 export interface SubtitleOverlayFrameDebugInfo {
   frameIndex: number;
@@ -255,10 +255,9 @@ function haloShadowBlurPx(glow: SubtitleGlowConfig): number {
 function glowSafeInset(style: SubtitleStyleConfig, fontSize: number): number {
   const glow = style.glow;
   if (glow?.enabled !== true) return 4;
-  void fontSize;
   const spread = haloSpreadPx(glow);
   const mode = glow.mode ?? 'halo';
-  const dualExtra = glow.dualBorder === true ? DUAL_BORDER_OUTER_OFFSET_PX + 2 : 0;
+  const dualExtra = glow.dualBorder === true ? dualBorderStrokeExtentPx(fontSize) : 0;
   if (mode === 'border') return Math.max(4, spread + 2 + dualExtra);
   // CHANGED: halo inset accounts for multi-ring 'full' spread + shadowBlur underpass (v5.3.4 Phase 3.5.1).
   // WHY: softer canvas halo extends farther than the old single-ring duplicate layers.
@@ -333,43 +332,66 @@ function paintHaloDiffusionUnderpass(
 }
 
 function resolveDualBorderInnerHex(outerHex: string, style: SubtitleStyleConfig): string {
-  return resolveContrastingBorderColor(outerHex, style.specialHue);
-}
-
-function paintOffsetTextRing(
-  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  ringHex: string,
-  ringOffsetPx: number,
-  opacity = 1,
-): void {
-  ctx.fillStyle = hexToRgba(ringHex, 1);
-
-  for (const [dx, dy] of GLOW_NEIGHBOUR_RING) {
-    ctx.save();
-    ctx.globalAlpha = opacity;
-    ctx.fillText(
-      text,
-      Math.round(x + dx * ringOffsetPx),
-      Math.round(y + dy * ringOffsetPx),
-    );
-    ctx.restore();
+  const outer = normalizeHexColor(outerHex) ?? '#ffffff';
+  const glow = style.glow;
+  const usesSpecial =
+    style.textColor === 'special' || glow?.colorSource === 'special';
+  if (usesSpecial) {
+    const special = normalizeHexColor(style.specialHue ?? '');
+    if (special && special !== outer) return special;
   }
+  const contrasting = resolveContrastingBorderColor(outer);
+  if (contrasting !== outer) return contrasting;
+  return outer === '#000000' ? '#ffffff' : '#000000';
 }
 
-function paintDualBorderText(
+function paintDualBorderStrokes(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
   x: number,
   y: number,
   style: SubtitleStyleConfig,
   outerHex: string,
+  fontSize: number,
 ): void {
   const innerHex = resolveDualBorderInnerHex(outerHex, style);
-  paintOffsetTextRing(ctx, text, x, y, innerHex, DUAL_BORDER_INNER_OFFSET_PX, 1);
-  paintOffsetTextRing(ctx, text, x, y, outerHex, DUAL_BORDER_OUTER_OFFSET_PX, 1);
+  const outerWidth = dualBorderOuterStrokeWidthPx(fontSize);
+  const innerWidth = dualBorderInnerStrokeWidthPx(fontSize);
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.globalAlpha = 1;
+  // BUG FIX: dual border invisible / VP8 dot artifacts (Phase 3.5.2 QA)
+  // Fix: font-scaled strokeText (outer wide, inner narrow) replaces 1–2px fillText offset
+  //      rings that collapsed to sparse fragments on transparent WebM.
+  ctx.strokeStyle = hexToRgba(outerHex, 1);
+  ctx.lineWidth = outerWidth;
+  ctx.strokeText(text, x, y);
+  ctx.strokeStyle = hexToRgba(innerHex, 1);
+  ctx.lineWidth = innerWidth;
+  ctx.strokeText(text, x, y);
+  ctx.restore();
+  resetPaintContextState(ctx);
+}
+
+function paintDualBorderInnerStroke(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  innerHex: string,
+  fontSize: number,
+): void {
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = hexToRgba(innerHex, 1);
+  ctx.lineWidth = dualBorderInnerStrokeWidthPx(fontSize);
+  ctx.strokeText(text, x, y);
+  ctx.restore();
+  resetPaintContextState(ctx);
 }
 
 function paintGlowDuplicateLayers(
@@ -410,21 +432,20 @@ function paintGlowText(
   const dualBorder = glow.dualBorder === true;
 
   if (dualBorder && mode === 'border') {
-    // CHANGED: canvas dual contrasting border — inner special/contrast + outer glow color (v5.3.4 Phase 3.5.2).
-    // WHY: pro two-tone outline; not ported to drawtext (layer explosion).
-    paintDualBorderText(ctx, text, x, y, style, glowHex);
+    // CHANGED: canvas dual contrasting border — stroke-based two-tone outline (v5.3.4 Phase 3.5.2).
+    // WHY: pro styling; not ported to drawtext (layer explosion).
+    paintDualBorderStrokes(ctx, text, x, y, style, glowHex, fontSize);
     return;
   }
 
   if (dualBorder && mode === 'halo') {
-    paintOffsetTextRing(
+    paintDualBorderInnerStroke(
       ctx,
       text,
       x,
       y,
       resolveDualBorderInnerHex(glowHex, style),
-      DUAL_BORDER_INNER_OFFSET_PX,
-      0.95,
+      fontSize,
     );
   }
 

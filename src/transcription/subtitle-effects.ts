@@ -25,13 +25,10 @@ export interface GlowLayerSpec {
 export type GlowRingMode = 'full' | 'single' | 'min';
 
 /**
- * Inner dual-border accent — specialHue when valid, else complementary hue with clamped saturation.
+ * Complementary inner accent for dual border — clamped saturation to avoid neon cheese.
  * Canvas overlay only (v5.3.4 Phase 3.5.2).
  */
-export function resolveContrastingBorderColor(baseHex: string, specialHex?: string): string {
-  const special = specialHex ? normalizeHexColor(specialHex) : null;
-  if (special) return special;
-
+export function resolveContrastingBorderColor(baseHex: string): string {
   const normalized = normalizeHexColor(baseHex) ?? '#ffffff';
   if (normalized === '#000000') return '#e0e0e0';
   if (normalized === '#ffffff') return '#2c2c2c';
