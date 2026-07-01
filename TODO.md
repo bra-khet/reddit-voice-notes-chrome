@@ -9,13 +9,13 @@
 | Phase | Status |
 |-------|--------|
 | 1–3 | DONE (`2c8c450` … `2334c6b`) |
-| **3.5 — canvas visual polish** | **NEXT** |
+| **3.5 — canvas visual polish** | **IN PROGRESS** (3.5.1 impl → QA) |
 | 4 — burn-in integration | after 3.5 |
 | 5 — lab panel, perf guard, arch docs | pending |
 
 ### Phase 3.5 (summary — see design doc for full spec)
 
-1. Halo diffusion — softer glow (too sharp today)
+1. Halo diffusion — impl done (`full` rings + shadowBlur); **QA pending**
 2. Dual contrasting border — canvas only
 3. Opinionated text gradient
 4. Backdrop rounding QA/tune (`borderRadius` already in renderer)

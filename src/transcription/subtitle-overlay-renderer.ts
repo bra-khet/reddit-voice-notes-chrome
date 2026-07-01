@@ -17,7 +17,11 @@ import {
   overlayCssFontFamily,
 } from '@/src/transcription/subtitle-overlay-fonts';
 import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
-import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
+import type {
+  SubtitleGlowConfig,
+  SubtitleStyleConfig,
+  TranscriptSegment,
+} from '@/src/transcription/types';
 
 const DEFAULT_THEME_BAR = '#00e5ff';
 const OVERLAY_VIDEO_BPS = 1_500_000;
@@ -222,17 +226,26 @@ function fillRoundedRect(
   ctx.fill();
 }
 
+function haloSpreadPx(glow: SubtitleGlowConfig): number {
+  return Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
+}
+
+/** Canvas-only halo diffusion radius — no FFmpeg layer budget on this path. */
+function haloShadowBlurPx(glow: SubtitleGlowConfig): number {
+  return 6 + haloSpreadPx(glow) * 5;
+}
+
 function glowSafeInset(style: SubtitleStyleConfig, fontSize: number): number {
   const glow = style.glow;
   if (glow?.enabled !== true) return 4;
-  // CHANGED: inset sized for offset duplicate layers (not shadowBlur radius).
-  // WHY: halo/border both use buildGlowLayerSpecs pixel offsets — large shadow-based
-  //      inset clipped the visible glow and fought VP8 edge containment.
   void fontSize;
-  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
+  const spread = haloSpreadPx(glow);
   const mode = glow.mode ?? 'halo';
   if (mode === 'border') return Math.max(4, spread + 2);
-  return Math.max(6, spread + 6);
+  // CHANGED: halo inset accounts for multi-ring 'full' spread + shadowBlur underpass (v5.3.4 Phase 3.5.1).
+  // WHY: softer canvas halo extends farther than the old single-ring duplicate layers.
+  const shadowExtent = Math.ceil(haloShadowBlurPx(glow) * 0.85);
+  return Math.max(12, spread + shadowExtent + 4);
 }
 
 function resetPaintContextState(
@@ -278,25 +291,37 @@ function paintBackdropPlate(
   }
 }
 
-function paintGlowText(
+function paintHaloDiffusionUnderpass(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
   x: number,
   y: number,
-  style: SubtitleStyleConfig,
+  glow: SubtitleGlowConfig,
   glowHex: string,
 ): void {
-  const glow = style.glow;
-  if (glow?.enabled !== true) return;
+  const baseOpacity = glow.opacity ?? 0.55;
+  const blur = haloShadowBlurPx(glow);
 
-  const fontSize = style.fontSize ?? 22;
-  // BUG FIX: canvas halo glow invisible; border glow jagged/bleeding vs drawtext
-  // Fix: duplicate offset fillText layers from buildGlowLayerSpecs('single') — same
-  //      path as subtitle-preview.ts and subtitle-burnin.ts drawtext-glow tier.
-  //      shadowBlur + transparent fillText casts no shadow in Canvas2D; strokeText
-  //      does not match drawtext's 8-neighbour duplicate outline.
-  // Sync: subtitle-preview.ts drawSubtitlePreview(), subtitle-effects.ts buildGlowLayerSpecs
-  const specs = buildGlowLayerSpecs(glow, fontSize, 'single');
+  ctx.save();
+  ctx.shadowColor = hexToRgba(glowHex, Math.min(1, baseOpacity * 0.65));
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fillStyle = hexToRgba(glowHex, 1);
+  ctx.globalAlpha = Math.min(0.42, baseOpacity * 0.55);
+  ctx.fillText(text, x, y);
+  ctx.restore();
+  resetPaintContextState(ctx);
+}
+
+function paintGlowDuplicateLayers(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  specs: ReturnType<typeof buildGlowLayerSpecs>,
+  glowHex: string,
+): void {
   ctx.fillStyle = hexToRgba(glowHex, 1);
 
   for (const spec of specs) {
@@ -309,6 +334,50 @@ function paintGlowText(
     );
     ctx.restore();
   }
+}
+
+function paintGlowText(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  style: SubtitleStyleConfig,
+  glowHex: string,
+): void {
+  const glow = style.glow;
+  if (glow?.enabled !== true) return;
+
+  const fontSize = style.fontSize ?? 22;
+  const mode = glow.mode ?? 'halo';
+
+  if (mode === 'halo') {
+    // CHANGED: canvas halo uses lush multi-ring + shadowBlur underpass (v5.3.4 Phase 3.5.1).
+    // WHY: 'single' ring matched drawtext but reads too sharp; canvas has no layer budget.
+    // Sync: drawtext/burn-in still uses 'single' in subtitle-burnin.ts; preview uses 'single' in subtitle-preview.ts
+    paintHaloDiffusionUnderpass(ctx, text, x, y, glow, glowHex);
+    paintGlowDuplicateLayers(
+      ctx,
+      text,
+      x,
+      y,
+      buildGlowLayerSpecs(glow, fontSize, 'full'),
+      glowHex,
+    );
+    return;
+  }
+
+  // Border mode: fixed 8-neighbour ring (ringMode ignored by buildGlowLayerSpecs).
+  // BUG FIX: canvas border glow jagged/bleeding vs drawtext
+  // Fix: duplicate offset fillText layers — same path as drawtext-glow tier.
+  // Sync: subtitle-preview.ts drawSubtitlePreview(), subtitle-effects.ts buildGlowLayerSpecs
+  paintGlowDuplicateLayers(
+    ctx,
+    text,
+    x,
+    y,
+    buildGlowLayerSpecs(glow, fontSize, 'single'),
+    glowHex,
+  );
 }
 
 function paintMainText(
