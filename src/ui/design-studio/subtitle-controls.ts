@@ -1193,7 +1193,8 @@ export function mountSubtitleControls(
 
         if (overlayPreviewModal) overlayPreviewModal.hidden = false;
         if (overlayPreviewStatus) {
-          overlayPreviewStatus.textContent = `Rendering ${segments.length} cue(s)…`;
+          overlayPreviewStatus.textContent =
+            `Rendering ${segments.length} cue(s)… (capture + FFmpeg finalize)`;
         }
         if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
         if (overlayPreviewFrameImg) {

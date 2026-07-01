@@ -10,6 +10,7 @@
  * - Font family keys: preview-font-loader.ts PREVIEW_FAMILY_FOR_KEY, subtitle-burnin.ts FONT_ASSETS
  */
 
+import { finalizeOverlayWebm } from '@/src/ffmpeg/overlay-webm-finalize';
 import { resolveSubtitleEffectPalette } from '@/src/transcription/subtitle-effects';
 import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
@@ -19,7 +20,9 @@ const OVERLAY_VIDEO_BPS = 1_500_000;
 const SINGLE_FRAME_DEBUG_PAUSE_MS = 180;
 /** Wall-clock pacing so MediaRecorder receives encodable canvas frames. */
 const RECORDER_WARMUP_MS = 50;
-const RECORDER_FLUSH_MS = 400;
+const RECORDER_FLUSH_MS = 800;
+/** Extra empty tail frames so MediaRecorder writes duration/cluster metadata. */
+const RECORDER_TAIL_FRAME_COUNT = 3;
 
 // Sync: preview-font-loader.ts PREVIEW_FAMILY_FOR_KEY
 const OVERLAY_FONT_FAMILY: Readonly<Record<string, string>> = {
@@ -52,6 +55,8 @@ export interface SubtitleOverlayRenderOptions {
   singleFrameDebug?: boolean;
   /** Called after each frame when singleFrameDebug is enabled. Revoke imageUrl when done. */
   onFrameDebug?: (info: SubtitleOverlayFrameDebugInfo) => void | Promise<void>;
+  /** When false, skip FFmpeg remux (dev only). Default true. */
+  finalizeWebm?: boolean;
 }
 
 export interface SubtitleOverlayResult {
@@ -155,8 +160,12 @@ function createRenderTarget(width: number, height: number): RenderTarget {
         captureCanvas,
         captureCtx,
         blitToCapture: () => {
-          captureCtx.clearRect(0, 0, width, height);
+          // BUG FIX: VP8 overlay edge color bleed (v5.3.4 QA)
+          // Fix: replace — don't alpha-blend — when copying the offscreen paint buffer;
+          //      source-over left prior-frame glow pixels at the canvas rim after encode.
+          captureCtx.globalCompositeOperation = 'copy';
           captureCtx.drawImage(paintCanvas, 0, 0);
+          captureCtx.globalCompositeOperation = 'source-over';
         },
       };
     }
@@ -204,6 +213,28 @@ function fillRoundedRect(
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
   ctx.fill();
+}
+
+function glowSafeInset(style: SubtitleStyleConfig): number {
+  const glow = style.glow;
+  if (glow?.enabled !== true) return 4;
+  if ((glow.mode ?? 'halo') === 'border') {
+    return Math.max(4, Math.round((style.fontSize ?? 22) * 0.12) + 4);
+  }
+  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
+  const blurPx = spread * 4 * 1.35;
+  return Math.ceil(blurPx + Math.abs(glow.offsetX ?? 0) + Math.abs(glow.offsetY ?? 0) + 8);
+}
+
+function resetPaintContextState(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+): void {
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 function hexToRgba(hex: string, opacity: number): string {
@@ -266,7 +297,7 @@ function paintGlowText(
     return;
   }
 
-  // Halo: native shadowBlur replaces drawtext ring duplication (Phase 2 baseline).
+  // Halo: shadow-only fills avoid double-painted fringe at VP8 block edges (v5.3.4 QA).
   const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
   const blurPx = spread * 4;
 
@@ -275,10 +306,9 @@ function paintGlowText(
   ctx.shadowColor = hexToRgba(glowHex, glowOpacity);
   ctx.shadowOffsetX = glow.offsetX ?? 0;
   ctx.shadowOffsetY = glow.offsetY ?? 0;
-  ctx.fillStyle = hexToRgba(glowHex, glowOpacity);
+  ctx.fillStyle = 'rgba(0,0,0,0)';
   ctx.fillText(text, x, y);
 
-  // Second pass thickens the soft halo without extra drawtext layers.
   ctx.shadowBlur = blurPx * 1.35;
   ctx.globalAlpha = glowOpacity * 0.55;
   ctx.fillText(text, x, y);
@@ -319,8 +349,14 @@ function paintCue(
   const anchorY = verticalTextY(style.position, fontSize, height, textHeight);
   const { textY } = paintBackdropPlate(ctx, cue.text, centerX, anchorY, style, fontSize, lineHeight);
 
+  const inset = glowSafeInset(style);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(inset, inset, width - inset * 2, height - inset * 2);
+  ctx.clip();
   paintGlowText(ctx, cue.text, centerX, textY, style, palette.glowHex);
   paintMainText(ctx, cue.text, centerX, textY, palette.textHex);
+  ctx.restore();
   ctx.restore();
 }
 
@@ -331,6 +367,7 @@ function clearFrame(
   background: string | 'transparent',
 ): void {
   ctx.clearRect(0, 0, width, height);
+  resetPaintContextState(ctx);
   if (background !== 'transparent') {
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, width, height);
@@ -412,7 +449,8 @@ async function recordOverlayTimeline(
     };
     recorder.onstop = () => resolve();
 
-    recorder.start(100);
+    // No timeslice — one clean cluster chain; timesliced blobs often lack seek Cues.
+    recorder.start();
 
     void (async () => {
       try {
@@ -420,8 +458,7 @@ async function recordOverlayTimeline(
           window.setTimeout(() => r(), RECORDER_WARMUP_MS);
         });
 
-        for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
-          const timestamp = frameIndex / fps;
+        const paintAndCapture = async (timestamp: number, frameIndex: number): Promise<void> => {
           paintFrame(target, cues, style, options, timestamp, durationSeconds);
 
           if (singleFrameDebug && options.onFrameDebug) {
@@ -444,6 +481,16 @@ async function recordOverlayTimeline(
           } else {
             await waitForNextCaptureTick(fps, singleFrameDebug);
           }
+        };
+
+        for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
+          await paintAndCapture(frameIndex / fps, frameIndex);
+        }
+
+        // Hold the final empty frame so duration metadata is written before stop().
+        for (let tail = 0; tail < RECORDER_TAIL_FRAME_COUNT; tail += 1) {
+          paintFrame(target, [], style, options, durationSeconds, durationSeconds);
+          await waitForNextCaptureTick(fps, false);
         }
 
         await new Promise<void>((r) => {
@@ -494,11 +541,14 @@ export async function renderSubtitleOverlay(
   await ensureOverlayFonts();
 
   const target = createRenderTarget(options.width, options.height);
-  const overlayBlob = await recordOverlayTimeline(target, cues, style, duration, {
+  const rawBlob = await recordOverlayTimeline(target, cues, style, duration, {
     ...options,
     fps,
     offline: options.offline ?? true,
   });
+
+  const shouldFinalize = options.finalizeWebm !== false;
+  const overlayBlob = shouldFinalize ? await finalizeOverlayWebm(rawBlob, fps) : rawBlob;
 
   return {
     overlayBlob,
