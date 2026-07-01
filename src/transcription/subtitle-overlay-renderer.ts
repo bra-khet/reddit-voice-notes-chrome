@@ -41,6 +41,12 @@ const RECORDER_FLUSH_MS = 800;
 const RECORDER_TAIL_FRAME_COUNT = 3;
 /** Sync: subtitle-burnin.ts buildBackdropBoxOpt boxborderw=12 */
 const BACKDROP_BOX_BORDER_W = 12;
+/** Minimal frame rim inset — VP8 containment only; per-cue clip handles glow extent. */
+const FRAME_EDGE_INSET_PX = 4;
+
+function glowOpacityFactor(glow: SubtitleGlowConfig): number {
+  return Math.max(0, Math.min(1, glow.opacity ?? 0.55));
+}
 
 function dualBorderOuterStrokeWidthPx(fontSize: number): number {
   return Math.max(4, Math.round(fontSize * 0.18));
@@ -255,17 +261,38 @@ function haloShadowBlurPx(glow: SubtitleGlowConfig): number {
   return 6 + haloSpreadPx(glow) * 5;
 }
 
-function glowSafeInset(style: SubtitleStyleConfig, fontSize: number): number {
+/** Glow bleed beyond glyph bounds — drives per-cue clip rect (not a uniform frame inset). */
+function glowBleedMarginPx(style: SubtitleStyleConfig, fontSize: number): number {
   const glow = style.glow;
   if (glow?.enabled !== true) return 4;
   const spread = haloSpreadPx(glow);
   const mode = glow.mode ?? 'halo';
   const dualExtra = glow.dualBorder === true ? dualBorderStrokeExtentPx(fontSize) : 0;
   if (mode === 'border') return Math.max(4, spread + 2 + dualExtra);
-  // CHANGED: halo inset accounts for multi-ring 'full' spread + shadowBlur underpass (v5.3.4 Phase 3.5.1).
-  // WHY: softer canvas halo extends farther than the old single-ring duplicate layers.
   const shadowExtent = Math.ceil(haloShadowBlurPx(glow) * 0.85);
-  return Math.max(12, spread + shadowExtent + 4 + dualExtra);
+  const whisper = spread + 1;
+  return Math.max(8, spread + shadowExtent + whisper + 4 + dualExtra);
+}
+
+function cueGlowClipRect(
+  textX: number,
+  textTopY: number,
+  textWidth: number,
+  textHeight: number,
+  bleed: number,
+  width: number,
+  height: number,
+): { x: number; y: number; w: number; h: number } {
+  const left = textX - textWidth / 2 - bleed;
+  const top = textTopY - bleed;
+  const right = textX + textWidth / 2 + bleed;
+  const bottom = textTopY + textHeight + bleed;
+
+  const x = Math.max(FRAME_EDGE_INSET_PX, Math.floor(left));
+  const y = Math.max(FRAME_EDGE_INSET_PX, Math.floor(top));
+  const x2 = Math.min(width - FRAME_EDGE_INSET_PX, Math.ceil(right));
+  const y2 = Math.min(height - FRAME_EDGE_INSET_PX, Math.ceil(bottom));
+  return { x, y, w: Math.max(1, x2 - x), h: Math.max(1, y2 - y) };
 }
 
 function resetPaintContextState(
@@ -359,15 +386,19 @@ function paintDualBorderStrokes(
   style: SubtitleStyleConfig,
   outerHex: string,
   fontSize: number,
+  glow: SubtitleGlowConfig,
 ): void {
   const innerHex = resolveDualBorderInnerHex(outerHex, style);
   const outerWidth = dualBorderOuterStrokeWidthPx(fontSize);
   const innerWidth = dualBorderInnerStrokeWidthPx(fontSize);
+  const strokeAlpha = glowOpacityFactor(glow);
 
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
-  ctx.globalAlpha = 1;
+  // BUG FIX: glow strength slider ignored dual border strokes (halo + dual border QA)
+  // Fix: scale stroke globalAlpha by glow.opacity — inner keyline and outer ring track slider.
+  ctx.globalAlpha = strokeAlpha;
   // BUG FIX: dual border invisible / VP8 dot artifacts (Phase 3.5.2 QA)
   // Fix: font-scaled strokeText (outer wide, inner narrow) replaces 1–2px fillText offset
   //      rings that collapsed to sparse fragments on transparent WebM.
@@ -388,11 +419,12 @@ function paintDualBorderInnerStroke(
   y: number,
   innerHex: string,
   fontSize: number,
+  glow: SubtitleGlowConfig,
 ): void {
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = glowOpacityFactor(glow);
   ctx.strokeStyle = hexToRgba(innerHex, 1);
   ctx.lineWidth = dualBorderInnerStrokeWidthPx(fontSize);
   ctx.strokeText(text, x, y);
@@ -440,7 +472,7 @@ function paintGlowText(
   if (dualBorder && mode === 'border') {
     // CHANGED: canvas dual contrasting border — stroke-based two-tone outline (v5.3.4 Phase 3.5.2).
     // WHY: pro styling; not ported to drawtext (layer explosion).
-    paintDualBorderStrokes(ctx, text, x, y, style, glowHex, fontSize);
+    paintDualBorderStrokes(ctx, text, x, y, style, glowHex, fontSize, glow);
     return;
   }
 
@@ -452,6 +484,7 @@ function paintGlowText(
       y,
       resolveDualBorderInnerHex(glowHex, style),
       fontSize,
+      glow,
     );
   }
 
@@ -521,13 +554,22 @@ function paintCue(
 
   paintBackdropPlate(ctx, cue.text, centerX, textTopY, style, fontSize);
 
-  const inset = glowSafeInset(style, fontSize);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(inset, inset, width - inset * 2, height - inset * 2);
-  ctx.clip();
   const textX = Math.round(centerX);
   const textY = Math.round(textTopY);
+  const textWidth = ctx.measureText(cue.text).width;
+  const textHeight = drawtextTextHeightPx(fontSize);
+
+  ctx.save();
+  if (style.glow?.enabled === true) {
+    // BUG FIX: halo pixel artifacts on long cues (top-right glyph corner)
+    // Fix: per-cue clip from measured text bounds + glow bleed — uniform frame inset
+    //      clipped wide subtitles before shadowBlur/whisper ring finished tapering.
+    const bleed = glowBleedMarginPx(style, fontSize);
+    const clipRect = cueGlowClipRect(textX, textTopY, textWidth, textHeight, bleed, width, height);
+    ctx.beginPath();
+    ctx.rect(clipRect.x, clipRect.y, clipRect.w, clipRect.h);
+    ctx.clip();
+  }
   paintGlowText(ctx, cue.text, textX, textY, style, palette.glowHex);
   resetPaintContextState(ctx);
   paintMainText(ctx, cue.text, textX, textY, style, palette.textHex);
