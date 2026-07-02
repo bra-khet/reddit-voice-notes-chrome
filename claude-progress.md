@@ -53,7 +53,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Checkpoint tag (2026-07-02):** `5.3.4-phase-4-complete`.
 
-**Phase 5.1 (2026-07-02):** Chronos meter on subtitle bake — amber progress bar + elapsed/ETA line (`bake-chronos.ts`); per-frame `onRenderProgress` during canvas overlay render; dev canvas bake status shows chronos. Percent stage messages unchanged.
+**Phase 5.1 (2026-07-02):** Chronos meter on subtitle bake — amber progress bar + elapsed/ETA line (`bake-chronos.ts`); per-frame `onRenderProgress` during canvas overlay render; dev canvas bake status shows chronos. **5.1 polish:** alpha-normalize phase uses indeterminate creep + "Preparing overlay…" label (fixes frozen bar during VP8A re-encode); UI soft-steps display ratio for smoother ETA into compositing.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

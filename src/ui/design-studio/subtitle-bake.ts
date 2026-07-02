@@ -31,13 +31,21 @@ export interface SubtitleBakeOptions {
 }
 
 function canvasStageMessage(stage: string, ratio: number): string {
+  const pct = Math.round(ratio * 100);
   if (stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')) {
-    return `Rendering subtitles… ${Math.round(ratio * 100)}%`;
+    return `Rendering subtitles… ${pct}%`;
   }
-  if (stage.startsWith('burnin-canvas-overlay') || stage.includes('composite')) {
-    return `Compositing subtitles… ${Math.round(ratio * 100)}%`;
+  if (stage.includes('alpha-normalize')) {
+    return `Preparing overlay… ${pct}%`;
   }
-  return `Burning subtitles… ${Math.round(ratio * 100)}%`;
+  if (
+    stage.startsWith('burnin-canvas-overlay') ||
+    stage.includes('composite') ||
+    stage.startsWith('burnin-')
+  ) {
+    return `Compositing subtitles… ${pct}%`;
+  }
+  return `Burning subtitles… ${pct}%`;
 }
 
 export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promise<Blob> {

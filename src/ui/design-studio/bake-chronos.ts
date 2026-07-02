@@ -44,3 +44,42 @@ export function formatBakeChronosLine(snapshot: BakeChronosSnapshot): string {
   const remaining = formatChronosSeconds(snapshot.estimatedRemainingMs / 1000);
   return `${elapsed} elapsed · ~${remaining} remaining`;
 }
+
+/** UI-only smoothed ratio — monotonic, soft-steps toward target to avoid ETA cliffs. */
+export interface BakeDisplayRatioState {
+  value: number;
+}
+
+export function createBakeDisplayRatioState(): BakeDisplayRatioState {
+  return { value: 0 };
+}
+
+/**
+ * Advance display ratio toward target without instant jumps (Phase 5.1 polish).
+ * Real bake ratio stays authoritative for status text; this is for bar + ETA only.
+ */
+export function advanceBakeDisplayRatio(
+  state: BakeDisplayRatioState,
+  targetRatio: number,
+): number {
+  const clampedTarget = Math.max(state.value, Math.min(0.995, targetRatio));
+  if (clampedTarget <= state.value + 0.0001) {
+    return state.value;
+  }
+  const gap = clampedTarget - state.value;
+  const step = Math.min(gap, Math.max(0.025, gap * 0.42));
+  state.value += step;
+  return state.value;
+}
+
+/** Linear indeterminate creep for silent pipeline phases (e.g. alpha normalize). */
+export function computeCreepRatio(
+  startRatio: number,
+  endRatio: number,
+  elapsedMs: number,
+  expectedMs: number,
+): number {
+  if (expectedMs <= 0) return endRatio;
+  const t = Math.min(1, Math.max(0, elapsedMs / expectedMs));
+  return startRatio + (endRatio - startRatio) * t;
+}

@@ -5,7 +5,42 @@ import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { renderSubtitleOverlay } from '@/src/transcription/subtitle-overlay-renderer';
 import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptResult, TranscriptSegment } from '@/src/transcription/types';
+import { computeCreepRatio } from '@/src/ui/design-studio/bake-chronos';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
+
+const NORMALIZE_RATIO_START = 0.32;
+const NORMALIZE_RATIO_END = 0.44;
+const COMPOSITE_RATIO_START = 0.45;
+
+function normalizeCreepExpectedMs(durationSeconds: number): number {
+  return Math.min(20_000, Math.max(4_000, durationSeconds * 350));
+}
+
+async function withNormalizeProgressCreep<T>(
+  work: () => Promise<T>,
+  report: (ratio: number, stage: string) => void,
+  durationSeconds: number,
+): Promise<T> {
+  const stage = 'canvas-overlay-alpha-normalize';
+  const expectedMs = normalizeCreepExpectedMs(durationSeconds);
+  const t0 = performance.now();
+  report(NORMALIZE_RATIO_START, stage);
+
+  const timer = window.setInterval(() => {
+    const elapsed = performance.now() - t0;
+    report(
+      computeCreepRatio(NORMALIZE_RATIO_START, NORMALIZE_RATIO_END, elapsed, expectedMs),
+      stage,
+    );
+  }, 200);
+
+  try {
+    return await work();
+  } finally {
+    window.clearInterval(timer);
+    report(NORMALIZE_RATIO_END, stage);
+  }
+}
 
 function usableSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   return segments
@@ -82,15 +117,16 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   });
 
   throwIfAborted(options.signal);
-  report(0.32, 'canvas-overlay-alpha-normalize');
-  const compositeOverlay = await normalizeOverlayWebmForComposite(
-    overlayResult.overlayBlob,
-    overlayResult.fps,
+  const compositeOverlay = await withNormalizeProgressCreep(
+    () => normalizeOverlayWebmForComposite(overlayResult.overlayBlob, overlayResult.fps),
+    report,
+    options.durationSeconds,
   );
+  report(0.445, 'canvas-overlay-buffer');
   const overlayBytes = new Uint8Array(await compositeOverlay.arrayBuffer());
   const baseBytes = new Uint8Array(await baseBlob.arrayBuffer());
 
-  report(0.45, 'canvas-overlay-composite');
+  report(COMPOSITE_RATIO_START, 'canvas-overlay-composite');
   throwIfAborted(options.signal);
   const burnedBytes = await withTranscodeLock(async () =>
     runSubtitleBurnIn(
@@ -104,7 +140,7 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
         canvasOverlayBytes: overlayBytes,
       },
       (ratio, stage) => {
-        report(0.45 + ratio * 0.55, stage);
+        report(COMPOSITE_RATIO_START + ratio * (1 - COMPOSITE_RATIO_START), stage);
       },
     ),
   );

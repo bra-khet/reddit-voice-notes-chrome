@@ -42,7 +42,14 @@ import {
 } from '@/src/ui/design-studio/color-picker';
 import { rebuildTextFromSegments } from '@/src/transcription/transcript-editing';
 import type { SubtitlePreviewOptions } from '@/src/transcription/subtitle-preview';
-import { formatBakeChronosLine, snapshotBakeChronos } from '@/src/ui/design-studio/bake-chronos';
+import {
+  advanceBakeDisplayRatio,
+  createBakeDisplayRatioState,
+  estimateRemainingMs,
+  formatBakeChronosLine,
+  snapshotBakeChronos,
+  type BakeDisplayRatioState,
+} from '@/src/ui/design-studio/bake-chronos';
 import { bakeSubtitlesInStudio, type SubtitleBakeProgress } from '@/src/ui/design-studio/subtitle-bake';
 import {
   mountSubtitleSegmentEditor,
@@ -577,6 +584,7 @@ export function mountSubtitleControls(
   let syncing = false;
   let saveTimer = 0;
   let baking = false;
+  let bakeDisplayRatio: BakeDisplayRatioState = createBakeDisplayRatioState();
   let bakeAbort: AbortController | null = null;
   let lastRecordingReadyAt = 0;
   let lastBakedAt = 0;
@@ -925,6 +933,7 @@ export function mountSubtitleControls(
       bakeChronosFillEl.style.width = '0%';
       bakeChronosMeterEl.setAttribute('aria-valuenow', '0');
       bakeChronosTimeEl.textContent = '';
+      bakeDisplayRatio = createBakeDisplayRatioState();
     }
   }
 
@@ -934,13 +943,14 @@ export function mountSubtitleControls(
       return;
     }
     setBakeChronosVisible(true);
-    const pct = Math.min(100, Math.max(0, Math.round(progress.ratio * 100)));
+    const displayRatio = advanceBakeDisplayRatio(bakeDisplayRatio, progress.ratio);
+    const pct = Math.min(100, Math.max(0, Math.round(displayRatio * 100)));
     bakeChronosFillEl.style.width = `${pct}%`;
     bakeChronosMeterEl.setAttribute('aria-valuenow', String(pct));
     if (progress.elapsedMs != null) {
       bakeChronosTimeEl.textContent = formatBakeChronosLine({
         elapsedMs: progress.elapsedMs,
-        estimatedRemainingMs: progress.estimatedRemainingMs ?? null,
+        estimatedRemainingMs: estimateRemainingMs(progress.elapsedMs, displayRatio),
       });
     }
   }
@@ -988,6 +998,7 @@ export function mountSubtitleControls(
     syncBakeButton();
     hideBakeUnsavedDialog();
     bakeStatusEl.textContent = 'Preparing subtitle bake…';
+    bakeDisplayRatio = createBakeDisplayRatioState();
     setBakeChronosVisible(true);
     bakeChronosTimeEl.textContent = '0:00 elapsed';
 
@@ -1622,9 +1633,11 @@ export function mountSubtitleControls(
                 const stageLabel =
                   stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')
                     ? 'Rendering'
-                    : stage.includes('composite') || stage.startsWith('burnin')
-                      ? 'Compositing'
-                      : 'Baking';
+                    : stage.includes('alpha-normalize')
+                      ? 'Preparing overlay'
+                      : stage.includes('composite') || stage.startsWith('burnin')
+                        ? 'Compositing'
+                        : 'Baking';
                 overlayPreviewStatus.textContent =
                   `${stageLabel}… ${Math.round(ratio * 100)}% · ${chronosLine}`;
               }

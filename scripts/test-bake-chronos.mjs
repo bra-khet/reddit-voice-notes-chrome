@@ -27,6 +27,9 @@ const {
   formatChronosSeconds,
   estimateRemainingMs,
   formatBakeChronosLine,
+  advanceBakeDisplayRatio,
+  computeCreepRatio,
+  createBakeDisplayRatioState,
 } = await import(pathToFileURL(outfile).href);
 
 let passed = 0;
@@ -72,6 +75,19 @@ test('formatBakeChronosLine — elapsed + remaining', () => {
     formatBakeChronosLine({ elapsedMs: 12_000, estimatedRemainingMs: 18_000 }),
     '0:12 elapsed · ~0:18 remaining',
   );
+});
+
+test('advanceBakeDisplayRatio — soft-steps large jumps', () => {
+  const state = createBakeDisplayRatioState();
+  assert.equal(advanceBakeDisplayRatio(state, 0.5), 0.21);
+  for (let i = 0; i < 12 && state.value < 0.499; i += 1) {
+    advanceBakeDisplayRatio(state, 0.5);
+  }
+  assert.equal(state.value, 0.5);
+});
+
+test('computeCreepRatio — linear halfway', () => {
+  assert.equal(computeCreepRatio(0.32, 0.44, 5_000, 10_000), 0.38);
 });
 
 rmSync(outdir, { recursive: true, force: true });
