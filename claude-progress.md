@@ -29,7 +29,9 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Checkpoint tag (2026-07-01):** `5.3.4-double-border` → `a0c3ba8` (dual border + halo polish complete; fallback before 3.5.3 gradient work).
 
-**Phase 3.5.3 (2026-07-01):** Opinionated vertical text gradient — `resolveCanvasTextGradientStops()` + `paintMainText` `createLinearGradient`; `textGradient?: boolean` (default on); DEV toggle under Text color. Canvas overlay only; drawtext compare unchanged.
+**Phase 3.5.3 (2026-07-01):** Opinionated vertical text gradient — QA pass. Stop 0 = glyph top highlight, stop 1 = bottom base; white bottom `#f6f6f6`.
+
+**Phase 3.5.3b (2026-07-01):** Text gradient wave — `createCanvasOverlayTextGradient()` + `textGradientWave` per-frame band sweep (~4.5s cycle); timestamp threaded through `paintCue` → `paintMainText`. DEV toggle; canvas overlay only.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

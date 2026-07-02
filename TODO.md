@@ -17,7 +17,7 @@
 
 1. Halo diffusion — **done** (integral normalize `324ab90`)
 2. Dual contrasting border — **done** (opacity + long-cue clip polish)
-3. Opinionated text gradient — impl done; user QA pending
+3. Opinionated text gradient — QA pass; 3.5.3b gradient wave impl → QA
 4. Backdrop rounding QA/tune (`borderRadius` already in renderer)
 5. Rainbow per-frame glow — Theme Glow menu
 

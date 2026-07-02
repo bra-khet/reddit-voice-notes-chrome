@@ -85,6 +85,8 @@ export interface SubtitleStyleConfig {
   textColor?: SubtitleTextColor;
   /** Vertical highlight gradient on main caption — canvas overlay only (v5.3.4 Phase 3.5.3). */
   textGradient?: boolean;
+  /** Slow downward sweep of the text gradient highlight — canvas overlay only. */
+  textGradientWave?: boolean;
   /** Shared by text + glow when either uses `special` color source. */
   specialHue?: string;
   backdrop?: SubtitleBackdropConfig;
@@ -179,6 +181,7 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
     position: raw?.position ?? DEFAULT_SUBTITLE_STYLE.position,
     textColor: normalizeTextColor(raw?.textColor),
     textGradient: raw?.textGradient !== false,
+    textGradientWave: raw?.textGradientWave === true,
     specialHue:
       typeof raw?.specialHue === 'string' && raw.specialHue.trim().length > 0
         ? raw.specialHue

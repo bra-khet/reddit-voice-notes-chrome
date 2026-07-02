@@ -358,6 +358,20 @@ export function renderSubtitleControlFields(): string {
         </label>
         <label class="popup__toggle-row studio__subtitles-toggle">
           <span class="popup__toggle-copy">
+            <span class="popup__toggle-label">Text gradient wave</span>
+            <p class="popup__field-desc">
+              Slowly sweeps the highlight downward through caption glyphs — canvas overlay only; requires Text gradient.
+            </p>
+          </span>
+          <input
+            class="popup__toggle-input"
+            type="checkbox"
+            data-subtitle-text-gradient-wave
+            aria-label="Canvas text gradient wave"
+          />
+        </label>
+        <label class="popup__toggle-row studio__subtitles-toggle">
+          <span class="popup__toggle-copy">
             <span class="popup__toggle-label">Theme glow</span>
             <p class="popup__field-desc">
               Colored halo or solid border — stacks with backdrop. Shares Special hue with text color.
@@ -491,6 +505,7 @@ export function mountSubtitleControls(
   )!;
   const textColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-text-color]')!;
   const textGradientInput = panel.querySelector<HTMLInputElement>('[data-subtitle-text-gradient]')!;
+  const textGradientWaveInput = panel.querySelector<HTMLInputElement>('[data-subtitle-text-gradient-wave]')!;
   const specialHuePanel = panel.querySelector<HTMLElement>('[data-subtitle-special-hue-panel]')!;
   const glowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow]')!;
   const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
@@ -978,6 +993,14 @@ export function mountSubtitleControls(
     return edited?.text?.trim() ?? '';
   }
 
+  function syncTextGradientOptionsUi(): void {
+    const gradientOn = textGradientInput.checked;
+    textGradientWaveInput.disabled = !gradientOn;
+    if (!gradientOn) {
+      textGradientWaveInput.checked = false;
+    }
+  }
+
   function syncGlowOptionsUi(): void {
     const glowOn = glowInput.checked;
     const borderMode = glowModeSelect.value === 'border';
@@ -1014,6 +1037,8 @@ export function mountSubtitleControls(
     backdropOpacityInput.classList.toggle('is-disabled', !backdropInput.checked);
     textColorSelect.value = style.textColor ?? 'white';
     textGradientInput.checked = style.textGradient !== false;
+    textGradientWaveInput.checked = style.textGradientWave === true;
+    syncTextGradientOptionsUi();
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
@@ -1057,6 +1082,7 @@ export function mountSubtitleControls(
       fontSize: Number(fontSizeInput.dataset.value),
       textColor: textColorSelect.value as SubtitleTextColor,
       textGradient: textGradientInput.checked,
+      textGradientWave: textGradientWaveInput.checked,
       backdrop: {
         ...draftConfig.style.backdrop,
         enabled: backdropInput.checked,
@@ -1555,6 +1581,14 @@ export function mountSubtitleControls(
   });
 
   textGradientInput.addEventListener('change', () => {
+    if (syncing) return;
+    syncTextGradientOptionsUi();
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  textGradientWaveInput.addEventListener('change', () => {
     if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();

@@ -15,7 +15,8 @@ import {
   buildCanvasOverlayHaloLayerSpecs,
   buildGlowLayerSpecs,
   CANVAS_HALO_UNDERPASS_OPACITY_BUDGET,
-  resolveCanvasTextGradientStops,
+  canvasTextGradientWavePhase,
+  createCanvasOverlayTextGradient,
   resolveInnerBorderColor,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
@@ -528,6 +529,7 @@ function paintMainText(
   style: SubtitleStyleConfig,
   textHex: string,
   fontSize: number,
+  timestampSeconds: number,
 ): void {
   if (style.textGradient === false) {
     ctx.fillStyle = textHex;
@@ -536,11 +538,9 @@ function paintMainText(
   }
 
   const textHeight = drawtextTextHeightPx(fontSize);
-  const { topHex, bottomHex } = resolveCanvasTextGradientStops(textHex);
-  const gradient = ctx.createLinearGradient(x, y, x, y + textHeight);
-  gradient.addColorStop(0, topHex);
-  gradient.addColorStop(1, bottomHex);
-  ctx.fillStyle = gradient;
+  const wavePhase =
+    style.textGradientWave === true ? canvasTextGradientWavePhase(timestampSeconds) : undefined;
+  ctx.fillStyle = createCanvasOverlayTextGradient(ctx, x, y, textHeight, textHex, wavePhase);
   ctx.fillText(text, x, y);
 }
 
@@ -551,6 +551,7 @@ function paintCue(
   width: number,
   height: number,
   themeBarColor: string,
+  timestampSeconds: number,
 ): void {
   const fontSize = style.fontSize ?? 22;
   const fontFamily = overlayCssFontFamily(style.fontFamily);
@@ -584,7 +585,7 @@ function paintCue(
   }
   paintGlowText(ctx, cue.text, textX, textY, style, palette.glowHex);
   resetPaintContextState(ctx);
-  paintMainText(ctx, cue.text, textX, textY, style, palette.textHex, fontSize);
+  paintMainText(ctx, cue.text, textX, textY, style, palette.textHex, fontSize, timestampSeconds);
   ctx.restore();
   ctx.restore();
 }
@@ -619,7 +620,7 @@ function paintFrame(
 
   const active = cuesAtTimestamp(cues, timestamp, durationSeconds);
   for (const cue of active) {
-    paintCue(target.paintCtx, cue, style, width, height, themeBarColor);
+    paintCue(target.paintCtx, cue, style, width, height, themeBarColor, timestamp);
   }
 
   target.blitToCapture();
