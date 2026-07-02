@@ -10,7 +10,12 @@ import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
 import { snapshotBakeChronos } from '@/src/ui/design-studio/bake-chronos';
+import {
+  canvasRenderPerfBudgetMs,
+  isCanvasRenderPerfExceeded,
+} from '@/src/transcription/canvas-render-perf-guard';
 import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
+import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 export interface SubtitleBakeProgress {
   ratio: number;
@@ -87,26 +92,8 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
     message: preferCanvas ? 'Rendering subtitles (canvas)…' : 'Burning subtitles…',
   });
 
-  let burned: Blob;
-  if (preferCanvas) {
-    burned = await bakeWithCanvasOverlay({
-      editedResult: { ...options.editedResult, segments },
-      style: options.style,
-      durationSeconds: videoDurationSeconds,
-      themeBarColor,
-      baseMp4: base.blob,
-      signal: options.signal,
-      onProgress: (ratio, stage) => {
-        const overallRatio = 0.1 + ratio * 0.82;
-        report({
-          ratio: overallRatio,
-          stage: 'burning',
-          message: canvasStageMessage(stage, overallRatio),
-        });
-      },
-    });
-  } else {
-    burned = await burnInSubtitlesToMp4(base.blob, {
+  async function burnWithDrawtext(): Promise<Blob> {
+    return burnInSubtitlesToMp4(base.blob, {
       segments,
       style: options.style,
       videoDurationSeconds,
@@ -120,6 +107,50 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
         });
       },
     });
+  }
+
+  let burned: Blob;
+  if (preferCanvas) {
+    try {
+      burned = await bakeWithCanvasOverlay({
+        editedResult: { ...options.editedResult, segments },
+        style: options.style,
+        durationSeconds: videoDurationSeconds,
+        themeBarColor,
+        baseMp4: base.blob,
+        signal: options.signal,
+        renderPerfBudgetMs: canvasRenderPerfBudgetMs(videoDurationSeconds),
+        onProgress: (ratio, stage) => {
+          const overallRatio = 0.1 + ratio * 0.82;
+          report({
+            ratio: overallRatio,
+            stage: 'burning',
+            message: canvasStageMessage(stage, overallRatio),
+          });
+        },
+      });
+    } catch (error) {
+      if (!isCanvasRenderPerfExceeded(error)) {
+        throw error;
+      }
+      console.warn(
+        `${EXTENSION_LOG_PREFIX} Canvas overlay render exceeded perf budget — falling back to drawtext`,
+        {
+          budgetMs: error.budgetMs,
+          elapsedMs: error.elapsedMs,
+          videoDurationSeconds,
+          cueCount: segments.length,
+        },
+      );
+      report({
+        ratio: 0.1,
+        stage: 'burning',
+        message: 'Canvas render slow — using drawtext fallback…',
+      });
+      burned = await burnWithDrawtext();
+    }
+  } else {
+    burned = await burnWithDrawtext();
   }
 
   report({ ratio: 0.94, stage: 'saving', message: 'Saving baked MP4…' });

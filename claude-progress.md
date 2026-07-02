@@ -15,7 +15,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
 | **3.5 — canvas visual polish** | **DONE**, user-QA'd | `dbbc9cb` … `432683a` |
 | **4 — burn-in pipeline integration** | **DONE**, user-QA'd | `ac2d52e` … `6641d35` |
-| 5 — production polish, lab panel, arch docs | **IN PROGRESS** (5.1–5.2 done) | — |
+| 5 — production polish, lab panel, arch docs | **IN PROGRESS** (5.1–5.3 done) | — |
 
 **User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
 
@@ -56,6 +56,8 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 **Phase 5.1 (2026-07-02):** Chronos meter on subtitle bake — user-QA'd. Amber progress bar + elapsed/ETA line (`bake-chronos.ts`); per-frame `onRenderProgress`; alpha-normalize creep + "Preparing overlay…"; soft-step display ratio for compositing ETA.
 
 **Phase 5.2 (2026-07-02):** Shared `prepareSegmentsForSubtitleBake()` — drawtext + canvas overlay use one segment-prep path (blank/scaffold filter, missing timings, min duration, clip clamp). Tests: `test-bake-segments.mjs`.
+
+**Phase 5.3 (2026-07-02):** Canvas render perf guard — production bake aborts slow offline render (12s/clip-second budget, 25–120s) and falls back to drawtext with console warning. Dev full-pipeline bake unchanged. Tests: `test-canvas-render-perf-guard.mjs`.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

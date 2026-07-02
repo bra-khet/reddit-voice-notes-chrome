@@ -6,6 +6,10 @@ import { renderSubtitleOverlay } from '@/src/transcription/subtitle-overlay-rend
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
 import { computeCreepRatio } from '@/src/ui/design-studio/bake-chronos';
+import {
+  CanvasRenderPerfExceededError,
+  linkAbortSignals,
+} from '@/src/transcription/canvas-render-perf-guard';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
 
 const NORMALIZE_RATIO_START = 0.32;
@@ -51,6 +55,11 @@ export interface CanvasOverlayBakeOptions {
   baseMp4?: Blob;
   onProgress?: (ratio: number, stage: string) => void;
   signal?: AbortSignal;
+  /**
+   * Production perf guard (Phase 5.3) — abort offline render and throw
+   * CanvasRenderPerfExceededError when exceeded. Omit for dev harness (force canvas).
+   */
+  renderPerfBudgetMs?: number;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -94,20 +103,43 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
 
   report(RENDER_RATIO_START, 'canvas-overlay-render');
   throwIfAborted(options.signal);
-  const overlayResult = await renderSubtitleOverlay(segments, options.style, options.durationSeconds, {
-    width: CANVAS_WIDTH,
-    height: CANVAS_HEIGHT,
-    fps: 30,
-    background: 'transparent',
-    offline: true,
-    themeBarColor: options.themeBarColor,
-    onRenderProgress: ({ ratio }) => {
-      report(
-        RENDER_RATIO_START + ratio * (RENDER_RATIO_END - RENDER_RATIO_START),
-        'canvas-overlay-render',
+
+  const renderAbort = linkAbortSignals(options.signal);
+  const renderStartedAt = performance.now();
+  let renderPerfTimer: ReturnType<typeof window.setTimeout> | undefined;
+  if (options.renderPerfBudgetMs != null && options.renderPerfBudgetMs > 0) {
+    renderPerfTimer = window.setTimeout(() => {
+      renderAbort.abort(
+        new CanvasRenderPerfExceededError(
+          options.renderPerfBudgetMs!,
+          Math.round(performance.now() - renderStartedAt),
+        ),
       );
-    },
-  });
+    }, options.renderPerfBudgetMs);
+  }
+
+  let overlayResult;
+  try {
+    overlayResult = await renderSubtitleOverlay(segments, options.style, options.durationSeconds, {
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      fps: 30,
+      background: 'transparent',
+      offline: true,
+      themeBarColor: options.themeBarColor,
+      signal: renderAbort.signal,
+      onRenderProgress: ({ ratio }) => {
+        report(
+          RENDER_RATIO_START + ratio * (RENDER_RATIO_END - RENDER_RATIO_START),
+          'canvas-overlay-render',
+        );
+      },
+    });
+  } finally {
+    if (renderPerfTimer != null) {
+      window.clearTimeout(renderPerfTimer);
+    }
+  }
 
   throwIfAborted(options.signal);
   const compositeOverlay = await withNormalizeProgressCreep(

@@ -27,6 +27,7 @@ import {
   overlayCssFontFamily,
 } from '@/src/transcription/subtitle-overlay-fonts';
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
+import { throwIfRenderAborted } from '@/src/transcription/canvas-render-perf-guard';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   type SubtitleGlowConfig,
@@ -93,6 +94,8 @@ export interface SubtitleOverlayRenderOptions {
   finalizeWebm?: boolean;
   /** Bake progress — fired after each painted timeline frame (excludes tail hold frames). */
   onRenderProgress?: (info: { frameIndex: number; totalFrames: number; ratio: number }) => void;
+  /** Abort between frames — used for user cancel + canvas render perf guard (Phase 5.3). */
+  signal?: AbortSignal;
 }
 
 export interface SubtitleOverlayResult {
@@ -760,11 +763,13 @@ async function recordOverlayTimeline(
 
     void (async () => {
       try {
+        throwIfRenderAborted(options.signal);
         await new Promise<void>((r) => {
           window.setTimeout(() => r(), RECORDER_WARMUP_MS);
         });
 
         const paintAndCapture = async (timestamp: number, frameIndex: number): Promise<void> => {
+          throwIfRenderAborted(options.signal);
           paintFrame(target, cues, style, options, timestamp, durationSeconds);
 
           if (singleFrameDebug && options.onFrameDebug) {
@@ -790,6 +795,7 @@ async function recordOverlayTimeline(
         };
 
         for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
+          throwIfRenderAborted(options.signal);
           await paintAndCapture(frameIndex / fps, frameIndex);
           options.onRenderProgress?.({
             frameIndex: frameIndex + 1,
