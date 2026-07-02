@@ -26,6 +26,7 @@ import {
   normalizeTranscriptConfig,
   transcriptConfigForProfileStorage,
   type SubtitleGlowColorSource,
+  type SubtitleGlowHueRotateMode,
   type SubtitleGlowMode,
   type SubtitleStyleConfig,
   type SubtitleTextColor,
@@ -399,7 +400,16 @@ export function renderSubtitleControlFields(): string {
               <option value="black">Black</option>
               <option value="white">White</option>
               <option value="special">Special hue</option>
+              <option value="rainbow">Hue rotate</option>
             </select>
+          </label>
+          <label class="popup__field studio__field--compact" data-subtitle-glow-hue-rotate-panel hidden>
+            <span class="popup__field-label">Hue rotate mode</span>
+            <select class="popup__select" data-subtitle-glow-hue-rotate-mode aria-label="Subtitle glow hue rotate mode">
+              <option value="rainbow">Rainbow (full wheel)</option>
+              <option value="monochromatic">Monochromatic (theme family)</option>
+            </select>
+            <p class="popup__field-desc">Canvas overlay bake only — smooth per-frame rotation at ~45°/s.</p>
           </label>
           <label class="popup__field studio__field--compact">
             <span class="popup__field-label">
@@ -511,6 +521,10 @@ export function mountSubtitleControls(
   const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
   const glowModeSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-mode]')!;
   const glowColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-glow-color]')!;
+  const glowHueRotatePanel = panel.querySelector<HTMLElement>('[data-subtitle-glow-hue-rotate-panel]')!;
+  const glowHueRotateModeSelect = panel.querySelector<HTMLSelectElement>(
+    '[data-subtitle-glow-hue-rotate-mode]',
+  )!;
   const glowOpacityInput = panel.querySelector<HTMLElement>('[data-subtitle-glow-opacity]')!;
   const glowOpacityValueEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-opacity-value]')!;
   const glowDualBorderInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow-dual-border]')!;
@@ -1004,10 +1018,13 @@ export function mountSubtitleControls(
   function syncGlowOptionsUi(): void {
     const glowOn = glowInput.checked;
     const borderMode = glowModeSelect.value === 'border';
+    const hueRotate = glowColorSelect.value === 'rainbow';
     glowOptionsEl.hidden = !glowOn;
     glowModeSelect.disabled = !glowOn;
     glowColorSelect.disabled = !glowOn;
     glowDualBorderInput.disabled = !glowOn;
+    glowHueRotatePanel.hidden = !glowOn || !hueRotate;
+    glowHueRotateModeSelect.disabled = !glowOn || !hueRotate;
     glowOpacityInput.classList.toggle('is-disabled', !glowOn || borderMode);
   }
 
@@ -1042,6 +1059,7 @@ export function mountSubtitleControls(
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
+    glowHueRotateModeSelect.value = style.glow?.hueRotateMode ?? 'rainbow';
     glowDualBorderInput.checked = style.glow?.dualBorder === true;
     const glowOpacityPct = Math.round((style.glow?.opacity ?? 0.55) * 100);
     setPhysicalSliderValue(glowOpacityInput, glowOpacityPct);
@@ -1094,6 +1112,7 @@ export function mountSubtitleControls(
         enabled: glowInput.checked,
         mode: glowModeSelect.value as SubtitleGlowMode,
         colorSource: glowColorSelect.value as SubtitleGlowColorSource,
+        hueRotateMode: glowHueRotateModeSelect.value as SubtitleGlowHueRotateMode,
         opacity: glowOpacity,
         dualBorder: glowDualBorderInput.checked,
       },
@@ -1567,7 +1586,15 @@ export function mountSubtitleControls(
 
   glowColorSelect.addEventListener('change', () => {
     if (syncing) return;
+    syncGlowOptionsUi();
     syncSpecialHueUi();
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  glowHueRotateModeSelect.addEventListener('change', () => {
+    if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();
     notifyDraftChange();

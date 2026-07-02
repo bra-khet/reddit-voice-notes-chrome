@@ -57,9 +57,14 @@ export interface SubtitleOutlineConfig {
 
 export type SubtitleTextColor = 'white' | 'black' | 'theme' | 'special';
 
-export type SubtitleGlowColorSource = 'theme' | 'black' | 'white' | 'special';
+export type SubtitleGlowColorSource = 'theme' | 'black' | 'white' | 'special' | 'rainbow';
 
 export type SubtitleGlowMode = 'halo' | 'border';
+
+/** Canvas overlay per-frame glow rotation — v5.3.4 Phase 3.5.5. */
+export type SubtitleGlowHueRotateMode = 'rainbow' | 'monochromatic';
+
+export const DEFAULT_SUBTITLE_HUE_ROTATE_SPEED = 45;
 
 /** Shared custom hue when text or glow color source is `special`. */
 export const DEFAULT_SUBTITLE_SPECIAL_HUE = '#e040fb';
@@ -75,6 +80,10 @@ export interface SubtitleGlowConfig {
   offsetY?: number;
   /** Inner + outer contrasting outline — canvas overlay only (v5.3.4 Phase 3.5.2). */
   dualBorder?: boolean;
+  /** Degrees per second when colorSource === 'rainbow' (canvas overlay). */
+  hueRotateSpeed?: number;
+  /** Rotation algorithm when colorSource === 'rainbow'. */
+  hueRotateMode?: SubtitleGlowHueRotateMode;
 }
 
 export interface SubtitleStyleConfig {
@@ -152,8 +161,13 @@ export interface TranscribeAudioResult {
 }
 
 function normalizeGlowColorSource(raw: string | undefined): SubtitleGlowColorSource {
-  if (raw === 'black' || raw === 'white' || raw === 'special') return raw;
+  if (raw === 'black' || raw === 'white' || raw === 'special' || raw === 'rainbow') return raw;
   return 'theme';
+}
+
+function normalizeGlowHueRotateMode(raw: string | undefined): SubtitleGlowHueRotateMode {
+  if (raw === 'monochromatic') return 'monochromatic';
+  return 'rainbow';
 }
 
 function normalizeGlowMode(raw: string | undefined): SubtitleGlowMode {
@@ -205,6 +219,11 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
       offsetX: typeof glow.offsetX === 'number' ? glow.offsetX : DEFAULT_SUBTITLE_STYLE.glow!.offsetX,
       offsetY: typeof glow.offsetY === 'number' ? glow.offsetY : DEFAULT_SUBTITLE_STYLE.glow!.offsetY,
       dualBorder: glow.dualBorder === true,
+      hueRotateSpeed:
+        typeof glow.hueRotateSpeed === 'number'
+          ? glow.hueRotateSpeed
+          : DEFAULT_SUBTITLE_HUE_ROTATE_SPEED,
+      hueRotateMode: normalizeGlowHueRotateMode(glow.hueRotateMode),
     },
     shadow: {
       enabled: false,

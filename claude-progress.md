@@ -37,6 +37,8 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Future ideas:** `docs/future-ideas.md` — subtitle gradient/wave + glow hue-rotate tunable variable catalog.
 
+**Phase 3.5.5 (2026-07-01):** Per-frame glow hue rotate — `colorSource: 'rainbow'`, `hueRotateMode` (`rainbow` | `monochromatic`), `resolveCanvasOverlayGlowHex()`; DEV UI under Theme glow. Canvas overlay only.
+
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 
 **Phase 3.5 scope (before Phase 4):** (1) halo diffusion, (2) dual contrasting border, (3) opinionated text gradient, (4) backdrop rounding QA/tune (`borderRadius` already wired), (5) rainbow per-frame glow. Canvas-only — no drawtext layer explosion. See design doc Phase 3.5 for full spec.

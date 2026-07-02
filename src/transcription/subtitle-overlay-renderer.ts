@@ -17,6 +17,7 @@ import {
   CANVAS_HALO_UNDERPASS_OPACITY_BUDGET,
   canvasTextGradientWavePhase,
   createCanvasOverlayTextGradient,
+  resolveCanvasOverlayGlowHex,
   resolveInnerBorderColor,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
@@ -583,7 +584,8 @@ function paintCue(
     ctx.rect(clipRect.x, clipRect.y, clipRect.w, clipRect.h);
     ctx.clip();
   }
-  paintGlowText(ctx, cue.text, textX, textY, style, palette.glowHex);
+  const glowHex = resolveCanvasOverlayGlowHex(style, themeBarColor, timestampSeconds);
+  paintGlowText(ctx, cue.text, textX, textY, style, glowHex);
   resetPaintContextState(ctx);
   paintMainText(ctx, cue.text, textX, textY, style, palette.textHex, fontSize, timestampSeconds);
   ctx.restore();

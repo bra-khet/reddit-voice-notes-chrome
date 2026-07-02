@@ -7,8 +7,10 @@ import {
 } from '@/src/theme/color-utils';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
+  DEFAULT_SUBTITLE_HUE_ROTATE_SPEED,
   type SubtitleGlowColorSource,
   type SubtitleGlowConfig,
+  type SubtitleGlowHueRotateMode,
   type SubtitleStyleConfig,
 } from '@/src/transcription/types';
 
@@ -131,6 +133,10 @@ export function resolveGlowColorHex(
   themeBarColor: string,
   specialHue?: string,
 ): string {
+  if (source === 'rainbow') {
+    // Canvas overlay uses resolveCanvasOverlayGlowHex; drawtext/preview fall back to theme.
+    return resolveGlowColorHex('theme', themeBarColor, specialHue);
+  }
   if (source === 'black') return '#000000';
   if (source === 'white') return '#ffffff';
   if (source === 'special') {
@@ -141,6 +147,55 @@ export function resolveGlowColorHex(
   const bar = normalizeHexColor(themeBarColor) ?? '#00e5ff';
   const derived = deriveGlowColor(bar);
   return derived.slice(0, 7);
+}
+
+function resolveCanvasOverlayRainbowGlowHex(
+  hueRotateMode: SubtitleGlowHueRotateMode,
+  themeBarColor: string,
+  specialHue: string | undefined,
+  timestampSeconds: number,
+  hueRotateSpeed: number,
+): string {
+  const speed = Math.max(1, hueRotateSpeed);
+  const hue = ((timestampSeconds * speed) % 360 + 360) % 360;
+
+  if (hueRotateMode === 'rainbow') {
+    return hsvToHex(hue, 82, 92);
+  }
+
+  const baseHex = resolveGlowColorHex('theme', themeBarColor, specialHue);
+  const baseHsv = hexToHsv(baseHex);
+  if (!baseHsv) return baseHex;
+
+  const t = (hue / 360) * Math.PI * 2;
+  const value = Math.max(38, Math.min(100, baseHsv.v + 16 * Math.sin(t)));
+  const saturation = Math.max(20, Math.min(100, baseHsv.s * (0.78 + 0.22 * Math.cos(t))));
+  return hsvToHex(baseHsv.h, saturation, value);
+}
+
+/**
+ * Per-frame glow hex for canvas overlay — static sources or hue-rotate (v5.3.4 Phase 3.5.5).
+ */
+export function resolveCanvasOverlayGlowHex(
+  style: SubtitleStyleConfig,
+  themeBarColor: string,
+  timestampSeconds: number,
+): string {
+  const glow = style.glow;
+  const source = glow?.colorSource;
+  if (source !== 'rainbow') {
+    return resolveGlowColorHex(source, themeBarColor, style.specialHue);
+  }
+
+  const mode = glow?.hueRotateMode ?? 'rainbow';
+  const speed = glow?.hueRotateSpeed ?? DEFAULT_SUBTITLE_HUE_ROTATE_SPEED;
+  return resolveCanvasOverlayRainbowGlowHex(
+    mode,
+    themeBarColor,
+    style.specialHue,
+    timestampSeconds,
+    speed,
+  );
 }
 
 /**
