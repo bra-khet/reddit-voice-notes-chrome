@@ -14,6 +14,7 @@ import { finalizeOverlayWebm } from '@/src/ffmpeg/overlay-webm-finalize';
 import {
   buildCanvasOverlayHaloLayerSpecs,
   buildGlowLayerSpecs,
+  canvasOverlayHaloMaxRingOffsetPx,
   CANVAS_HALO_UNDERPASS_OPACITY_BUDGET,
   canvasTextGradientWavePhase,
   createCanvasOverlayTextGradient,
@@ -264,32 +265,90 @@ function haloShadowBlurPx(glow: SubtitleGlowConfig): number {
   return 6 + haloSpreadPx(glow) * 5;
 }
 
-/** Glow bleed beyond glyph bounds — drives per-cue clip rect (not a uniform frame inset). */
-function glowBleedMarginPx(style: SubtitleStyleConfig, fontSize: number): number {
+interface CueInkMetrics {
+  inkLeft: number;
+  inkTop: number;
+  inkWidth: number;
+  inkHeight: number;
+}
+
+interface GlowBleedInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * Ink box from TextMetrics — textAlign center, textBaseline top.
+ * Serif/bold caps (T/F/D/Z) often extend outside the em box or above the top baseline.
+ */
+function measureCueInkMetrics(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  text: string,
+  anchorX: number,
+  anchorY: number,
+  fontSize: number,
+): CueInkMetrics {
+  const metrics = ctx.measureText(text);
+  const fallbackW = metrics.width;
+  const fallbackH = drawtextTextHeightPx(fontSize);
+  const left = metrics.actualBoundingBoxLeft ?? fallbackW / 2;
+  const right = metrics.actualBoundingBoxRight ?? fallbackW / 2;
+  const ascent = metrics.actualBoundingBoxAscent ?? metrics.fontBoundingBoxAscent ?? 0;
+  const descent = metrics.actualBoundingBoxDescent ?? metrics.fontBoundingBoxDescent ?? fallbackH;
+
+  return {
+    inkLeft: anchorX - left,
+    inkTop: anchorY - ascent,
+    inkWidth: left + right,
+    inkHeight: ascent + descent,
+  };
+}
+
+/** Per-edge glow bleed beyond measured ink — drives per-cue clip (not a uniform frame inset). */
+function glowBleedInsetsPx(style: SubtitleStyleConfig, fontSize: number): GlowBleedInsets {
+  const uniform = 4;
   const glow = style.glow;
-  if (glow?.enabled !== true) return 4;
+  if (glow?.enabled !== true) {
+    return { top: uniform, right: uniform, bottom: uniform, left: uniform };
+  }
+
   const spread = haloSpreadPx(glow);
   const mode = glow.mode ?? 'halo';
   const dualExtra = glow.dualBorder === true ? dualBorderStrokeExtentPx(fontSize) : 0;
-  if (mode === 'border') return Math.max(4, spread + 2 + dualExtra);
-  const shadowExtent = Math.ceil(haloShadowBlurPx(glow) * 0.85);
-  const whisper = spread + 1;
-  return Math.max(8, spread + shadowExtent + whisper + 4 + dualExtra);
+  const ringExtent = canvasOverlayHaloMaxRingOffsetPx(glow);
+  const safetyPad = 6;
+
+  if (mode === 'border') {
+    const side = Math.max(6, spread + ringExtent + dualExtra + safetyPad);
+    return { top: side, right: side, bottom: side, left: side };
+  }
+
+  const blur = haloShadowBlurPx(glow);
+  // BUG FIX: halo clip too tight above cap glyphs (T/F/D/Z, esp. serif/bold)
+  // Fix: full shadowBlur tail (not 0.85×) + extra top inset for horizontal cap strokes.
+  const shadowPad = Math.ceil(blur * 1.2) + safetyPad;
+  const side = spread + ringExtent + shadowPad + dualExtra + safetyPad;
+  const topBias = Math.ceil(blur * 0.3) + 4;
+  return {
+    top: side + topBias,
+    right: side,
+    bottom: side,
+    left: side,
+  };
 }
 
-function cueGlowClipRect(
-  textX: number,
-  textTopY: number,
-  textWidth: number,
-  textHeight: number,
-  bleed: number,
+function cueGlowClipRectFromInk(
+  ink: CueInkMetrics,
+  insets: GlowBleedInsets,
   width: number,
   height: number,
 ): { x: number; y: number; w: number; h: number } {
-  const left = textX - textWidth / 2 - bleed;
-  const top = textTopY - bleed;
-  const right = textX + textWidth / 2 + bleed;
-  const bottom = textTopY + textHeight + bleed;
+  const left = ink.inkLeft - insets.left;
+  const top = ink.inkTop - insets.top;
+  const right = ink.inkLeft + ink.inkWidth + insets.right;
+  const bottom = ink.inkTop + ink.inkHeight + insets.bottom;
 
   const x = Math.max(FRAME_EDGE_INSET_PX, Math.floor(left));
   const y = Math.max(FRAME_EDGE_INSET_PX, Math.floor(top));
@@ -570,25 +629,28 @@ function paintCue(
 
   const textX = Math.round(centerX);
   const textY = Math.round(textTopY);
-  const textWidth = ctx.measureText(cue.text).width;
-  const textHeight = drawtextTextHeightPx(fontSize);
 
-  ctx.save();
   if (style.glow?.enabled === true) {
-    // BUG FIX: halo pixel artifacts on long cues (top-right glyph corner)
-    // Fix: per-cue clip from measured text bounds + glow bleed — uniform frame inset
-    //      clipped wide subtitles before shadowBlur/whisper ring finished tapering.
-    const bleed = glowBleedMarginPx(style, fontSize);
-    const clipRect = cueGlowClipRect(textX, textTopY, textWidth, textHeight, bleed, width, height);
+    // BUG FIX: halo clip artifacts above cap glyphs (T/F/D/Z; serif/bold worst)
+    // Fix: ink-box clip from TextMetrics + asymmetric bleed (extra top for shadowBlur);
+    //      clip glow passes only — main text/gradient paints outside the clip.
+    const ink = measureCueInkMetrics(ctx, cue.text, textX, textY, fontSize);
+    const insets = glowBleedInsetsPx(style, fontSize);
+    const clipRect = cueGlowClipRectFromInk(ink, insets, width, height);
+    ctx.save();
     ctx.beginPath();
     ctx.rect(clipRect.x, clipRect.y, clipRect.w, clipRect.h);
     ctx.clip();
+    const glowHex = resolveCanvasOverlayGlowHex(style, themeBarColor, timestampSeconds);
+    paintGlowText(ctx, cue.text, textX, textY, style, glowHex);
+    ctx.restore();
+    resetPaintContextState(ctx);
+  } else {
+    const glowHex = resolveCanvasOverlayGlowHex(style, themeBarColor, timestampSeconds);
+    paintGlowText(ctx, cue.text, textX, textY, style, glowHex);
+    resetPaintContextState(ctx);
   }
-  const glowHex = resolveCanvasOverlayGlowHex(style, themeBarColor, timestampSeconds);
-  paintGlowText(ctx, cue.text, textX, textY, style, glowHex);
-  resetPaintContextState(ctx);
   paintMainText(ctx, cue.text, textX, textY, style, palette.textHex, fontSize, timestampSeconds);
-  ctx.restore();
   ctx.restore();
 }
 

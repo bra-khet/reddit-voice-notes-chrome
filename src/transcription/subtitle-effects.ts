@@ -463,6 +463,12 @@ export function normalizeGlowLayerOpacityIntegral(
  * Rings only — core diffusion is paintHaloDiffusionUnderpass (no centre duplicate; avoids muddy stack).
  * Sync: subtitle-overlay-renderer.ts paintGlowText halo branch.
  */
+/** Furthest duplicate-ring offset (px) — canvas overlay halo; sync bleed with subtitle-overlay-renderer.ts */
+export function canvasOverlayHaloMaxRingOffsetPx(glow: SubtitleGlowConfig): number {
+  const spread = Math.max(1, Math.min(3, Math.round(glow.blurRadius ?? 2)));
+  return spread + 1;
+}
+
 export function buildCanvasOverlayHaloLayerSpecs(
   glow: SubtitleGlowConfig,
   baseFontSize: number,
