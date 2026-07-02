@@ -26,7 +26,12 @@ await build({
   logLevel: 'silent',
 });
 
-const { buildBurnInStrategies } = await import(pathToFileURL(outfile).href);
+const {
+  buildBurnInStrategies,
+  buildCanvasOverlayStrategy,
+  shouldPreferCanvasOverlay,
+  subtitleStyleHasCanvasOnlyEffects,
+} = await import(pathToFileURL(outfile).href);
 
 const SOFT_HYPHEN = '­';
 const MAX_LAYERS = 64; // mirrors MAX_BURNIN_DRAWTEXT_LAYERS
@@ -130,6 +135,57 @@ check('every emitted strategy that is kept stays within budget (unless it is the
   for (const s of strategies) {
     assert.ok(drawtextCount(s) <= MAX_LAYERS, `${s.name} within budget (${drawtextCount(s)})`);
   }
+});
+
+check('canvas overlay strategy uses a single overlay filter (no drawtext)', () => {
+  const overlayBytes = new Uint8Array(1024);
+  const strategy = buildCanvasOverlayStrategy(overlayBytes);
+  assert.equal(strategy.name, 'canvas-overlay');
+  assert.equal(strategy.requiresFont, false);
+  const filterComplex = strategy.args[strategy.args.indexOf('-filter_complex') + 1];
+  assert.match(filterComplex, /overlay=0:0/);
+  assert.equal((filterComplex.match(/drawtext=/g) ?? []).length, 0);
+});
+
+check('overlay bytes + prefer → canvas strategy first, drawtext fallbacks remain', () => {
+  const overlayBytes = new Uint8Array(2048);
+  const strategies = buildBurnInStrategies({
+    segments: cues(3),
+    style: style(),
+    videoDurationSeconds: 3,
+    useCanvasOverlay: true,
+    canvasOverlayBytes: overlayBytes,
+  });
+  assert.equal(strategies[0].name, 'canvas-overlay');
+  assert.ok(strategies.length >= 2, 'drawtext fallback tiers still emitted');
+});
+
+check('no overlay bytes → drawtext only (unchanged path)', () => {
+  const strategies = buildBurnInStrategies({
+    segments: cues(3),
+    style: style({ glow: { enabled: true, mode: 'halo', colorSource: 'rainbow', opacity: 0.55 } }),
+    videoDurationSeconds: 3,
+    useCanvasOverlay: true,
+  });
+  assert.ok(strategies.every((s) => s.name !== 'canvas-overlay'));
+});
+
+check('shouldPreferCanvasOverlay — rainbow glow and 7+ glow cues', () => {
+  assert.ok(
+    shouldPreferCanvasOverlay({
+      segments: cues(2),
+      style: style({ glow: { enabled: true, mode: 'halo', colorSource: 'rainbow', opacity: 0.55 } }),
+      videoDurationSeconds: 2,
+    }),
+  );
+  assert.ok(
+    shouldPreferCanvasOverlay({
+      segments: cues(8),
+      style: style({ glow: { enabled: true, mode: 'halo', colorSource: 'theme', opacity: 0.55 } }),
+      videoDurationSeconds: 8,
+    }),
+  );
+  assert.ok(subtitleStyleHasCanvasOnlyEffects(style({ textGradientWave: true })));
 });
 
 rmSync(outdir, { recursive: true, force: true });

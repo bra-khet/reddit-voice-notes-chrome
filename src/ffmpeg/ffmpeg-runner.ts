@@ -5,6 +5,7 @@ import {
   BURNIN_FONT_FS_PATH,
   BURNIN_INPUT_MP4,
   BURNIN_OUTPUT_MP4,
+  CANVAS_OVERLAY_FS_PATH,
   burnInLogIndicatesFailure,
   buildBurnInStrategies,
   type SubtitleBurnInInput,
@@ -716,6 +717,7 @@ async function burnInWithStrategies(
       await safeDeleteFile(ffmpeg, BURNIN_INPUT_MP4);
       await safeDeleteFile(ffmpeg, BURNIN_OUTPUT_MP4);
       await safeDeleteFile(ffmpeg, BURNIN_FONT_FS_PATH);
+      await safeDeleteFile(ffmpeg, CANVAS_OVERLAY_FS_PATH);
       if (strategy.extraFiles) {
         for (const path of Object.keys(strategy.extraFiles)) {
           await safeDeleteFile(ffmpeg, path);

@@ -14,7 +14,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 2½ — empty WebM, seek/scrub, VP8 edge hardening | DONE, user-QA'd | `224c361`, `9ab41fe` |
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
 | **3.5 — canvas visual polish** | **DONE**, user-QA'd | `dbbc9cb` … `432683a` |
-| 4 — burn-in pipeline integration | pending (after 3.5) | — |
+| **4 — burn-in pipeline integration** | **DONE** (dev QA pending) | Phase 4 sprint |
 | 5 — production polish, lab panel, arch docs | pending | — |
 
 **User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
@@ -44,6 +44,8 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 **Phase 3.5.6 (2026-07-02):** Dev harness QA note — subtitle panel toggles (halo, gradient, wave, dual border, hue rotate) apply to both render/compare buttons.
 
 **Checkpoint tag (2026-07-02):** `5.3.4-phase-3.5-complete` → `432683a` (all 3.5 effects QA'd; gate cleared for Phase 4).
+
+**Phase 4 (2026-07-02):** Burn-in integration — `useCanvasOverlay` + `canvasOverlayBytes` on `SubtitleBurnInInput`; `buildCanvasOverlayStrategy()` (single `overlay=0:0` filter); `shouldPreferCanvasOverlay()` auto-select; drawtext tiers remain fallback. Dev button **Bake with Canvas Overlay (full pipeline)** renders overlay in Studio then `runSubtitleBurnIn` composite → `final.mp4` preview/download. Production bake (`burnInSubtitlesToMp4`) still drawtext-only until overlay bytes are relayed offscreen (Phase 5).
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

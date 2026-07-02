@@ -20,6 +20,10 @@ export interface SubtitleBurnInInput {
   videoDurationSeconds?: number;
   /** Active theme bar color — resolves theme-hue glow at bake time. */
   themeBarColor?: string;
+  /** Force canvas overlay composite when overlay bytes are supplied (v5.3.4 Phase 4). */
+  useCanvasOverlay?: boolean;
+  /** Pre-rendered VP8 overlay WebM from renderSubtitleOverlay (content-script only). */
+  canvasOverlayBytes?: Uint8Array;
 }
 
 // BUG FIX: drawtext fontfile= with relative path fails silently in Emscripten MEMFS on some builds
@@ -42,6 +46,12 @@ export function resolveBurnInFontAsset(fontFamily?: string): string {
 
 const INPUT_MP4 = 'base.mp4';
 const OUTPUT_MP4 = 'final.mp4';
+
+/** WASM FS path for the canvas overlay WebM written before composite (v5.3.4 Phase 4). */
+export const CANVAS_OVERLAY_FS_PATH = 'subtitle-overlay.webm';
+
+/** Usable cue count above which glow drawtext graphs routinely exceed the layer budget. */
+const CANVAS_OVERLAY_AUTO_CUE_THRESHOLD = 6;
 
 const DEFAULT_THEME_BAR = '#00e5ff';
 
@@ -420,16 +430,73 @@ function buildBurnInArgs(drawtextFilter: string): string[] {
   ];
 }
 
-// BUG FIX: silent burn-in success with no visible subs (BUG-025 / BUG-030)
-// Fix: drawtext + bundled DejaVu TTF only — subtitles/libass fallback removed (wasm exit-0 no-op).
-// Sync: ffmpeg-runner.ts burnInLogIndicatesFailure, public/assets/fonts/DejaVuSans.ttf
-//
-// Filtergraph-explosion guard: build every tier, drop duplicates, then keep the tiers within the
-// layer budget (the richest in-budget tier runs first, so the common case bakes on attempt 1 with
-// no wasted wasm reload). If even the simplest tier is over budget (very many cues), fall back to it
-// alone — it's the smallest possible graph. ffmpeg-runner reloads a fresh wasm instance per tier,
-// so a tier that still OOMs at runtime degrades to the next instead of hard-failing.
-export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
+/**
+ * Canvas-only styling that drawtext cannot replicate without layer explosion (v5.3.4 Phase 3.5).
+ * Sync: subtitle-overlay-renderer.ts rich effects; drawtext tiers stay simpler.
+ */
+export function subtitleStyleHasCanvasOnlyEffects(style: SubtitleStyleConfig): boolean {
+  const glow = style.glow;
+  if (glow?.dualBorder === true) return true;
+  if (glow?.colorSource === 'rainbow') return true;
+  if (style.textGradientWave === true) return true;
+  if (style.textGradient !== false) return true;
+  return false;
+}
+
+/** Whether burn-in should prefer the canvas overlay path when overlay bytes are available. */
+export function shouldPreferCanvasOverlay(input: SubtitleBurnInInput): boolean {
+  if (input.useCanvasOverlay === true) return true;
+
+  const segments = normalizeSegmentsForBurnIn(input.segments, input.videoDurationSeconds);
+  const glowEnabled = input.style.glow?.enabled === true;
+  if (segments.length > CANVAS_OVERLAY_AUTO_CUE_THRESHOLD && glowEnabled) return true;
+
+  return subtitleStyleHasCanvasOnlyEffects(input.style);
+}
+
+function buildCanvasOverlayBurnInArgs(): string[] {
+  return [
+    '-i',
+    INPUT_MP4,
+    '-i',
+    CANVAS_OVERLAY_FS_PATH,
+    '-filter_complex',
+    '[0:v][1:v]overlay=0:0:format=auto[vout]',
+    '-map',
+    '[vout]',
+    '-map',
+    '0:a?',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'ultrafast',
+    '-pix_fmt',
+    'yuv420p',
+    '-c:a',
+    'copy',
+    '-movflags',
+    '+faststart',
+    OUTPUT_MP4,
+  ];
+}
+
+/**
+ * Minimal burn-in strategy — single overlay filter over base.mp4 (v5.3.4 Phase 4).
+ * Overlay bytes must be pre-rendered in the Design Studio content context.
+ */
+export function buildCanvasOverlayStrategy(overlayBytes: Uint8Array): BurnInStrategy {
+  if (!overlayBytes || overlayBytes.byteLength < 256) {
+    throw new Error('Canvas overlay WebM is empty or too small for burn-in composite.');
+  }
+  return {
+    name: 'canvas-overlay',
+    requiresFont: false,
+    extraFiles: { [CANVAS_OVERLAY_FS_PATH]: overlayBytes },
+    args: buildCanvasOverlayBurnInArgs(),
+  };
+}
+
+function buildDrawtextBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
   const segments = normalizeSegmentsForBurnIn(input.segments, input.videoDurationSeconds);
   if (segments.length === 0) {
     throw new Error('No subtitle segments to burn in.');
@@ -450,15 +517,12 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
       tier.opts,
     );
     const filter = parts.join(',');
-    // Dedupe: when the style has no glow, every tier collapses to the same filter.
     if (seenFilters.has(filter)) continue;
     seenFilters.add(filter);
     built.push({ name: tier.name, filter, layers: parts.length });
   }
 
   const withinBudget = built.filter((tier) => tier.layers <= MAX_BURNIN_DRAWTEXT_LAYERS);
-  // built is ordered richest→simplest; keep that order. If nothing fits, the last
-  // (simplest) tier is the smallest graph we can produce.
   const chosen = withinBudget.length > 0 ? withinBudget : built.slice(-1);
 
   return chosen.map((tier) => ({
@@ -468,6 +532,30 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
     extraFiles: cueTextFiles,
     args: buildBurnInArgs(tier.filter),
   }));
+}
+
+// BUG FIX: silent burn-in success with no visible subs (BUG-025 / BUG-030)
+// Fix: drawtext + bundled DejaVu TTF only — subtitles/libass fallback removed (wasm exit-0 no-op).
+// Sync: ffmpeg-runner.ts burnInLogIndicatesFailure, public/assets/fonts/DejaVuSans.ttf
+//
+// Filtergraph-explosion guard: build every tier, drop duplicates, then keep the tiers within the
+// layer budget (the richest in-budget tier runs first, so the common case bakes on attempt 1 with
+// no wasted wasm reload). If even the simplest tier is over budget (very many cues), fall back to it
+// alone — it's the smallest possible graph. ffmpeg-runner reloads a fresh wasm instance per tier,
+// so a tier that still OOMs at runtime degrades to the next instead of hard-failing.
+export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
+  const drawtextStrategies = buildDrawtextBurnInStrategies(input);
+  const overlayBytes = input.canvasOverlayBytes;
+
+  if (
+    overlayBytes &&
+    overlayBytes.byteLength >= 256 &&
+    shouldPreferCanvasOverlay(input)
+  ) {
+    return [buildCanvasOverlayStrategy(overlayBytes), ...drawtextStrategies];
+  }
+
+  return drawtextStrategies;
 }
 
 export const BURNIN_INPUT_MP4 = INPUT_MP4;
