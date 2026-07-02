@@ -39,7 +39,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 3.5.5 (2026-07-01):** Per-frame glow hue rotate — `colorSource: 'rainbow'`, `hueRotateMode` (`rainbow` | `monochromatic`), `resolveCanvasOverlayGlowHex()`; DEV UI under Theme glow. Canvas overlay only.
 
-**Glow clip hardening (2026-07-01):** Cap-glyph halo artifacts (T/F/D/Z, serif/bold) — ink-box `TextMetrics` clip + asymmetric top bleed (full shadowBlur tail); glow-only clip (main text/gradient outside).
+**Glow clip hardening (2026-07-01):** Cap-glyph halo artifacts (T/F/D/Z, serif/bold) — ink-box `TextMetrics` clip + asymmetric top bleed (full shadowBlur tail); glow-only clip (main text/gradient outside). Follow-up: bumped topBias, font-scaled cap/descender bias, unified ink metrics for backdrop + glow (all DejaVu families).
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

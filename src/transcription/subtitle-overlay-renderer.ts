@@ -45,6 +45,8 @@ const RECORDER_FLUSH_MS = 800;
 const RECORDER_TAIL_FRAME_COUNT = 3;
 /** Sync: subtitle-burnin.ts buildBackdropBoxOpt boxborderw=12 */
 const BACKDROP_BOX_BORDER_W = 12;
+/** Shared glow-clip safety pad — sync with glowBleedInsetsPx side sums. */
+const GLOW_BLEED_SAFETY_PX = 6;
 /** Minimal frame rim inset — VP8 containment only; per-cue clip handles glow extent. */
 const FRAME_EDGE_INSET_PX = 4;
 
@@ -279,9 +281,19 @@ interface GlowBleedInsets {
   left: number;
 }
 
+/** Font-scaled extra headroom above measured ink (caps/serifs/bold). */
+function fontScaledCapBiasPx(fontSize: number): number {
+  return Math.ceil(fontSize * 0.14);
+}
+
+/** Font-scaled extra room below measured ink (descenders). */
+function fontScaledDescenderBiasPx(fontSize: number): number {
+  return Math.ceil(fontSize * 0.06);
+}
+
 /**
  * Ink box from TextMetrics — textAlign center, textBaseline top.
- * Serif/bold caps (T/F/D/Z) often extend outside the em box or above the top baseline.
+ * Uses the larger of actual vs font bounding boxes so all DejaVu families behave consistently.
  */
 function measureCueInkMetrics(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -293,10 +305,18 @@ function measureCueInkMetrics(
   const metrics = ctx.measureText(text);
   const fallbackW = metrics.width;
   const fallbackH = drawtextTextHeightPx(fontSize);
-  const left = metrics.actualBoundingBoxLeft ?? fallbackW / 2;
-  const right = metrics.actualBoundingBoxRight ?? fallbackW / 2;
-  const ascent = metrics.actualBoundingBoxAscent ?? metrics.fontBoundingBoxAscent ?? 0;
-  const descent = metrics.actualBoundingBoxDescent ?? metrics.fontBoundingBoxDescent ?? fallbackH;
+  const sidePad = Math.ceil(fontSize * 0.04);
+  const left = (metrics.actualBoundingBoxLeft ?? fallbackW / 2) + sidePad;
+  const right = (metrics.actualBoundingBoxRight ?? fallbackW / 2) + sidePad;
+  const ascent = Math.max(
+    metrics.actualBoundingBoxAscent ?? 0,
+    metrics.fontBoundingBoxAscent ?? 0,
+  );
+  const descent = Math.max(
+    metrics.actualBoundingBoxDescent ?? 0,
+    metrics.fontBoundingBoxDescent ?? 0,
+    fallbackH * 0.92,
+  );
 
   return {
     inkLeft: anchorX - left,
@@ -318,23 +338,32 @@ function glowBleedInsetsPx(style: SubtitleStyleConfig, fontSize: number): GlowBl
   const mode = glow.mode ?? 'halo';
   const dualExtra = glow.dualBorder === true ? dualBorderStrokeExtentPx(fontSize) : 0;
   const ringExtent = canvasOverlayHaloMaxRingOffsetPx(glow);
-  const safetyPad = 6;
+  const capBias = fontScaledCapBiasPx(fontSize);
+  const descBias = fontScaledDescenderBiasPx(fontSize);
+  const sidePad = Math.ceil(fontSize * 0.06) + GLOW_BLEED_SAFETY_PX;
 
   if (mode === 'border') {
-    const side = Math.max(6, spread + ringExtent + dualExtra + safetyPad);
-    return { top: side, right: side, bottom: side, left: side };
+    const side = spread + ringExtent + dualExtra + sidePad;
+    const strokeCap = Math.ceil(dualBorderOuterStrokeWidthPx(fontSize) / 2);
+    return {
+      top: side + capBias + strokeCap + 4,
+      right: side,
+      bottom: side + descBias + 2,
+      left: side,
+    };
   }
 
   const blur = haloShadowBlurPx(glow);
-  // BUG FIX: halo clip too tight above cap glyphs (T/F/D/Z, esp. serif/bold)
-  // Fix: full shadowBlur tail (not 0.85×) + extra top inset for horizontal cap strokes.
-  const shadowPad = Math.ceil(blur * 1.2) + safetyPad;
-  const side = spread + ringExtent + shadowPad + dualExtra + safetyPad;
-  const topBias = Math.ceil(blur * 0.3) + 4;
+  // BUG FIX: halo clip still tight above tall cap glyphs (T/F/D/Z; serif/bold)
+  // Fix: bumped topBias + font-scaled cap/descender bias on all glow modes.
+  const shadowPad = Math.ceil(blur * 1.25) + GLOW_BLEED_SAFETY_PX;
+  const side = spread + ringExtent + shadowPad + dualExtra + sidePad;
+  const topBias = Math.ceil(blur * 0.45) + capBias + 8;
+  const bottomBias = Math.ceil(blur * 0.18) + descBias + 4;
   return {
     top: side + topBias,
     right: side,
-    bottom: side,
+    bottom: side + bottomBias,
     left: side,
   };
 }
@@ -378,26 +407,20 @@ function hexToRgba(hex: string, opacity: number): string {
 
 function paintBackdropPlate(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  text: string,
-  centerX: number,
-  textTopY: number,
+  ink: CueInkMetrics,
   style: SubtitleStyleConfig,
-  fontSize: number,
 ): void {
-  const textWidth = ctx.measureText(text).width;
-  const textHeight = drawtextTextHeightPx(fontSize);
-  const blockWidth = textWidth + BACKDROP_BOX_BORDER_W * 2;
-  const blockHeight = textHeight + BACKDROP_BOX_BORDER_W * 2;
-  const blockX = Math.round(centerX - blockWidth / 2);
-  const blockY = textTopY - BACKDROP_BOX_BORDER_W;
-
   const backdrop = style.backdrop;
-  if (backdrop?.enabled !== false) {
-    const opacity = backdrop?.opacity ?? 0.72;
-    const radius = backdrop?.borderRadius ?? 8;
-    ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
-    fillRoundedRect(ctx, blockX, blockY, blockWidth, blockHeight, radius);
-  }
+  if (backdrop?.enabled === false) return;
+
+  const blockX = Math.floor(ink.inkLeft - BACKDROP_BOX_BORDER_W);
+  const blockY = Math.floor(ink.inkTop - BACKDROP_BOX_BORDER_W);
+  const blockWidth = Math.ceil(ink.inkWidth + BACKDROP_BOX_BORDER_W * 2);
+  const blockHeight = Math.ceil(ink.inkHeight + BACKDROP_BOX_BORDER_W * 2);
+  const opacity = backdrop?.opacity ?? 0.72;
+  const radius = backdrop?.borderRadius ?? 8;
+  ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+  fillRoundedRect(ctx, blockX, blockY, blockWidth, blockHeight, radius);
 }
 
 function paintHaloDiffusionUnderpass(
@@ -624,17 +647,16 @@ function paintCue(
 
   const centerX = drawtextXpx(width);
   const textTopY = drawtextYpx(style.position, fontSize, height);
-
-  paintBackdropPlate(ctx, cue.text, centerX, textTopY, style, fontSize);
-
   const textX = Math.round(centerX);
   const textY = Math.round(textTopY);
+  const ink = measureCueInkMetrics(ctx, cue.text, textX, textY, fontSize);
+
+  paintBackdropPlate(ctx, ink, style);
 
   if (style.glow?.enabled === true) {
     // BUG FIX: halo clip artifacts above cap glyphs (T/F/D/Z; serif/bold worst)
     // Fix: ink-box clip from TextMetrics + asymmetric bleed (extra top for shadowBlur);
     //      clip glow passes only — main text/gradient paints outside the clip.
-    const ink = measureCueInkMetrics(ctx, cue.text, textX, textY, fontSize);
     const insets = glowBleedInsetsPx(style, fontSize);
     const clipRect = cueGlowClipRectFromInk(ink, insets, width, height);
     ctx.save();
