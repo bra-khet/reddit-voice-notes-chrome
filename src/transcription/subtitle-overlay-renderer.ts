@@ -26,7 +26,7 @@ import {
   loadSubtitleOverlayFonts,
   overlayCssFontFamily,
 } from '@/src/transcription/subtitle-overlay-fonts';
-import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
+import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   type SubtitleGlowConfig,
@@ -131,31 +131,11 @@ function normalizeOverlaySegments(
   segments: TranscriptSegment[],
   durationSeconds: number,
 ): NormalizedCue[] {
-  const usable = segments
-    .filter((segment) => !cueTextIsBlank(segment.text))
-    .map((segment) => {
-      const text = stripScaffoldPlaceholder(segment.text).trim();
-      const start = Math.max(0, segment.start);
-      const end = Math.max(start + 0.35, segment.end);
-      return { start, end, text };
-    })
-    .filter((segment) => segment.text.length > 0);
-
-  if (usable.length === 0) return [];
-
-  const duration = Math.max(1, durationSeconds);
-  const missingTimings = usable.every((segment) => segment.end <= segment.start);
-
-  if (missingTimings) {
-    const slot = duration / usable.length;
-    return usable.map((segment, index) => ({
-      ...segment,
-      start: index * slot,
-      end: Math.min(duration, (index + 1) * slot - 0.05),
-    }));
-  }
-
-  return usable;
+  return prepareSegmentsForSubtitleBake(segments, durationSeconds).map((segment) => ({
+    start: segment.start,
+    end: segment.end,
+    text: segment.text,
+  }));
 }
 
 function cuesAtTimestamp(cues: NormalizedCue[], timestamp: number, durationSeconds: number): NormalizedCue[] {

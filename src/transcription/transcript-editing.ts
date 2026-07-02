@@ -86,6 +86,59 @@ export function cueTextIsBlank(text: string): boolean {
   return stripScaffoldPlaceholder(text).trim().length === 0;
 }
 
+/** Minimum on-screen cue window for bake + canvas overlay (mirrors drawtext segmentTiming). */
+export const MIN_BAKE_CUE_DURATION_SECONDS = 0.35;
+
+/**
+ * Single source of truth for subtitle bake / canvas overlay segment prep (v5.3.4 Phase 5.2).
+ * Drops blank scaffold slots, strips placeholders, enforces min cue duration, spreads missing
+ * Vosk timings, and clamps ends to clip length when known.
+ * Sync: subtitle-burnin.ts normalizeSegmentsForBurnIn; subtitle-overlay-renderer.ts
+ */
+export function prepareSegmentsForSubtitleBake(
+  segments: TranscriptSegment[],
+  videoDurationSeconds?: number,
+): TranscriptSegment[] {
+  const duration =
+    typeof videoDurationSeconds === 'number' && Number.isFinite(videoDurationSeconds) && videoDurationSeconds > 0
+      ? Math.max(1, videoDurationSeconds)
+      : null;
+
+  const usable = sortSegmentsByStart(segments)
+    .filter((segment) => !cueTextIsBlank(segment.text))
+    .map((segment) => ({
+      ...segment,
+      text: stripScaffoldPlaceholder(segment.text).trim(),
+      start: normalizeCueSeconds(segment.start),
+      end: normalizeCueSeconds(segment.end),
+    }))
+    .filter((segment) => segment.text.length > 0);
+
+  if (usable.length === 0) return [];
+
+  const missingTimings = usable.every((segment) => segment.end <= segment.start);
+
+  if (missingTimings && duration !== null) {
+    const slot = duration / usable.length;
+    return usable.map((segment, index) => {
+      const start = index * slot;
+      const end = Math.min(duration, (index + 1) * slot - 0.05);
+      return { ...segment, start, end: Math.max(start + MIN_BAKE_CUE_DURATION_SECONDS, end) };
+    });
+  }
+
+  return usable
+    .map((segment) => {
+      const start = Math.max(0, segment.start);
+      let end = Math.max(start + MIN_BAKE_CUE_DURATION_SECONDS, segment.end);
+      if (duration !== null) {
+        end = Math.min(end, duration);
+      }
+      return { ...segment, start, end };
+    })
+    .filter((segment) => duration === null || segment.start < duration);
+}
+
 /** Rebuild full transcript text from segment lines (single space join). */
 export function rebuildTextFromSegments(segments: TranscriptSegment[]): string {
   return segments

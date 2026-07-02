@@ -8,7 +8,7 @@ import {
   type GlowRingMode,
 } from '@/src/transcription/subtitle-effects';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
-import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
+import { prepareSegmentsForSubtitleBake, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import { BURNIN_PIPELINE_STAMP } from '@/src/utils/constants';
 
 export { BURNIN_PIPELINE_STAMP };
@@ -73,16 +73,6 @@ interface BurnInFilterOptions {
   glowRingMode: GlowRingMode;
 }
 
-// BUG FIX: empty scaffold slots were baked as drawtext layers
-// Fix: usableSegments used `text.trim()`, which does NOT strip the soft-hyphen scaffold
-//      placeholder (U+00AD is not whitespace) — so every empty scaffold slot became a drawtext
-//      layer (invisible glyph + needless filtergraph bloat). Use the soft-hyphen-aware blank check.
-// Sync: cueTextIsBlank / stripScaffoldPlaceholder in transcript-editing.ts; segmentTiming below
-//       also strips the placeholder from any cue text that does get written.
-function usableSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
-  return segments.filter((segment) => !cueTextIsBlank(segment.text));
-}
-
 /** WASM virtual FS path for cue text — avoids drawtext filter escaping bugs (BUG-031). */
 export function burnInCueTextFilePath(segmentIndex: number): string {
   return `burnin-cue-${segmentIndex}.txt`;
@@ -91,31 +81,13 @@ export function burnInCueTextFilePath(segmentIndex: number): string {
 /**
  * Vosk partial results can carry text without word timestamps (start/end = 0).
  * Spread cues across the clip so drawtext enable windows are visible.
+ * CHANGED: delegates to prepareSegmentsForSubtitleBake (v5.3.4 Phase 5.2).
  */
 export function normalizeSegmentsForBurnIn(
   segments: TranscriptSegment[],
   videoDurationSeconds?: number,
 ): TranscriptSegment[] {
-  const usable = usableSegments(segments);
-  if (usable.length === 0) return [];
-
-  const duration = Math.max(1, videoDurationSeconds ?? 0);
-  const missingTimings = usable.every((segment) => segment.end <= segment.start);
-
-  if (missingTimings && duration > 0) {
-    const slot = duration / usable.length;
-    return usable.map((segment, index) => ({
-      ...segment,
-      start: index * slot,
-      end: Math.min(duration, (index + 1) * slot - 0.05),
-    }));
-  }
-
-  return usable.map((segment) => ({
-    ...segment,
-    start: Math.max(0, segment.start),
-    end: Math.max(segment.start + 0.35, segment.end),
-  }));
+  return prepareSegmentsForSubtitleBake(segments, videoDurationSeconds);
 }
 
 function assAlignment(position: SubtitleStyleConfig['position']): number {

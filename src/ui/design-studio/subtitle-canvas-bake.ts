@@ -3,8 +3,8 @@ import { normalizeOverlayWebmForComposite } from '@/src/ffmpeg/overlay-webm-fina
 import { withTranscodeLock } from '@/src/ffmpeg/transcode-lock';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { renderSubtitleOverlay } from '@/src/transcription/subtitle-overlay-renderer';
-import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
-import type { SubtitleStyleConfig, TranscriptResult, TranscriptSegment } from '@/src/transcription/types';
+import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
+import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
 import { computeCreepRatio } from '@/src/ui/design-studio/bake-chronos';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
 
@@ -42,16 +42,6 @@ async function withNormalizeProgressCreep<T>(
   }
 }
 
-function usableSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
-  return segments
-    .filter((segment) => !cueTextIsBlank(segment.text))
-    .map((segment) => ({
-      ...segment,
-      text: stripScaffoldPlaceholder(segment.text).trim(),
-    }))
-    .filter((segment) => segment.text.length > 0);
-}
-
 export interface CanvasOverlayBakeOptions {
   editedResult: TranscriptResult;
   style: SubtitleStyleConfig;
@@ -76,7 +66,10 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): Promise<Blob> {
   throwIfAborted(options.signal);
 
-  const segments = usableSegments(options.editedResult.segments);
+  const segments = prepareSegmentsForSubtitleBake(
+    options.editedResult.segments,
+    options.durationSeconds,
+  );
   if (segments.length === 0) {
     throw new Error('No usable subtitle cues for canvas overlay bake.');
   }
