@@ -291,6 +291,11 @@ function fontScaledDescenderBiasPx(fontSize: number): number {
   return Math.ceil(fontSize * 0.06);
 }
 
+/** Font-scaled extra room at line start/end (wide glyphs, last-glyph halo tail). */
+function fontScaledSideBiasPx(fontSize: number): number {
+  return Math.ceil(fontSize * 0.1);
+}
+
 /**
  * Ink box from TextMetrics — textAlign center, textBaseline top.
  * Uses the larger of actual vs font bounding boxes so all DejaVu families behave consistently.
@@ -305,7 +310,7 @@ function measureCueInkMetrics(
   const metrics = ctx.measureText(text);
   const fallbackW = metrics.width;
   const fallbackH = drawtextTextHeightPx(fontSize);
-  const sidePad = Math.ceil(fontSize * 0.04);
+  const sidePad = Math.ceil(fontSize * 0.06);
   const left = (metrics.actualBoundingBoxLeft ?? fallbackW / 2) + sidePad;
   const right = (metrics.actualBoundingBoxRight ?? fallbackW / 2) + sidePad;
   const ascent = Math.max(
@@ -342,29 +347,32 @@ function glowBleedInsetsPx(style: SubtitleStyleConfig, fontSize: number): GlowBl
   const descBias = fontScaledDescenderBiasPx(fontSize);
   const sidePad = Math.ceil(fontSize * 0.06) + GLOW_BLEED_SAFETY_PX;
 
+  const sideBias = fontScaledSideBiasPx(fontSize);
+  const strokeHalf = Math.ceil(dualBorderOuterStrokeWidthPx(fontSize) / 2);
+
   if (mode === 'border') {
     const side = spread + ringExtent + dualExtra + sidePad;
-    const strokeCap = Math.ceil(dualBorderOuterStrokeWidthPx(fontSize) / 2);
     return {
-      top: side + capBias + strokeCap + 4,
-      right: side,
+      top: side + capBias + strokeHalf + 4,
+      right: side + sideBias + strokeHalf + 4,
       bottom: side + descBias + 2,
-      left: side,
+      left: side + sideBias + strokeHalf + 4,
     };
   }
 
   const blur = haloShadowBlurPx(glow);
-  // BUG FIX: halo clip still tight above tall cap glyphs (T/F/D/Z; serif/bold)
-  // Fix: bumped topBias + font-scaled cap/descender bias on all glow modes.
+  // BUG FIX: halo clip tight on cap tops and line start/end (long-cue right edge)
+  // Fix: symmetric horizontal bias matching vertical shadowBlur tail on all edges.
   const shadowPad = Math.ceil(blur * 1.25) + GLOW_BLEED_SAFETY_PX;
   const side = spread + ringExtent + shadowPad + dualExtra + sidePad;
   const topBias = Math.ceil(blur * 0.45) + capBias + 8;
   const bottomBias = Math.ceil(blur * 0.18) + descBias + 4;
+  const horizontalBias = Math.ceil(blur * 0.38) + sideBias + 6;
   return {
     top: side + topBias,
-    right: side,
+    right: side + horizontalBias,
     bottom: side + bottomBias,
-    left: side,
+    left: side + horizontalBias,
   };
 }
 
