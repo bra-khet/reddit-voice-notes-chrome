@@ -47,7 +47,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 4 (2026-07-02):** Burn-in integration — `useCanvasOverlay` + `canvasOverlayBytes` on `SubtitleBurnInInput`; `buildCanvasOverlayStrategy()` (single `overlay=0:0` filter); `shouldPreferCanvasOverlay()` auto-select; drawtext tiers remain fallback. Dev button **Bake with Canvas Overlay (full pipeline)** — user QA pass (2026-07-02). **Production bake:** `bakeSubtitlesInStudio` auto-selects canvas via `shouldPreferCanvasOverlay` (render + composite in Studio; drawtext offscreen fallback when plain style). Dev harness modal + button row scroll/wrap CSS.
 
-**Alpha composite fix (2026-07-02):** Canvas bake blocked base video with opaque black matte — wasm decode dropped VP8A. Fix: `normalizeOverlayWebmForComposite()` (libvpx-vp8 → yuva420p WebM) before composite; composite tiers use `format=yuva420p` + libvpx decode (no `format=auto`).
+**Alpha composite fix (2026-07-02):** Canvas bake blocked base video with opaque black matte — wasm decode dropped VP8A. Fix: `normalizeOverlayWebmForComposite()` (`libvpx` → yuva420p WebM) before composite; composite tiers use `format=yuva420p` + `-c:v libvpx` decode (no `format=auto`). **Follow-up:** wasm codec name is `libvpx` not `libvpx-vp8`; `writeBurnInExtras` slices overlay bytes per strategy retry (fixes detached ArrayBuffer on multi-tier canvas bake).
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

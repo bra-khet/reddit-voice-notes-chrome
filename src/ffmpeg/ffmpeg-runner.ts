@@ -638,7 +638,9 @@ async function writeBurnInExtras(
       await ffmpeg.writeFile(path, new TextEncoder().encode(contents));
       continue;
     }
-    await ffmpeg.writeFile(path, contents);
+    // BUG FIX: canvas overlay bake — detached ArrayBuffer on strategy retry
+    // Fix: writeFile transfers the backing buffer; slice per write (same as input.webm / aux WAVs).
+    await ffmpeg.writeFile(path, contents.slice());
   }
 }
 

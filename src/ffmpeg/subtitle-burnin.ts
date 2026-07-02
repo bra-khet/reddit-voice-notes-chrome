@@ -462,18 +462,18 @@ interface CanvasOverlayCompositeTier {
 }
 
 // BUG FIX: canvas overlay composite blocks base video with opaque black matte
-// Fix: decode VP8A via libvpx-vp8, keep overlay on yuva420p, and blend without format=auto
+// Fix: decode VP8A via libvpx, keep overlay on yuva420p, and blend without format=auto
 //      (wasm default decode drops alpha → transparent pixels become opaque black).
 // Sync: overlay-webm-finalize.ts normalizeOverlayWebmForComposite (yuva420p pre-pass)
 const CANVAS_OVERLAY_COMPOSITE_TIERS: ReadonlyArray<CanvasOverlayCompositeTier> = [
   {
     name: 'canvas-overlay-alpha',
-    overlayInputOpts: ['-c:v', 'libvpx-vp8'],
+    overlayInputOpts: ['-c:v', 'libvpx'],
     filterComplex: '[1:v]format=yuva420p[ol];[0:v][ol]overlay=0:0:shortest=1[vout]',
   },
   {
     name: 'canvas-overlay-rgba',
-    overlayInputOpts: ['-c:v', 'libvpx-vp8'],
+    overlayInputOpts: ['-c:v', 'libvpx'],
     filterComplex: '[1:v]format=rgba[ol];[0:v][ol]overlay=0:0:shortest=1[vout]',
   },
   {

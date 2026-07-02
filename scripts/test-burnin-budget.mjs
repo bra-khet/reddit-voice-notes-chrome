@@ -149,7 +149,7 @@ check('canvas overlay strategy uses alpha-preserving overlay filter (no drawtext
   assert.doesNotMatch(filterComplex, /format=auto/);
   assert.equal((filterComplex.match(/drawtext=/g) ?? []).length, 0);
   const overlayDecoderIdx = strategy.args.indexOf(CANVAS_OVERLAY_FS_PATH) - 2;
-  assert.equal(strategy.args[overlayDecoderIdx], 'libvpx-vp8');
+  assert.equal(strategy.args[overlayDecoderIdx], 'libvpx');
 });
 
 check('overlay bytes + prefer → canvas alpha strategies first, drawtext fallbacks remain', () => {

@@ -55,7 +55,7 @@ async function execFinalize(ffmpeg: FFmpeg, args: string[]): Promise<void> {
 function buildFinalizeStrategies(fps: number): { name: string; args: string[] }[] {
   // BUG FIX: compare harness canvas video vanished after drawtext finished
   // Fix: try stream-copy remux first — preserves MediaRecorder alpha, fast, and avoids
-  //      noisy libvpx-vp8 failures in the trimmed FFmpeg WASM build.
+  //      noisy libvpx encoder failures in the trimmed FFmpeg WASM build.
   // Sync: subtitle-controls.ts compare harness (canvas overlay must stay visible)
   return [
     {
@@ -84,7 +84,7 @@ function buildFinalizeStrategies(fps: number): { name: string; args: string[] }[
         String(fps),
         '-an',
         '-c:v',
-        'libvpx-vp8',
+        'libvpx',
         '-pix_fmt',
         'yuva420p',
         '-auto-alt-ref',
@@ -167,7 +167,7 @@ function buildCompositeAlphaNormalizeStrategies(fps: number): {
     String(fps),
     '-an',
     '-c:v',
-    'libvpx-vp8',
+    'libvpx',
     '-pix_fmt',
     'yuva420p',
     '-auto-alt-ref',
@@ -186,7 +186,7 @@ function buildCompositeAlphaNormalizeStrategies(fps: number): {
   return [
     {
       name: 'libvpx-decode-yuva',
-      inputOpts: ['-c:v', 'libvpx-vp8'],
+      inputOpts: ['-c:v', 'libvpx'],
       outputArgs: ['-fflags', '+genpts', ...encodeTail],
     },
     {
