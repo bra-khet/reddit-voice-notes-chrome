@@ -14,7 +14,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 2½ — empty WebM, seek/scrub, VP8 edge hardening | DONE, user-QA'd | `224c361`, `9ab41fe` |
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
 | **3.5 — canvas visual polish** | **DONE**, user-QA'd | `dbbc9cb` … `432683a` |
-| **4 — burn-in pipeline integration** | **DONE** (dev QA pending) | Phase 4 sprint |
+| **4 — burn-in pipeline integration** | **DONE**, user-QA'd | `ac2d52e` … `6641d35` |
 | 5 — production polish, lab panel, arch docs | pending | — |
 
 **User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
@@ -48,6 +48,10 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 **Phase 4 (2026-07-02):** Burn-in integration — `useCanvasOverlay` + `canvasOverlayBytes` on `SubtitleBurnInInput`; `buildCanvasOverlayStrategy()` (single `overlay=0:0` filter); `shouldPreferCanvasOverlay()` auto-select; drawtext tiers remain fallback. Dev button **Bake with Canvas Overlay (full pipeline)** — user QA pass (2026-07-02). **Production bake:** `bakeSubtitlesInStudio` auto-selects canvas via `shouldPreferCanvasOverlay` (render + composite in Studio; drawtext offscreen fallback when plain style). Dev harness modal + button row scroll/wrap CSS.
 
 **Alpha composite fix (2026-07-02):** Canvas bake blocked base video with opaque black matte — wasm decode dropped VP8A. Fix: `normalizeOverlayWebmForComposite()` (`libvpx` → yuva420p WebM) before composite; composite tiers use `format=yuva420p` + `-c:v libvpx` decode (no `format=auto`). **Follow-up:** wasm codec name is `libvpx` not `libvpx-vp8`; `writeBurnInExtras` slices overlay bytes per strategy retry (fixes detached ArrayBuffer on multi-tier canvas bake).
+
+**Phase 4 user QA (2026-07-02):** Pass — full canvas bake visually correct (alpha composite, subtitles readable). **Performance note:** ~few seconds wall time per second of video (canvas 30 fps render + normalize + wasm composite). Acceptable for now; percent stage indicators work. Polished chronos meter / elapsed-time UX deferred to Phase 5 (not implementing progress bar this sprint).
+
+**Checkpoint tag (2026-07-02):** `5.3.4-phase-4-complete`.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

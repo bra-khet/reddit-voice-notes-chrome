@@ -10,8 +10,8 @@
 |-------|--------|
 | 1–3 | DONE (`2c8c450` … `2334c6b`) |
 | **3.5 — canvas visual polish** | **DONE** (`5.3.4-phase-3.5-complete` @ `432683a`) |
-| **4 — burn-in integration** | **DONE**, user-QA'd (`ac2d52e` + production auto-select) |
-| 5 — lab panel, perf guard, arch docs | **NEXT** |
+| **4 — burn-in integration** | **DONE**, user-QA'd (`5.3.4-phase-4-complete`) |
+| 5 — lab panel, perf guard, chronos meter, arch docs | **NEXT** |
 
 ### Phase 3.5 (summary — see design doc for full spec)
 
