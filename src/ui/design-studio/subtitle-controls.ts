@@ -343,6 +343,21 @@ export function renderSubtitleControlFields(): string {
         </label>
         <label class="popup__toggle-row studio__subtitles-toggle">
           <span class="popup__toggle-copy">
+            <span class="popup__toggle-label">Text gradient</span>
+            <p class="popup__field-desc">
+              Subtle vertical highlight on caption fill — canvas overlay bake only; drawtext compare stays flat.
+            </p>
+          </span>
+          <input
+            class="popup__toggle-input"
+            type="checkbox"
+            data-subtitle-text-gradient
+            aria-label="Canvas text gradient"
+            checked
+          />
+        </label>
+        <label class="popup__toggle-row studio__subtitles-toggle">
+          <span class="popup__toggle-copy">
             <span class="popup__toggle-label">Theme glow</span>
             <p class="popup__field-desc">
               Colored halo or solid border — stacks with backdrop. Shares Special hue with text color.
@@ -475,6 +490,7 @@ export function mountSubtitleControls(
     '[data-subtitle-backdrop-opacity-value]',
   )!;
   const textColorSelect = panel.querySelector<HTMLSelectElement>('[data-subtitle-text-color]')!;
+  const textGradientInput = panel.querySelector<HTMLInputElement>('[data-subtitle-text-gradient]')!;
   const specialHuePanel = panel.querySelector<HTMLElement>('[data-subtitle-special-hue-panel]')!;
   const glowInput = panel.querySelector<HTMLInputElement>('[data-subtitle-glow]')!;
   const glowOptionsEl = panel.querySelector<HTMLElement>('[data-subtitle-glow-options]')!;
@@ -997,6 +1013,7 @@ export function mountSubtitleControls(
     backdropOpacityValueEl.textContent = `${opacityPct}%`;
     backdropOpacityInput.classList.toggle('is-disabled', !backdropInput.checked);
     textColorSelect.value = style.textColor ?? 'white';
+    textGradientInput.checked = style.textGradient !== false;
     glowInput.checked = style.glow?.enabled === true;
     glowModeSelect.value = style.glow?.mode ?? 'halo';
     glowColorSelect.value = style.glow?.colorSource ?? 'theme';
@@ -1039,6 +1056,7 @@ export function mountSubtitleControls(
       fontFamily: fontFamilySelect.value,
       fontSize: Number(fontSizeInput.dataset.value),
       textColor: textColorSelect.value as SubtitleTextColor,
+      textGradient: textGradientInput.checked,
       backdrop: {
         ...draftConfig.style.backdrop,
         enabled: backdropInput.checked,
@@ -1530,6 +1548,13 @@ export function mountSubtitleControls(
   });
 
   glowDualBorderInput.addEventListener('change', () => {
+    if (syncing) return;
+    draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+    schedulePersist();
+    notifyDraftChange();
+  });
+
+  textGradientInput.addEventListener('change', () => {
     if (syncing) return;
     draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
     schedulePersist();

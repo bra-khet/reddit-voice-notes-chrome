@@ -15,6 +15,7 @@ import {
   buildCanvasOverlayHaloLayerSpecs,
   buildGlowLayerSpecs,
   CANVAS_HALO_UNDERPASS_OPACITY_BUDGET,
+  resolveCanvasTextGradientStops,
   resolveInnerBorderColor,
   resolveSubtitleEffectPalette,
 } from '@/src/transcription/subtitle-effects';
@@ -524,11 +525,22 @@ function paintMainText(
   text: string,
   x: number,
   y: number,
-  _style: SubtitleStyleConfig,
+  style: SubtitleStyleConfig,
   textHex: string,
+  fontSize: number,
 ): void {
-  void _style;
-  ctx.fillStyle = textHex;
+  if (style.textGradient === false) {
+    ctx.fillStyle = textHex;
+    ctx.fillText(text, x, y);
+    return;
+  }
+
+  const textHeight = drawtextTextHeightPx(fontSize);
+  const { topHex, bottomHex } = resolveCanvasTextGradientStops(textHex);
+  const gradient = ctx.createLinearGradient(x, y, x, y + textHeight);
+  gradient.addColorStop(0, topHex);
+  gradient.addColorStop(1, bottomHex);
+  ctx.fillStyle = gradient;
   ctx.fillText(text, x, y);
 }
 
@@ -572,7 +584,7 @@ function paintCue(
   }
   paintGlowText(ctx, cue.text, textX, textY, style, palette.glowHex);
   resetPaintContextState(ctx);
-  paintMainText(ctx, cue.text, textX, textY, style, palette.textHex);
+  paintMainText(ctx, cue.text, textX, textY, style, palette.textHex, fontSize);
   ctx.restore();
   ctx.restore();
 }

@@ -83,6 +83,8 @@ export interface SubtitleStyleConfig {
   fontSize?: number;
   position?: 'bottom' | 'top' | 'center';
   textColor?: SubtitleTextColor;
+  /** Vertical highlight gradient on main caption — canvas overlay only (v5.3.4 Phase 3.5.3). */
+  textGradient?: boolean;
   /** Shared by text + glow when either uses `special` color source. */
   specialHue?: string;
   backdrop?: SubtitleBackdropConfig;
@@ -107,6 +109,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
   fontSize: 22,
   position: 'bottom',
   textColor: 'white',
+  textGradient: true,
   backdrop: { enabled: true, opacity: 0.72, borderRadius: 8, fullWidth: false },
   glow: {
     enabled: false,
@@ -175,6 +178,7 @@ export function normalizeSubtitleStyle(raw: Partial<SubtitleStyleConfig> | null 
     fontSize: typeof raw?.fontSize === 'number' ? raw.fontSize : DEFAULT_SUBTITLE_STYLE.fontSize,
     position: raw?.position ?? DEFAULT_SUBTITLE_STYLE.position,
     textColor: normalizeTextColor(raw?.textColor),
+    textGradient: raw?.textGradient !== false,
     specialHue:
       typeof raw?.specialHue === 'string' && raw.specialHue.trim().length > 0
         ? raw.specialHue

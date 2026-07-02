@@ -143,6 +143,42 @@ export function resolveGlowColorHex(
   return derived.slice(0, 7);
 }
 
+/**
+ * Canvas overlay vertical text gradient stops (v5.3.4 Phase 3.5.3).
+ * Top = subtle highlight; bottom = resolved caption color.
+ */
+export function resolveCanvasTextGradientStops(baseHex: string): { topHex: string; bottomHex: string } {
+  const normalized = normalizeHexColor(baseHex) ?? '#ffffff';
+  if (normalized === '#000000') {
+    return { topHex: '#3a3a3a', bottomHex: '#000000' };
+  }
+  if (normalized === '#ffffff') {
+    return { topHex: '#ffffff', bottomHex: '#ececec' };
+  }
+
+  const hsv = hexToHsv(normalized);
+  if (!hsv) {
+    return { topHex: normalized, bottomHex: normalized };
+  }
+
+  const luminance = hexRelativeLuminance(normalized);
+  const darkBase = hsv.v < 48 || luminance < 0.45;
+  if (darkBase) {
+    const topV = Math.min(100, hsv.v + 16);
+    const topS = Math.max(0, hsv.s * 0.82);
+    return { topHex: hsvToHex(hsv.h, topS, topV), bottomHex: normalized };
+  }
+
+  const topV = Math.min(100, hsv.v + 8);
+  const topS = Math.max(0, hsv.s * 0.9);
+  const bottomV = Math.max(0, hsv.v - 4);
+  const bottomS = Math.min(100, hsv.s * 1.02);
+  return {
+    topHex: hsvToHex(hsv.h, topS, topV),
+    bottomHex: hsvToHex(hsv.h, bottomS, bottomV),
+  };
+}
+
 export function resolveTextColorHex(style: SubtitleStyleConfig, themeBarColor: string): string {
   if (style.textColor === 'black') return '#000000';
   if (style.textColor === 'white') return '#ffffff';

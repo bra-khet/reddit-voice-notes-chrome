@@ -13,7 +13,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 2 — render loop + MediaRecorder capture | DONE, user-QA'd | `88f856c` |
 | 2½ — empty WebM, seek/scrub, VP8 edge hardening | DONE, user-QA'd | `224c361`, `9ab41fe` |
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
-| **3.5 — canvas visual polish** | **in progress** (3.5.1 done; 3.5.2 impl → QA) | `dbbc9cb` … |
+| **3.5 — canvas visual polish** | **in progress** (3.5.1–3.5.2 QA pass; 3.5.3 impl → QA) | `dbbc9cb` … |
 | 4 — burn-in pipeline integration | pending (after 3.5) | — |
 | 5 — production polish, lab panel, arch docs | pending | — |
 
@@ -26,6 +26,10 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 **Halo polish (2026-07-01):** Patchy/muddy soft halo — `buildCanvasOverlayHaloLayerSpecs` integral-normalized rings + budget-split underpass (`324ab90`).
 
 **3.5.2/3.5.1 follow-up polish (2026-07-01):** (1) Dual border strokes now scale with `glow.opacity` (fixed halo+dual inner keyline ignoring strength slider). (2) Per-cue glow clip from text metrics + bleed — fixes top-right artifacts on long cues (uniform frame inset was clipping whisper ring / shadowBlur).
+
+**Checkpoint tag (2026-07-01):** `5.3.4-double-border` → `a0c3ba8` (dual border + halo polish complete; fallback before 3.5.3 gradient work).
+
+**Phase 3.5.3 (2026-07-01):** Opinionated vertical text gradient — `resolveCanvasTextGradientStops()` + `paintMainText` `createLinearGradient`; `textGradient?: boolean` (default on); DEV toggle under Text color. Canvas overlay only; drawtext compare unchanged.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

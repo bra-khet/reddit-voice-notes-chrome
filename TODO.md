@@ -9,7 +9,7 @@
 | Phase | Status |
 |-------|--------|
 | 1–3 | DONE (`2c8c450` … `2334c6b`) |
-| **3.5 — canvas visual polish** | **IN PROGRESS** (3.5.1–3.5.2 done; 3.5.3 next) |
+| **3.5 — canvas visual polish** | **IN PROGRESS** (3.5.1–3.5.2 done; 3.5.3 impl → QA) |
 | 4 — burn-in integration | after 3.5 |
 | 5 — lab panel, perf guard, arch docs | pending |
 
@@ -17,7 +17,7 @@
 
 1. Halo diffusion — **done** (integral normalize `324ab90`)
 2. Dual contrasting border — **done** (opacity + long-cue clip polish)
-3. Opinionated text gradient
+3. Opinionated text gradient — impl done; user QA pending
 4. Backdrop rounding QA/tune (`borderRadius` already in renderer)
 5. Rainbow per-frame glow — Theme Glow menu
 
