@@ -9,8 +9,8 @@
 | Phase | Status |
 |-------|--------|
 | 1–3 | DONE (`2c8c450` … `2334c6b`) |
-| **3.5 — canvas visual polish** | **IN PROGRESS** (3.5.5 impl → QA; 3.5.4 deferred) |
-| 4 — burn-in integration | after 3.5 |
+| **3.5 — canvas visual polish** | **DONE** (`5.3.4-phase-3.5-complete` @ `432683a`) |
+| 4 — burn-in integration | **NEXT** |
 | 5 — lab panel, perf guard, arch docs | pending |
 
 ### Phase 3.5 (summary — see design doc for full spec)
@@ -19,7 +19,8 @@
 2. Dual contrasting border — **done** (opacity + long-cue clip polish)
 3. Text gradient + wave — QA pass (`5.3.4-gradient-wave`)
 4. Backdrop rounding — deferred (visual QA pass)
-5. Rainbow / monochromatic hue rotate — impl → QA
+5. Rainbow / monochromatic hue rotate — **done** (QA pass)
+6. Dev harness 3.5 QA note — **done**
 
 ### Restore / test
 

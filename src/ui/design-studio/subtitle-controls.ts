@@ -130,6 +130,11 @@ const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
           Dev: Compare drawtext vs canvas (v5.3.4)
         </button>
       </div>
+      <p class="popup__field-desc">
+        Phase 3.5 QA: enable Theme glow (halo) for diffusion; toggle Text gradient, Text gradient wave,
+        Dual border, and Glow color → Hue rotate above — both buttons use the live subtitle style.
+        Compare stacks drawtext (flat fallback) vs canvas (rich effects).
+      </p>
     </div>
     <div class="studio__transcript-modal" data-subtitle-overlay-preview-modal hidden>
       <div

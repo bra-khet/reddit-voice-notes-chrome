@@ -13,7 +13,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 2 — render loop + MediaRecorder capture | DONE, user-QA'd | `88f856c` |
 | 2½ — empty WebM, seek/scrub, VP8 edge hardening | DONE, user-QA'd | `224c361`, `9ab41fe` |
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
-| **3.5 — canvas visual polish** | **in progress** (3.5.1–3.5.2 QA pass; 3.5.3 impl → QA) | `dbbc9cb` … |
+| **3.5 — canvas visual polish** | **DONE**, user-QA'd | `dbbc9cb` … `432683a` |
 | 4 — burn-in pipeline integration | pending (after 3.5) | — |
 | 5 — production polish, lab panel, arch docs | pending | — |
 
@@ -37,9 +37,13 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Future ideas:** `docs/future-ideas.md` — subtitle gradient/wave + glow hue-rotate tunable variable catalog.
 
-**Phase 3.5.5 (2026-07-01):** Per-frame glow hue rotate — `colorSource: 'rainbow'`, `hueRotateMode` (`rainbow` | `monochromatic`), `resolveCanvasOverlayGlowHex()`; DEV UI under Theme glow. Canvas overlay only.
+**Phase 3.5.5 (2026-07-01):** Per-frame glow hue rotate — QA pass. `colorSource: 'rainbow'`, `hueRotateMode` (`rainbow` | `monochromatic`), `resolveCanvasOverlayGlowHex()`; DEV UI under Theme glow. Canvas overlay only.
 
-**Glow clip hardening (2026-07-01):** Cap-glyph halo artifacts (T/F/D/Z, serif/bold) — ink-box `TextMetrics` clip + asymmetric top bleed (full shadowBlur tail); glow-only clip (main text/gradient outside). Follow-up: bumped topBias, font-scaled cap/descender bias, unified ink metrics for backdrop + glow (all DejaVu families).
+**Glow clip hardening (2026-07-01):** QA pass — cap-glyph + long-cue edge artifacts resolved. Ink-box `TextMetrics` clip + asymmetric bleed (top/left/right/bottom); glow-only clip (main text/gradient outside); horizontal bleed for line start/end (`432683a`).
+
+**Phase 3.5.6 (2026-07-02):** Dev harness QA note — subtitle panel toggles (halo, gradient, wave, dual border, hue rotate) apply to both render/compare buttons.
+
+**Checkpoint tag (2026-07-02):** `5.3.4-phase-3.5-complete` → `432683a` (all 3.5 effects QA'd; gate cleared for Phase 4).
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 
