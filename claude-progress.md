@@ -47,6 +47,8 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 4 (2026-07-02):** Burn-in integration — `useCanvasOverlay` + `canvasOverlayBytes` on `SubtitleBurnInInput`; `buildCanvasOverlayStrategy()` (single `overlay=0:0` filter); `shouldPreferCanvasOverlay()` auto-select; drawtext tiers remain fallback. Dev button **Bake with Canvas Overlay (full pipeline)** — user QA pass (2026-07-02). **Production bake:** `bakeSubtitlesInStudio` auto-selects canvas via `shouldPreferCanvasOverlay` (render + composite in Studio; drawtext offscreen fallback when plain style). Dev harness modal + button row scroll/wrap CSS.
 
+**Alpha composite fix (2026-07-02):** Canvas bake blocked base video with opaque black matte — wasm decode dropped VP8A. Fix: `normalizeOverlayWebmForComposite()` (libvpx-vp8 → yuva420p WebM) before composite; composite tiers use `format=yuva420p` + libvpx decode (no `format=auto`).
+
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 
 **Phase 3.5 scope (before Phase 4):** (1) halo diffusion, (2) dual contrasting border, (3) opinionated text gradient, (4) backdrop rounding QA/tune (`borderRadius` already wired), (5) rainbow per-frame glow. Canvas-only — no drawtext layer explosion. See design doc Phase 3.5 for full spec.

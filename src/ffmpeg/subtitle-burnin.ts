@@ -454,14 +454,44 @@ export function shouldPreferCanvasOverlay(input: SubtitleBurnInInput): boolean {
   return subtitleStyleHasCanvasOnlyEffects(input.style);
 }
 
-function buildCanvasOverlayBurnInArgs(): string[] {
+interface CanvasOverlayCompositeTier {
+  name: string;
+  /** Decoder options applied immediately before the overlay WebM input. */
+  overlayInputOpts: string[];
+  filterComplex: string;
+}
+
+// BUG FIX: canvas overlay composite blocks base video with opaque black matte
+// Fix: decode VP8A via libvpx-vp8, keep overlay on yuva420p, and blend without format=auto
+//      (wasm default decode drops alpha → transparent pixels become opaque black).
+// Sync: overlay-webm-finalize.ts normalizeOverlayWebmForComposite (yuva420p pre-pass)
+const CANVAS_OVERLAY_COMPOSITE_TIERS: ReadonlyArray<CanvasOverlayCompositeTier> = [
+  {
+    name: 'canvas-overlay-alpha',
+    overlayInputOpts: ['-c:v', 'libvpx-vp8'],
+    filterComplex: '[1:v]format=yuva420p[ol];[0:v][ol]overlay=0:0:shortest=1[vout]',
+  },
+  {
+    name: 'canvas-overlay-rgba',
+    overlayInputOpts: ['-c:v', 'libvpx-vp8'],
+    filterComplex: '[1:v]format=rgba[ol];[0:v][ol]overlay=0:0:shortest=1[vout]',
+  },
+  {
+    name: 'canvas-overlay-yuva',
+    overlayInputOpts: [],
+    filterComplex: '[1:v]format=yuva420p[ol];[0:v][ol]overlay=0:0:shortest=1[vout]',
+  },
+];
+
+function buildCanvasOverlayBurnInArgs(tier: CanvasOverlayCompositeTier): string[] {
   return [
     '-i',
     INPUT_MP4,
+    ...tier.overlayInputOpts,
     '-i',
     CANVAS_OVERLAY_FS_PATH,
     '-filter_complex',
-    '[0:v][1:v]overlay=0:0:format=auto[vout]',
+    tier.filterComplex,
     '-map',
     '[vout]',
     '-map',
@@ -481,19 +511,24 @@ function buildCanvasOverlayBurnInArgs(): string[] {
 }
 
 /**
- * Minimal burn-in strategy — single overlay filter over base.mp4 (v5.3.4 Phase 4).
- * Overlay bytes must be pre-rendered in the Design Studio content context.
+ * Canvas overlay composite strategies — alpha-preserving overlay blend over base.mp4 (v5.3.4 Phase 4).
+ * Overlay bytes should be normalized with normalizeOverlayWebmForComposite before burn-in.
  */
-export function buildCanvasOverlayStrategy(overlayBytes: Uint8Array): BurnInStrategy {
+export function buildCanvasOverlayStrategies(overlayBytes: Uint8Array): BurnInStrategy[] {
   if (!overlayBytes || overlayBytes.byteLength < 256) {
     throw new Error('Canvas overlay WebM is empty or too small for burn-in composite.');
   }
-  return {
-    name: 'canvas-overlay',
+  return CANVAS_OVERLAY_COMPOSITE_TIERS.map((tier) => ({
+    name: tier.name,
     requiresFont: false,
     extraFiles: { [CANVAS_OVERLAY_FS_PATH]: overlayBytes },
-    args: buildCanvasOverlayBurnInArgs(),
-  };
+    args: buildCanvasOverlayBurnInArgs(tier),
+  }));
+}
+
+/** First alpha-preserving canvas composite tier (tests / callers that need a single strategy). */
+export function buildCanvasOverlayStrategy(overlayBytes: Uint8Array): BurnInStrategy {
+  return buildCanvasOverlayStrategies(overlayBytes)[0];
 }
 
 function buildDrawtextBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
@@ -552,7 +587,7 @@ export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrateg
     overlayBytes.byteLength >= 256 &&
     shouldPreferCanvasOverlay(input)
   ) {
-    return [buildCanvasOverlayStrategy(overlayBytes), ...drawtextStrategies];
+    return [...buildCanvasOverlayStrategies(overlayBytes), ...drawtextStrategies];
   }
 
   return drawtextStrategies;

@@ -31,6 +31,7 @@ const {
   buildCanvasOverlayStrategy,
   shouldPreferCanvasOverlay,
   subtitleStyleHasCanvasOnlyEffects,
+  CANVAS_OVERLAY_FS_PATH,
 } = await import(pathToFileURL(outfile).href);
 
 const SOFT_HYPHEN = '­';
@@ -137,17 +138,21 @@ check('every emitted strategy that is kept stays within budget (unless it is the
   }
 });
 
-check('canvas overlay strategy uses a single overlay filter (no drawtext)', () => {
+check('canvas overlay strategy uses alpha-preserving overlay filter (no drawtext)', () => {
   const overlayBytes = new Uint8Array(1024);
   const strategy = buildCanvasOverlayStrategy(overlayBytes);
-  assert.equal(strategy.name, 'canvas-overlay');
+  assert.equal(strategy.name, 'canvas-overlay-alpha');
   assert.equal(strategy.requiresFont, false);
   const filterComplex = strategy.args[strategy.args.indexOf('-filter_complex') + 1];
+  assert.match(filterComplex, /format=yuva420p/);
   assert.match(filterComplex, /overlay=0:0/);
+  assert.doesNotMatch(filterComplex, /format=auto/);
   assert.equal((filterComplex.match(/drawtext=/g) ?? []).length, 0);
+  const overlayDecoderIdx = strategy.args.indexOf(CANVAS_OVERLAY_FS_PATH) - 2;
+  assert.equal(strategy.args[overlayDecoderIdx], 'libvpx-vp8');
 });
 
-check('overlay bytes + prefer → canvas strategy first, drawtext fallbacks remain', () => {
+check('overlay bytes + prefer → canvas alpha strategies first, drawtext fallbacks remain', () => {
   const overlayBytes = new Uint8Array(2048);
   const strategies = buildBurnInStrategies({
     segments: cues(3),
@@ -156,8 +161,8 @@ check('overlay bytes + prefer → canvas strategy first, drawtext fallbacks rema
     useCanvasOverlay: true,
     canvasOverlayBytes: overlayBytes,
   });
-  assert.equal(strategies[0].name, 'canvas-overlay');
-  assert.ok(strategies.length >= 2, 'drawtext fallback tiers still emitted');
+  assert.equal(strategies[0].name, 'canvas-overlay-alpha');
+  assert.ok(strategies.length >= 3, 'canvas tiers + drawtext fallback tiers emitted');
 });
 
 check('no overlay bytes → drawtext only (unchanged path)', () => {

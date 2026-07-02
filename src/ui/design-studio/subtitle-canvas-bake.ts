@@ -1,4 +1,5 @@
 import { runSubtitleBurnIn } from '@/src/ffmpeg/ffmpeg-runner';
+import { normalizeOverlayWebmForComposite } from '@/src/ffmpeg/overlay-webm-finalize';
 import { withTranscodeLock } from '@/src/ffmpeg/transcode-lock';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { renderSubtitleOverlay } from '@/src/transcription/subtitle-overlay-renderer';
@@ -72,7 +73,12 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   });
 
   throwIfAborted(options.signal);
-  const overlayBytes = new Uint8Array(await overlayResult.overlayBlob.arrayBuffer());
+  report(0.32, 'canvas-overlay-alpha-normalize');
+  const compositeOverlay = await normalizeOverlayWebmForComposite(
+    overlayResult.overlayBlob,
+    overlayResult.fps,
+  );
+  const overlayBytes = new Uint8Array(await compositeOverlay.arrayBuffer());
   const baseBytes = new Uint8Array(await baseBlob.arrayBuffer());
 
   report(0.45, 'canvas-overlay-composite');
