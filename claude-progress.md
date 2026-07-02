@@ -31,7 +31,11 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 3.5.3 (2026-07-01):** Opinionated vertical text gradient — QA pass. Stop 0 = glyph top highlight, stop 1 = bottom base; white bottom `#f6f6f6`.
 
-**Phase 3.5.3b (2026-07-01):** Text gradient wave — `createCanvasOverlayTextGradient()` + `textGradientWave` per-frame band sweep (~4.5s cycle); timestamp threaded through `paintCue` → `paintMainText`. DEV toggle; canvas overlay only.
+**Phase 3.5.3b (2026-07-01):** Text gradient wave — QA pass. `createCanvasOverlayTextGradient()` + `textGradientWave`; cycle `CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS` = 3.5s. Tag `5.3.4-gradient-wave`.
+
+**Phase 3.5.4:** Deferred — backdrop `borderRadius` QA pass; no code changes needed.
+
+**Future ideas:** `docs/future-ideas.md` — subtitle gradient/wave + glow hue-rotate tunable variable catalog.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

@@ -139,3 +139,74 @@ The clipboard JSON schema designed for the MVP is the contract between the exten
 ### Why it's deferred
 
 It's an entirely separate hosting + build target with no impact on the extension MVP beyond the schema-stability commitment above. The MVP delivers value alone; this page is the "Phase 2" evolution noted in the clipboard plan's *Future Evolution* (file export/import, named slots).
+
+---
+
+## Subtitle Canvas — Text Gradient & Wave Animation (user-facing tunables)
+
+**Priority:** Low / future polish  
+**Effort:** Small–Medium (UI + persistence; renderer hooks already exist)  
+**Status:** Partial — v5.3.4 Phase 3.5.3/3.5.3b shipped canvas-only; DEV toggles only
+
+### What shipped (v5.3.4)
+
+Opinionated vertical text fill gradient and optional downward “wave” sweep on the **canvas overlay** path (`subtitle-overlay-renderer.ts`). Drawtext bake/preview stay flat fill.
+
+### Variables worth exposing to users later
+
+| Name | Location | Role | Current default |
+|------|----------|------|-----------------|
+| `textGradient` | `SubtitleStyleConfig` | Master on/off for vertical gradient fill | `true` |
+| `textGradientWave` | `SubtitleStyleConfig` | Enables per-frame highlight sweep | `false` |
+| `CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS` | `subtitle-effects.ts` | Full sweep period (seconds) | `3.5` |
+| `CANVAS_TEXT_GRADIENT_WAVE_BAND_HALF` | `subtitle-effects.ts` | Highlight band half-width (0–1 along glyph height) | `0.18` |
+| `resolveCanvasTextGradientStops()` | `subtitle-effects.ts` | Static top/bottom hex derivation from caption color | opinionated preset |
+| `canvasTextGradientWavePhase()` | `subtitle-effects.ts` | Maps `timestampSeconds` → 0–1 wave phase | derived from cycle constant |
+
+### Future UI ideas (out of scope for v5.3.4)
+
+- Slider for **wave speed** (replaces or overrides `CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS`).
+- Slider for **band width** (`CANVAS_TEXT_GRADIENT_WAVE_BAND_HALF`).
+- Per–text-color gradient presets (white/black/theme/special stop tables).
+- Horizontal or diagonal sweep modes; multi-stop custom gradients; easing curves.
+- Optional sync wave phase to clip timeline vs wall-clock encode time.
+- Preview parity: live canvas preview in Design Studio (today: overlay render harness only).
+
+---
+
+## Subtitle Canvas — Glow Hue Rotation Modes (user-facing tunables)
+
+**Priority:** Medium / future polish  
+**Effort:** Small–Medium per mode (core rainbow + monochromatic ship in v5.3.4 Phase 3.5.5)  
+**Status:** Partial — rainbow + monochromatic modes; additional modes deferred
+
+### What ships (v5.3.4 Phase 3.5.5)
+
+Per-frame animated glow color on canvas overlay when **Glow color = Hue rotate** (`colorSource: 'rainbow'`). Smooth at full overlay FPS (not stepped bake).
+
+### Variables worth exposing to users later
+
+| Name | Location | Role | Current default |
+|------|----------|------|-----------------|
+| `glow.colorSource` | `SubtitleGlowConfig` | `'rainbow'` enables animated glow (canvas only) | `'theme'` |
+| `glow.hueRotateMode` | `SubtitleGlowConfig` | Rotation algorithm — see modes below | `'rainbow'` |
+| `glow.hueRotateSpeed` | `SubtitleGlowConfig` | Degrees per second | `45` (~8s full wheel) |
+| `resolveCanvasOverlayGlowHex()` | `subtitle-effects.ts` | Per-frame glow hex from style + `timestampSeconds` | — |
+
+### Rotation modes
+
+| Mode | Status | Behavior |
+|------|--------|----------|
+| `rainbow` | **Shipped** | Full 0–360° hue wheel at `hueRotateSpeed` |
+| `monochromatic` | **Shipped** | Theme-bar hue family; oscillating S/V around `resolveGlowColorHex('theme', …)` |
+| `linear` | Deferred | Linear RGB channel sweep (not hue wheel) |
+| `hsv-inverse` | Deferred | Complementary / inverted HSV path (180° flip or inv-V) |
+| `rgb-rotate` | Deferred | Cyclic permutation of R/G/B channels |
+
+### Future UI ideas (out of scope for v5.3.4)
+
+- **Hue rotate speed** slider (maps to `hueRotateSpeed`).
+- Monochromatic **base anchor** selector (theme vs special vs text color).
+- Phase offset / direction (reverse sweep).
+- Apply rotation to dual-border outer ring only vs halo only.
+- Drawtext fallback approximation (stepped hue tiers) — likely never; canvas-first.

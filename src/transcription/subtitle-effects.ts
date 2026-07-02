@@ -182,7 +182,9 @@ export function resolveCanvasTextGradientStops(baseHex: string): { topHex: strin
 }
 
 /** Full vertical sweep period for animated text gradient (canvas overlay). */
-export const CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS = 4.5;
+export const CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS = 3.5;
+/** Normalized half-width of the sweeping highlight band (0–1 gradient space). */
+export const CANVAS_TEXT_GRADIENT_WAVE_BAND_HALF = 0.18;
 
 export function canvasTextGradientWavePhase(timestampSeconds: number): number {
   const cycle = CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS;
@@ -233,7 +235,7 @@ export function createCanvasOverlayTextGradient(
     return gradient;
   }
 
-  const bandHalf = 0.18;
+  const bandHalf = CANVAS_TEXT_GRADIENT_WAVE_BAND_HALF;
   const center = wavePhase * (1 + bandHalf * 2) - bandHalf;
   appendGradientColorStops(gradient, [
     [0, bottomHex],
