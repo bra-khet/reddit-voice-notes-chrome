@@ -153,7 +153,9 @@ export function resolveCanvasTextGradientStops(baseHex: string): { topHex: strin
     return { topHex: '#3a3a3a', bottomHex: '#000000' };
   }
   if (normalized === '#ffffff') {
-    return { topHex: '#ffffff', bottomHex: '#ececec' };
+    // CHANGED: bottom stop softened (#f6f6f6) — highlight stays at top (stop 0).
+    // WHY: prior #ececec read as a band when scrutinized; hair less contrast at glyph base.
+    return { topHex: '#ffffff', bottomHex: '#f6f6f6' };
   }
 
   const hsv = hexToHsv(normalized);
@@ -177,6 +179,70 @@ export function resolveCanvasTextGradientStops(baseHex: string): { topHex: strin
     topHex: hsvToHex(hsv.h, topS, topV),
     bottomHex: hsvToHex(hsv.h, bottomS, bottomV),
   };
+}
+
+/** Full vertical sweep period for animated text gradient (canvas overlay). */
+export const CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS = 4.5;
+
+export function canvasTextGradientWavePhase(timestampSeconds: number): number {
+  const cycle = CANVAS_TEXT_GRADIENT_WAVE_CYCLE_SECONDS;
+  if (!Number.isFinite(timestampSeconds) || cycle <= 0) return 0;
+  const t = ((timestampSeconds % cycle) + cycle) % cycle;
+  return t / cycle;
+}
+
+function appendGradientColorStops(
+  gradient: CanvasGradient,
+  stops: Array<[number, string]>,
+): void {
+  const sorted = stops
+    .map(([pos, color]) => [Math.max(0, Math.min(1, pos)), color] as [number, string])
+    .sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, string]> = [];
+  for (const [pos, color] of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && Math.abs(last[0] - pos) < 1e-6) {
+      last[1] = color;
+      continue;
+    }
+    merged.push([pos, color]);
+  }
+  for (const [pos, color] of merged) {
+    gradient.addColorStop(pos, color);
+  }
+}
+
+/**
+ * Vertical caption fill gradient — static (top highlight → bottom base) or sweeping wave band.
+ * Canvas overlay only (v5.3.4 Phase 3.5.3). Color stop 0 = glyph top, stop 1 = glyph bottom.
+ */
+export function createCanvasOverlayTextGradient(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  x: number,
+  y: number,
+  textHeight: number,
+  baseHex: string,
+  wavePhase?: number,
+): CanvasGradient {
+  const { topHex, bottomHex } = resolveCanvasTextGradientStops(baseHex);
+  const gradient = ctx.createLinearGradient(x, y, x, y + textHeight);
+
+  if (wavePhase === undefined) {
+    gradient.addColorStop(0, topHex);
+    gradient.addColorStop(1, bottomHex);
+    return gradient;
+  }
+
+  const bandHalf = 0.18;
+  const center = wavePhase * (1 + bandHalf * 2) - bandHalf;
+  appendGradientColorStops(gradient, [
+    [0, bottomHex],
+    [center - bandHalf, bottomHex],
+    [center, topHex],
+    [center + bandHalf, bottomHex],
+    [1, bottomHex],
+  ]);
+  return gradient;
 }
 
 export function resolveTextColorHex(style: SubtitleStyleConfig, themeBarColor: string): string {
