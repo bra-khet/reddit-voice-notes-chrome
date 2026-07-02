@@ -91,6 +91,8 @@ export interface SubtitleOverlayRenderOptions {
   onFrameDebug?: (info: SubtitleOverlayFrameDebugInfo) => void | Promise<void>;
   /** When false, skip FFmpeg remux (dev only). Default true. */
   finalizeWebm?: boolean;
+  /** Bake progress — fired after each painted timeline frame (excludes tail hold frames). */
+  onRenderProgress?: (info: { frameIndex: number; totalFrames: number; ratio: number }) => void;
 }
 
 export interface SubtitleOverlayResult {
@@ -809,6 +811,11 @@ async function recordOverlayTimeline(
 
         for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
           await paintAndCapture(frameIndex / fps, frameIndex);
+          options.onRenderProgress?.({
+            frameIndex: frameIndex + 1,
+            totalFrames,
+            ratio: (frameIndex + 1) / totalFrames,
+          });
         }
 
         // Hold the final empty frame so duration metadata is written before stop().

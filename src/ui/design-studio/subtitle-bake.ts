@@ -9,12 +9,17 @@ import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
 import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
+import { snapshotBakeChronos } from '@/src/ui/design-studio/bake-chronos';
 import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
 
 export interface SubtitleBakeProgress {
   ratio: number;
   stage: 'loading' | 'burning' | 'saving' | 'done' | 'error';
   message?: string;
+  /** Wall time since bake started (Phase 5.1 chronos meter). */
+  elapsedMs?: number;
+  /** ETA from monotonic ratio; null when too early to estimate. */
+  estimatedRemainingMs?: number | null;
 }
 
 export interface SubtitleBakeOptions {
@@ -36,8 +41,10 @@ function canvasStageMessage(stage: string, ratio: number): string {
 }
 
 export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promise<Blob> {
-  const report = (progress: SubtitleBakeProgress): void => {
-    options.onProgress?.(progress);
+  const startedAt = performance.now();
+  const report = (progress: Omit<SubtitleBakeProgress, 'elapsedMs' | 'estimatedRemainingMs'>): void => {
+    const chronos = snapshotBakeChronos(startedAt, progress.ratio);
+    options.onProgress?.({ ...progress, ...chronos });
   };
 
   report({ ratio: 0.02, stage: 'loading', message: 'Loading base MP4…' });
@@ -83,10 +90,11 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
       baseMp4: base.blob,
       signal: options.signal,
       onProgress: (ratio, stage) => {
+        const overallRatio = 0.1 + ratio * 0.82;
         report({
-          ratio: 0.1 + ratio * 0.82,
+          ratio: overallRatio,
           stage: 'burning',
-          message: canvasStageMessage(stage, ratio),
+          message: canvasStageMessage(stage, overallRatio),
         });
       },
     });

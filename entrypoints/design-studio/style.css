@@ -1752,6 +1752,44 @@ body {
   min-height: 1.2em;
 }
 
+.studio__bake-chronos {
+  margin: 8px 0 0;
+}
+
+.studio__bake-chronos[hidden] {
+  display: none;
+}
+
+.studio__bake-chronos-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--studio-amber-dim, rgba(255, 213, 79, 0.18));
+  overflow: hidden;
+}
+
+.studio__bake-chronos-meter-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--studio-amber, #ffd54f);
+  transition: width 120ms linear;
+}
+
+.studio__bake-chronos-time {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color: var(--studio-text-muted, #a8a4c0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__bake-chronos-meter-fill {
+    transition: none;
+  }
+}
+
 .studio__bake-repeatable-hint {
   margin: 4px 0 0;
   font-size: 0.75rem;

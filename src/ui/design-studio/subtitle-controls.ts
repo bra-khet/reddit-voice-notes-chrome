@@ -42,7 +42,8 @@ import {
 } from '@/src/ui/design-studio/color-picker';
 import { rebuildTextFromSegments } from '@/src/transcription/transcript-editing';
 import type { SubtitlePreviewOptions } from '@/src/transcription/subtitle-preview';
-import { bakeSubtitlesInStudio } from '@/src/ui/design-studio/subtitle-bake';
+import { formatBakeChronosLine, snapshotBakeChronos } from '@/src/ui/design-studio/bake-chronos';
+import { bakeSubtitlesInStudio, type SubtitleBakeProgress } from '@/src/ui/design-studio/subtitle-bake';
 import {
   mountSubtitleSegmentEditor,
   renderSubtitleSegmentEditorFields,
@@ -289,6 +290,20 @@ export function renderSubtitleControlFields(): string {
             <p class="popup__field-desc studio__bake-status" data-subtitle-bake-status>
               Confirm your transcript edits, then bake. The Reddit recorder will pick up the captioned MP4.
             </p>
+            <div class="studio__bake-chronos" data-subtitle-bake-chronos hidden>
+              <div
+                class="studio__bake-chronos-meter"
+                data-subtitle-bake-chronos-meter
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="0"
+                aria-label="Subtitle bake progress"
+              >
+                <span class="studio__bake-chronos-meter-fill" data-subtitle-bake-chronos-fill></span>
+              </div>
+              <p class="popup__field-desc studio__bake-chronos-time" data-subtitle-bake-chronos-time></p>
+            </div>
             <p class="popup__field-desc studio__bake-repeatable-hint" data-subtitle-bake-repeatable>
               Repeatable — rebake anytime after transcript edits or a fresh recording.
             </p>
@@ -544,6 +559,10 @@ export function mountSubtitleControls(
   const resetBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-reset]')!;
   const bakeBtn = panel.querySelector<HTMLButtonElement>('[data-subtitle-bake]')!;
   const bakeStatusEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-status]')!;
+  const bakeChronosEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-chronos]')!;
+  const bakeChronosMeterEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-chronos-meter]')!;
+  const bakeChronosFillEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-chronos-fill]')!;
+  const bakeChronosTimeEl = panel.querySelector<HTMLElement>('[data-subtitle-bake-chronos-time]')!;
   const bakeUnsavedDialog = panel.querySelector<HTMLElement>('[data-bake-unsaved-dialog]')!;
   const bakeSaveContinueBtn = panel.querySelector<HTMLButtonElement>('[data-bake-save-continue]')!;
   const bakeEditBackBtn = panel.querySelector<HTMLButtonElement>('[data-bake-edit-back]')!;
@@ -900,6 +919,32 @@ export function mountSubtitleControls(
     return label;
   }
 
+  function setBakeChronosVisible(visible: boolean): void {
+    bakeChronosEl.hidden = !visible;
+    if (!visible) {
+      bakeChronosFillEl.style.width = '0%';
+      bakeChronosMeterEl.setAttribute('aria-valuenow', '0');
+      bakeChronosTimeEl.textContent = '';
+    }
+  }
+
+  function updateBakeChronosUi(progress: SubtitleBakeProgress): void {
+    if (progress.stage === 'done' || progress.stage === 'error') {
+      setBakeChronosVisible(false);
+      return;
+    }
+    setBakeChronosVisible(true);
+    const pct = Math.min(100, Math.max(0, Math.round(progress.ratio * 100)));
+    bakeChronosFillEl.style.width = `${pct}%`;
+    bakeChronosMeterEl.setAttribute('aria-valuenow', String(pct));
+    if (progress.elapsedMs != null) {
+      bakeChronosTimeEl.textContent = formatBakeChronosLine({
+        elapsedMs: progress.elapsedMs,
+        estimatedRemainingMs: progress.estimatedRemainingMs ?? null,
+      });
+    }
+  }
+
   function syncBakeButton(): void {
     const state = resolveBakeButtonUiState();
     for (const className of Object.values(BAKE_BTN_STATE_CLASS)) {
@@ -943,6 +988,8 @@ export function mountSubtitleControls(
     syncBakeButton();
     hideBakeUnsavedDialog();
     bakeStatusEl.textContent = 'Preparing subtitle bake…';
+    setBakeChronosVisible(true);
+    bakeChronosTimeEl.textContent = '0:00 elapsed';
 
     try {
       const config = buildDraftConfig();
@@ -952,6 +999,7 @@ export function mountSubtitleControls(
         signal: bakeAbort.signal,
         onProgress: (progress) => {
           bakeStatusEl.textContent = progress.message ?? 'Baking subtitles…';
+          updateBakeChronosUi(progress);
         },
       });
       bakeStatusEl.textContent =
@@ -963,6 +1011,7 @@ export function mountSubtitleControls(
     } finally {
       baking = false;
       bakeAbort = null;
+      setBakeChronosVisible(false);
       syncBakeButton();
     }
   }
@@ -1559,6 +1608,7 @@ export function mountSubtitleControls(
         }
 
         console.time('canvas-overlay-bake');
+        const devBakeStartedAt = performance.now();
         try {
           const bakedBlob = await bakeWithCanvasOverlay({
             editedResult: edited,
@@ -1567,8 +1617,16 @@ export function mountSubtitleControls(
             themeBarColor,
             onProgress: (ratio, stage) => {
               if (overlayPreviewStatus) {
+                const chronos = snapshotBakeChronos(devBakeStartedAt, ratio);
+                const chronosLine = formatBakeChronosLine(chronos);
+                const stageLabel =
+                  stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')
+                    ? 'Rendering'
+                    : stage.includes('composite') || stage.startsWith('burnin')
+                      ? 'Compositing'
+                      : 'Baking';
                 overlayPreviewStatus.textContent =
-                  `Canvas bake… ${Math.round(ratio * 100)}% (${stage})`;
+                  `${stageLabel}… ${Math.round(ratio * 100)}% · ${chronosLine}`;
               }
             },
           });

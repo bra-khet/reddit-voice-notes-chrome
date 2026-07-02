@@ -15,7 +15,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
 | **3.5 — canvas visual polish** | **DONE**, user-QA'd | `dbbc9cb` … `432683a` |
 | **4 — burn-in pipeline integration** | **DONE**, user-QA'd | `ac2d52e` … `6641d35` |
-| 5 — production polish, lab panel, arch docs | pending | — |
+| 5 — production polish, lab panel, arch docs | **IN PROGRESS** (5.1 done) | — |
 
 **User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
 
@@ -52,6 +52,8 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 **Phase 4 user QA (2026-07-02):** Pass — full canvas bake visually correct (alpha composite, subtitles readable). **Performance note:** ~few seconds wall time per second of video (canvas 30 fps render + normalize + wasm composite). Acceptable for now; percent stage indicators work. Polished chronos meter / elapsed-time UX deferred to Phase 5 (not implementing progress bar this sprint).
 
 **Checkpoint tag (2026-07-02):** `5.3.4-phase-4-complete`.
+
+**Phase 5.1 (2026-07-02):** Chronos meter on subtitle bake — amber progress bar + elapsed/ETA line (`bake-chronos.ts`); per-frame `onRenderProgress` during canvas overlay render; dev canvas bake status shows chronos. Percent stage messages unchanged.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

@@ -61,7 +61,10 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
     options.onProgress?.(ratio, stage);
   };
 
-  report(0.05, 'canvas-overlay-render');
+  const RENDER_RATIO_START = 0.05;
+  const RENDER_RATIO_END = 0.32;
+
+  report(RENDER_RATIO_START, 'canvas-overlay-render');
   throwIfAborted(options.signal);
   const overlayResult = await renderSubtitleOverlay(segments, options.style, options.durationSeconds, {
     width: CANVAS_WIDTH,
@@ -70,6 +73,12 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
     background: 'transparent',
     offline: true,
     themeBarColor: options.themeBarColor,
+    onRenderProgress: ({ ratio }) => {
+      report(
+        RENDER_RATIO_START + ratio * (RENDER_RATIO_END - RENDER_RATIO_START),
+        'canvas-overlay-render',
+      );
+    },
   });
 
   throwIfAborted(options.signal);
