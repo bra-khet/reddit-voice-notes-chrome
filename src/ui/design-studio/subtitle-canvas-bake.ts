@@ -21,7 +21,16 @@ export interface CanvasOverlayBakeOptions {
   style: SubtitleStyleConfig;
   durationSeconds: number;
   themeBarColor?: string;
+  /** When provided, skips a second loadLastBaseMp4() (production bake path). */
+  baseMp4?: Blob;
   onProgress?: (ratio: number, stage: string) => void;
+  signal?: AbortSignal;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new DOMException('Subtitle burn-in cancelled.', 'AbortError');
+  }
 }
 
 /**
@@ -29,14 +38,22 @@ export interface CanvasOverlayBakeOptions {
  * Must run in Design Studio (needs document + MediaRecorder); overlay bytes are passed to burn-in.
  */
 export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): Promise<Blob> {
+  throwIfAborted(options.signal);
+
   const segments = usableSegments(options.editedResult.segments);
   if (segments.length === 0) {
     throw new Error('No usable subtitle cues for canvas overlay bake.');
   }
 
-  const base = await loadLastBaseMp4();
-  if (!base?.blob) {
-    throw new Error('No base MP4 found — record a clip on Reddit first.');
+  let baseBlob = options.baseMp4;
+  let durationFromMeta: number | undefined;
+  if (!baseBlob) {
+    const base = await loadLastBaseMp4();
+    if (!base?.blob) {
+      throw new Error('No base MP4 found — record a clip on Reddit first.');
+    }
+    baseBlob = base.blob;
+    durationFromMeta = base.meta.durationSeconds;
   }
 
   const report = (ratio: number, stage: string): void => {
@@ -44,6 +61,7 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   };
 
   report(0.05, 'canvas-overlay-render');
+  throwIfAborted(options.signal);
   const overlayResult = await renderSubtitleOverlay(segments, options.style, options.durationSeconds, {
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT,
@@ -53,17 +71,19 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
     themeBarColor: options.themeBarColor,
   });
 
+  throwIfAborted(options.signal);
   const overlayBytes = new Uint8Array(await overlayResult.overlayBlob.arrayBuffer());
-  const baseBytes = new Uint8Array(await base.blob.arrayBuffer());
+  const baseBytes = new Uint8Array(await baseBlob.arrayBuffer());
 
   report(0.45, 'canvas-overlay-composite');
+  throwIfAborted(options.signal);
   const burnedBytes = await withTranscodeLock(async () =>
     runSubtitleBurnIn(
       baseBytes,
       {
         segments,
         style: options.style,
-        videoDurationSeconds: options.durationSeconds ?? base.meta.durationSeconds,
+        videoDurationSeconds: options.durationSeconds ?? durationFromMeta,
         themeBarColor: options.themeBarColor,
         useCanvasOverlay: true,
         canvasOverlayBytes: overlayBytes,

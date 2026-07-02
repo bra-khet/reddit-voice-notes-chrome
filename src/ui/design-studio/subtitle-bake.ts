@@ -1,4 +1,5 @@
 import { burnInSubtitlesToMp4 } from '@/src/ffmpeg/burnin-client';
+import { shouldPreferCanvasOverlay } from '@/src/ffmpeg/subtitle-burnin';
 import {
   BAKED_MP4_READY_KEY,
   loadUserPreferences,
@@ -8,6 +9,7 @@ import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
 import { cueTextIsBlank, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
+import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
 
 export interface SubtitleBakeProgress {
   ratio: number;
@@ -21,6 +23,16 @@ export interface SubtitleBakeOptions {
   videoDurationSeconds?: number;
   onProgress?: (progress: SubtitleBakeProgress) => void;
   signal?: AbortSignal;
+}
+
+function canvasStageMessage(stage: string, ratio: number): string {
+  if (stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')) {
+    return `Rendering subtitles… ${Math.round(ratio * 100)}%`;
+  }
+  if (stage.startsWith('burnin-canvas-overlay') || stage.includes('composite')) {
+    return `Compositing subtitles… ${Math.round(ratio * 100)}%`;
+  }
+  return `Burning subtitles… ${Math.round(ratio * 100)}%`;
 }
 
 export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promise<Blob> {
@@ -44,25 +56,56 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
     throw new Error('Transcript has no subtitle cues to burn in.');
   }
 
-  report({ ratio: 0.08, stage: 'burning', message: 'Burning subtitles…' });
-
   const prefs = await loadUserPreferences();
   const themeBarColor = resolveAppearanceTheme(prefs.appearance).colors.bar;
+  const videoDurationSeconds = options.videoDurationSeconds ?? base.meta.durationSeconds;
 
-  const burned = await burnInSubtitlesToMp4(base.blob, {
+  const preferCanvas = shouldPreferCanvasOverlay({
     segments,
     style: options.style,
-    videoDurationSeconds: options.videoDurationSeconds ?? base.meta.durationSeconds,
+    videoDurationSeconds,
     themeBarColor,
-    signal: options.signal,
-    onProgress: (ratio) => {
-      report({
-        ratio: 0.1 + ratio * 0.82,
-        stage: 'burning',
-        message: `Burning subtitles… ${Math.round(ratio * 100)}%`,
-      });
-    },
   });
+
+  report({
+    ratio: 0.08,
+    stage: 'burning',
+    message: preferCanvas ? 'Rendering subtitles (canvas)…' : 'Burning subtitles…',
+  });
+
+  let burned: Blob;
+  if (preferCanvas) {
+    burned = await bakeWithCanvasOverlay({
+      editedResult: { ...options.editedResult, segments },
+      style: options.style,
+      durationSeconds: videoDurationSeconds,
+      themeBarColor,
+      baseMp4: base.blob,
+      signal: options.signal,
+      onProgress: (ratio, stage) => {
+        report({
+          ratio: 0.1 + ratio * 0.82,
+          stage: 'burning',
+          message: canvasStageMessage(stage, ratio),
+        });
+      },
+    });
+  } else {
+    burned = await burnInSubtitlesToMp4(base.blob, {
+      segments,
+      style: options.style,
+      videoDurationSeconds,
+      themeBarColor,
+      signal: options.signal,
+      onProgress: (ratio) => {
+        report({
+          ratio: 0.1 + ratio * 0.82,
+          stage: 'burning',
+          message: `Burning subtitles… ${Math.round(ratio * 100)}%`,
+        });
+      },
+    });
+  }
 
   report({ ratio: 0.94, stage: 'saving', message: 'Saving baked MP4…' });
   await saveLastBakedMp4(burned, base.meta.durationSeconds);

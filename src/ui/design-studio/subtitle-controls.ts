@@ -146,7 +146,7 @@ const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
     </div>
     <div class="studio__transcript-modal" data-subtitle-overlay-preview-modal hidden>
       <div
-        class="studio__transcript-dialog"
+        class="studio__transcript-dialog studio__transcript-dialog--overlay-preview"
         data-subtitle-overlay-preview-dialog
         role="dialog"
         aria-labelledby="subtitle-overlay-preview-title"
@@ -1322,12 +1322,14 @@ export function mountSubtitleControls(
     const hideOverlayPreviewModal = (): void => {
       if (overlayPreviewModal) overlayPreviewModal.hidden = true;
       setOverlayPreviewMode('single');
+      overlayPreviewDownloadName = 'overlay.webm';
       if (overlayPreviewFrameImg) {
         overlayPreviewFrameImg.hidden = true;
         overlayPreviewFrameImg.removeAttribute('src');
       }
       if (overlayPreviewVideo) {
         overlayPreviewVideo.pause();
+        overlayPreviewVideo.muted = true;
         overlayPreviewVideo.removeAttribute('src');
         overlayPreviewVideo.load();
       }

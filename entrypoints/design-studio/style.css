@@ -1388,12 +1388,43 @@ body {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
+/* v5.3.4 dev harness preview modal — scroll when videos + actions exceed viewport */
+.studio__transcript-dialog--overlay-preview {
+  max-width: 560px;
+  max-height: min(92vh, 760px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* BUG FIX: compare harness canvas video clipped when drawtext MP4 loaded */
 .studio__transcript-dialog--overlay-compare {
   max-width: 560px;
   max-height: min(92vh, 760px);
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* v5.3.4 — dev harness buttons wrap inside the subtitles subpanel */
+.studio__subtitle-dev-harness {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(74, 74, 138, 0.35);
+}
+
+.studio__subtitle-dev-harness .studio__inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio__subtitle-dev-harness .popup__profile-btn {
+  flex: 1 1 auto;
+  min-width: min(100%, 11.5rem);
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
 }
 
 .studio__subtitle-overlay-compare {
