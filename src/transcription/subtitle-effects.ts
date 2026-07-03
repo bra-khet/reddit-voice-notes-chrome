@@ -14,6 +14,11 @@ import {
   type SubtitleStyleConfig,
 } from '@/src/transcription/types';
 
+// CHANGED: split drawtext helpers vs canvas-overlay-only exports (v5.3.4)
+// WHY: drawtext uses buildGlowLayerSpecs / resolveGlowColorHex; canvas uses resolveCanvasOverlayGlowHex,
+//      halo integral rings, text gradient — see subtitleStyleHasCanvasOnlyEffects in subtitle-burnin.ts.
+// Sync: subtitle-overlay-renderer.ts paint paths; docs/transcription-architecture.md § Canvas overlay path
+
 export interface GlowLayerSpec {
   fontSize: number;
   offsetX: number;

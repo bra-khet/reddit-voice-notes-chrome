@@ -219,17 +219,22 @@ Per-frame animated glow color on canvas overlay when **Glow color = Hue rotate**
 **Effort:** Large (pipeline / architecture)  
 **Status:** Documented from stress QA; acceptable for now
 
-### Observed (2026-07 stress tests, `.ignore/5.3.4-perfCheck-QA-usernotes.md`)
+### Observed (2026-07 stress tests + Overlay Lab timing logs)
 
-Full canvas bake wall time scales with clip length and cue/effect load:
+Sources: `.ignore/5.3.4-perfCheck-QA-usernotes.md`, `.ignore/sub-QA-harness-logs/`.
+
+Full canvas bake wall time scales with clip length; **prepare overlay** (VP8A normalize) dominates total time on long / heavy clips:
 
 | Clip | Cues | Render | Prepare overlay (VP8A normalize) | Composite | Total |
 |------|------|--------|-----------------------------------|-----------|-------|
 | 120s | 15–40 | ~120s | ~210–240s | ~30–45s | ~6–6.5 min |
 | 120s | 121 + rich effects | ~120s | ~330s | ~50s | ~8+ min |
 | 60s | 20 | ~65s | ~120–165s | ~20s | ~3.5 min |
+| 62s | 534 + rich effects (lab bake) | 75.9s (27%) | **184.1s (64%)** | 24.8s (9%) | **285.8s (~4.8 min)** |
 
-Offline canvas render is ~1:1 with clip duration. **Prepare overlay** (wasm `libvpx` yuva re-encode) dominates on long / heavy clips.
+Render-only lab runs: ~1.0–1.3× realtime vs clip duration; cue count is secondary (62s clip: 68s @ 21 cues vs 80s @ 534 cues). Per-frame paint ~41 ms @ 30 fps with rich effects. Rich effects inflate **normalize** more than render (120s clip: normalize 210s → 330s when adding 121 cues + gradient wave + dual border while render stays ~120s).
+
+Analysis and driver matrix: `docs/v5.3.4-subtitle-canvas-overlay.md` § Performance QA.
 
 ### Current mitigations (v5.3.4)
 

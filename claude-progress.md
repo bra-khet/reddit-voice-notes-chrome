@@ -1,6 +1,6 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.4 — Subtitle Canvas Overlay (`feature/v5.3.4-subtitle-canvas-overlay`) — IN PROGRESS (2026-07-01)
+## v5.3.4 — Subtitle Canvas Overlay (`feature/v5.3.4-subtitle-canvas-overlay`) — COMPLETE (2026-07-03)
 
 **Plan (source of truth):** `docs/v5.3.4-subtitle-canvas-overlay.md` (progress table, Phase 3.5 spec, handoff checklists)  
 **Task tracker:** `TODO.md` (short pointer only — detail lives in design doc)
@@ -15,7 +15,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
 | **3.5 — canvas visual polish** | **DONE**, user-QA'd | `dbbc9cb` … `432683a` |
 | **4 — burn-in pipeline integration** | **DONE**, user-QA'd | `ac2d52e` … `6641d35` |
-| 5 — production polish, lab panel, arch docs | **IN PROGRESS** (5.1–5.4 done) | — |
+| 5 — production polish, lab panel, arch docs | **DONE**, user-QA'd | `ed4265f` … |
 
 **User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
 
@@ -60,6 +60,12 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 **Phase 5.3 (2026-07-02):** Canvas render perf guard — production bake aborts slow offline render (2.5–3 min budget) and falls back to drawtext. **Stress QA timeouts:** `FINALIZE_TIMEOUT_MS` 6 min; render guard cap 3 min / floor 2.5 min. Bake UI hint for multi-minute long-clip bakes. Perf optimization deferred → `docs/future-ideas.md`.
 
 **Phase 5.4 (2026-07-02):** Subtitle Overlay Lab — persistent gated QA panel replacing inline dev harness. Synthetic segment sets (short 3 / medium 8 / long 16 cues), lab effect toggles, backdrop radius slider, inner-border color preview, side-by-side compare, separate downloads (overlay / drawtext / composite / timing JSON), one-click full canvas bake. Modules: `subtitle-overlay-lab.ts`, `subtitle-overlay-lab-segments.ts`. Tests: `test-overlay-lab-segments.mjs`.
+
+**Phase 5.5 (2026-07-03):** `docs/transcription-architecture.md` — canvas overlay path, module map, strategy table, perf guard scope. Sync comments in `subtitle-burnin.ts`, `subtitle-effects.ts`.
+
+**Phase 5.6 (2026-07-03):** User QA via Overlay Lab timing logs (`.ignore/sub-QA-harness-logs/`) + stress notes — 3–534 cues, 11–120 s clips, rich effects; full bake 534 cues / 62 s OK (~286 s). Perf analysis recorded in design doc § Performance QA.
+
+**v5.3.4 gate:** Phase 5 complete — branch ready for merge/tag after final user sign-off.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, `subtitle-overlay-lab.ts`, `subtitle-controls.ts`.
 

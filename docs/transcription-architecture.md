@@ -176,19 +176,59 @@ forkTranscribeWebm() resolves (applied | fallback | timeout)
 
 **Long-segment Smart Split** (`splitSegmentIntoChunks` + `src/utils/text-metrics.ts`): a long cue is split at word boundaries into chunks that each fit one caption line (canvas measured against the preview box), with the time span divided proportionally to chunk character length. Pure + node-tested (`scripts/test-smart-split.mjs`).
 
-Pure modules are unit-tested without a framework via esbuild bundle + `node:assert`: `test-scaffold.mjs`, `test-transcribe-failure.mjs`, `test-smart-split.mjs`, `test-burnin-budget.mjs`.
+Pure modules are unit-tested without a framework via esbuild bundle + `node:assert`: `test-scaffold.mjs`, `test-transcribe-failure.mjs`, `test-smart-split.mjs`, `test-burnin-budget.mjs`, `test-bake-segments.mjs`, `test-bake-chronos.mjs`, `test-canvas-render-perf-guard.mjs`, `test-overlay-lab-segments.mjs`.
 
 ## Subtitle burn-in render paths (eloquent-3+)
 
-Production uses **one** family of strategies: `drawtext-font` + bundled `DejaVuSans.ttf` (`subtitle-burnin.ts`), now a budgeted **degradation chain** (see below). Historical `subtitles-srt` (libass) was removed in BUG-030.
+Production has **two** bake families:
 
-| Capability | `drawtext` + bundled TTF (current) | `subtitles` + SRT/ASS (libass) |
-|------------|-----------------------------------|--------------------------------|
-| Timed cues | `enable='between(t,start,end)'` per cue | Native ASS timing |
-| Backdrop / glow / border | Stacked drawtext duplicate layers (flat-cost `GlowRingMode`) | ASS styles (Outline, Shadow, BorderStyle) |
-| Animated color (`\t()`, rainbow) | **Removed (v5.3)** — bake colors are static per cue | Theoretically smooth transforms |
-| ffmpeg.wasm fonts | `fontfile=` to wasm virtual FS | Needs libass + fontsdir or embedded fonts |
-| Failure mode when misconfigured | Log needles + thrown error (since BUG-030) | **Exit 0, no visible subs** (BUG-025) |
+1. **`drawtext-font` + bundled `DejaVuSans.ttf`** (`subtitle-burnin.ts`) — default / fallback; budgeted **degradation chain** (see below).
+2. **Canvas overlay + cheap composite** (v5.3.4) — offline Canvas 2D → transparent WebM → `normalizeOverlayWebmForComposite` → single `overlay=0:0` FFmpeg filter. No per-cue drawtext layer explosion.
+
+Historical `subtitles-srt` (libass) was removed in BUG-030.
+
+### Canvas overlay path (v5.3.4)
+
+**When selected:** `shouldPreferCanvasOverlay()` in `subtitle-burnin.ts` auto-picks canvas when `useCanvasOverlay` is set, when `subtitleStyleHasCanvasOnlyEffects()` (dual border, hue rotate, text gradient/wave), or when glow is enabled and cue count exceeds `CANVAS_OVERLAY_AUTO_CUE_THRESHOLD` (6). Production bake runs in Design Studio (`subtitle-bake.ts` → `subtitle-canvas-bake.ts`); drawtext tiers remain fallback when overlay bytes are absent or render perf guard aborts.
+
+**Pipeline (Design Studio tab — needs `document`, `MediaRecorder`, `FontFace`):**
+
+```
+prepareSegmentsForSubtitleBake()     [transcript-editing.ts — shared with drawtext]
+  → renderSubtitleOverlay()        [subtitle-overlay-renderer.ts — 30 fps paint + capture]
+  → normalizeOverlayWebmForComposite() [overlay-webm-finalize.ts — libvpx yuva420p pre-pass]
+  → runSubtitleBurnIn(useCanvasOverlay, canvasOverlayBytes) [ffmpeg-runner / offscreen or in-tab]
+       filter: [1:v]format=yuva420p[ol];[0:v][ol]overlay=0:0:shortest=1[vout]
+```
+
+**Rich effects live in canvas only** — `subtitle-effects.ts` exports `resolveCanvasOverlayGlowHex`, `buildCanvasOverlayHaloLayerSpecs`, text gradient helpers, etc. Drawtext uses simpler `resolveGlowColorHex` + `buildGlowLayerSpecs` (static rings, no hue rotate / dual border / gradient wave). **Sync rule:** any new subtitle visual effect must declare whether it is canvas-only (`subtitleStyleHasCanvasOnlyEffects`) or needs drawtext parity.
+
+**Segment prep:** `prepareSegmentsForSubtitleBake()` is the single source for blank/scaffold filter, missing timings, min cue duration, and clip clamp — used by drawtext normalize, overlay renderer, production bake, lab compare, and canvas bake.
+
+**Perf guard (Phase 5.3):** production bake aborts offline render past a 2.5–3 min budget (`canvas-render-perf-guard.ts`) and falls back to drawtext. Guard covers **render only**; VP8A normalize can exceed render time on long clips (see perf notes in `docs/v5.3.4-subtitle-canvas-overlay.md` and `docs/future-ideas.md` § Canvas Subtitle Bake Performance).
+
+**QA harness:** gated **Subtitle Overlay Lab** in Design Studio (`subtitle-overlay-lab.ts`) — synthetic segment sets, effect toggles, compare, downloads, JSON timing logs. Spec: `docs/v5.3.4-subtitle-canvas-overlay.md`.
+
+| Module | Role |
+|--------|------|
+| `subtitle-overlay-renderer.ts` | Paint loop, MediaRecorder, preview/bake entry |
+| `subtitle-overlay-fonts.ts` | DejaVu FontFace loading |
+| `overlay-webm-finalize.ts` | VP8 remux / yuva normalize before composite |
+| `subtitle-canvas-bake.ts` | Dev + production canvas bake orchestration |
+| `subtitle-overlay-compare.ts` | Side-by-side drawtext vs canvas QA |
+| `subtitle-overlay-lab.ts` | Persistent lab panel + timing logs |
+| `canvas-render-perf-guard.ts` | Render budget + drawtext fallback |
+| `bake-chronos.ts` | Elapsed / ETA meter on production bake |
+
+| Capability | `drawtext` + bundled TTF | Canvas overlay (v5.3.4) | `subtitles` + SRT/ASS (libass) |
+|------------|--------------------------|-------------------------|--------------------------------|
+| Timed cues | `enable='between(t,start,end)'` per cue | Per-frame paint at 30 fps | Native ASS timing |
+| Backdrop / glow / border | Stacked drawtext duplicate layers (`GlowRingMode`) | Real `shadowBlur`, strokes, gradients | ASS styles |
+| Dual border / hue rotate / gradient wave | **No** — canvas-only triggers auto-select | **Yes** | Theoretically yes |
+| Layer budget | ~64 drawtext filters (BUG-035) | None (paint passes) | Style-based |
+| Animated color (`\t()`, rainbow) | **Removed (v5.3)** — static per cue | Per-frame hue rotate at overlay fps | Theoretically smooth |
+| ffmpeg.wasm fonts | `fontfile=` to wasm virtual FS | Overlay is pre-rendered video | Needs libass + fontsdir |
+| Failure mode when misconfigured | Log needles + thrown error (BUG-030) | Normalize/composite throw; render perf → drawtext fallback | **Exit 0, no visible subs** (BUG-025) |
 
 **Filtergraph budget + degradation chain (BUG-035):** the graph scales as cues × glow-ring layers, and ffmpeg.wasm aborts past ~70 drawtext filters (640×360). `buildBurnInStrategies` builds tiers `drawtext-glow` (soft halo, `single` ring ≈9 glow/cue) → `drawtext-glow-min` (`min` ring ≈4/cue) → `drawtext-plain`, dedupes, and keeps those within `MAX_BURNIN_DRAWTEXT_LAYERS = 64` (richest-in-budget first). `burnInWithStrategies` reloads a fresh wasm instance per tier, so a tier that still OOMs degrades instead of hard-failing. `blurRadius` controls ring **spread**, not layer count (`buildGlowLayerSpecs` `GlowRingMode`), so glow cost is flat.
 
@@ -211,5 +251,6 @@ Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031, BUG
 | eloquent-3 | FFmpeg subtitle burn-in | **Done** |
 | eloquent-4 | Studio editor polish + relay hardening | **Partial** (`v3.6.0`) |
 | v5.3 Subtitle QoL | Graceful failure → scaffold, Smart Split, per-cue delete, bake budget, rainbow removed | **Done** (`subtitle-qol-failure-scaffold-v1`) |
+| v5.3.4 Canvas overlay | Offline Canvas 2D overlay WebM + alpha composite; lab harness; perf guard | **Done** (`feature/v5.3.4-subtitle-canvas-overlay`) |
 
-See `eloquent-branch.md` for full phase plan and `docs/design-studio.md` for current Studio semantics.
+See `eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, and `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec + perf QA.

@@ -13,6 +13,12 @@ import { BURNIN_PIPELINE_STAMP } from '@/src/utils/constants';
 
 export { BURNIN_PIPELINE_STAMP };
 
+// CHANGED: v5.3.4 canvas overlay composite path alongside drawtext tiers
+// WHY: rich effects render offline in subtitle-overlay-renderer.ts; this module selects strategy
+//      and builds the cheap overlay= filtergraph when canvasOverlayBytes are supplied.
+// Sync: docs/transcription-architecture.md § Canvas overlay path;
+//       subtitle-canvas-bake.ts, overlay-webm-finalize.ts, subtitle-effects.ts (canvas-only helpers)
+
 export interface SubtitleBurnInInput {
   segments: TranscriptSegment[];
   style: SubtitleStyleConfig;
