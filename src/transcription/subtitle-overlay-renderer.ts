@@ -1,5 +1,5 @@
 /**
- * v5.3.4 Canvas Overlay Subtitle Renderer
+ * v5.3.4+ Canvas Overlay Subtitle Renderer (v5.3.5 cue-stable overlay caching)
  * Renders timed styled subtitles + glow/border effects to an off-screen canvas
  * and captures the result as a video track / Blob for later FFmpeg compositing.
  *
@@ -28,6 +28,11 @@ import {
 } from '@/src/transcription/subtitle-overlay-fonts';
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
 import { throwIfRenderAborted } from '@/src/transcription/canvas-render-perf-guard';
+import {
+  CueOverlayCache,
+  makeCueOverlayCacheKey,
+  type CueOverlayCacheStats,
+} from '@/src/transcription/subtitle-overlay-cue-cache';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   type SubtitleGlowConfig,
@@ -96,6 +101,13 @@ export interface SubtitleOverlayRenderOptions {
   onRenderProgress?: (info: { frameIndex: number; totalFrames: number; ratio: number }) => void;
   /** Abort between frames — used for user cancel + canvas render perf guard (Phase 5.3). */
   signal?: AbortSignal;
+  /** v5.3.5: cache fully painted cue graphics; default true for bake. */
+  enableCueCache?: boolean;
+  /** v5.3.5: optional cache instrumentation. */
+  debug?: {
+    logCacheStats?: boolean;
+    onCacheStats?: (stats: CueOverlayCacheStats) => void;
+  };
 }
 
 export interface SubtitleOverlayResult {
@@ -148,6 +160,28 @@ function cuesAtTimestamp(cues: NormalizedCue[], timestamp: number, durationSecon
     if (isLastFrame) return timestamp <= cue.end;
     return timestamp < cue.end;
   });
+}
+
+interface TempPaintSurface {
+  paintCanvas: HTMLCanvasElement | OffscreenCanvas;
+  paintCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+}
+
+function createTempPaintSurface(width: number, height: number): TempPaintSurface {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    const paintCanvas = new OffscreenCanvas(width, height);
+    const paintCtx = paintCanvas.getContext('2d', { alpha: true });
+    if (paintCtx) return { paintCanvas, paintCtx };
+  }
+
+  const paintCanvas = document.createElement('canvas');
+  paintCanvas.width = width;
+  paintCanvas.height = height;
+  const paintCtx = paintCanvas.getContext('2d', { alpha: true });
+  if (!paintCtx) {
+    throw new Error('Canvas 2D context unavailable for cue overlay cache surface.');
+  }
+  return { paintCanvas, paintCtx };
 }
 
 function createRenderTarget(width: number, height: number): RenderTarget {
@@ -683,14 +717,45 @@ function clearFrame(
   }
 }
 
-function paintFrame(
+function shouldUseCueOverlayCache(options: SubtitleOverlayRenderOptions): boolean {
+  if (options.enableCueCache === false) return false;
+  if (options.singleFrameDebug === true) return false;
+  return true;
+}
+
+async function paintCueWithCache(
+  cache: CueOverlayCache,
+  target: RenderTarget,
+  cue: NormalizedCue,
+  style: SubtitleStyleConfig,
+  options: SubtitleOverlayRenderOptions,
+  timestamp: number,
+): Promise<void> {
+  const { width, height } = options;
+  const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
+  const key = makeCueOverlayCacheKey(cue, style, themeBarColor, timestamp);
+  let bitmap = cache.get(key);
+
+  if (!bitmap) {
+    const temp = createTempPaintSurface(width, height);
+    clearFrame(temp.paintCtx, width, height, 'transparent');
+    paintCue(temp.paintCtx, cue, style, width, height, themeBarColor, timestamp);
+    bitmap = await createImageBitmap(temp.paintCanvas);
+    cache.set(key, bitmap);
+  }
+
+  target.paintCtx.drawImage(bitmap, 0, 0);
+}
+
+async function paintFrame(
   target: RenderTarget,
   cues: NormalizedCue[],
   style: SubtitleStyleConfig,
   options: SubtitleOverlayRenderOptions,
   timestamp: number,
   durationSeconds: number,
-): void {
+  cueCache?: CueOverlayCache,
+): Promise<void> {
   const { width, height } = options;
   const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
   const background = options.background ?? 'transparent';
@@ -698,8 +763,16 @@ function paintFrame(
   clearFrame(target.paintCtx, width, height, background);
 
   const active = cuesAtTimestamp(cues, timestamp, durationSeconds);
-  for (const cue of active) {
-    paintCue(target.paintCtx, cue, style, width, height, themeBarColor, timestamp);
+  const useCache = cueCache !== undefined && shouldUseCueOverlayCache(options);
+
+  if (useCache) {
+    for (const cue of active) {
+      await paintCueWithCache(cueCache, target, cue, style, options, timestamp);
+    }
+  } else {
+    for (const cue of active) {
+      paintCue(target.paintCtx, cue, style, width, height, themeBarColor, timestamp);
+    }
   }
 
   target.blitToCapture();
@@ -737,6 +810,7 @@ async function recordOverlayTimeline(
   const totalFrames = Math.max(1, Math.ceil(durationSeconds * fps));
   const mimeType = pickOverlayMimeType();
   const singleFrameDebug = options.singleFrameDebug === true;
+  const cueCache = shouldUseCueOverlayCache(options) ? new CueOverlayCache() : undefined;
   // BUG FIX: regular dev harness produced empty overlay.webm (Phase 2 QA)
   // Fix: captureStream(fps) + wall-clock frame pacing — MediaRecorder cannot encode
   //      when frames are painted in a tight microtask loop (~164ms total); single-frame
@@ -770,7 +844,7 @@ async function recordOverlayTimeline(
 
         const paintAndCapture = async (timestamp: number, frameIndex: number): Promise<void> => {
           throwIfRenderAborted(options.signal);
-          paintFrame(target, cues, style, options, timestamp, durationSeconds);
+          await paintFrame(target, cues, style, options, timestamp, durationSeconds, cueCache);
 
           if (singleFrameDebug && options.onFrameDebug) {
             const png = await canvasToPngBlob(target.captureCanvas);
@@ -806,8 +880,14 @@ async function recordOverlayTimeline(
 
         // Hold the final empty frame so duration metadata is written before stop().
         for (let tail = 0; tail < RECORDER_TAIL_FRAME_COUNT; tail += 1) {
-          paintFrame(target, [], style, options, durationSeconds, durationSeconds);
+          await paintFrame(target, [], style, options, durationSeconds, durationSeconds, cueCache);
           await waitForNextCaptureTick(fps, false);
+        }
+
+        if (cueCache && options.debug?.logCacheStats) {
+          const stats = cueCache.stats();
+          console.info('[subtitle-overlay] cue cache stats', stats);
+          options.debug.onCacheStats?.(stats);
         }
 
         await new Promise<void>((r) => {
@@ -819,6 +899,7 @@ async function recordOverlayTimeline(
           recorder.stop();
         }
       } catch (error) {
+        cueCache?.clear();
         if (recorder.state === 'recording') recorder.stop();
         reject(error);
       }
@@ -830,6 +911,8 @@ async function recordOverlayTimeline(
   }
 
   const blobType = mimeType ?? 'video/webm';
+  cueCache?.clear();
+
   const overlayBlob = new Blob(chunks, { type: blobType });
   if (overlayBlob.size === 0) {
     throw new Error('Subtitle overlay capture produced an empty video blob.');

@@ -1,6 +1,18 @@
 # TODO
 
-## v5.3.4 — Subtitle canvas overlay
+## v5.3.5 — Cue-stable overlay caching
+
+**Branch:** `feature/v5.3.5-cue-stable-overlay-caching`  
+**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md)
+
+| Item | Status |
+|------|--------|
+| Cache module + renderer integration | **IN PROGRESS** (core landed) |
+| `test-cue-cache.mjs` unit tests | **DONE** |
+| Overlay Lab perf QA + hit-rate logging | Pending |
+| `docs/transcription-architecture.md` + release notes | Pending |
+
+## v5.3.4 — Subtitle canvas overlay (complete)
 
 **Branch:** `feature/v5.3.4-subtitle-canvas-overlay`  
 **Source of truth:** [`docs/v5.3.4-subtitle-canvas-overlay.md`](docs/v5.3.4-subtitle-canvas-overlay.md) (phases, specs, checklists)  

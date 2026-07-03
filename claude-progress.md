@@ -1,5 +1,28 @@
 # Reddit Voice Notes — Session Progress
 
+## v5.3.5 — Cue-Stable Overlay Caching (`feature/v5.3.5-cue-stable-overlay-caching`) — IN PROGRESS (2026-07-03)
+
+**Plan:** `docs/5.3.5-cue-stable-overlay-caching-design.md`  
+**Baseline:** v5.3.4 on `main` (`cd1fbcc`)
+
+Cache fully painted cue graphics (`ImageBitmap` + LRU) keyed by cue identity, style hash, and quantized animation phase. Fast path replaces per-frame `paintCue` with `drawImage` blits. On by default for bake; bypassed in `singleFrameDebug`.
+
+**Landed this session:**
+- `subtitle-overlay-cue-cache.ts` — keys, 16 phase buckets, 64-entry LRU, stats
+- `subtitle-overlay-renderer.ts` — `paintCueWithCache`, `enableCueCache` / `debug.logCacheStats`
+- `scripts/test-cue-cache.mjs` — 9 unit tests (keys + phase bucketing)
+
+**Remaining:** Overlay Lab perf QA, arch doc §, release notes, optional SSIM visual parity check.
+
+### Restore / test
+
+```bash
+git checkout feature/v5.3.5-cue-stable-overlay-caching && npm install && npm run dev
+node scripts/test-cue-cache.mjs
+```
+
+---
+
 ## v5.3.4 — Subtitle Canvas Overlay (`feature/v5.3.4-subtitle-canvas-overlay`) — COMPLETE (2026-07-03)
 
 **Plan (source of truth):** `docs/v5.3.4-subtitle-canvas-overlay.md` (progress table, Phase 3.5 spec, handoff checklists)  
