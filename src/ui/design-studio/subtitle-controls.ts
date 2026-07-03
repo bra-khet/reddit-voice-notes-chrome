@@ -17,9 +17,11 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import { TRANSCRIBE_TIMEOUT_MS } from '@/src/transcription/constants';
-import { renderSubtitleOverlayForPreview } from '@/src/transcription/subtitle-overlay-renderer';
-import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
-import { renderSubtitleOverlayComparison } from '@/src/ui/design-studio/subtitle-overlay-compare';
+import {
+  isSubtitleOverlayLabEnabled,
+  mountSubtitleOverlayLab,
+  renderSubtitleOverlayLabHtml,
+} from '@/src/ui/design-studio/subtitle-overlay-lab';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   DEFAULT_TRANSCRIPT_CONFIG,
@@ -33,9 +35,7 @@ import {
   type SubtitleTextColor,
   type TranscriptConfig,
   type TranscriptResult,
-  type TranscriptSegment,
 } from '@/src/transcription/types';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
 import {
   mountColorPickerControls,
   renderColorPickerFields,
@@ -47,7 +47,6 @@ import {
   createBakeDisplayRatioState,
   estimateRemainingMs,
   formatBakeChronosLine,
-  snapshotBakeChronos,
   type BakeDisplayRatioState,
 } from '@/src/ui/design-studio/bake-chronos';
 import { bakeSubtitlesInStudio, type SubtitleBakeProgress } from '@/src/ui/design-studio/subtitle-bake';
@@ -107,131 +106,6 @@ const FONT_FAMILY_OPTIONS: { value: string; label: string }[] = [
   { value: 'dejavu-mono', label: 'Mono' },
   { value: 'dejavu-bold', label: 'Bold' },
 ];
-
-const CANVAS_OVERLAY_DEV_HARNESS_HTML = import.meta.env.DEV
-  ? `
-    <div class="studio__subtitle-dev-harness" data-subtitle-canvas-overlay-dev>
-      <label class="popup__toggle-row studio__subtitles-toggle">
-        <span class="popup__toggle-copy">
-          <span class="popup__toggle-label">Single-frame debug</span>
-          <p class="popup__field-desc">Pause after each painted frame during overlay render.</p>
-        </span>
-        <input
-          class="popup__toggle-input"
-          type="checkbox"
-          data-subtitle-overlay-single-frame-debug
-          aria-label="Single-frame debug for canvas overlay render"
-        />
-      </label>
-      <div class="popup__profile-actions studio__inline-actions">
-        <button
-          type="button"
-          class="popup__profile-btn popup__profile-btn--negate"
-          data-subtitle-canvas-overlay-dev-btn
-        >
-          Dev: Render Canvas Subtitle Overlay (v5.3.4)
-        </button>
-        <button
-          type="button"
-          class="popup__profile-btn popup__profile-btn--negate"
-          data-subtitle-canvas-overlay-compare-btn
-        >
-          Dev: Compare drawtext vs canvas (v5.3.4)
-        </button>
-        <button
-          type="button"
-          class="popup__profile-btn popup__profile-btn--negate"
-          data-subtitle-canvas-overlay-bake-btn
-        >
-          Dev: Bake with Canvas Overlay (full pipeline)
-        </button>
-      </div>
-      <p class="popup__field-desc">
-        Phase 3.5 QA: enable Theme glow (halo) for diffusion; toggle Text gradient, Text gradient wave,
-        Dual border, and Glow color → Hue rotate above — both buttons use the live subtitle style.
-        Compare stacks drawtext (flat fallback) vs canvas (rich effects).
-      </p>
-    </div>
-    <div class="studio__transcript-modal" data-subtitle-overlay-preview-modal hidden>
-      <div
-        class="studio__transcript-dialog studio__transcript-dialog--overlay-preview"
-        data-subtitle-overlay-preview-dialog
-        role="dialog"
-        aria-labelledby="subtitle-overlay-preview-title"
-      >
-        <h3 class="studio__transcript-dialog-title" id="subtitle-overlay-preview-title">
-          Canvas subtitle overlay (v5.3.4)
-        </h3>
-        <p class="popup__field-desc" data-subtitle-overlay-preview-status>
-          Rendering…
-        </p>
-        <img
-          class="studio__subtitle-overlay-preview-frame"
-          data-subtitle-overlay-preview-frame
-          alt="Canvas overlay frame debug preview"
-          hidden
-        />
-        <div class="studio__subtitle-overlay-compare" data-subtitle-overlay-compare-panel hidden>
-          <p class="popup__field-label studio__subtitle-overlay-compare-label">Old drawtext (baked on base MP4)</p>
-          <video
-            class="studio__subtitle-overlay-preview-video"
-            data-subtitle-overlay-compare-drawtext
-            controls
-            playsinline
-            muted
-          ></video>
-          <p class="popup__field-label studio__subtitle-overlay-compare-label">New Canvas v5.3.4 (overlay only)</p>
-          <div class="studio__subtitle-overlay-canvas-wrap">
-            <video
-              class="studio__subtitle-overlay-preview-video studio__subtitle-overlay-preview-video--alpha"
-              data-subtitle-overlay-compare-canvas
-              controls
-              playsinline
-              muted
-            ></video>
-          </div>
-        </div>
-        <video
-          class="studio__subtitle-overlay-preview-video"
-          data-subtitle-overlay-preview-video
-          controls
-          autoplay
-          playsinline
-          muted
-        ></video>
-        <div class="popup__profile-actions studio__inline-actions studio-v4__guard-actions">
-          <button
-            type="button"
-            class="popup__button popup__button--secondary studio-v4__guard-cancel"
-            data-subtitle-overlay-preview-close
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            class="popup__profile-btn popup__profile-btn--save studio-v4__guard-apply"
-            data-subtitle-overlay-preview-download
-            disabled
-          >
-            Download
-          </button>
-        </div>
-      </div>
-    </div>
-  `
-  : '';
-
-function resolveOverlayDurationSeconds(edited: TranscriptResult | null): number {
-  if (typeof edited?.duration === 'number' && edited.duration > 0) {
-    return edited.duration;
-  }
-  const segments = edited?.segments ?? [];
-  if (segments.length > 0) {
-    const lastEnd = Math.max(...segments.map((segment) => segment.end));
-    if (lastEnd > 0) return lastEnd;
-  }
-  return 10;
-}
 
 function formatSavedAt(ms: number): string {
   try {
@@ -319,7 +193,7 @@ export function renderSubtitleControlFields(): string {
             </p>
           </div>
         </div>
-        ${CANVAS_OVERLAY_DEV_HARNESS_HTML}
+        ${isSubtitleOverlayLabEnabled() ? renderSubtitleOverlayLabHtml() : ''}
         ${renderSubtitleSegmentEditorFields()}
         <label class="popup__field studio__field--compact">
           <span class="popup__field-label">Position</span>
@@ -1319,370 +1193,13 @@ export function mountSubtitleControls(
     panel.querySelector<HTMLButtonElement>('[data-transcript-edit-open]')?.focus();
   });
 
-  let overlayPreviewObjectUrl: string | null = null;
-  let overlayCompareDrawtextUrl: string | null = null;
-  let overlayCompareCanvasUrl: string | null = null;
-  let overlayPreviewDownloadName = 'overlay.webm';
-
-  if (import.meta.env.DEV) {
-    const devOverlayBtn = panel.querySelector<HTMLButtonElement>(
-      '[data-subtitle-canvas-overlay-dev-btn]',
-    );
-    const devOverlayCompareBtn = panel.querySelector<HTMLButtonElement>(
-      '[data-subtitle-canvas-overlay-compare-btn]',
-    );
-    const devOverlayBakeBtn = panel.querySelector<HTMLButtonElement>(
-      '[data-subtitle-canvas-overlay-bake-btn]',
-    );
-    const overlayPreviewModal = panel.querySelector<HTMLElement>(
-      '[data-subtitle-overlay-preview-modal]',
-    );
-    const overlayPreviewVideo = panel.querySelector<HTMLVideoElement>(
-      '[data-subtitle-overlay-preview-video]',
-    );
-    const overlayPreviewStatus = panel.querySelector<HTMLElement>(
-      '[data-subtitle-overlay-preview-status]',
-    );
-    const overlayPreviewClose = panel.querySelector<HTMLButtonElement>(
-      '[data-subtitle-overlay-preview-close]',
-    );
-    const overlayPreviewDownload = panel.querySelector<HTMLButtonElement>(
-      '[data-subtitle-overlay-preview-download]',
-    );
-    const overlaySingleFrameDebugInput = panel.querySelector<HTMLInputElement>(
-      '[data-subtitle-overlay-single-frame-debug]',
-    );
-    const overlayPreviewFrameImg = panel.querySelector<HTMLImageElement>(
-      '[data-subtitle-overlay-preview-frame]',
-    );
-    const overlayPreviewDialog = panel.querySelector<HTMLElement>(
-      '[data-subtitle-overlay-preview-dialog]',
-    );
-    const overlayComparePanel = panel.querySelector<HTMLElement>(
-      '[data-subtitle-overlay-compare-panel]',
-    );
-    const overlayCompareDrawtextVideo = panel.querySelector<HTMLVideoElement>(
-      '[data-subtitle-overlay-compare-drawtext]',
-    );
-    const overlayCompareCanvasVideo = panel.querySelector<HTMLVideoElement>(
-      '[data-subtitle-overlay-compare-canvas]',
-    );
-
-    const revokeOverlayBlobUrl = (url: string | null): void => {
-      if (!url) return;
-      URL.revokeObjectURL(url);
-      if (overlayPreviewObjectUrl === url) overlayPreviewObjectUrl = null;
-      if (overlayCompareDrawtextUrl === url) overlayCompareDrawtextUrl = null;
-      if (overlayCompareCanvasUrl === url) overlayCompareCanvasUrl = null;
-    };
-
-    const setOverlayPreviewMode = (mode: 'single' | 'compare' | 'baked'): void => {
-      if (overlayComparePanel) overlayComparePanel.hidden = mode !== 'compare';
-      if (overlayPreviewVideo) overlayPreviewVideo.hidden = mode !== 'single' && mode !== 'baked';
-      overlayPreviewDialog?.classList.toggle('studio__transcript-dialog--overlay-compare', mode === 'compare');
-    };
-
-    const hideOverlayPreviewModal = (): void => {
-      if (overlayPreviewModal) overlayPreviewModal.hidden = true;
-      setOverlayPreviewMode('single');
-      overlayPreviewDownloadName = 'overlay.webm';
-      if (overlayPreviewFrameImg) {
-        overlayPreviewFrameImg.hidden = true;
-        overlayPreviewFrameImg.removeAttribute('src');
-      }
-      if (overlayPreviewVideo) {
-        overlayPreviewVideo.pause();
-        overlayPreviewVideo.muted = true;
-        overlayPreviewVideo.removeAttribute('src');
-        overlayPreviewVideo.load();
-      }
-      if (overlayCompareDrawtextVideo) {
-        overlayCompareDrawtextVideo.pause();
-        overlayCompareDrawtextVideo.removeAttribute('src');
-        overlayCompareDrawtextVideo.load();
-      }
-      if (overlayCompareCanvasVideo) {
-        overlayCompareCanvasVideo.pause();
-        overlayCompareCanvasVideo.removeAttribute('src');
-        overlayCompareCanvasVideo.load();
-      }
-      revokeOverlayBlobUrl(overlayPreviewObjectUrl);
-      revokeOverlayBlobUrl(overlayCompareDrawtextUrl);
-      revokeOverlayBlobUrl(overlayCompareCanvasUrl);
-      if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
-    };
-
-    devOverlayBtn?.addEventListener('click', () => {
-      void (async () => {
-        const edited = segmentEditor.getEditedResult();
-        const segments: TranscriptSegment[] = edited?.segments ?? [];
-        if (segments.length === 0) {
-          console.warn('[Reddit Voice Notes] Canvas overlay dev harness: no segments to render');
-          return;
-        }
-
-        const style = mergeStyleFromControls();
-        const durationSeconds = resolveOverlayDurationSeconds(edited);
-
-        if (overlayPreviewModal) overlayPreviewModal.hidden = false;
-        setOverlayPreviewMode('single');
-        overlayPreviewDownloadName = 'overlay.webm';
-        if (overlayPreviewStatus) {
-          overlayPreviewStatus.textContent =
-            `Rendering ${segments.length} cue(s)… (capture + FFmpeg finalize)`;
-        }
-        if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
-        if (overlayPreviewFrameImg) {
-          overlayPreviewFrameImg.hidden = !overlaySingleFrameDebugInput?.checked;
-          overlayPreviewFrameImg.removeAttribute('src');
-        }
-
-        const singleFrameDebug = overlaySingleFrameDebugInput?.checked === true;
-        const themeBarColor = handlers?.getThemeBarColor?.();
-
-        console.time('canvas-overlay-render');
-        try {
-          const objectUrl = await renderSubtitleOverlayForPreview(
-            segments,
-            style,
-            durationSeconds,
-            {
-              width: CANVAS_WIDTH,
-              height: CANVAS_HEIGHT,
-              fps: 30,
-              background: 'transparent',
-              offline: true,
-              themeBarColor,
-              singleFrameDebug,
-              onFrameDebug: singleFrameDebug
-                ? async (info) => {
-                    if (overlayPreviewFrameImg) {
-                      overlayPreviewFrameImg.hidden = false;
-                      overlayPreviewFrameImg.src = info.imageUrl;
-                    }
-                    if (overlayPreviewStatus) {
-                      overlayPreviewStatus.textContent =
-                        `Frame ${info.frameIndex + 1} @ ${info.timestampSeconds.toFixed(2)}s…`;
-                    }
-                  }
-                : undefined,
-            },
-          );
-          console.timeEnd('canvas-overlay-render');
-
-          revokeOverlayBlobUrl(overlayPreviewObjectUrl);
-          overlayPreviewObjectUrl = objectUrl;
-
-          if (overlayPreviewVideo) {
-            overlayPreviewVideo.src = objectUrl;
-            void overlayPreviewVideo.play().catch(() => {});
-          }
-          if (overlayPreviewFrameImg && !singleFrameDebug) {
-            overlayPreviewFrameImg.hidden = true;
-          }
-          if (overlayPreviewStatus) {
-            overlayPreviewStatus.textContent =
-              `Overlay ready (${durationSeconds.toFixed(1)}s, ${segments.length} cue(s)).`;
-          }
-          if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
-        } catch (error: unknown) {
-          console.timeEnd('canvas-overlay-render');
-          const message = error instanceof Error ? error.message : String(error);
-          if (overlayPreviewStatus) {
-            overlayPreviewStatus.textContent = `Render failed: ${message}`;
-          }
-          console.error('[Reddit Voice Notes] Canvas overlay dev harness failed', error);
-        }
-      })();
-    });
-
-    devOverlayCompareBtn?.addEventListener('click', () => {
-      void (async () => {
-        const edited = segmentEditor.getEditedResult();
-        if (!edited) {
-          console.warn('[Reddit Voice Notes] Overlay compare: no transcript loaded');
-          return;
-        }
-        const segments: TranscriptSegment[] = edited.segments ?? [];
-        if (segments.length === 0) {
-          console.warn('[Reddit Voice Notes] Overlay compare: no segments to render');
-          return;
-        }
-
-        const style = mergeStyleFromControls();
-        const durationSeconds = resolveOverlayDurationSeconds(edited);
-        const themeBarColor = handlers?.getThemeBarColor?.();
-
-        if (overlayPreviewModal) overlayPreviewModal.hidden = false;
-        setOverlayPreviewMode('compare');
-        overlayPreviewDownloadName = 'overlay.webm';
-        if (overlayPreviewStatus) {
-          overlayPreviewStatus.textContent =
-            `Comparing drawtext vs canvas (${segments.length} cue(s))…`;
-        }
-        if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
-        if (overlayPreviewFrameImg) overlayPreviewFrameImg.hidden = true;
-        if (overlayPreviewVideo) {
-          overlayPreviewVideo.pause();
-          overlayPreviewVideo.removeAttribute('src');
-          overlayPreviewVideo.load();
-        }
-
-        console.time('canvas-overlay-compare');
-        try {
-          const result = await renderSubtitleOverlayComparison(
-            edited,
-            style,
-            durationSeconds,
-            themeBarColor,
-            {
-              onCanvasOverlayReady: (canvasUrl) => {
-                revokeOverlayBlobUrl(overlayCompareCanvasUrl);
-                overlayCompareCanvasUrl = canvasUrl;
-                overlayPreviewObjectUrl = canvasUrl;
-                if (overlayCompareCanvasVideo) {
-                  overlayCompareCanvasVideo.src = canvasUrl;
-                  void overlayCompareCanvasVideo.play().catch(() => {});
-                }
-                if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
-              },
-            },
-          );
-          console.timeEnd('canvas-overlay-compare');
-
-          if (overlayCompareDrawtextUrl !== result.drawtextBakedUrl) {
-            revokeOverlayBlobUrl(overlayCompareDrawtextUrl);
-          }
-          if (overlayCompareCanvasUrl !== result.canvasOverlayUrl) {
-            revokeOverlayBlobUrl(overlayCompareCanvasUrl);
-          }
-          overlayCompareDrawtextUrl = result.drawtextBakedUrl;
-          overlayCompareCanvasUrl = result.canvasOverlayUrl;
-          overlayPreviewObjectUrl = result.canvasOverlayUrl;
-
-          if (overlayCompareDrawtextVideo) {
-            overlayCompareDrawtextVideo.src = result.drawtextBakedUrl;
-            void overlayCompareDrawtextVideo.play().catch(() => {});
-          }
-          if (overlayCompareCanvasVideo) {
-            overlayCompareCanvasVideo.src = result.canvasOverlayUrl;
-            void overlayCompareCanvasVideo.play().catch(() => {});
-          }
-          if (overlayPreviewStatus) {
-            overlayPreviewStatus.textContent =
-              'Side-by-side ready — Old drawtext (full MP4) vs New Canvas (overlay.webm).';
-          }
-          if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
-        } catch (error: unknown) {
-          console.timeEnd('canvas-overlay-compare');
-          const message = error instanceof Error ? error.message : String(error);
-          if (overlayPreviewStatus) {
-            overlayPreviewStatus.textContent = `Compare failed: ${message}`;
-          }
-          console.error('[Reddit Voice Notes] Overlay compare failed', error);
-        }
-      })();
-    });
-
-    devOverlayBakeBtn?.addEventListener('click', () => {
-      void (async () => {
-        const edited = segmentEditor.getEditedResult();
-        if (!edited) {
-          console.warn('[Reddit Voice Notes] Canvas overlay bake: no transcript loaded');
-          return;
-        }
-        const segments: TranscriptSegment[] = edited.segments ?? [];
-        if (segments.length === 0) {
-          console.warn('[Reddit Voice Notes] Canvas overlay bake: no segments to render');
-          return;
-        }
-
-        const style = mergeStyleFromControls();
-        const durationSeconds = resolveOverlayDurationSeconds(edited);
-        const themeBarColor = handlers?.getThemeBarColor?.();
-
-        if (overlayPreviewModal) overlayPreviewModal.hidden = false;
-        setOverlayPreviewMode('baked');
-        overlayPreviewDownloadName = 'final.mp4';
-        if (overlayPreviewStatus) {
-          overlayPreviewStatus.textContent =
-            `Canvas overlay bake (${segments.length} cue(s)) — render + composite…`;
-        }
-        if (overlayPreviewDownload) overlayPreviewDownload.disabled = true;
-        if (overlayPreviewFrameImg) overlayPreviewFrameImg.hidden = true;
-        if (overlayCompareDrawtextVideo) {
-          overlayCompareDrawtextVideo.pause();
-          overlayCompareDrawtextVideo.removeAttribute('src');
-          overlayCompareDrawtextVideo.load();
-        }
-        if (overlayCompareCanvasVideo) {
-          overlayCompareCanvasVideo.pause();
-          overlayCompareCanvasVideo.removeAttribute('src');
-          overlayCompareCanvasVideo.load();
-        }
-
-        console.time('canvas-overlay-bake');
-        const devBakeStartedAt = performance.now();
-        try {
-          const bakedBlob = await bakeWithCanvasOverlay({
-            editedResult: edited,
-            style,
-            durationSeconds,
-            themeBarColor,
-            onProgress: (ratio, stage) => {
-              if (overlayPreviewStatus) {
-                const chronos = snapshotBakeChronos(devBakeStartedAt, ratio);
-                const chronosLine = formatBakeChronosLine(chronos);
-                const stageLabel =
-                  stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')
-                    ? 'Rendering'
-                    : stage.includes('alpha-normalize')
-                      ? 'Preparing overlay'
-                      : stage.includes('composite') || stage.startsWith('burnin')
-                        ? 'Compositing'
-                        : 'Baking';
-                overlayPreviewStatus.textContent =
-                  `${stageLabel}… ${Math.round(ratio * 100)}% · ${chronosLine}`;
-              }
-            },
-          });
-          console.timeEnd('canvas-overlay-bake');
-
-          const objectUrl = URL.createObjectURL(bakedBlob);
-          revokeOverlayBlobUrl(overlayPreviewObjectUrl);
-          overlayPreviewObjectUrl = objectUrl;
-
-          if (overlayPreviewVideo) {
-            overlayPreviewVideo.src = objectUrl;
-            overlayPreviewVideo.muted = false;
-            void overlayPreviewVideo.play().catch(() => {});
-          }
-          if (overlayPreviewStatus) {
-            overlayPreviewStatus.textContent =
-              `final.mp4 ready — canvas overlay composite (${durationSeconds.toFixed(1)}s, ${segments.length} cue(s)).`;
-          }
-          if (overlayPreviewDownload) overlayPreviewDownload.disabled = false;
-        } catch (error: unknown) {
-          console.timeEnd('canvas-overlay-bake');
-          const message = error instanceof Error ? error.message : String(error);
-          if (overlayPreviewStatus) {
-            overlayPreviewStatus.textContent = `Canvas bake failed: ${message}`;
-          }
-          console.error('[Reddit Voice Notes] Canvas overlay bake failed', error);
-        }
-      })();
-    });
-
-    overlayPreviewClose?.addEventListener('click', hideOverlayPreviewModal);
-
-    overlayPreviewDownload?.addEventListener('click', () => {
-      if (!overlayPreviewObjectUrl) return;
-      const anchor = document.createElement('a');
-      anchor.href = overlayPreviewObjectUrl;
-      anchor.download = overlayPreviewDownloadName;
-      anchor.click();
-    });
-  }
+  const overlayLabHandle = isSubtitleOverlayLabEnabled()
+    ? mountSubtitleOverlayLab(panel, {
+        getBaseStyle: mergeStyleFromControls,
+        getSessionEdited: () => segmentEditor.getEditedResult(),
+        getThemeBarColor: handlers?.getThemeBarColor,
+      })
+    : { dispose() {} };
 
   bakeUnsavedCancelBtn.addEventListener('click', () => {
     hideBakeUnsavedDialog();
@@ -1880,18 +1397,7 @@ export function mountSubtitleControls(
     },
     dispose(): void {
       bakeAbort?.abort();
-      if (overlayPreviewObjectUrl) {
-        URL.revokeObjectURL(overlayPreviewObjectUrl);
-        overlayPreviewObjectUrl = null;
-      }
-      if (overlayCompareDrawtextUrl) {
-        URL.revokeObjectURL(overlayCompareDrawtextUrl);
-        overlayCompareDrawtextUrl = null;
-      }
-      if (overlayCompareCanvasUrl) {
-        URL.revokeObjectURL(overlayCompareCanvasUrl);
-        overlayCompareCanvasUrl = null;
-      }
+      overlayLabHandle.dispose();
       hideDisableGuard();
       clearPendingTranscriptTimer();
       document.removeEventListener('keydown', onDisableGuardKeydown);

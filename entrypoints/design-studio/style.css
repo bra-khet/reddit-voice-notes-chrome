@@ -1406,25 +1406,84 @@ body {
   overflow-y: auto;
 }
 
-/* v5.3.4 — dev harness buttons wrap inside the subtitles subpanel */
-.studio__subtitle-dev-harness {
+/* v5.3.4 — Subtitle Overlay Lab (Phase 5.4 QA panel) */
+.studio__subtitle-overlay-lab {
   margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(74, 74, 138, 0.35);
+  padding: 10px 12px;
+  border: 1px solid rgba(74, 74, 138, 0.45);
+  border-radius: 10px;
+  background: rgba(18, 18, 28, 0.55);
 }
 
-.studio__subtitle-dev-harness .studio__inline-actions {
+.studio__subtitle-overlay-lab-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio__subtitle-overlay-lab-summary::-webkit-details-marker {
+  display: none;
+}
+
+.studio__subtitle-overlay-lab-intro {
+  margin: 8px 0 10px;
+}
+
+.studio__subtitle-overlay-lab-effects {
+  margin-bottom: 8px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(74, 74, 138, 0.25);
+  border-bottom: 1px solid rgba(74, 74, 138, 0.25);
+}
+
+.studio__subtitle-overlay-lab-inner-border {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.studio__subtitle-overlay-lab-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.studio__subtitle-overlay-lab-hex {
+  font-size: 0.78rem;
+  color: #b8b8bc;
+}
+
+.studio__subtitle-overlay-lab-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.studio__subtitle-dev-harness .popup__profile-btn {
+.studio__subtitle-overlay-lab-actions .popup__profile-btn {
   flex: 1 1 auto;
-  min-width: min(100%, 11.5rem);
+  min-width: min(100%, 10.5rem);
   white-space: normal;
   text-align: center;
   line-height: 1.25;
+}
+
+.studio__subtitle-overlay-lab-downloads {
+  flex-wrap: wrap;
+}
+
+.studio__subtitle-overlay-lab-downloads .popup__profile-btn {
+  flex: 1 1 auto;
+  min-width: min(100%, 7.5rem);
+  white-space: normal;
+  font-size: 0.82rem;
 }
 
 .studio__subtitle-overlay-compare {

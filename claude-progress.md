@@ -15,7 +15,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 | 3 — paint fidelity + compare harness + glow fix | DONE, user-QA'd | `c54e874`, `6a609ce`, `2334c6b` |
 | **3.5 — canvas visual polish** | **DONE**, user-QA'd | `dbbc9cb` … `432683a` |
 | **4 — burn-in pipeline integration** | **DONE**, user-QA'd | `ac2d52e` … `6641d35` |
-| 5 — production polish, lab panel, arch docs | **IN PROGRESS** (5.1–5.3 done) | — |
+| 5 — production polish, lab panel, arch docs | **IN PROGRESS** (5.1–5.4 done) | — |
 
 **User QA (2026-07-01, all pass):** single overlay render, download, scrub; compare harness (drawtext + canvas both visible); halo + border modes functional after duplicate-layer glow fix. **Remaining aesthetic:** halo too sharp / border-like → Phase 3.5.1.
 
@@ -59,7 +59,9 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 5.3 (2026-07-02):** Canvas render perf guard — production bake aborts slow offline render (2.5–3 min budget) and falls back to drawtext. **Stress QA timeouts:** `FINALIZE_TIMEOUT_MS` 6 min; render guard cap 3 min / floor 2.5 min. Bake UI hint for multi-minute long-clip bakes. Perf optimization deferred → `docs/future-ideas.md`.
 
-**Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
+**Phase 5.4 (2026-07-02):** Subtitle Overlay Lab — persistent gated QA panel replacing inline dev harness. Synthetic segment sets (short 3 / medium 8 / long 16 cues), lab effect toggles, backdrop radius slider, inner-border color preview, side-by-side compare, separate downloads (overlay / drawtext / composite / timing JSON), one-click full canvas bake. Modules: `subtitle-overlay-lab.ts`, `subtitle-overlay-lab-segments.ts`. Tests: `test-overlay-lab-segments.mjs`.
+
+**Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, `subtitle-overlay-lab.ts`, `subtitle-controls.ts`.
 
 **Phase 3.5 scope (before Phase 4):** (1) halo diffusion, (2) dual contrasting border, (3) opinionated text gradient, (4) backdrop rounding QA/tune (`borderRadius` already wired), (5) rainbow per-frame glow. Canvas-only — no drawtext layer explosion. See design doc Phase 3.5 for full spec.
 
