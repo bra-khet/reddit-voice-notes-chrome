@@ -65,7 +65,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 5.6 (2026-07-03):** User QA via Overlay Lab timing logs (`.ignore/sub-QA-harness-logs/`) + stress notes — 3–534 cues, 11–120 s clips, rich effects; full bake 534 cues / 62 s OK (~286 s). Perf analysis recorded in design doc § Performance QA.
 
-**v5.3.4 gate:** Phase 5 complete — branch ready for merge/tag after final user sign-off.
+**v5.3.4 release (2026-07-03):** Merged `feature/v5.3.4-subtitle-canvas-overlay` → `main`. Tags: `5.3.4-phase-5-complete`, `5.3.4-complete`. Package `5.3.4`. Push deferred (user).
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, `subtitle-overlay-lab.ts`, `subtitle-controls.ts`.
 

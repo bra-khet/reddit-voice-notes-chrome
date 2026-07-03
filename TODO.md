@@ -11,7 +11,7 @@
 | 1–3 | DONE (`2c8c450` … `2334c6b`) |
 | **3.5 — canvas visual polish** | **DONE** (`5.3.4-phase-3.5-complete` @ `432683a`) |
 | **4 — burn-in integration** | **DONE**, user-QA'd (`5.3.4-phase-4-complete`) |
-| 5 — lab panel, arch docs, perf QA | **DONE** (`ed4265f` …) |
+| 5 — lab panel, arch docs, perf QA | **DONE** — merged to `main` (`5.3.4-complete`) |
 
 **Future (post–v5.3.4):** Canvas subtitle bake performance — see `docs/future-ideas.md` § Canvas Subtitle Bake Performance (stress QA: 120s clips ~6–8+ min total).
 
