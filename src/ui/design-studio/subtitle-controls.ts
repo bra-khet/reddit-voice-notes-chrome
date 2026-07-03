@@ -314,6 +314,9 @@ export function renderSubtitleControlFields(): string {
             <p class="popup__field-desc studio__bake-repeatable-hint" data-subtitle-bake-repeatable>
               Repeatable — rebake anytime after transcript edits or a fresh recording.
             </p>
+            <p class="popup__field-desc studio__bake-duration-hint">
+              Canvas bakes on longer clips or with rich effects (glow, gradient, dual border) may take several minutes — progress updates below while you wait.
+            </p>
           </div>
         </div>
         ${CANVAS_OVERLAY_DEV_HARNESS_HTML}

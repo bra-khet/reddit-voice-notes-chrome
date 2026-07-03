@@ -13,6 +13,8 @@
 | **4 — burn-in integration** | **DONE**, user-QA'd (`5.3.4-phase-4-complete`) |
 | 5 — lab panel, arch docs | **IN PROGRESS** (5.1–5.3 done) |
 
+**Future (post–v5.3.4):** Canvas subtitle bake performance — see `docs/future-ideas.md` § Canvas Subtitle Bake Performance (stress QA: 120s clips ~6–8+ min total).
+
 ### Phase 3.5 (summary — see design doc for full spec)
 
 1. Halo diffusion — **done** (integral normalize `324ab90`)

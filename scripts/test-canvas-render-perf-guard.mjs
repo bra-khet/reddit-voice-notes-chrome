@@ -52,8 +52,8 @@ check('budget respects minimum floor', () => {
   assert.equal(canvasRenderPerfBudgetMs(0.5), CANVAS_RENDER_PERF_MIN_MS);
 });
 
-check('budget scales with clip duration', () => {
-  assert.equal(canvasRenderPerfBudgetMs(8), 96_000);
+check('budget scales with clip duration (floored to minimum)', () => {
+  assert.equal(canvasRenderPerfBudgetMs(8), CANVAS_RENDER_PERF_MIN_MS);
 });
 
 check('budget respects maximum cap', () => {

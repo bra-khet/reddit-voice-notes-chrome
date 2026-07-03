@@ -210,3 +210,39 @@ Per-frame animated glow color on canvas overlay when **Glow color = Hue rotate**
 - Phase offset / direction (reverse sweep).
 - Apply rotation to dual-border outer ring only vs halo only.
 - Drawtext fallback approximation (stepped hue tiers) — likely never; canvas-first.
+
+---
+
+## Canvas Subtitle Bake — Performance (v5.3.4 QA)
+
+**Priority:** Medium — revisit after v5.3.4 ships  
+**Effort:** Large (pipeline / architecture)  
+**Status:** Documented from stress QA; acceptable for now
+
+### Observed (2026-07 stress tests, `.ignore/5.3.4-perfCheck-QA-usernotes.md`)
+
+Full canvas bake wall time scales with clip length and cue/effect load:
+
+| Clip | Cues | Render | Prepare overlay (VP8A normalize) | Composite | Total |
+|------|------|--------|-----------------------------------|-----------|-------|
+| 120s | 15–40 | ~120s | ~210–240s | ~30–45s | ~6–6.5 min |
+| 120s | 121 + rich effects | ~120s | ~330s | ~50s | ~8+ min |
+| 60s | 20 | ~65s | ~120–165s | ~20s | ~3.5 min |
+
+Offline canvas render is ~1:1 with clip duration. **Prepare overlay** (wasm `libvpx` yuva re-encode) dominates on long / heavy clips.
+
+### Current mitigations (v5.3.4)
+
+- Chronos meter + stage labels during bake.
+- User-facing hint: longer clips / rich effects may take several minutes.
+- `FINALIZE_TIMEOUT_MS` = 6 min (`overlay-webm-finalize.ts`).
+- Canvas render perf guard: 2.5–3 min budget → drawtext fallback (render phase only).
+
+### Future directions (out of scope v5.3.4)
+
+- Skip or fast-path alpha normalize when MediaRecorder blob is already composite-safe.
+- Lower overlay fps or adaptive fps for long clips.
+- Worker / OffscreenCanvas render (if MediaRecorder constraints allow).
+- Parallel cue batches or incremental overlay segments.
+- Hardware-accelerated encode outside wasm FFmpeg where MV3 permits.
+- Progress chronos tied to FFmpeg `progress.time` during normalize/composite (see Chronos Indicator idea above).

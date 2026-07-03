@@ -4,12 +4,17 @@
  * Sync: subtitle-bake.ts (catch + fallback), subtitle-canvas-bake.ts (timer + abort).
  */
 
-/** Observed ~few s wall per 1s of video; budget is generous to avoid false positives. */
+/**
+ * Canvas offline render scales ~1:1 with clip length (QA: 60s clip ≈ 65s render, 120s ≈ 120s).
+ * Budget floor 2.5 min; cap 3 min — avoids false drawtext fallback on normal long clips.
+ */
 export const CANVAS_RENDER_PERF_SECONDS_PER_CLIP_SECOND = 12;
 
-export const CANVAS_RENDER_PERF_MIN_MS = 25_000;
+/** Minimum render budget — ~2.5 min (QA: typical clips finish render in just over 2 min). */
+export const CANVAS_RENDER_PERF_MIN_MS = 150_000;
 
-export const CANVAS_RENDER_PERF_MAX_MS = 120_000;
+/** Maximum render budget — 3 min before drawtext fallback. */
+export const CANVAS_RENDER_PERF_MAX_MS = 180_000;
 
 export class CanvasRenderPerfExceededError extends Error {
   readonly budgetMs: number;

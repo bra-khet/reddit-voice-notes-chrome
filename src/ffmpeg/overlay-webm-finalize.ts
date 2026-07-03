@@ -16,7 +16,8 @@ const INPUT_WEBM = 'overlay-raw.webm';
 const OUTPUT_WEBM = 'overlay-final.webm';
 const COMPOSITE_ALPHA_INPUT = 'overlay-alpha-in.webm';
 const COMPOSITE_ALPHA_OUTPUT = 'overlay-alpha-out.webm';
-const FINALIZE_TIMEOUT_MS = 45_000;
+/** VP8 alpha normalize can exceed 5 min on 2:00 clips with many cues (QA stress tests). */
+const FINALIZE_TIMEOUT_MS = 360_000;
 
 async function safeDeleteFile(ffmpeg: FFmpeg, path: string): Promise<void> {
   try {

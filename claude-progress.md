@@ -57,7 +57,7 @@ Offload per-cue glow/border from FFmpeg `drawtext` (BUG-035 / 64-layer ceiling) 
 
 **Phase 5.2 (2026-07-02):** Shared `prepareSegmentsForSubtitleBake()` — drawtext + canvas overlay use one segment-prep path (blank/scaffold filter, missing timings, min duration, clip clamp). Tests: `test-bake-segments.mjs`.
 
-**Phase 5.3 (2026-07-02):** Canvas render perf guard — production bake aborts slow offline render (12s/clip-second budget, 25–120s) and falls back to drawtext with console warning. Dev full-pipeline bake unchanged. Tests: `test-canvas-render-perf-guard.mjs`.
+**Phase 5.3 (2026-07-02):** Canvas render perf guard — production bake aborts slow offline render (2.5–3 min budget) and falls back to drawtext. **Stress QA timeouts:** `FINALIZE_TIMEOUT_MS` 6 min; render guard cap 3 min / floor 2.5 min. Bake UI hint for multi-minute long-clip bakes. Perf optimization deferred → `docs/future-ideas.md`.
 
 **Key modules:** `subtitle-overlay-renderer.ts`, `subtitle-overlay-fonts.ts`, `overlay-webm-finalize.ts`, `subtitle-overlay-compare.ts`, DEV UI in `subtitle-controls.ts`.
 

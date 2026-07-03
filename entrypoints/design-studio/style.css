@@ -1796,6 +1796,13 @@ body {
   line-height: 1.35;
 }
 
+.studio__bake-duration-hint {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--studio-text-muted, #a8a4c0);
+}
+
 .studio__subtitle-disable-guard {
   position: fixed;
   inset: 0;
