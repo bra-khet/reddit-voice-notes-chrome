@@ -225,11 +225,12 @@ Per-frame animated glow color on canvas overlay when **Glow color = Hue rotate**
 - Mode B: full re-splice from Vosk original (promoted as **Auto-fix / Recommended**).
 - Fit status + Validate all cues + two-tier real-canvas measurement.
 
-### QA notes (2026-07)
+### QA notes (2026-07) — **PASS** (logic)
 
 - Logic and proposal quality are good; primary gap is **visual sophistication** — users need before/after preview, inline diff, or timeline context to trust multi-cue proposals.
 - **Recommended proposal highlight:** amber `Recommended` tag + primary **Auto-fix** button on full re-splice (shipped). Future: extend to best Mode A pick when heuristics can rank word-shift vs font tweak reliably.
 - **Default path for new users:** full re-splice from original transcript — lowest friction, most reliable; keep visually dominant until a richer UI exists.
+- **Toolbar affordance (shipped):** when any cue shows ⚠ LONG, **Smart Adjust…** button in the transcript editor gains amber pulse + hint (“try Auto-fix inside Smart Adjust”).
 
 ### Future directions
 

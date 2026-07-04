@@ -1,52 +1,38 @@
 # TODO
 
-## v5.3.6+ — Smart Split + overlay fixes (on `main`, next tag)
+## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (user QA pass)
 
-**Smart Split:** `SMART_SPLIT_WIDTH_RELAXATION = 1.5` + font headroom above 22px (`SMART_SPLIT_REFERENCE_FONT_SIZE`).  
-**BUG-036:** cue-cache overlay A/V drift — **fixed** (user QA pass).  
-**Docs:** [`docs/5.3.6-smart-split-relaxation-design.md`](docs/5.3.6-smart-split-relaxation-design.md), [`docs/bug-archive.md`](docs/bug-archive.md) BUG-036
+**Branch:** `feature/v5.3.6-smart-split-refactor` — ready to merge → `main` (rolls into next tag with BUG-036 + 24px headroom).  
+**Roadmap:** [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md)
 
-Roll into next tag (not a separate v5.3.6 patch).
+| Deliverable | Status |
+|-------------|--------|
+| Real-canvas measurement @ bake 640×360, backdrop vs frame | **done**, QA pass |
+| LONG badge / fit status / Validate All | **done**, QA pass |
+| Smart Adjust (Auto-fix re-splice + Mode A) | **done**, QA pass |
+| Smart Adjust button amber highlight when ⚠ LONG cues present | **done** |
 
-**Phase 1 in progress** on `feature/v5.3.6-smart-split-refactor` — see [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md).
+**Deferred:** Smart Adjust rich visual UI → `docs/future-ideas.md` § Smart Adjust UX.
 
-| Step | Status |
-|------|--------|
-| `measureCueRenderedSize()` export | **done** |
-| Two-tier heuristic filter constants | **done** |
-| `transcript-edit-diff.ts` (per-cue manual-edit) | **done** |
-| Wire two-tier + real measure into LONG badge | **done** |
-| Fit status + Validate All Cues | **done** |
-| Smart Adjust Mode A (minimal fixes) | **done** |
-| Smart Adjust Mode B (full re-splice) | **done** |
+**Next phase:** Oklch (v5.3.7 / roadmap Phase 2); worker chunking (v5.3.8 / Phase 3).
 
-**Later phases:** Oklch → v5.3.7 (Phase 2); worker/chunking → v5.3.8 (Phase 3).
+## v5.3.6+ — on `main` (next tag)
+
+**Includes:** tagged `v5.3.6` baseline + BUG-036 + 24px headroom + Phase 1 (after merge).
 
 ## v5.3.6 — Smart Split relaxation — **TAGGED** (`v5.3.6`)
 
 **Release notes:** [`docs/release-notes-v5.3.6.md`](docs/release-notes-v5.3.6.md)
 
-## v5.3.5 — Cue-stable overlay caching — **COMPLETE** (merged 2026-07-04)
+## v5.3.5 — Cue-stable overlay caching — **COMPLETE**
 
-**Tag:** `v5.3.5` (push deferred)  
-**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md)  
-**Release notes:** [`docs/release-notes-v5.3.5.md`](docs/release-notes-v5.3.5.md)
+**Tag:** `v5.3.5` (push deferred) · [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md)
 
-Speed-up goals beyond cue-cache (pacing floor, VP8A normalize, worker chunking) → **v5.3.7** — see `docs/future-ideas.md` § Canvas Subtitle Bake Performance.
+## v5.3.4 — Subtitle canvas overlay — **COMPLETE**
 
-## Next — v5.3.7 (planned)
+**Tag:** `v5.3.4` · [`docs/v5.3.4-subtitle-canvas-overlay.md`](docs/v5.3.4-subtitle-canvas-overlay.md)
 
-| Doc | Topic |
-|-----|-------|
-| `docs/5.3.7-worker-and-chunked-parallelization-design.md` | Worker + temporal chunking; burst capture |
-
-## v5.3.4 — Subtitle canvas overlay (complete)
-
-**Tag:** `v5.3.4`  
-**Source of truth:** [`docs/v5.3.4-subtitle-canvas-overlay.md`](docs/v5.3.4-subtitle-canvas-overlay.md)  
-**Release notes:** [`docs/release-notes-v5.3.4.md`](docs/release-notes-v5.3.4.md)
-
-### Restore / test (current stable)
+### Restore / test (Phase 1 branch)
 
 ```bash
 git checkout feature/v5.3.6-smart-split-refactor && npm install && npm run dev
@@ -57,3 +43,5 @@ node scripts/test-smart-adjust.mjs
 node scripts/test-overlay-frame-pacing.mjs
 node scripts/test-cue-cache.mjs
 ```
+
+Design Studio → Subtitles → **Edit transcript** → Validate all / Smart Adjust when ⚠ LONG cues appear.

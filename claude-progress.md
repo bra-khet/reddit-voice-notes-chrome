@@ -1,20 +1,38 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.6 Phase 1 — Editor Intelligence — **IN PROGRESS**
+## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (user QA pass, hand-off ready)
 
-**Branch:** `feature/v5.3.6-smart-split-refactor`  
-**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` (Oklch → v5.3.7, worker/chunking → v5.3.8)
+**Branch:** `feature/v5.3.6-smart-split-refactor` → merge to `main` for next tag  
+**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` · **Commits:** `c2628ef` … `9257546` + attention affordance
 
-**Shipped on branch:**
-- `measureCueRenderedSize()` — reuses `paintCue` offscreen, no MediaRecorder
-- Two-tier heuristic filter + debounced real-canvas measure in transcript editor
-- Per-cue fit status line, **Validate all cues**, **Smart Adjust** modal (Mode A word-shift / global font + Mode B re-splice preserve/full)
-- `transcript-edit-diff.ts`, `smart-adjust.ts`, `subtitle-caption-fit.ts`
-- Tests: `test-cue-measurement.mjs`, `test-transcript-edit-diff.mjs`, `test-smart-adjust.mjs`, extended `test-smart-split.mjs`
+### Shipped
 
-**QA fix (2026-07):** LONG / Validate All used Smart Split budget on 320px canvas; bake is 640×360. Overflow authority is now **backdrop plate vs frame edge** only. Validate All no longer overwrites canvas cache with heuristic refresh.
+- Bake-accurate overflow: **640×360** canvas, **backdrop plate vs frame edge** (not Smart Split ink budget)
+- LONG badge, per-cue fit status (`Fits comfortably` / `Near edge` / `Needs fix`), **Validate all cues**
+- **Smart Adjust:** amber **Auto-fix** (full re-splice) + Mode A (word-shift, global font −1px)
+- **Smart Adjust button highlight** when any cue shows ⚠ LONG — guides user to Auto-fix
+- Modules: `subtitle-caption-fit.ts`, `subtitle-cue-measurement.ts`, `smart-adjust.ts`, `transcript-edit-diff.ts`, `smart-adjust-modal.ts`
+- Tests: 32+ checks across `test-smart-split`, `test-cue-measurement`, `test-transcript-edit-diff`, `test-smart-adjust`
 
-**Next:** re-QA LONG badge + Validate All on 22/24px dense transcripts; Smart Adjust UX polish tracked in `docs/future-ideas.md`.
+### User QA (2026-07) — **PASS**
+
+| Area | Result |
+|------|--------|
+| LONG badge @ 22–24px | Accurate after bake-frame fix; ~3px reported overflow matches visual edge |
+| Fit status (canvas / near edge) | Accurate |
+| Validate all summary vs per-cue UI | Consistent |
+| Auto-fix re-splice | Looks good, works well — preferred default path |
+| Font resize proposal | Works appropriately |
+| Smart Adjust logic | Good; richer visual UI deferred → `docs/future-ideas.md` |
+
+### Handoff
+
+```bash
+git checkout feature/v5.3.6-smart-split-refactor && npm install && npm run dev
+# node scripts/test-*.mjs (see TODO.md)
+```
+
+**Next:** merge Phase 1 + post-`v5.3.6` fixes to `main`, tag next release; Phase 2 Oklch per roadmap.
 
 ---
 

@@ -187,15 +187,25 @@ export function renderSubtitleSegmentEditorFields(): string {
           <p class="studio__transcript-dialog-copy popup__field-desc" style="margin-top:4px;opacity:0.65;">
             Keep each cue to 1–2 short phrases to avoid text overflow. Fit status uses real-canvas
             measurement when a cue is near the width limit — ⚠ LONG marks cues that will trail off
-            screen; use ✂ Split or Smart Adjust.
+            screen; use ✂ Split or the highlighted <strong>Smart Adjust → Auto-fix</strong> button.
           </p>
           <div class="studio__transcript-modal-tools">
             <button type="button" class="popup__profile-btn" data-transcript-validate-all>
               Validate all cues
             </button>
-            <button type="button" class="popup__profile-btn studio__smart-adjust-open" data-transcript-smart-adjust>
+            <button
+              type="button"
+              class="popup__profile-btn studio__smart-adjust-open"
+              data-transcript-smart-adjust
+              title="Open Smart Adjust for word-shift, font, or re-splice proposals"
+            >
               Smart Adjust…
             </button>
+            <span
+              class="studio__smart-adjust-attention-hint popup__field-desc"
+              data-transcript-smart-adjust-hint
+              hidden
+            >Cues need fix — try <strong>Auto-fix</strong> inside Smart Adjust</span>
             <span class="studio__transcript-validate-summary popup__field-desc" data-transcript-validate-summary hidden></span>
           </div>
           <div class="studio__transcript-segments" data-transcript-segments></div>
@@ -286,6 +296,7 @@ export function mountSubtitleSegmentEditor(
   const addSegmentBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-add-segment]')!;
   const validateAllBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-validate-all]')!;
   const smartAdjustBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-smart-adjust]')!;
+  const smartAdjustHintEl = panel.querySelector<HTMLElement>('[data-transcript-smart-adjust-hint]')!;
   const validateSummaryEl = panel.querySelector<HTMLElement>('[data-transcript-validate-summary]')!;
 
   const smartAdjustModal = mountSmartAdjustModal(panel);
@@ -343,6 +354,39 @@ export function mountSubtitleSegmentEditor(
     return evaluateCueBakeFitHeuristic(text, metrics, metrics.style).overflows;
   }
 
+  function countOverflowingCuesInModal(metrics: CaptionMetrics): number {
+    let count = 0;
+    const rows = segmentsEl.querySelectorAll<HTMLElement>('[data-segment-index]');
+    rows.forEach((row) => {
+      const index = Number(row.dataset.segmentIndex);
+      if (!Number.isFinite(index)) return;
+      const text = stripScaffoldPlaceholder(
+        row.querySelector<HTMLTextAreaElement>('[data-segment-text]')?.value ?? '',
+      );
+      if (!text.trim()) return;
+      if (getCueOverflow(cueFitCache.get(index), text, metrics)) count += 1;
+    });
+    return count;
+  }
+
+  // CHANGED: Phase 1 QA — amber affordance on Smart Adjust when ⚠ LONG cues present.
+  function syncSmartAdjustAffordance(metrics: CaptionMetrics = buildCaptionMetrics()): void {
+    if (modalEl.hidden) {
+      smartAdjustBtn.classList.remove('studio__smart-adjust-open--attention');
+      smartAdjustHintEl.hidden = true;
+      return;
+    }
+    const overflowCount = countOverflowingCuesInModal(metrics);
+    const needsAttention = overflowCount > 0;
+    smartAdjustBtn.classList.toggle('studio__smart-adjust-open--attention', needsAttention);
+    smartAdjustHintEl.hidden = !needsAttention;
+    if (needsAttention) {
+      smartAdjustBtn.title = `${overflowCount} cue(s) need fix — open Smart Adjust and use Auto-fix`;
+    } else {
+      smartAdjustBtn.title = 'Open Smart Adjust for word-shift, font, or re-splice proposals';
+    }
+  }
+
   function syncRowFitStatus(row: HTMLElement, evaluation: CueFitEvaluation | undefined): void {
     const statusEl = row.querySelector<HTMLElement>('[data-segment-fit-status]');
     if (!statusEl) return;
@@ -365,6 +409,7 @@ export function mountSubtitleSegmentEditor(
     cueFitCache.set(index, heuristic);
     syncRowFitStatus(row, heuristic);
     syncRowOverflowUi(row, metrics, heuristic);
+    syncSmartAdjustAffordance(metrics);
 
     const timer = window.setTimeout(() => {
       cueFitDebounceTimers.delete(index);
@@ -382,6 +427,7 @@ export function mountSubtitleSegmentEditor(
         cueFitCache.set(index, evaluation);
         syncRowFitStatus(liveRow, evaluation);
         syncRowOverflowUi(liveRow, metrics, evaluation);
+        syncSmartAdjustAffordance(metrics);
       });
     }, CAPTION_FIT_DEBOUNCE_MS);
 
@@ -732,6 +778,7 @@ export function mountSubtitleSegmentEditor(
       if (text.trim()) scheduleCueFitMeasure(row, index, text, metrics);
       segmentsEl.append(row);
     }
+    syncSmartAdjustAffordance(metrics);
   }
 
   function syncModalSegmentUiFromCache(): void {
@@ -746,6 +793,7 @@ export function mountSubtitleSegmentEditor(
       syncRowFitStatus(row, evaluation);
       syncRowOverflowUi(row, metrics, evaluation);
     });
+    syncSmartAdjustAffordance(metrics);
   }
 
   function refreshModalSegmentUi(): void {
@@ -897,6 +945,7 @@ export function mountSubtitleSegmentEditor(
     clearCueFitCache();
     validateSummaryEl.hidden = true;
     validateSummaryEl.textContent = '';
+    syncSmartAdjustAffordance();
   }
 
   async function validateAllCues(forceCanvas = true): Promise<void> {

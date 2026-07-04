@@ -1558,6 +1558,35 @@ body {
   margin-bottom: 10px;
 }
 
+.studio__smart-adjust-open--attention {
+  border-color: var(--studio-amber-action-edge, #9a7210) !important;
+  background: #1a1206 !important;
+  color: var(--studio-amber-action, #d4a020) !important;
+  box-shadow: 0 0 10px rgba(212, 160, 32, 0.35);
+  animation: studio-smart-adjust-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes studio-smart-adjust-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(212, 160, 32, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(212, 160, 32, 0.5);
+  }
+}
+
+.studio__smart-adjust-attention-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--studio-amber-action, #d4a020);
+  opacity: 0.95;
+}
+
+.studio__smart-adjust-attention-hint strong {
+  font-weight: 600;
+}
+
 .studio__transcript-validate-summary {
   margin: 0;
   opacity: 0.75;
