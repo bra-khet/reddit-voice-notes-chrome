@@ -1,6 +1,6 @@
 /**
  * v5.3.5 Cue-stable overlay caching — cache keys, phase quantization, LRU storage.
- * Sync: subtitle-overlay-renderer.ts paintFrame fast path.
+ * Sync: subtitle-overlay-renderer.ts paintCueWithCache + compensated frame pacing.
  */
 
 import {

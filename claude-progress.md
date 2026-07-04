@@ -1,6 +1,18 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.6 — Smart Split Relaxation — IN PROGRESS (2026-07-04)
+## BUG-036 — Cue-cache overlay A/V drift fix (2026-07-04)
+
+**Branch:** `main` (post-v5.3.6 tag)  
+**Symptom:** baked canvas subtitles drift late vs editor timestamps; lag accumulates per cue (v5.3.5 cue cache).  
+**Cause:** `await createImageBitmap()` on cache miss + fixed post-paint wait stretched overlay WebM timeline.  
+**Fix:** sync miss blit + background cache populate; `compensatedCaptureWaitMs()` frame pacing.  
+**Tests:** `node scripts/test-overlay-frame-pacing.mjs` (5/5)  
+**Docs:** `docs/bug-archive.md` BUG-036, `docs/5.3.5-cue-stable-overlay-caching-design.md` §12  
+**Pending:** manual re-bake QA on dense clip
+
+---
+
+## v5.3.6 — Smart Split Relaxation — COMPLETE (2026-07-04)
 
 **Branch:** `main` (patch on `v5.3.5`)  
 **Package:** `5.3.6`  
@@ -14,7 +26,7 @@
 - `test-smart-split.mjs` — 3 new relaxation checks (18 total)
 - Arch docs + release notes + version bump
 
-**Pending:** `npm run compile`, manual Design Studio QA on dense clip, commit/tag.
+**Tagged:** `v5.3.6` (user). Manual QA pass on cue length.
 
 ### Restore / test
 

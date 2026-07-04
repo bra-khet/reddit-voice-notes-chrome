@@ -1,12 +1,16 @@
 # TODO
 
-## v5.3.6 — Smart Split relaxation — **IN PROGRESS** (on `main`)
+## BUG-036 — Cue-cache overlay A/V drift — **FIX ON MAIN** (2026-07-04)
 
-**Tag:** `v5.3.6` (pending)  
-**Source of truth:** [`docs/5.3.6-smart-split-relaxation-design.md`](docs/5.3.6-smart-split-relaxation-design.md) (living design + §10 impl log)  
+**Archive:** [`docs/bug-archive.md`](docs/bug-archive.md) BUG-036 · **Design record:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md) §12
+
+Sync cache miss blit + compensated MediaRecorder frame pacing. Test: `node scripts/test-overlay-frame-pacing.mjs`. Manual dense-transcript bake QA pending.
+
+## v5.3.6 — Smart Split relaxation — **COMPLETE**
+
+**Tag:** `v5.3.6`  
+**Source of truth:** [`docs/5.3.6-smart-split-relaxation-design.md`](docs/5.3.6-smart-split-relaxation-design.md)  
 **Release notes:** [`docs/release-notes-v5.3.6.md`](docs/release-notes-v5.3.6.md)
-
-~1.5× caption width before LONG badge / ✂ Split (`SMART_SPLIT_WIDTH_RELAXATION`). Manual QA pending.
 
 ## v5.3.5 — Cue-stable overlay caching — **COMPLETE** (merged 2026-07-04)
 

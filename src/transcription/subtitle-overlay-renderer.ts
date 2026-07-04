@@ -744,31 +744,51 @@ function shouldUseCueOverlayCache(options: SubtitleOverlayRenderOptions): boolea
   return true;
 }
 
-async function paintCueWithCache(
+function scheduleCueCacheBitmap(
+  cache: CueOverlayCache,
+  key: string,
+  surface: TempPaintSurface,
+): void {
+  const source = surface.paintCanvas;
+  void createImageBitmap(source)
+    .then((bitmap) => {
+      cache.set(key, bitmap);
+    })
+    .catch(() => {
+      // Drop failed cache population — next frame repaints synchronously.
+    });
+}
+
+function paintCueWithCache(
   cache: CueOverlayCache,
   target: RenderTarget,
   cue: NormalizedCue,
   style: SubtitleStyleConfig,
   options: SubtitleOverlayRenderOptions,
   timestamp: number,
-): Promise<void> {
+): void {
   const { width, height } = options;
   const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
   const key = makeCueOverlayCacheKey(cue, style, themeBarColor, timestamp);
-  let bitmap = cache.get(key);
+  const bitmap = cache.get(key);
 
   if (!bitmap) {
+    // BUG FIX: v5.3.5 cue-cache bake subtitle drift
+    // Fix: cache miss paints + blits synchronously; populate ImageBitmap in the
+    //      background. Awaiting createImageBitmap stretched MediaRecorder frame
+    //      delivery and accumulated A/V desync (worse per cue on cache misses).
     const temp = createTempPaintSurface(width, height);
     clearFrame(temp.paintCtx, width, height, 'transparent');
     paintCue(temp.paintCtx, cue, style, width, height, themeBarColor, timestamp);
-    bitmap = await createImageBitmap(temp.paintCanvas);
-    cache.set(key, bitmap);
+    target.paintCtx.drawImage(temp.paintCanvas, 0, 0);
+    scheduleCueCacheBitmap(cache, key, temp);
+    return;
   }
 
   target.paintCtx.drawImage(bitmap, 0, 0);
 }
 
-async function paintFrame(
+function paintFrame(
   target: RenderTarget,
   cues: NormalizedCue[],
   style: SubtitleStyleConfig,
@@ -776,7 +796,7 @@ async function paintFrame(
   timestamp: number,
   durationSeconds: number,
   cueCache?: CueOverlayCache,
-): Promise<void> {
+): void {
   const { width, height } = options;
   const themeBarColor = options.themeBarColor ?? DEFAULT_THEME_BAR;
   const background = options.background ?? 'transparent';
@@ -788,7 +808,7 @@ async function paintFrame(
 
   if (useCache) {
     for (const cue of active) {
-      await paintCueWithCache(cueCache, target, cue, style, options, timestamp);
+      paintCueWithCache(cueCache, target, cue, style, options, timestamp);
     }
   } else {
     for (const cue of active) {
@@ -799,18 +819,30 @@ async function paintFrame(
   target.blitToCapture();
 }
 
-function frameCaptureIntervalMs(fps: number): number {
+/** Target wall-clock spacing between captured overlay frames. */
+export function frameCaptureIntervalMs(fps: number): number {
   return Math.max(4, Math.ceil(1000 / fps));
 }
 
-async function waitForNextCaptureTick(
+/**
+ * Remaining wait after paint so total frame period matches 1/fps.
+ * BUG FIX: v5.3.5 cue-cache bake subtitle drift — Sync: paintAndCapture loop below.
+ */
+export function compensatedCaptureWaitMs(fps: number, paintElapsedMs: number): number {
+  return Math.max(0, frameCaptureIntervalMs(fps) - paintElapsedMs);
+}
+
+async function waitForCompensatedCaptureTick(
   fps: number,
+  paintElapsedMs: number,
   singleFrameDebug: boolean,
 ): Promise<void> {
   // Single-frame debug already pauses long enough for MediaRecorder to ingest frames.
   if (singleFrameDebug) return;
+  const waitMs = compensatedCaptureWaitMs(fps, paintElapsedMs);
+  if (waitMs <= 0) return;
   await new Promise<void>((resolve) => {
-    window.setTimeout(resolve, frameCaptureIntervalMs(fps));
+    window.setTimeout(resolve, waitMs);
   });
 }
 
@@ -882,7 +914,9 @@ async function recordOverlayTimeline(
 
         const paintAndCapture = async (timestamp: number, frameIndex: number): Promise<void> => {
           throwIfRenderAborted(options.signal);
-          await paintFrame(target, cues, style, options, timestamp, durationSeconds, cueCache);
+          const paintStartedAt = performance.now();
+          paintFrame(target, cues, style, options, timestamp, durationSeconds, cueCache);
+          const paintElapsedMs = performance.now() - paintStartedAt;
 
           if (singleFrameDebug && options.onFrameDebug) {
             const png = await canvasToPngBlob(target.captureCanvas);
@@ -902,7 +936,7 @@ async function recordOverlayTimeline(
               window.setTimeout(() => r(), SINGLE_FRAME_DEBUG_PAUSE_MS);
             });
           } else {
-            await waitForNextCaptureTick(fps, singleFrameDebug);
+            await waitForCompensatedCaptureTick(fps, paintElapsedMs, singleFrameDebug);
           }
         };
 
@@ -918,8 +952,9 @@ async function recordOverlayTimeline(
 
         // Hold the final empty frame so duration metadata is written before stop().
         for (let tail = 0; tail < RECORDER_TAIL_FRAME_COUNT; tail += 1) {
-          await paintFrame(target, [], style, options, durationSeconds, durationSeconds, cueCache);
-          await waitForNextCaptureTick(fps, false);
+          const paintStartedAt = performance.now();
+          paintFrame(target, [], style, options, durationSeconds, durationSeconds, cueCache);
+          await waitForCompensatedCaptureTick(fps, performance.now() - paintStartedAt, false);
         }
 
         await new Promise<void>((r) => {

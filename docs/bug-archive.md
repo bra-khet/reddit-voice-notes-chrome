@@ -1005,6 +1005,34 @@ regressed** — the expensive 17–19-layer halo got demoted to no-glow by the b
 
 ---
 
+## BUG-036 (2026-07): canvas overlay bake subtitles drift late vs audio (v5.3.5 cue cache)
+
+### Symptoms
+
+- Baked subtitles appear progressively **later** than editor cue timestamps and base A/V.
+- Drift **accumulates** over clip length — early cues roughly on time, later cues increasingly late.
+- Worse on **dense** transcripts (more cache misses per cue / phase bucket).
+- Disabling cue cache (`enableCueCache: false`) or pre-v5.3.5 builds do not show the drift.
+
+### Root cause
+
+v5.3.5 `paintCueWithCache()` **awaited** `createImageBitmap()` on every cache miss before delivering the frame to `captureStream` + `MediaRecorder`. The render loop also applied a **fixed** post-paint wait (`frameCaptureIntervalMs`) regardless of paint duration.
+
+Each slow miss extended the wall-clock gap between captured frames without reducing the wait. The overlay WebM timeline stretched beyond `durationSeconds` while logical cue selection still used `frameIndex / fps`. FFmpeg `overlay=shortest=1` then composited misaligned PTS — lag grew linearly with accumulated miss latency (often visible as extra hold at cue ends).
+
+### Fix (2026-07, `main` post-v5.3.6)
+
+1. **Non-blocking cache population** — cache miss paints + blits synchronously; `createImageBitmap` populates LRU in the background.
+2. **Compensated frame pacing** — `compensatedCaptureWaitMs()` subtracts paint elapsed time from the target `1/fps` interval so MediaRecorder frame delivery stays on timeline.
+
+### Related files
+
+- `src/transcription/subtitle-overlay-renderer.ts` — `paintCueWithCache`, `paintAndCapture`, `compensatedCaptureWaitMs`
+- `scripts/test-overlay-frame-pacing.mjs` — pacing helper regression tests
+- `docs/5.3.5-cue-stable-overlay-caching-design.md` §12 — post-release drift fix record
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.

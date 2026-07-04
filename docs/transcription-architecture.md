@@ -222,6 +222,8 @@ cuesAtTimestamp(timestamp)
 
 **Key module:** `subtitle-overlay-cue-cache.ts` — `CueOverlayCache` (64-entry LRU), `CUE_OVERLAY_CACHE_PHASE_BUCKETS = 32`, `hashSubtitleStyleForCueCache()`, `quantizeOverlayAnimationPhase()`.
 
+**Frame pacing (BUG-036 fix):** cache misses must not block MediaRecorder delivery. Miss path blits synchronously; `createImageBitmap` populates LRU in the background. `compensatedCaptureWaitMs()` keeps wall-clock frame spacing at `1/fps` after variable paint cost.
+
 **Options:** `enableCueCache` (default true), `debug.onCacheStats` / `debug.logCacheStats`. Bypassed when `singleFrameDebug` is on. Returns `renderMetrics.cueCache` on `SubtitleOverlayResult`.
 
 **Observed limits (QA 2026-07):** Sparse transcripts hit ~99% cache rate and stay at MediaRecorder pacing floor (~1.1× render realtime). Rich wave+hue styles generate many unique phase keys; LRU cap causes evictions on animated dense clips. Full bake total time remains normalize-dominated. Spec + harness data: `docs/5.3.5-cue-stable-overlay-caching-design.md` §5.
