@@ -174,7 +174,7 @@ forkTranscribeWebm() resolves (applied | fallback | timeout)
 
 **Soft-hyphen placeholder (`­`, U+00AD):** empty scaffold slots carry a soft hyphen so they survive `.trim()`-based emptiness filters and persist through editing; everything blank-aware uses `cueTextIsBlank` / `stripScaffoldPlaceholder`. Empty slots bake to nothing (`usableSegments` skips them).
 
-**Long-segment Smart Split** (`splitSegmentIntoChunks` + `src/utils/text-metrics.ts`): a long cue is split at word boundaries into chunks that each fit one caption line (canvas measured against the preview box), with the time span divided proportionally to chunk character length. Pure + node-tested (`scripts/test-smart-split.mjs`).
+**Long-segment Smart Split** (`splitSegmentIntoChunks` + `src/utils/text-metrics.ts`): a long cue is split at word boundaries into chunks that each fit one caption line (canvas width measured with the live subtitle font). **v5.3.6:** editor overflow/Split uses `smartSplitCaptionMaxWidth()` (~1.5× preview line, `SMART_SPLIT_WIDTH_RELAXATION`) — less aggressive than v5.3.0–v5.3.5 now that canvas overlay removed the drawtext layer budget. Time span divided proportionally to chunk character length. Pure + node-tested (`scripts/test-smart-split.mjs`).
 
 Pure modules are unit-tested without a framework via esbuild bundle + `node:assert`: `test-scaffold.mjs`, `test-transcribe-failure.mjs`, `test-smart-split.mjs`, `test-burnin-budget.mjs`, `test-bake-segments.mjs`, `test-bake-chronos.mjs`, `test-canvas-render-perf-guard.mjs`, `test-overlay-lab-segments.mjs`.
 

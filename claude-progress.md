@@ -1,5 +1,30 @@
 # Reddit Voice Notes — Session Progress
 
+## v5.3.6 — Smart Split Relaxation — IN PROGRESS (2026-07-04)
+
+**Branch:** `main` (patch on `v5.3.5`)  
+**Package:** `5.3.6`  
+**Docs:** `docs/5.3.6-smart-split-relaxation-design.md` (living record), `docs/release-notes-v5.3.6.md`
+
+**Scope:** Relax Smart Split / LONG-badge width budget by **1.5×** (revised down from draft 2× after dense-transcript testing). Primary symptom: cues split too short in text length.
+
+**Shipped so far:**
+- `SMART_SPLIT_WIDTH_RELAXATION = 1.5` + `smartSplitCaptionMaxWidth()` in `text-metrics.ts` (254 → 381 px @ default geometry)
+- `subtitle-segment-editor.ts` `buildCaptionMetrics()` wired to relaxed budget
+- `test-smart-split.mjs` — 3 new relaxation checks (18 total)
+- Arch docs + release notes + version bump
+
+**Pending:** `npm run compile`, manual Design Studio QA on dense clip, commit/tag.
+
+### Restore / test
+
+```bash
+git checkout main && npm install && npm run dev
+node scripts/test-smart-split.mjs
+```
+
+---
+
 ## v5.3.5 — Cue-Stable Overlay Caching — COMPLETE (2026-07-04)
 
 **Merged:** `feature/v5.3.5-cue-stable-overlay-caching` → `main`  

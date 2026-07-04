@@ -33,10 +33,14 @@ async function bundle(entry, name) {
   return import(pathToFileURL(outfile).href);
 }
 
-const { groupWordsByWidth, textOverflowsWidth, estimateMaxWords } = await bundle(
-  'src/utils/text-metrics.ts',
-  'metrics',
-);
+const {
+  groupWordsByWidth,
+  textOverflowsWidth,
+  estimateMaxWords,
+  previewCaptionMaxWidth,
+  smartSplitCaptionMaxWidth,
+  SMART_SPLIT_WIDTH_RELAXATION,
+} = await bundle('src/utils/text-metrics.ts', 'metrics');
 const { splitSegmentIntoChunks } = await bundle(
   'src/transcription/transcript-editing.ts',
   'editing',
@@ -98,6 +102,37 @@ check('estimateMaxWords returns largest leading word count that fits', () => {
   assert.equal(estimateMaxWords('aa bb cc', 5, charMeasure), 2);
   assert.equal(estimateMaxWords('toolongword', 3, charMeasure), 0);
   assert.equal(estimateMaxWords('', 5, charMeasure), 0);
+});
+
+// ── v5.3.6 relaxed Smart Split width budget ───────────────────────────────────
+console.log('\nv5.3.6 — relaxed caption max width\n');
+
+check('smartSplitCaptionMaxWidth is ~1.5× previewCaptionMaxWidth', () => {
+  assert.equal(SMART_SPLIT_WIDTH_RELAXATION, 1.5);
+  const previewMax = previewCaptionMaxWidth();
+  const relaxedMax = smartSplitCaptionMaxWidth();
+  assert.equal(relaxedMax, Math.round(previewMax * SMART_SPLIT_WIDTH_RELAXATION));
+});
+
+check('borderline cue splits on old budget but stays single on relaxed budget', () => {
+  const previewMax = previewCaptionMaxWidth();
+  const relaxedMax = smartSplitCaptionMaxWidth();
+  // ~1.3× preview width with spaced words (groupWordsByWidth is word-based).
+  const unit = 'abcd ';
+  const unitsNeeded = Math.ceil((previewMax * 1.3) / unit.length);
+  const text = unit.repeat(unitsNeeded).trim();
+  assert.ok(charMeasure(text) > previewMax && charMeasure(text) <= relaxedMax);
+  assert.ok(groupWordsByWidth(text, previewMax, charMeasure).length > 1);
+  assert.deepEqual(groupWordsByWidth(text, relaxedMax, charMeasure), [text]);
+  assert.equal(textOverflowsWidth(text, previewMax, charMeasure), true);
+  assert.equal(textOverflowsWidth(text, relaxedMax, charMeasure), false);
+});
+
+check('genuinely wide cue still overflows and splits under relaxed budget', () => {
+  const relaxedMax = smartSplitCaptionMaxWidth();
+  const text = 'word '.repeat(Math.ceil((relaxedMax * 1.4) / 5));
+  assert.equal(textOverflowsWidth(text, relaxedMax, charMeasure), true);
+  assert.ok(groupWordsByWidth(text, relaxedMax, charMeasure).length > 1);
 });
 
 // ── transcript-editing: proportional-timing split ───────────────────────────

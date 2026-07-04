@@ -37,6 +37,20 @@ export function previewCaptionMaxWidth(canvasWidth: number = PREVIEW_CANVAS_WIDT
 }
 
 /**
+ * v5.3.6 — relaxed Smart Split / LONG-badge width budget (~50% above preview line).
+ * CHANGED: canvas overlay (v5.3.4) removed the drawtext ~64-layer ceiling; thresholds
+ * were still anchored to the old conservative preview-line fit. User testing found 2×
+ * too loose; 1.5× reduces unnecessary fragmentation while still flagging true overflow.
+ * WHY: dense transcripts were splitting cues shorter than necessary.
+ */
+export const SMART_SPLIT_WIDTH_RELAXATION = 1.5;
+
+/** Max measured width before Smart Split or the ⚠ LONG badge triggers. */
+export function smartSplitCaptionMaxWidth(canvasWidth: number = PREVIEW_CANVAS_WIDTH): number {
+  return Math.round(previewCaptionMaxWidth(canvasWidth) * SMART_SPLIT_WIDTH_RELAXATION);
+}
+
+/**
  * Reusable canvas-backed width measurer for one font. The canvas/context is
  * created once; the returned fn is cheap to call per word/line. Browser-only.
  * Falls back to a crude char-width heuristic if a 2D context is unavailable

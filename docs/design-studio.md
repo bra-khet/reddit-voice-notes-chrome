@@ -492,7 +492,7 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 **Cue actions (v5.3):**
 - **Generate scaffold** (panel button) — replaces cues with evenly-timed empty slots spanning the clip (`buildScaffoldTranscriptResult`, default 3 s/slot, runt-tail merge). Confirms before discarding real text.
-- **Smart Split** (per-cue ✂) — splits a long cue into shorter timed cues that each fit one caption line. Measures cue text against the preview caption box (`text-metrics.ts` canvas measurer, WYSIWYG with the preview) and divides the time span proportionally to each chunk's character length (`splitSegmentIntoChunks`). Enabled only when the cue actually breaks into >1 line; a **⚠ LONG** overflow badge flags cues that would trail off screen.
+- **Smart Split** (per-cue ✂, v5.3.6 relaxed) — splits a long cue into shorter timed cues that each fit one caption line. Measures cue text with the live subtitle font (`text-metrics.ts` canvas measurer) against a **relaxed width budget** (`smartSplitCaptionMaxWidth`, ~1.5× the preview caption line — canvas burn-in removed the old drawtext layer ceiling that originally drove conservative splitting). Divides the time span proportionally to each chunk's character length (`splitSegmentIntoChunks`). Enabled only when the cue breaks into >1 chunk at that budget; a **⚠ LONG** overflow badge flags the same condition. Manual ✂ Split unchanged.
 - **Delete cue** (per-cue X — nav-chip + chevron-X asset `cue-delete-x-16.svg`) — removes the cue from the working draft; reverted by the modal's Cancel/Discard (not committed until Apply to preview).
 
 ### 7.4 Preview vs bake fidelity

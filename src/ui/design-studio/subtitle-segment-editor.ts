@@ -26,7 +26,7 @@ import type {
 import {
   createTextMeasurer,
   groupWordsByWidth,
-  previewCaptionMaxWidth,
+  smartSplitCaptionMaxWidth,
   textOverflowsWidth,
   PREVIEW_FONT_WEIGHT,
   type MeasureWidth,
@@ -275,9 +275,9 @@ export function mountSubtitleSegmentEditor(
   }
 
   // CHANGED: Phase 6 — build a width measurer matching the live subtitle style so
-  // Smart Split + the overflow badge are WYSIWYG with the preview. Burn-in renders
-  // each cue on a single line, so "needs >1 preview line" == "trails off screen in
-  // the baked video". Built once per render pass and reused across cue rows.
+  // Smart Split + the overflow badge track caption fit. v5.3.6 uses
+  // smartSplitCaptionMaxWidth() (~1.5× preview line) — canvas burn-in has no drawtext
+  // layer ceiling, so the old 1:1 preview budget over-split dense transcripts.
   function buildCaptionMetrics(): CaptionMetrics {
     const style = handlers?.getSubtitleStyle?.();
     const fontSize =
@@ -287,7 +287,7 @@ export function mountSubtitleSegmentEditor(
     const fontFamily =
       PREVIEW_FAMILY_FOR_KEY[style?.fontFamily ?? DEFAULT_CAPTION_FONT_KEY] ?? 'RVN-DejaVu-Sans';
     const measure = createTextMeasurer({ fontSize, fontFamily, fontWeight: PREVIEW_FONT_WEIGHT });
-    return { measure, maxWidth: previewCaptionMaxWidth() };
+    return { measure, maxWidth: smartSplitCaptionMaxWidth() };
   }
 
   function computeDirty(): boolean {
