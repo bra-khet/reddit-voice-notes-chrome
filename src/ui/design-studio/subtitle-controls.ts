@@ -472,6 +472,15 @@ export function mountSubtitleControls(
     // CHANGED: Phase 6 — give the editor the live subtitle style so Smart Split +
     // the overflow badge measure cue text against the same font the preview uses.
     getSubtitleStyle: () => mergeStyleFromControls(),
+    getThemeBarColor: () => handlers?.getThemeBarColor?.(),
+    onApplyGlobalFontSize(fontSize) {
+      if (syncing) return;
+      setPhysicalSliderValue(fontSizeInput, fontSize);
+      fontSizeValueEl.textContent = `${fontSize}px`;
+      draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
+      schedulePersist();
+      notifyDraftChange();
+    },
     onStateChange: () => {
       syncBakeButton();
       syncDraftFromEditor();

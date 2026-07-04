@@ -5,13 +5,14 @@
 **Branch:** `feature/v5.3.6-smart-split-refactor`  
 **Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` (Oklch → v5.3.7, worker/chunking → v5.3.8)
 
-**Shipped on branch (foundation):**
+**Shipped on branch:**
 - `measureCueRenderedSize()` — reuses `paintCue` offscreen, no MediaRecorder
-- Two-tier heuristic filter (`SMART_SPLIT_HEURISTIC_COMFORT_RATIO` / `MARGINAL_HIGH_RATIO`)
-- `transcript-edit-diff.ts` — per-cue manual-edit diff via timestamp overlap + normalized text
-- Tests: `test-cue-measurement.mjs`, `test-transcript-edit-diff.mjs`, extended `test-smart-split.mjs`
+- Two-tier heuristic filter + debounced real-canvas measure in transcript editor
+- Per-cue fit status line, **Validate all cues**, **Smart Adjust** modal (Mode A word-shift / global font + Mode B re-splice preserve/full)
+- `transcript-edit-diff.ts`, `smart-adjust.ts`, `subtitle-caption-fit.ts`
+- Tests: `test-cue-measurement.mjs`, `test-transcript-edit-diff.mjs`, `test-smart-adjust.mjs`, extended `test-smart-split.mjs`
 
-**Next:** wire two-tier measurement into LONG badge; Smart Adjust Mode A/B UI.
+**Next:** user QA on dense transcripts; tune marginal-band constants if needed; then merge + tag (rolls with post-v5.3.6 fixes).
 
 ---
 

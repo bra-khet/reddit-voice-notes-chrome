@@ -18,20 +18,37 @@ import {
   resolveClipDurationSeconds,
   segmentHasOutOfBoundsEnd,
 } from '@/src/transcription/segment-timing';
-import type {
-  SubtitleStyleConfig,
-  TranscriptResult,
-  TranscriptSegment,
+import {
+  DEFAULT_SUBTITLE_STYLE,
+  type SubtitleStyleConfig,
+  type TranscriptResult,
+  type TranscriptSegment,
 } from '@/src/transcription/types';
+import {
+  buildReSpliceProposal,
+  collectMinimalFixProposals,
+  findOverflowingCueIndices,
+  type SmartAdjustProposal,
+} from '@/src/transcription/smart-adjust';
+import {
+  buildCaptionMetricsContext,
+  CAPTION_FIT_DEBOUNCE_MS,
+  evaluateCueFitHeuristic,
+  formatFitStatusLabel,
+  resolveCueFit,
+  type CaptionMetricsContext,
+  type CueFitEvaluation,
+} from '@/src/transcription/subtitle-caption-fit';
+import { countManuallyEditedCues } from '@/src/transcription/transcript-edit-diff';
 import {
   createTextMeasurer,
   groupWordsByWidth,
   PREVIEW_CANVAS_WIDTH,
   smartSplitCaptionMaxWidth,
-  textOverflowsWidth,
   PREVIEW_FONT_WEIGHT,
   type MeasureWidth,
 } from '@/src/utils/text-metrics';
+import { mountSmartAdjustModal } from '@/src/ui/design-studio/smart-adjust-modal';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
 import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 import { LAST_RECORDING_READY_KEY } from '@/src/settings/user-preferences';
@@ -86,6 +103,9 @@ export interface SegmentEditorHandlers {
    * is WYSIWYG. Optional — falls back to the default DejaVu-Sans 22px style.
    */
   getSubtitleStyle?: () => SubtitleStyleConfig;
+  /** Called when Smart Adjust accepts a global font-size reduction proposal. */
+  onApplyGlobalFontSize?: (fontSize: number) => void;
+  getThemeBarColor?: () => string | undefined;
 }
 
 const RECORDING_POLL_MS = 2000;
@@ -165,9 +185,19 @@ export function renderSubtitleSegmentEditorFields(): string {
             Adjust each cue’s text and timing. Confirm &amp; save in the main panel when you are done.
           </p>
           <p class="studio__transcript-dialog-copy popup__field-desc" style="margin-top:4px;opacity:0.65;">
-            Keep each cue to 1–2 short phrases to avoid text overflow. A ⚠ LONG badge marks
-            cues that will trail off screen — use ✂ Split to break one into shorter timed cues.
+            Keep each cue to 1–2 short phrases to avoid text overflow. Fit status uses real-canvas
+            measurement when a cue is near the width limit — ⚠ LONG marks cues that will trail off
+            screen; use ✂ Split or Smart Adjust.
           </p>
+          <div class="studio__transcript-modal-tools">
+            <button type="button" class="popup__profile-btn" data-transcript-validate-all>
+              Validate all cues
+            </button>
+            <button type="button" class="popup__profile-btn studio__smart-adjust-open" data-transcript-smart-adjust>
+              Smart Adjust…
+            </button>
+            <span class="studio__transcript-validate-summary popup__field-desc" data-transcript-validate-summary hidden></span>
+          </div>
           <div class="studio__transcript-segments" data-transcript-segments></div>
           <button
             type="button"
@@ -254,6 +284,11 @@ export function mountSubtitleSegmentEditor(
     '[data-transcript-modal-unsaved-cancel]',
   )!;
   const addSegmentBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-add-segment]')!;
+  const validateAllBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-validate-all]')!;
+  const smartAdjustBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-smart-adjust]')!;
+  const validateSummaryEl = panel.querySelector<HTMLElement>('[data-transcript-validate-summary]')!;
+
+  const smartAdjustModal = mountSmartAdjustModal(panel);
 
   let voskOriginal: TranscriptResult | null = null;
   let savedBaseline: TranscriptResult | null = null;
@@ -270,25 +305,86 @@ export function mountSubtitleSegmentEditor(
   // CHANGED: v5.3 — per-cue delete affordance (nav-chip + chevron-X asset).
   const cueDeleteIconUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.cueDeleteX16);
 
-  interface CaptionMetrics {
+  interface CaptionMetrics extends CaptionMetricsContext {
     measure: MeasureWidth;
-    maxWidth: number;
+    style: SubtitleStyleConfig;
   }
 
-  // CHANGED: Phase 6 — build a width measurer matching the live subtitle style so
-  // Smart Split + the overflow badge track caption fit. v5.3.6 uses
-  // smartSplitCaptionMaxWidth() (~1.5× preview line) — canvas burn-in has no drawtext
-  // layer ceiling, so the old 1:1 preview budget over-split dense transcripts.
+  const cueFitCache = new Map<number, CueFitEvaluation>();
+  const cueFitDebounceTimers = new Map<number, number>();
+  let validateAllRunning = false;
+
+  // CHANGED: Phase 6 + Phase 1 — width measurer + two-tier real-canvas fit (v5.3.6 refactor).
   function buildCaptionMetrics(): CaptionMetrics {
-    const style = handlers?.getSubtitleStyle?.();
+    const style = handlers?.getSubtitleStyle?.() ?? DEFAULT_SUBTITLE_STYLE;
     const fontSize =
-      typeof style?.fontSize === 'number' && Number.isFinite(style.fontSize)
+      typeof style.fontSize === 'number' && Number.isFinite(style.fontSize)
         ? style.fontSize
         : DEFAULT_CAPTION_FONT_SIZE;
     const fontFamily =
-      PREVIEW_FAMILY_FOR_KEY[style?.fontFamily ?? DEFAULT_CAPTION_FONT_KEY] ?? 'RVN-DejaVu-Sans';
+      PREVIEW_FAMILY_FOR_KEY[style.fontFamily ?? DEFAULT_CAPTION_FONT_KEY] ?? 'RVN-DejaVu-Sans';
     const measure = createTextMeasurer({ fontSize, fontFamily, fontWeight: PREVIEW_FONT_WEIGHT });
-    return { measure, maxWidth: smartSplitCaptionMaxWidth(PREVIEW_CANVAS_WIDTH, fontSize) };
+    const context = buildCaptionMetricsContext(style, measure);
+    return { ...context, measure, style };
+  }
+
+  function resolveSubtitleStyle(): SubtitleStyleConfig {
+    return handlers?.getSubtitleStyle?.() ?? DEFAULT_SUBTITLE_STYLE;
+  }
+
+  function clearCueFitCache(): void {
+    cueFitCache.clear();
+    cueFitDebounceTimers.forEach((timer) => window.clearTimeout(timer));
+    cueFitDebounceTimers.clear();
+  }
+
+  function getCueOverflow(evaluation: CueFitEvaluation | undefined, text: string, metrics: CaptionMetrics): boolean {
+    if (evaluation) return evaluation.overflows;
+    return evaluateCueFitHeuristic(text, metrics).overflows;
+  }
+
+  function syncRowFitStatus(row: HTMLElement, evaluation: CueFitEvaluation | undefined): void {
+    const statusEl = row.querySelector<HTMLElement>('[data-segment-fit-status]');
+    if (!statusEl) return;
+    if (!evaluation) {
+      statusEl.textContent = '';
+      statusEl.hidden = true;
+      return;
+    }
+    statusEl.hidden = false;
+    const source = evaluation.source === 'canvas' ? 'canvas' : 'estimate';
+    statusEl.textContent = `${formatFitStatusLabel(evaluation)} (${source})`;
+    statusEl.dataset.fitTier = evaluation.fitStatus;
+  }
+
+  function scheduleCueFitMeasure(row: HTMLElement, index: number, text: string, metrics: CaptionMetrics): void {
+    const existing = cueFitDebounceTimers.get(index);
+    if (existing !== undefined) window.clearTimeout(existing);
+
+    const heuristic = evaluateCueFitHeuristic(text, metrics);
+    cueFitCache.set(index, heuristic);
+    syncRowFitStatus(row, heuristic);
+    syncRowOverflowUi(row, metrics, heuristic);
+
+    const timer = window.setTimeout(() => {
+      cueFitDebounceTimers.delete(index);
+      void resolveCueFit(text, metrics.style, metrics, {
+        themeBarColor: handlers?.getThemeBarColor?.(),
+      }).then((evaluation) => {
+        if (modalEl.hidden) return;
+        const liveRow = segmentsEl.querySelector<HTMLElement>(`[data-segment-index="${index}"]`);
+        if (!liveRow) return;
+        const liveText = stripScaffoldPlaceholder(
+          liveRow.querySelector<HTMLTextAreaElement>('[data-segment-text]')?.value ?? '',
+        );
+        if (liveText.trim() !== text.trim()) return;
+        cueFitCache.set(index, evaluation);
+        syncRowFitStatus(liveRow, evaluation);
+        syncRowOverflowUi(liveRow, metrics, evaluation);
+      });
+    }, CAPTION_FIT_DEBOUNCE_MS);
+
+    cueFitDebounceTimers.set(index, timer);
   }
 
   function computeDirty(): boolean {
@@ -416,7 +512,7 @@ export function mountSubtitleSegmentEditor(
     }
     const metrics = buildCaptionMetrics();
     const lines = segments
-      .map((segment) => {
+      .map((segment, index) => {
         const time = formatCueRange(segment.start, segment.end);
         // CHANGED: scaffold soft-hyphen slots read as "(empty)" (v5.3 QA fix).
         const stripped = stripScaffoldPlaceholder(segment.text);
@@ -426,7 +522,8 @@ export function mountSubtitleSegmentEditor(
             ? `<span class="studio__transcript-oob-badge" title="Cue end exceeds recording length">${OOB_LABEL}</span>`
             : '';
         // CHANGED: Phase 6 — flag cues too long for one line (burn-in trails off).
-        const overflow = textOverflowsWidth(stripped, metrics.maxWidth, metrics.measure)
+        const cached = cueFitCache.get(index);
+        const overflow = getCueOverflow(cached, stripped, metrics)
           ? `<span class="studio__transcript-overflow-badge" title="Too long for one line — will trail off screen in the baked video. Open the editor and use Split.">${OVERFLOW_LABEL}</span>`
           : '';
         return `
@@ -513,10 +610,14 @@ export function mountSubtitleSegmentEditor(
   // textarea text. A cue that won't fit one caption line shows ⚠ LONG; Split is
   // enabled only when the text actually breaks into >1 chunk (a single over-long
   // word can't be split without hyphenation, so Split stays disabled there).
-  function syncRowOverflowUi(row: HTMLElement, metrics: CaptionMetrics): void {
+  function syncRowOverflowUi(
+    row: HTMLElement,
+    metrics: CaptionMetrics,
+    evaluation?: CueFitEvaluation,
+  ): void {
     const textInput = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
     const text = stripScaffoldPlaceholder(textInput?.value ?? '');
-    const overflow = textOverflowsWidth(text, metrics.maxWidth, metrics.measure);
+    const overflow = getCueOverflow(evaluation ?? cueFitCache.get(Number(row.dataset.segmentIndex)), text, metrics);
     const canSplit = groupWordsByWidth(text, metrics.maxWidth, metrics.measure).length > 1;
 
     const badge = row.querySelector<HTMLElement>('[data-segment-overflow]');
@@ -535,7 +636,26 @@ export function mountSubtitleSegmentEditor(
     syncRowOverflowUi(row, metrics);
   }
 
+  function draftAsEditedResult(): TranscriptResult | null {
+    if (!edited) return null;
+    return normalizeEditedTranscriptResult(edited, modalDraft, {
+      keepEmptyTimedSegments: inScaffoldMode(),
+    });
+  }
+
+  function findOverflowingIndicesFromDraft(metrics: CaptionMetrics): number[] {
+    const indices: number[] = [];
+    modalDraft.forEach((segment, index) => {
+      const text = stripScaffoldPlaceholder(segment.text).trim();
+      if (!text) return;
+      const cached = cueFitCache.get(index);
+      if (getCueOverflow(cached, text, metrics)) indices.push(index);
+    });
+    return indices;
+  }
+
   function renderModalSegments(): void {
+    clearCueFitCache();
     segmentsEl.innerHTML = '';
     const clipDuration = clipDurationForOob();
     const metrics = buildCaptionMetrics();
@@ -600,12 +720,15 @@ export function mountSubtitleSegmentEditor(
           <span>Text</span>
           <textarea rows="2" data-segment-text></textarea>
         </label>
+        <p class="studio__transcript-fit-status popup__field-desc" data-segment-fit-status hidden></p>
       `;
       const textArea = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
       // CHANGED: strip the soft-hyphen placeholder so the user types into a clean
       // textarea (not after an invisible char) — re-inserted on read if left blank.
       if (textArea) textArea.value = stripScaffoldPlaceholder(segment.text);
       syncSegmentRowUi(row, index, metrics);
+      const text = stripScaffoldPlaceholder(segment.text);
+      if (text.trim()) scheduleCueFitMeasure(row, index, text, metrics);
       segmentsEl.append(row);
     }
   }
@@ -615,7 +738,12 @@ export function mountSubtitleSegmentEditor(
     const rows = segmentsEl.querySelectorAll<HTMLElement>('[data-segment-index]');
     rows.forEach((row) => {
       const index = Number(row.dataset.segmentIndex);
-      syncSegmentRowUi(row, Number.isFinite(index) ? index : -1, metrics);
+      if (!Number.isFinite(index)) return;
+      syncSegmentRowUi(row, index, metrics);
+      const text = stripScaffoldPlaceholder(
+        row.querySelector<HTMLTextAreaElement>('[data-segment-text]')?.value ?? '',
+      );
+      if (text.trim()) scheduleCueFitMeasure(row, index, text, metrics);
     });
   }
 
@@ -745,11 +873,100 @@ export function mountSubtitleSegmentEditor(
 
   function closeModal(): void {
     hideModalUnsavedPrompt();
+    smartAdjustModal.close();
     cuePlayer.stop();
     playingSegmentIndex = null;
     modalEl.hidden = true;
     modalDraft = [];
     modalOpenBaseline = [];
+    clearCueFitCache();
+    validateSummaryEl.hidden = true;
+    validateSummaryEl.textContent = '';
+  }
+
+  async function validateAllCues(forceCanvas = true): Promise<void> {
+    if (validateAllRunning || modalEl.hidden) return;
+    validateAllRunning = true;
+    validateAllBtn.disabled = true;
+    smartAdjustBtn.disabled = true;
+    validateSummaryEl.hidden = false;
+    validateSummaryEl.textContent = 'Validating cues…';
+
+    syncModalDraftFromDom();
+    const metrics = buildCaptionMetrics();
+    let overflowCount = 0;
+    let marginalCount = 0;
+    let measured = 0;
+
+    for (let index = 0; index < modalDraft.length; index += 1) {
+      const text = stripScaffoldPlaceholder(modalDraft[index].text);
+      if (!text.trim()) continue;
+      measured += 1;
+      const evaluation = await resolveCueFit(text, metrics.style, metrics, {
+        forceCanvas,
+        themeBarColor: handlers?.getThemeBarColor?.(),
+      });
+      cueFitCache.set(index, evaluation);
+      if (evaluation.overflows) overflowCount += 1;
+      else if (evaluation.fitStatus === 'marginal') marginalCount += 1;
+    }
+
+    refreshModalSegmentUi();
+    validateSummaryEl.textContent = `Validated ${measured} cue(s): ${overflowCount} overflow, ${marginalCount} marginal.`;
+    validateAllRunning = false;
+    validateAllBtn.disabled = false;
+    smartAdjustBtn.disabled = false;
+  }
+
+  function applySmartAdjustProposal(proposal: SmartAdjustProposal): void {
+    syncModalDraftFromDom();
+    modalDraft = proposal.segments.map((segment) => ({ ...segment }));
+    if (proposal.isGlobal && typeof proposal.globalFontSize === 'number') {
+      handlers?.onApplyGlobalFontSize?.(proposal.globalFontSize);
+    }
+    clearCueFitCache();
+    renderModalSegments();
+  }
+
+  function openSmartAdjustMenu(): void {
+    syncModalDraftFromDom();
+    const metrics = buildCaptionMetrics();
+    const draftEdited = draftAsEditedResult();
+    const overflowing =
+      cueFitCache.size > 0
+        ? findOverflowingIndicesFromDraft(metrics)
+        : findOverflowingCueIndices(modalDraft, metrics);
+    const manualCount =
+      voskOriginal && draftEdited
+        ? countManuallyEditedCues(draftEdited, voskOriginal)
+        : 0;
+
+    const minimal = collectMinimalFixProposals(
+      modalDraft,
+      overflowing,
+      metrics,
+      metrics.fontSize,
+    );
+    const reSplicePreserve =
+      voskOriginal && draftEdited
+        ? buildReSpliceProposal(voskOriginal, draftEdited, metrics, 'preserve')
+        : null;
+    const reSpliceFull =
+      voskOriginal && draftEdited
+        ? buildReSpliceProposal(voskOriginal, draftEdited, metrics, 'full')
+        : null;
+
+    const proposals = [
+      ...minimal,
+      ...(reSplicePreserve ? [reSplicePreserve] : []),
+      ...(reSpliceFull ? [reSpliceFull] : []),
+    ];
+
+    smartAdjustModal.open({
+      manualEditCount: manualCount,
+      proposals,
+      onApply: applySmartAdjustProposal,
+    });
   }
 
   function applyModalDraft(): void {
@@ -797,12 +1014,21 @@ export function mountSubtitleSegmentEditor(
 
   segmentsEl.addEventListener('input', (event) => {
     const target = event.target as HTMLElement;
-    // CHANGED: Phase 6 — text edits also drive the overflow badge + Split state.
+    // CHANGED: Phase 6 + Phase 1 — text edits drive overflow badge, fit status, Split state.
     if (!target.matches('[data-segment-start], [data-segment-end], [data-segment-text]')) return;
     const row = target.closest<HTMLElement>('[data-segment-index]');
     if (!row) return;
     const index = Number(row.dataset.segmentIndex);
-    syncSegmentRowUi(row, Number.isFinite(index) ? index : -1);
+    if (!Number.isFinite(index)) return;
+    const metrics = buildCaptionMetrics();
+    if (target.matches('[data-segment-text]')) {
+      const text = stripScaffoldPlaceholder(
+        row.querySelector<HTMLTextAreaElement>('[data-segment-text]')?.value ?? '',
+      );
+      scheduleCueFitMeasure(row, index, text, metrics);
+      return;
+    }
+    syncSegmentRowUi(row, index, metrics);
   });
 
   segmentsEl.addEventListener('click', (event) => {
@@ -837,6 +1063,10 @@ export function mountSubtitleSegmentEditor(
   editOpenBtn.addEventListener('click', openModal);
   generateScaffoldBtn.addEventListener('click', generateScaffoldFromClip);
   addSegmentBtn.addEventListener('click', addSegment);
+  validateAllBtn.addEventListener('click', () => {
+    void validateAllCues(true);
+  });
+  smartAdjustBtn.addEventListener('click', openSmartAdjustMenu);
   modalCloseBtn.addEventListener('click', requestCloseModal);
   modalCancelBtn.addEventListener('click', requestCloseModal);
   modalSaveBtn.addEventListener('click', applyModalDraft);
@@ -931,6 +1161,7 @@ export function mountSubtitleSegmentEditor(
   return {
     dispose(): void {
       closeModal();
+      smartAdjustModal.dispose();
       document.removeEventListener('keydown', onModalKeydown);
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onRecordingReady);

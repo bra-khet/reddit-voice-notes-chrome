@@ -15,9 +15,10 @@ Roll into next tag (not a separate v5.3.6 patch).
 | `measureCueRenderedSize()` export | **done** |
 | Two-tier heuristic filter constants | **done** |
 | `transcript-edit-diff.ts` (per-cue manual-edit) | **done** |
-| Wire two-tier + real measure into LONG badge | pending |
-| Smart Adjust Mode A (minimal fixes) | pending |
-| Smart Adjust Mode B (full re-splice) | pending |
+| Wire two-tier + real measure into LONG badge | **done** |
+| Fit status + Validate All Cues | **done** |
+| Smart Adjust Mode A (minimal fixes) | **done** |
+| Smart Adjust Mode B (full re-splice) | **done** |
 
 **Later phases:** Oklch → v5.3.7 (Phase 2); worker/chunking → v5.3.8 (Phase 3).
 
@@ -52,6 +53,7 @@ git checkout feature/v5.3.6-smart-split-refactor && npm install && npm run dev
 node scripts/test-smart-split.mjs
 node scripts/test-cue-measurement.mjs
 node scripts/test-transcript-edit-diff.mjs
+node scripts/test-smart-adjust.mjs
 node scripts/test-overlay-frame-pacing.mjs
 node scripts/test-cue-cache.mjs
 ```
