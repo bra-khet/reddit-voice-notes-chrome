@@ -12,7 +12,7 @@
 
 Caching is **on by default** for production and Overlay Lab bakes. It improves cue-count scaling on typical transcripts and keeps rich canvas effects viable without multiplying per-frame paint cost. **Full bake wall time is largely unchanged** on sparse clips because VP8A normalize still dominates; render-only work on typical session transcripts stays near the MediaRecorder pacing floor (~1.1× realtime).
 
-Deferred to later phases: burst capture / worker chunking (v5.3.7), smart-split relaxation pairing (v5.3.6), larger LRU for heavy animated styles.
+Deferred to later phases: burst capture / worker chunking (v5.3.9), smart-split relaxation pairing (v5.3.6), larger LRU for heavy animated styles.
 
 ## Problem this solves
 
@@ -87,11 +87,11 @@ See `docs/transcription-architecture.md` § Cue-stable overlay caching.
 
 ## Notes / known follow-ups
 
-- **Render speed floor:** `waitForNextCaptureTick` keeps sparse renders ~1× realtime regardless of cache — v5.3.7 worker/chunking target.
+- **Render speed floor:** `waitForNextCaptureTick` keeps sparse renders ~1× realtime regardless of cache — v5.3.9 worker/chunking target.
 - **LRU cap:** 64 entries may thrash on rich animated dense transcripts — consider raising in a future patch.
 - **VP8A normalize:** still largest bake cost — unchanged since v5.3.4.
 - **v5.3.6:** Smart Split relaxation — pair with cache/LRU awareness.
-- **v5.3.7:** Worker + temporal chunking per design docs.
+- **v5.3.9:** Worker + temporal chunking per design docs.
 
 ## Verification
 

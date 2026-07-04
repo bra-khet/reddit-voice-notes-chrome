@@ -4,7 +4,7 @@
 
 **Branch:** merged `feature/v5.3.6-smart-split-refactor` → `main` (2026-07-04)  
 **Tag:** `v5.3.7` · **Release notes:** `docs/release-notes-v5.3.7.md`  
-**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` · **Push:** deferred (local only)
+**Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` · **Push:** deferred (local only)
 
 ### Shipped
 
@@ -33,14 +33,23 @@
 ### Handoff
 
 ```bash
-git checkout feature/v5.3.6-smart-split-refactor && npm install && npm run dev
+git checkout v5.3.7 && npm install && npm run dev
 node scripts/test-smart-split.mjs && node scripts/test-cue-measurement.mjs
 node scripts/test-transcript-edit-diff.mjs && node scripts/test-smart-adjust.mjs
 ```
 
 Design Studio → Subtitles → Edit transcript → change font slider (auto-validates) → Smart Adjust when amber.
 
-**Next:** `git push origin main --tags` when ready; Phase 2 Oklch (v5.3.8 per roadmap).
+**Next:** `git push origin main --tags` when ready; Phase 2 Oklch on `feature/v5.3.8-oklch-rainbow` (v5.3.8).
+
+---
+
+## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **NEXT**
+
+**Branch:** `feature/v5.3.8-oklch-rainbow` (not created yet)  
+**Design:** `docs/5.3.8-oklch-rainbow-perceptual-uniformity-design.md`  
+**Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 2  
+**After:** v5.3.9 worker chunking (`docs/5.3.9-worker-and-chunked-parallelization-design.md`)
 
 ---
 
@@ -62,7 +71,7 @@ Design Studio → Subtitles → Edit transcript → change font slider (auto-val
 **Fix:** `SMART_SPLIT_REFERENCE_FONT_SIZE = 22`; above reference, budget × `22/fontSize` (349 px @ 24px vs 381 @ 22px) — covers glow/stroke not in ink-width metrics.  
 **Tests:** `node scripts/test-smart-split.mjs` (19 checks)
 
-**Pending:** additional v5.3.6 scope docs from user; v5.3.7 worker/chunking.
+**Note:** post–v5.3.6 work (BUG-036, 24px headroom) shipped in v5.3.7 tag.
 
 ### Restore / test
 
@@ -88,7 +97,7 @@ node scripts/test-smart-split.mjs && node scripts/test-overlay-frame-pacing.mjs
 
 **Shipped:** `ImageBitmap` LRU cue cache (32 phase buckets, cap 64), `SubtitleOverlayRenderMetrics`, Overlay Lab timing JSON v2.
 
-**QA headline:** Sparse/light 99% hits @ ~1.1× render RT. Rich animated OK visually at 32 buckets; LRU thrashes on dense/animated. Total bake still normalize-heavy. Further speed → v5.3.6/v5.3.7.
+**QA headline:** Sparse/light 99% hits @ ~1.1× render RT. Rich animated OK visually at 32 buckets; LRU thrashes on dense/animated. Total bake still normalize-heavy. Further speed → v5.3.8 (Oklch buckets) / v5.3.9 (worker chunking).
 
 **Push/tag:** deferred (user).
 

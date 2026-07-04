@@ -239,7 +239,7 @@ Per-frame animated glow color on canvas overlay when **Glow color = Hue rotate**
 - Rank proposals (re-splice > word-shift > font) with amber recommended state on the top pick only.
 - Integrate Smart Adjust into a unified “subtitle health” panel rather than a stacked modal.
 
-See also: `docs/5.3.6-5.3.8-integrated-roadmap.md` Phase 1.
+See also: `docs/5.3.6-5.3.9-integrated-roadmap.md` Phase 1.
 
 ---
 
@@ -278,7 +278,7 @@ Analysis and driver matrix: `docs/v5.3.4-subtitle-canvas-overlay.md` § Performa
 
 - Skip or fast-path alpha normalize when MediaRecorder blob is already composite-safe.
 - Lower overlay fps or adaptive fps for long clips.
-- Worker / OffscreenCanvas render + temporal chunking (`docs/5.3.7-worker-and-chunked-parallelization-design.md`).
+- Worker / OffscreenCanvas render + temporal chunking (`docs/5.3.9-worker-and-chunked-parallelization-design.md`).
 - Raise LRU cap or per-cue cache shards for rich animated styles (64 entries thrashes in QA).
 - Burst capture without per-frame `waitForNextCaptureTick` pacing.
 - Parallel cue batches or incremental overlay segments.

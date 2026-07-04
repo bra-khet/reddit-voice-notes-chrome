@@ -4,7 +4,7 @@
 **Branch:** `main` (merged `feature/v5.3.6-smart-split-refactor`)  
 **Restore:** `git checkout v5.3.7 && npm install && npm run dev`  
 **Prior stable:** `v5.3.6-split-adjust` (Smart Split 1.5× relaxation baseline on `main`)  
-**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md`
+**Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md`
 
 ## Summary
 

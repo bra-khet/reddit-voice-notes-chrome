@@ -1,9 +1,23 @@
 # TODO
 
+## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **NEXT**
+
+**Branch:** `feature/v5.3.8-oklch-rainbow` (create from `main`)  
+**Design:** [`docs/5.3.8-oklch-rainbow-perceptual-uniformity-design.md`](docs/5.3.8-oklch-rainbow-perceptual-uniformity-design.md)  
+**Roadmap:** [`docs/5.3.6-5.3.9-integrated-roadmap.md`](docs/5.3.6-5.3.9-integrated-roadmap.md) § Phase 2
+
+| Deliverable | Status |
+|-------------|--------|
+| Oklch ↔ sRGB conversion module + tests | pending |
+| Rainbow / monochromatic hue paths → Oklch rotation | pending |
+| Phase buckets 32 → 24 | pending |
+| Visual QA on animated effects | pending |
+
+**After v5.3.8:** worker chunking → **v5.3.9** (`docs/5.3.9-worker-and-chunked-parallelization-design.md`).
+
 ## v5.3.7 — Editor Intelligence (Phase 1) — **MERGED & TAGGED**
 
 **Tag:** `v5.3.7` on `main` · **Release notes:** [`docs/release-notes-v5.3.7.md`](docs/release-notes-v5.3.7.md)  
-**Roadmap:** [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md)  
 **Push:** deferred (local tag + merge only)
 
 | Deliverable | Status |
@@ -17,11 +31,7 @@
 
 **Deferred:** Smart Adjust rich visual UI → `docs/future-ideas.md` § Smart Adjust UX.
 
-**Next:** `git push origin main --tags` when ready. **Then:** Oklch (v5.3.8 / Phase 2); worker chunking (v5.3.9 / Phase 3).
-
-## v5.3.6+ — on `main` (next tag)
-
-**Includes:** tagged `v5.3.6` baseline + BUG-036 + 24px headroom + Phase 1 (after merge).
+**Next push when ready:** `git push origin main --tags`
 
 ## v5.3.6 — Smart Split relaxation — **TAGGED** (`v5.3.6`)
 
@@ -35,10 +45,10 @@
 
 **Tag:** `v5.3.4` · [`docs/v5.3.4-subtitle-canvas-overlay.md`](docs/v5.3.4-subtitle-canvas-overlay.md)
 
-### Restore / test (Phase 1 branch)
+### Restore / test (v5.3.7)
 
 ```bash
-git checkout feature/v5.3.6-smart-split-refactor && npm install && npm run dev
+git checkout v5.3.7 && npm install && npm run dev
 node scripts/test-smart-split.mjs
 node scripts/test-cue-measurement.mjs
 node scripts/test-transcript-edit-diff.mjs
