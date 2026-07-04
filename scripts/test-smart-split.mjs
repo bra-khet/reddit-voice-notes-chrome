@@ -41,6 +41,10 @@ const {
   smartSplitCaptionMaxWidth,
   SMART_SPLIT_WIDTH_RELAXATION,
   SMART_SPLIT_REFERENCE_FONT_SIZE,
+  SMART_SPLIT_HEURISTIC_COMFORT_RATIO,
+  SMART_SPLIT_HEURISTIC_MARGINAL_HIGH_RATIO,
+  classifyHeuristicMeasureTier,
+  heuristicSkipsRealCanvasMeasure,
 } = await bundle('src/utils/text-metrics.ts', 'metrics');
 const { splitSegmentIntoChunks } = await bundle(
   'src/transcription/transcript-editing.ts',
@@ -142,6 +146,27 @@ check('genuinely wide cue still overflows and splits under relaxed budget', () =
   const text = 'word '.repeat(Math.ceil((relaxedMax * 1.4) / 5));
   assert.equal(textOverflowsWidth(text, relaxedMax, charMeasure), true);
   assert.ok(groupWordsByWidth(text, relaxedMax, charMeasure).length > 1);
+});
+
+console.log('\ntwo-tier heuristic filter (Phase 1)\n');
+
+check('comfort / marginal band constants are tunable exports', () => {
+  assert.equal(SMART_SPLIT_HEURISTIC_COMFORT_RATIO, 0.85);
+  assert.equal(SMART_SPLIT_HEURISTIC_MARGINAL_HIGH_RATIO, 1.15);
+});
+
+check('comfortable heuristic width skips real-canvas path', () => {
+  const budget = smartSplitCaptionMaxWidth();
+  const width = budget * 0.5;
+  assert.equal(classifyHeuristicMeasureTier(width, budget), 'comfortable');
+  assert.equal(heuristicSkipsRealCanvasMeasure(width, budget), true);
+});
+
+check('marginal band triggers real-canvas measurement', () => {
+  const budget = smartSplitCaptionMaxWidth();
+  const width = budget * 0.95;
+  assert.equal(classifyHeuristicMeasureTier(width, budget), 'marginal');
+  assert.equal(heuristicSkipsRealCanvasMeasure(width, budget), false);
 });
 
 // ── transcript-editing: proportional-timing split ───────────────────────────

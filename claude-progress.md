@@ -1,5 +1,20 @@
 # Reddit Voice Notes — Session Progress
 
+## v5.3.6 Phase 1 — Editor Intelligence — **IN PROGRESS**
+
+**Branch:** `feature/v5.3.6-smart-split-refactor`  
+**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` (Oklch → v5.3.7, worker/chunking → v5.3.8)
+
+**Shipped on branch (foundation):**
+- `measureCueRenderedSize()` — reuses `paintCue` offscreen, no MediaRecorder
+- Two-tier heuristic filter (`SMART_SPLIT_HEURISTIC_COMFORT_RATIO` / `MARGINAL_HIGH_RATIO`)
+- `transcript-edit-diff.ts` — per-cue manual-edit diff via timestamp overlap + normalized text
+- Tests: `test-cue-measurement.mjs`, `test-transcript-edit-diff.mjs`, extended `test-smart-split.mjs`
+
+**Next:** wire two-tier measurement into LONG badge; Smart Adjust Mode A/B UI.
+
+---
+
 ## v5.3.6+ — on `main` (next tag rolls up post-`v5.3.6` work)
 
 **Tagged baseline:** `v5.3.6` (Smart Split 1.5× relaxation)  

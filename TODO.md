@@ -8,7 +8,18 @@
 
 Roll into next tag (not a separate v5.3.6 patch).
 
-**Next up (Phase 1 of integrated roadmap):** real-canvas measurement + Smart Adjust (minimal fixes + full re-splice from original transcript) on `feature/v5.3.6-smart-split-refactor`. See [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md) — synthesizes the measurement/Smart-Adjust supplements plus resequences Oklch (now Phase 2 / v5.3.7) ahead of worker/chunking (now Phase 3 / v5.3.8).
+**Phase 1 in progress** on `feature/v5.3.6-smart-split-refactor` — see [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md).
+
+| Step | Status |
+|------|--------|
+| `measureCueRenderedSize()` export | **done** |
+| Two-tier heuristic filter constants | **done** |
+| `transcript-edit-diff.ts` (per-cue manual-edit) | **done** |
+| Wire two-tier + real measure into LONG badge | pending |
+| Smart Adjust Mode A (minimal fixes) | pending |
+| Smart Adjust Mode B (full re-splice) | pending |
+
+**Later phases:** Oklch → v5.3.7 (Phase 2); worker/chunking → v5.3.8 (Phase 3).
 
 ## v5.3.6 — Smart Split relaxation — **TAGGED** (`v5.3.6`)
 
@@ -37,8 +48,10 @@ Speed-up goals beyond cue-cache (pacing floor, VP8A normalize, worker chunking) 
 ### Restore / test (current stable)
 
 ```bash
-git checkout main && npm install && npm run dev
+git checkout feature/v5.3.6-smart-split-refactor && npm install && npm run dev
 node scripts/test-smart-split.mjs
+node scripts/test-cue-measurement.mjs
+node scripts/test-transcript-edit-diff.mjs
 node scripts/test-overlay-frame-pacing.mjs
 node scripts/test-cue-cache.mjs
 ```

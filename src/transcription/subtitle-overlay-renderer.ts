@@ -42,6 +42,10 @@ import {
   type TranscriptSegment,
 } from '@/src/transcription/types';
 import { normalizeHexColor } from '@/src/theme/color-utils';
+import {
+  buildCueRenderedSizeResult,
+  type CueRenderedSizeResult,
+} from '@/src/transcription/subtitle-cue-measurement';
 
 const DEFAULT_THEME_BAR = '#00e5ff';
 const OVERLAY_VIDEO_BPS = 1_500_000;
@@ -673,6 +677,99 @@ function paintMainText(
     style.textGradientWave === true ? canvasTextGradientWavePhase(timestampSeconds) : undefined;
   ctx.fillStyle = createCanvasOverlayTextGradient(ctx, x, y, textHeight, textHex, wavePhase);
   ctx.fillText(text, x, y);
+}
+
+interface CueRenderedExtent {
+  renderedWidthPx: number;
+  renderedHeightPx: number;
+  frameClipped: boolean;
+}
+
+/**
+ * Ink + glow bleed extent using the same geometry as paintCue (no duplicate paint stack).
+ */
+function computeCueRenderedExtent(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  text: string,
+  style: SubtitleStyleConfig,
+  width: number,
+  height: number,
+): CueRenderedExtent {
+  const fontSize = style.fontSize ?? 22;
+  const fontFamily = overlayCssFontFamily(style.fontFamily);
+  ctx.font = `normal ${fontSize}px ${fontFamily}, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  const textX = Math.round(drawtextXpx(width));
+  const textY = Math.round(drawtextYpx(style.position, fontSize, height));
+  const ink = measureCueInkMetrics(ctx, text, textX, textY, fontSize);
+  const insets = glowBleedInsetsPx(style, fontSize);
+
+  const left = ink.inkLeft - insets.left;
+  const right = ink.inkLeft + ink.inkWidth + insets.right;
+  const top = ink.inkTop - insets.top;
+  const bottom = ink.inkTop + ink.inkHeight + insets.bottom;
+
+  const frameClipped =
+    left < FRAME_EDGE_INSET_PX ||
+    right > width - FRAME_EDGE_INSET_PX ||
+    top < FRAME_EDGE_INSET_PX ||
+    bottom > height - FRAME_EDGE_INSET_PX;
+
+  return {
+    renderedWidthPx: right - left,
+    renderedHeightPx: bottom - top,
+    frameClipped,
+  };
+}
+
+export type { CueRenderedSizeResult };
+
+export interface MeasureCueRenderedSizeInput {
+  text: string;
+  style: SubtitleStyleConfig;
+  width: number;
+  height: number;
+  /** Budget from smartSplitCaptionMaxWidth at measure time. */
+  maxWidthPx: number;
+  themeBarColor?: string;
+  /** Representative animation phase — fixed 0 for width checks (roadmap §3.2). */
+  timestampSeconds?: number;
+}
+
+/**
+ * Real-canvas cue measurement — reuses paintCue without MediaRecorder (Phase 1).
+ * WHY: authoritative LONG badge / Smart Adjust once heuristic marginal band triggers.
+ */
+export async function measureCueRenderedSize(
+  input: MeasureCueRenderedSizeInput,
+): Promise<CueRenderedSizeResult> {
+  const {
+    text,
+    style,
+    width,
+    height,
+    maxWidthPx,
+    themeBarColor = DEFAULT_THEME_BAR,
+    timestampSeconds = 0,
+  } = input;
+
+  await ensureOverlayFonts();
+
+  const cue: NormalizedCue = { start: 0, end: 1, text };
+  const surface = createTempPaintSurface(width, height);
+  clearFrame(surface.paintCtx, width, height, 'transparent');
+  paintCue(surface.paintCtx, cue, style, width, height, themeBarColor, timestampSeconds);
+
+  const extent = computeCueRenderedExtent(surface.paintCtx, text, style, width, height);
+  return buildCueRenderedSizeResult({
+    renderedWidthPx: extent.renderedWidthPx,
+    renderedHeightPx: extent.renderedHeightPx,
+    maxWidthPx,
+    frameClipped: extent.frameClipped,
+    lineCount: 1,
+  });
 }
 
 function paintCue(

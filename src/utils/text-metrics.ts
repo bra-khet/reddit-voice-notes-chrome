@@ -65,6 +65,49 @@ export function smartSplitCaptionMaxWidth(
   return Math.round(base * headroom);
 }
 
+/** Preview canvas height — sync: subtitle-preview.ts SUBTITLE_TEXT_PREVIEW_HEIGHT. */
+export const PREVIEW_CANVAS_HEIGHT = 180;
+
+/**
+ * Two-tier measurement filter (integrated roadmap §3.2).
+ * Heuristic widths below comfort ratio skip expensive paintCue measurement.
+ */
+export const SMART_SPLIT_HEURISTIC_COMFORT_RATIO = 0.85;
+
+/** Heuristic widths above this ratio warrant real-canvas measurement when near boundary. */
+export const SMART_SPLIT_HEURISTIC_MARGINAL_HIGH_RATIO = 1.15;
+
+export type HeuristicMeasureTier = 'comfortable' | 'marginal' | 'overflow';
+
+export function classifyHeuristicMeasureTier(
+  measuredWidth: number,
+  maxWidth: number,
+): HeuristicMeasureTier {
+  if (maxWidth <= 0) return measuredWidth > 0 ? 'overflow' : 'comfortable';
+  if (measuredWidth <= maxWidth * SMART_SPLIT_HEURISTIC_COMFORT_RATIO) {
+    return 'comfortable';
+  }
+  if (measuredWidth <= maxWidth * SMART_SPLIT_HEURISTIC_MARGINAL_HIGH_RATIO) {
+    return 'marginal';
+  }
+  return 'overflow';
+}
+
+export function heuristicSkipsRealCanvasMeasure(
+  measuredWidth: number,
+  maxWidth: number,
+): boolean {
+  return classifyHeuristicMeasureTier(measuredWidth, maxWidth) === 'comfortable';
+}
+
+export function heuristicNeedsRealCanvasMeasure(
+  measuredWidth: number,
+  maxWidth: number,
+): boolean {
+  const tier = classifyHeuristicMeasureTier(measuredWidth, maxWidth);
+  return tier === 'marginal' || tier === 'overflow';
+}
+
 /**
  * Reusable canvas-backed width measurer for one font. The canvas/context is
  * created once; the returned fn is cheap to call per word/line. Browser-only.
