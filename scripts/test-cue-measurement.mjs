@@ -35,6 +35,13 @@ const {
   CUE_BACKDROP_BOX_BORDER_W,
 } = await bundle('src/transcription/subtitle-cue-measurement.ts', 'measure');
 
+const { buildCaptionMetricsContext } = await bundle(
+  'src/transcription/subtitle-caption-fit.ts',
+  'fit',
+);
+
+const { smartSplitCaptionMaxWidth } = await bundle('src/utils/text-metrics.ts', 'metrics');
+
 let passed = 0;
 let failed = 0;
 
@@ -89,6 +96,17 @@ check('assembles bake overflow fields', () => {
   const result = buildCueRenderedSizeResult(fit, BAKE_W);
   assert.equal(result.overflows, true);
   assert.equal(result.bakeWidth, BAKE_W);
+});
+
+console.log('\nbuildCaptionMetricsContext — Smart Split word budget\n');
+
+check('splitBudget uses bake ink max, not preview-scale heuristic', () => {
+  const charMeasure = (text) => text.length;
+  const metrics = buildCaptionMetricsContext(undefined, charMeasure);
+  const bakeInk = bakeSafeInkMaxWidth(BAKE_W, CUE_BACKDROP_BOX_BORDER_W, BAKE_FRAME_SAFE_PADDING_PX);
+  assert.equal(metrics.splitBudget, bakeInk);
+  const previewBudget = smartSplitCaptionMaxWidth(undefined, 36);
+  assert.ok(metrics.splitBudget > previewBudget, 'large-font preview budget was over-splitting');
 });
 
 rmSync(outdir, { recursive: true, force: true });

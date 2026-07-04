@@ -480,6 +480,7 @@ export function mountSubtitleControls(
       draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
       schedulePersist();
       notifyDraftChange();
+      segmentEditor.onSubtitleStyleChanged();
     },
     onStateChange: () => {
       syncBakeButton();
@@ -1236,6 +1237,8 @@ export function mountSubtitleControls(
       draftConfig = { ...draftConfig, style: mergeStyleFromControls() };
       schedulePersist();
       notifyDraftChange();
+      // CHANGED: auto-validate transcript cues when font size changes — cheap and necessary.
+      segmentEditor.onSubtitleStyleChanged();
     },
   });
 

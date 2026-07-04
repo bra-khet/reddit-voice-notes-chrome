@@ -1,36 +1,43 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (user QA pass, hand-off ready)
+## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (pre-merge polish, hand-off ready)
 
 **Branch:** `feature/v5.3.6-smart-split-refactor` → merge to `main` for next tag  
-**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` · **Commits:** `c2628ef` … `9257546` + attention affordance
+**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` · **Commits:** `c2628ef` … `9257546` + pre-merge polish
 
 ### Shipped
 
 - Bake-accurate overflow: **640×360** canvas, **backdrop plate vs frame edge** (not Smart Split ink budget)
 - LONG badge, per-cue fit status (`Fits comfortably` / `Near edge` / `Needs fix`), **Validate all cues**
 - **Smart Adjust:** amber **Auto-fix** (full re-splice) + Mode A (word-shift, global font −1px)
-- **Smart Adjust button highlight** when any cue shows ⚠ LONG — guides user to Auto-fix
+- **Smart Adjust attention:** amber glowing button + dark text; hint **below** button (“Auto-fix recommended”)
+- **Auto-validate** when font size changes (slider or Smart Adjust global font) while transcript modal open
+- **Smart Split word budget** aligned to bake ink max (~608px) — fixes over-split at large fonts (was preview-scale + headroom)
 - Modules: `subtitle-caption-fit.ts`, `subtitle-cue-measurement.ts`, `smart-adjust.ts`, `transcript-edit-diff.ts`, `smart-adjust-modal.ts`
-- Tests: 32+ checks across `test-smart-split`, `test-cue-measurement`, `test-transcript-edit-diff`, `test-smart-adjust`
+- Tests: 40 checks across `test-smart-split`, `test-cue-measurement`, `test-transcript-edit-diff`, `test-smart-adjust`
 
-### User QA (2026-07) — **PASS**
+### User QA (2026-07)
 
 | Area | Result |
 |------|--------|
-| LONG badge @ 22–24px | Accurate after bake-frame fix; ~3px reported overflow matches visual edge |
-| Fit status (canvas / near edge) | Accurate |
-| Validate all summary vs per-cue UI | Consistent |
-| Auto-fix re-splice | Looks good, works well — preferred default path |
-| Font resize proposal | Works appropriately |
-| Smart Adjust logic | Good; richer visual UI deferred → `docs/future-ideas.md` |
+| LONG badge @ 22–24px | **PASS** — ~3px reported overflow matches visual edge |
+| Fit status / Validate all | **PASS** — summary matches per-cue UI |
+| Auto-fix re-splice | **PASS** — preferred default path |
+| Font resize proposal | **PASS** |
+| Smart Adjust logic | **PASS**; richer visual UI deferred → `docs/future-ideas.md` |
+| Split too aggressive @ large fonts | **FIXED** — splitBudget → `bakeSafeInkMaxWidth` |
+| Smart Adjust highlight inverted | **FIXED** — amber glow + dark text; hint below button |
+| Validate on font change | **ADDED** — automatic when slider moves |
 
 ### Handoff
 
 ```bash
 git checkout feature/v5.3.6-smart-split-refactor && npm install && npm run dev
-# node scripts/test-*.mjs (see TODO.md)
+node scripts/test-smart-split.mjs && node scripts/test-cue-measurement.mjs
+node scripts/test-transcript-edit-diff.mjs && node scripts/test-smart-adjust.mjs
 ```
+
+Design Studio → Subtitles → Edit transcript → change font slider (auto-validates) → Smart Adjust when amber.
 
 **Next:** merge Phase 1 + post-`v5.3.6` fixes to `main`, tag next release; Phase 2 Oklch per roadmap.
 

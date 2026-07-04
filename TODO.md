@@ -1,6 +1,6 @@
 # TODO
 
-## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (user QA pass)
+## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (pre-merge polish)
 
 **Branch:** `feature/v5.3.6-smart-split-refactor` — ready to merge → `main` (rolls into next tag with BUG-036 + 24px headroom).  
 **Roadmap:** [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md)
@@ -10,11 +10,13 @@
 | Real-canvas measurement @ bake 640×360, backdrop vs frame | **done**, QA pass |
 | LONG badge / fit status / Validate All | **done**, QA pass |
 | Smart Adjust (Auto-fix re-splice + Mode A) | **done**, QA pass |
-| Smart Adjust button amber highlight when ⚠ LONG cues present | **done** |
+| Smart Adjust amber glow + “Auto-fix recommended” hint below button | **done** |
+| Auto-validate on font size change (slider / Smart Adjust) | **done** |
+| Smart Split word budget @ bake ink max (large-font over-split fix) | **done** |
 
 **Deferred:** Smart Adjust rich visual UI → `docs/future-ideas.md` § Smart Adjust UX.
 
-**Next phase:** Oklch (v5.3.7 / roadmap Phase 2); worker chunking (v5.3.8 / Phase 3).
+**Next:** merge branch → `main`, tag next release. **Then:** Oklch (v5.3.7 / Phase 2); worker chunking (v5.3.8 / Phase 3).
 
 ## v5.3.6+ — on `main` (next tag)
 

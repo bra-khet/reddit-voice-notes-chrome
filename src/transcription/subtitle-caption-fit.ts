@@ -17,8 +17,6 @@ import {
   classifyHeuristicMeasureTier,
   heuristicNeedsRealCanvasMeasure,
   heuristicSkipsRealCanvasMeasure,
-  PREVIEW_CANVAS_WIDTH,
-  smartSplitCaptionMaxWidth,
   type MeasureWidth,
 } from '@/src/utils/text-metrics';
 
@@ -55,9 +53,11 @@ export function buildCaptionMetricsContext(
       : 22;
   const backdropEnabled = style?.backdrop?.enabled !== false;
   const backdropBorder = backdropEnabled ? CUE_BACKDROP_BOX_BORDER_W : 0;
+  // CHANGED: Smart Split word grouping uses bake ink ceiling, not preview-scale budget.
+  // WHY: preview budget + font headroom over-split at large fonts (1–2 words per cue @ 36px).
   return {
     measure,
-    splitBudget: smartSplitCaptionMaxWidth(PREVIEW_CANVAS_WIDTH, fontSize),
+    splitBudget: bakeSafeInkMaxWidth(CANVAS_WIDTH, backdropBorder),
     fontSize,
     bakeWidth: CANVAS_WIDTH,
     bakeSafeInkMax: bakeSafeInkMaxWidth(CANVAS_WIDTH, backdropBorder),

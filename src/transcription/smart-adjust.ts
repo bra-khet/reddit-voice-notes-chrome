@@ -129,8 +129,7 @@ export function proposeGlobalFontReduction(
   const scaledMetrics: CaptionMetricsContext = {
     ...metrics,
     fontSize: nextSize,
-    splitBudget: Math.round(metrics.splitBudget * scale),
-    bakeSafeInkMax: Math.round(metrics.bakeSafeInkMax * scale),
+    // Ink/bake budgets are frame px — only measured glyph widths scale with font size.
     measure: (text: string) => metrics.measure(text) * scale,
   };
 

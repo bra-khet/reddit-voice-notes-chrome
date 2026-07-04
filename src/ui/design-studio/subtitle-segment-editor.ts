@@ -43,8 +43,6 @@ import { countManuallyEditedCues } from '@/src/transcription/transcript-edit-dif
 import {
   createTextMeasurer,
   groupWordsByWidth,
-  PREVIEW_CANVAS_WIDTH,
-  smartSplitCaptionMaxWidth,
   PREVIEW_FONT_WEIGHT,
   type MeasureWidth,
 } from '@/src/utils/text-metrics';
@@ -91,6 +89,8 @@ export interface SegmentEditorHandle {
   markConfirmedSaved(): void;
   setTranscriptDeliveryStatus(status: TranscriptDeliveryStatus): void;
   getTranscriptDeliveryStatus(): TranscriptDeliveryStatus;
+  /** Re-run canvas validate when subtitle style changes (e.g. font size slider). */
+  onSubtitleStyleChanged(): void;
 }
 
 export interface SegmentEditorHandlers {
@@ -190,22 +190,26 @@ export function renderSubtitleSegmentEditorFields(): string {
             screen; use ✂ Split or the highlighted <strong>Smart Adjust → Auto-fix</strong> button.
           </p>
           <div class="studio__transcript-modal-tools">
-            <button type="button" class="popup__profile-btn" data-transcript-validate-all>
-              Validate all cues
-            </button>
-            <button
-              type="button"
-              class="popup__profile-btn studio__smart-adjust-open"
-              data-transcript-smart-adjust
-              title="Open Smart Adjust for word-shift, font, or re-splice proposals"
-            >
-              Smart Adjust…
-            </button>
-            <span
-              class="studio__smart-adjust-attention-hint popup__field-desc"
-              data-transcript-smart-adjust-hint
-              hidden
-            >Cues need fix — try <strong>Auto-fix</strong> inside Smart Adjust</span>
+            <div class="studio__transcript-modal-tools-row">
+              <button type="button" class="popup__profile-btn" data-transcript-validate-all>
+                Validate all cues
+              </button>
+              <div class="studio__smart-adjust-tool">
+                <button
+                  type="button"
+                  class="popup__profile-btn studio__smart-adjust-open"
+                  data-transcript-smart-adjust
+                  title="Open Smart Adjust for word-shift, font, or re-splice proposals"
+                >
+                  Smart Adjust…
+                </button>
+                <p
+                  class="studio__smart-adjust-attention-hint popup__field-desc"
+                  data-transcript-smart-adjust-hint
+                  hidden
+                >Auto-fix recommended</p>
+              </div>
+            </div>
             <span class="studio__transcript-validate-summary popup__field-desc" data-transcript-validate-summary hidden></span>
           </div>
           <div class="studio__transcript-segments" data-transcript-segments></div>
@@ -948,6 +952,12 @@ export function mountSubtitleSegmentEditor(
     syncSmartAdjustAffordance();
   }
 
+  function onSubtitleStyleChanged(): void {
+    if (modalEl.hidden) return;
+    clearCueFitCache();
+    void validateAllCues(true);
+  }
+
   async function validateAllCues(forceCanvas = true): Promise<void> {
     if (validateAllRunning || modalEl.hidden) return;
     validateAllRunning = true;
@@ -990,6 +1000,7 @@ export function mountSubtitleSegmentEditor(
     }
     clearCueFitCache();
     renderModalSegments();
+    void validateAllCues(true);
   }
 
   function openSmartAdjustMenu(): void {
@@ -1271,5 +1282,6 @@ export function mountSubtitleSegmentEditor(
     getTranscriptDeliveryStatus(): TranscriptDeliveryStatus {
       return deliveryStatus;
     },
+    onSubtitleStyleChanged,
   };
 }
