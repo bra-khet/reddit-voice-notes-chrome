@@ -3,13 +3,14 @@
 ## v5.3.5 — Cue-stable overlay caching
 
 **Branch:** `feature/v5.3.5-cue-stable-overlay-caching`  
-**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md)
+**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md) (living record incl. QA §5)
 
 | Item | Status |
 |------|--------|
-| Cache module + renderer integration | **IN PROGRESS** (core landed) |
-| `test-cue-cache.mjs` unit tests | **DONE** |
-| Overlay Lab perf QA + hit-rate logging | Pending |
+| Cache module + renderer integration | **DONE** (`86165ad`) |
+| 32 phase buckets + timing JSON v2 | **DONE** (`d154867`) |
+| Overlay Lab QA (5.3.5b light/heavy) | **DONE** — see design doc §5 |
+| `test-cue-cache.mjs` + timing summary tests | **DONE** |
 | `docs/transcription-architecture.md` + release notes | Pending |
 
 ## v5.3.4 — Subtitle canvas overlay (complete)

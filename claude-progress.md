@@ -1,24 +1,21 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.5 — Cue-Stable Overlay Caching (`feature/v5.3.5-cue-stable-overlay-caching`) — IN PROGRESS (2026-07-03)
+## v5.3.5 — Cue-Stable Overlay Caching (`feature/v5.3.5-cue-stable-overlay-caching`) — QA COMPLETE (2026-07-04)
 
-**Plan:** `docs/5.3.5-cue-stable-overlay-caching-design.md`  
-**Baseline:** v5.3.4 on `main` (`cd1fbcc`)
+**Plan + QA record:** `docs/5.3.5-cue-stable-overlay-caching-design.md` (§5 harness findings)  
+**Commits:** `86165ad` (core), `d154867` (32 buckets + timing v2)
 
-Cache fully painted cue graphics (`ImageBitmap` + LRU) keyed by cue identity, style hash, and quantized animation phase. Fast path replaces per-frame `paintCue` with `drawImage` blits. On by default for bake; bypassed in `singleFrameDebug`.
+**QA logs:** `.ignore/sub-QA-harness-logs-5.3.5b-light`, `…-5.3.5b-heavy` (timing JSON v2)
 
-**Landed this session:**
-- `subtitle-overlay-cue-cache.ts` — keys, 16 phase buckets, 64-entry LRU, stats
-- `subtitle-overlay-renderer.ts` — `paintCueWithCache`, `enableCueCache` / `debug.logCacheStats`
-- `scripts/test-cue-cache.mjs` — 9 unit tests (keys + phase bucketing)
+**Headline:** Sparse/light — 99% hit rate, ~1.1× render RT (pacing floor). Rich animated — 32 buckets visually OK; LRU cap (64) saturates → 62% hits on 21 cues, worse on dense (882–2940). Full bake still normalize-dominated (~47%). Original 5–10× render target not met — pacing + LRU thrashing.
 
-**Remaining:** Overlay Lab perf QA, arch doc §, release notes, optional SSIM visual parity check.
+**Remaining:** `docs/transcription-architecture.md`, `release-notes-v5.3.5.md`, merge to `main`.
 
 ### Restore / test
 
 ```bash
 git checkout feature/v5.3.5-cue-stable-overlay-caching && npm install && npm run dev
-node scripts/test-cue-cache.mjs
+node scripts/test-cue-cache.mjs && node scripts/test-overlay-lab-timing-summary.mjs
 ```
 
 ---
