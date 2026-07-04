@@ -117,6 +117,15 @@ export interface SubtitleOverlayRenderOptions {
     logCacheStats?: boolean;
     onCacheStats?: (stats: CueOverlayCacheStats) => void;
   };
+  /**
+   * v5.3.9 chunked parallel bake — capture only this global frame range.
+   * Frames paint at (startFrame + i) / fps so animation phase, cue timing, and
+   * cache keys are bit-identical to the serial render of the same global frame.
+   * Sync: overlay-chunk-planner.ts PlannedOverlayChunk, subtitle-overlay-parallel.ts
+   */
+  timeRange?: { startFrame: number; frameCount: number };
+  /** v5.3.9: per-chunk cue cache budget (parallelCueCacheMaxEntries). */
+  cueCacheMaxEntries?: number;
 }
 
 /** Canvas capture metrics — v5.3.5 Overlay Lab timing logs. */
@@ -147,7 +156,8 @@ interface RecordOverlayTimelineResult {
   renderMetrics: SubtitleOverlayRenderMetrics;
 }
 
-interface NormalizedCue {
+/** Exported for the v5.3.9 parallel orchestrator (normalize once, chunk many). */
+export interface NormalizedCue {
   start: number;
   end: number;
   text: string;
@@ -170,7 +180,7 @@ async function ensureOverlayFonts(): Promise<void> {
   await loadSubtitleOverlayFonts();
 }
 
-function normalizeOverlaySegments(
+export function normalizeOverlaySegments(
   segments: TranscriptSegment[],
   durationSeconds: number,
 ): NormalizedCue[] {
@@ -958,11 +968,17 @@ async function recordOverlayTimeline(
   options: SubtitleOverlayRenderOptions,
 ): Promise<RecordOverlayTimelineResult> {
   const fps = Math.max(1, options.fps);
-  const totalFrames = Math.max(1, Math.ceil(durationSeconds * fps));
+  // CHANGED: v5.3.9 — timeRange captures an exact global frame window (no ceil drift).
+  // WHY: chunked parallel bake must partition ceil(duration*fps) frames precisely.
+  const range = options.timeRange;
+  const startFrame = range?.startFrame ?? 0;
+  const totalFrames = range
+    ? Math.max(1, range.frameCount)
+    : Math.max(1, Math.ceil(durationSeconds * fps));
   const mimeType = pickOverlayMimeType();
   const singleFrameDebug = options.singleFrameDebug === true;
   const cacheEnabled = shouldUseCueOverlayCache(options);
-  const cueCache = cacheEnabled ? new CueOverlayCache() : undefined;
+  const cueCache = cacheEnabled ? new CueOverlayCache(options.cueCacheMaxEntries) : undefined;
   const renderStartedAt = performance.now();
   // BUG FIX: regular dev harness produced empty overlay.webm (Phase 2 QA)
   // Fix: captureStream(fps) + wall-clock frame pacing — MediaRecorder cannot encode
@@ -1025,7 +1041,9 @@ async function recordOverlayTimeline(
 
         for (let frameIndex = 0; frameIndex < totalFrames; frameIndex += 1) {
           throwIfRenderAborted(options.signal);
-          await paintAndCapture(frameIndex / fps, frameIndex);
+          // Global timestamp: identical expression to the serial render for the same
+          // global frame — keeps animation phase + cache keys chunk-invariant (v5.3.9).
+          await paintAndCapture((startFrame + frameIndex) / fps, frameIndex);
           options.onRenderProgress?.({
             frameIndex: frameIndex + 1,
             totalFrames,
@@ -1076,12 +1094,14 @@ async function recordOverlayTimeline(
     throw new Error('Subtitle overlay capture produced an empty video blob.');
   }
 
+  // v5.3.9: chunk captures rate against the captured window, not the full clip.
+  const capturedSeconds = range ? totalFrames / fps : durationSeconds;
   const renderMetrics: SubtitleOverlayRenderMetrics = {
     totalFrames,
     fps,
     renderWallMs,
     msPerFrame: totalFrames > 0 ? renderWallMs / totalFrames : 0,
-    realtimeFactor: durationSeconds > 0 ? renderWallMs / (durationSeconds * 1000) : 0,
+    realtimeFactor: capturedSeconds > 0 ? renderWallMs / (capturedSeconds * 1000) : 0,
     cueCache: cueCacheStats,
   };
 
@@ -1124,6 +1144,39 @@ export async function renderSubtitleOverlay(
     fps,
     renderMetrics,
   };
+}
+
+export interface CaptureOverlayChunkInput {
+  /** Pre-normalized global cues — normalizeOverlaySegments output (normalize once). */
+  cues: NormalizedCue[];
+  style: SubtitleStyleConfig;
+  /** Full clip duration (global) — drives last-frame cue semantics. */
+  globalDurationSeconds: number;
+  /** Must include timeRange; finalize is skipped (concat step owns remux). */
+  options: SubtitleOverlayRenderOptions;
+}
+
+/**
+ * v5.3.9 — capture one planned chunk as a raw MediaRecorder WebM (no FFmpeg
+ * finalize). Runs concurrently with sibling chunks: the paced capture loop is
+ * ~90% idle wait, so N chunks multiplex on one thread for ~N× render speedup.
+ * Sync: subtitle-overlay-parallel.ts (orchestration), overlay-chunk-concat.ts (stitch)
+ */
+export async function captureOverlayChunkRaw(
+  input: CaptureOverlayChunkInput,
+): Promise<{ overlayBlob: Blob; renderMetrics: SubtitleOverlayRenderMetrics }> {
+  if (!input.options.timeRange) {
+    throw new Error('captureOverlayChunkRaw requires options.timeRange.');
+  }
+  await ensureOverlayFonts();
+  const target = createRenderTarget(input.options.width, input.options.height);
+  return recordOverlayTimeline(
+    target,
+    input.cues,
+    input.style,
+    input.globalDurationSeconds,
+    { ...input.options, fps: Math.max(1, input.options.fps), offline: input.options.offline ?? true },
+  );
 }
 
 /**

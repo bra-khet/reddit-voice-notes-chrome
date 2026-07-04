@@ -6,6 +6,7 @@ subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v1.1` (2026-07-04) — additive: v5.3.9 parallel chunked bake. The Design Studio context now runs N concurrent MediaRecorder capture loops for the subtitle overlay bake (no new execution context — workers/offscreen deliberately rejected; the bake is pacing-bound, not paint-bound). New modules: `overlay-chunk-planner.ts`, `subtitle-overlay-parallel.ts`, `overlay-concat-args.ts`, `overlay-chunk-concat.ts`. Canonical detail: `docs/transcription-architecture.md` § Parallel chunked bake; decision record: `docs/5.3.9-worker-and-chunked-parallelization-design.md` §0.
 - `v1.0` (2026-06-24) — initial map; all four phases. Branch: `eloquent` at eloquent-5 hardening.
 
 > Bump MINOR for additive refreshes; MAJOR when a context, pipeline, or storage class is added/removed.

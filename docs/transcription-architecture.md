@@ -230,7 +230,26 @@ cuesAtTimestamp(timestamp)
 
 **Observed limits (QA 2026-07):** Sparse transcripts hit ~99% cache rate and stay at MediaRecorder pacing floor (~1.1× render realtime). Rich wave+hue styles generate many unique phase keys; LRU cap causes evictions on animated dense clips. Full bake total time remains normalize-dominated. Spec + harness data: `docs/5.3.5-cue-stable-overlay-caching-design.md` §5.
 
-**QA harness:** gated **Subtitle Overlay Lab** in Design Studio (`subtitle-overlay-lab.ts`) — synthetic segment sets, effect toggles, compare, downloads, **timing JSON v2** (`overlay-lab-timing-summary.ts`). Spec: `docs/v5.3.4-subtitle-canvas-overlay.md`; cache QA: `docs/5.3.5-cue-stable-overlay-caching-design.md`.
+**QA harness:** gated **Subtitle Overlay Lab** in Design Studio (`subtitle-overlay-lab.ts`) — synthetic segment sets, effect toggles, compare, downloads, **timing JSON v2** (`overlay-lab-timing-summary.ts`), forced parallel A/B toggle (v5.3.9). Spec: `docs/v5.3.4-subtitle-canvas-overlay.md`; cache QA: `docs/5.3.5-cue-stable-overlay-caching-design.md`.
+
+#### Parallel chunked bake (v5.3.9)
+
+**The bottleneck was pacing, not paint.** The capture loop is wall-clock paced — MediaRecorder ingests canvas frames in real time (`compensatedCaptureWaitMs`), so a 60 s overlay takes ≥60 s regardless of paint speed, and the v5.3.5 cache already reduced paint to a bitmap blit. **No Web Workers:** MediaRecorder/captureStream cannot run in a worker, VP8 encode already runs on Chrome media threads, and shipping paint to a worker would add per-frame transfer latency into a loop that is ~90% idle. Instead, N paced capture loops run **concurrently on the Design Studio page**, multiplexing the idle wait for a ~N× render-stage speedup.
+
+```
+resolveParallelChunkCount()        [overlay-chunk-planner.ts — duration/cores/memory gate]
+  → planOverlayChunks()           [frame-aligned, cue-gap boundaries, mid-cue slice fallback]
+  → N × captureOverlayChunkRaw()  [subtitle-overlay-renderer.ts — concurrent, staggered 150 ms]
+  → concatOverlayChunksForComposite() [overlay-chunk-concat.ts — one FFmpeg pass:
+       per-input libvpx VP8A decode + genpts → trim=end=chunkDur → concat → yuva420p encode]
+  → runSubtitleBurnIn(...)         [composite unchanged — output identical shape to normalize]
+```
+
+**Determinism rule:** chunks paint at global timestamps `(startFrame + i) / fps` — the exact serial expression — so animation phase, cue timing, and cache keys are chunk-invariant (no seam hue jumps). Chunk boundaries prefer **cue gaps** (MediaRecorder duration jitter is ±1 frame per chunk; invisible when the seam is blank). Per-chunk `trim=end=` drops the tail-hold frames each capture appends, so seams add zero blank time and cue drift does not accumulate.
+
+**Concat replaces normalize:** the parallel path skips both `finalizeOverlayWebm` and `normalizeOverlayWebmForComposite` — the concat pass decodes N chunks (≈ cost of decoding one full clip) and emits the same composite-ready yuva420p WebM. Encode args are contract-locked to the normalize tail (`overlay-concat-args.ts`, tested).
+
+**Gating + fallback chain:** prefs `experimental.parallelBake` (default true) → auto-eligibility (≥20 s clip, ≥3 effective cores, deviceMemory ≥4 GB, chunks ≥2 after the 8 s min-chunk floor) → any chunk/concat failure falls back to the untouched serial render → perf guard still falls back to drawtext. User cancel and perf-guard aborts are never swallowed by the fallback. Per-chunk cue caches get `max(24, 64/N)` entries so N caches stay inside the serial memory envelope.
 
 | Module | Role |
 |--------|------|
@@ -244,6 +263,10 @@ cuesAtTimestamp(timestamp)
 | `overlay-lab-timing-summary.ts` | Timing JSON v2 `summary` builder (v5.3.5) |
 | `canvas-render-perf-guard.ts` | Render budget + drawtext fallback |
 | `bake-chronos.ts` | Elapsed / ETA meter on production bake |
+| `overlay-chunk-planner.ts` | v5.3.9 pure chunk planning: count heuristic, cue-gap boundaries, cache budget |
+| `subtitle-overlay-parallel.ts` | v5.3.9 orchestrator: concurrent staggered captures, abort fan-out, serial fallback |
+| `overlay-concat-args.ts` | v5.3.9 pure FFmpeg concat arg builder (leaf, Node-tested) |
+| `overlay-chunk-concat.ts` | v5.3.9 concat exec: trim+concat+yuva420p in one pass, strategy tiers |
 
 | Capability | `drawtext` + bundled TTF | Canvas overlay (v5.3.4) | `subtitles` + SRT/ASS (libass) |
 |------------|--------------------------|-------------------------|--------------------------------|
@@ -278,5 +301,6 @@ Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031, BUG
 | v5.3 Subtitle QoL | Graceful failure → scaffold, Smart Split, per-cue delete, bake budget, rainbow removed | **Done** (`subtitle-qol-failure-scaffold-v1`) |
 | v5.3.4 Canvas overlay | Offline Canvas 2D overlay WebM + alpha composite; lab harness; perf guard | **Done** (`v5.3.4`) |
 | v5.3.5 Cue-stable cache | `ImageBitmap` LRU cache per cue/phase; timing JSON v2; 32 phase buckets | **Done** (`v5.3.5`) |
+| v5.3.9 Parallel chunked bake | Concurrent paced chunk captures + one-pass FFmpeg concat; auto-gated, serial fallback | **Done** (branch `feature/v5.3.9-parallelization`) |
 
 See `eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec, and `docs/5.3.5-cue-stable-overlay-caching-design.md` for cache design + QA record.

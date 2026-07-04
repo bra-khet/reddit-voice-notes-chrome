@@ -122,10 +122,19 @@ export function makeCueOverlayCacheKey(
 export class CueOverlayCache {
   private readonly map = new Map<string, ImageBitmap>();
   private readonly order: string[] = [];
+  private readonly maxEntries: number;
   private hits = 0;
   private misses = 0;
   private creates = 0;
   private evictions = 0;
+
+  /**
+   * v5.3.9: parallel chunk captures pass a divided budget so N concurrent caches
+   * stay within the serial memory envelope (overlay-chunk-planner.ts).
+   */
+  constructor(maxEntries: number = CUE_OVERLAY_CACHE_MAX_ENTRIES) {
+    this.maxEntries = Math.max(1, maxEntries);
+  }
 
   get(key: string): ImageBitmap | undefined {
     const bitmap = this.map.get(key);
@@ -150,7 +159,7 @@ export class CueOverlayCache {
       if (index >= 0) this.order.splice(index, 1);
     } else {
       this.creates += 1;
-      if (this.map.size >= CUE_OVERLAY_CACHE_MAX_ENTRIES) {
+      if (this.map.size >= this.maxEntries) {
         const evictKey = this.order.shift();
         if (evictKey) {
           this.map.get(evictKey)?.close();
@@ -185,7 +194,7 @@ export class CueOverlayCache {
     return {
       enabled,
       phaseBuckets: CUE_OVERLAY_CACHE_PHASE_BUCKETS,
-      maxEntries: CUE_OVERLAY_CACHE_MAX_ENTRIES,
+      maxEntries: this.maxEntries,
       hits: this.hits,
       misses: this.misses,
       lookups,

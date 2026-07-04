@@ -120,6 +120,9 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
         baseMp4: base.blob,
         signal: options.signal,
         renderPerfBudgetMs: canvasRenderPerfBudgetMs(videoDurationSeconds),
+        // v5.3.9 experimental flag — orchestrator still auto-gates by clip
+        // length/hardware and serial-falls-back on any chunk failure.
+        parallelBake: prefs.experimental?.parallelBake !== false,
         onProgress: (ratio, stage) => {
           const overallRatio = 0.1 + ratio * 0.82;
           report({

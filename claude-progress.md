@@ -1,5 +1,49 @@
 # Reddit Voice Notes — Session Progress
 
+## v5.3.9 — Parallel Chunked Bake (Phase 3) — **IMPLEMENTED** (pending user QA + merge)
+
+**Branch:** `feature/v5.3.9-parallelization` (2026-07-04) · **Package:** `5.3.9`  
+**Design:** `docs/5.3.9-worker-and-chunked-parallelization-design.md` — **§0 As-Built Revision is authoritative**  
+**Release notes (draft):** `docs/release-notes-v5.3.9.md` · **Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 3
+
+### Architecture decision (deliberate revision of the proposal)
+
+**Workers + `chrome.offscreen` coordinator CUT.** The render stage is **pacing-bound**
+(MediaRecorder ingests canvas frames at wall-clock rate; loop ~90% idle after the
+v5.3.5 cache made paint a blit), MediaRecorder can't run in a worker, and the bake
+runs in the Design Studio page — not the service worker — so the MV3 offscreen
+lifetime risk never applied. Shipped instead: **N concurrent paced capture loops in
+the Studio page** over frame-aligned chunks + **one FFmpeg trim/concat/yuva420p pass
+that replaces `normalizeOverlayWebmForComposite`** on the parallel path. Render stage
+~1.1× realtime → ~1/N× + 150 ms stagger. WebCodecs per-chunk encoder is the 5.4.x
+follow-on (seam is encoder-agnostic; blocked on Chrome VP8A alpha or dual-stream
+`alphamerge`).
+
+### Shipped
+
+- `overlay-chunk-planner.ts` — pure: exact frame partition, cue-gap boundary snap (±5 s), mid-cue fallback, count heuristic (≥20 s, cores−1, ≥4 GB, 8 s floor, cap 4), cache budget `max(24, 64/N)`
+- `subtitle-overlay-renderer.ts` — `timeRange {startFrame, frameCount}` (paints at global `(startFrame+i)/fps` → animation phase + cache keys chunk-invariant), `captureOverlayChunkRaw()`, `cueCacheMaxEntries`; `CueOverlayCache` ctor budget
+- `subtitle-overlay-parallel.ts` — orchestrator: staggered concurrent captures, abort fan-out, aggregate progress/stats, **serial fallback on any non-deliberate failure** (user cancel / perf-guard rethrow)
+- `overlay-concat-args.ts` (pure leaf) + `overlay-chunk-concat.ts` — per-input `+genpts -c:v libvpx` VP8A decode, `trim=end=` drops per-chunk tail frames (zero seam drift, non-accumulating ±1-frame jitter), concat, encode tail contract-locked to normalize; libvpx→generic tiers
+- `subtitle-canvas-bake.ts` — parallel result `compositeReady` → skips finalize AND normalize; concat reports on normalize progress band; perf guard unchanged
+- `user-preferences.ts` — `experimental.parallelBake` (default **true**; merged explicitly in `mergePreferences` — field-by-field merge drops unknown keys)
+- Overlay Lab — "Parallel chunked render (v5.3.9)" force toggle; timing log entries `parallel-plan` / `parallel-concat-*` / `parallel-result`
+- Tests: `test-chunk-planner.mjs` (13), `test-overlay-concat-args.mjs` (5); **full suite 17/17 PASS**, `npm run build` PASS, `tsc` at exact HEAD parity (3 pre-existing strictness warnings only: subtitle-bake base-null, canvas-bake Timeout, lab backdrop)
+
+### Verify / QA
+
+```bash
+node scripts/test-chunk-planner.mjs && node scripts/test-overlay-concat-args.mjs
+npm run build
+```
+
+Overlay Lab → long set → parallel toggle A/B (`render.realtimeFactor` in timing JSON);
+scrub overlay near chunk `startFrame/30` s for seams; then real ≥30 s production bake.
+
+**Next:** user QA → merge → tag `v5.3.9` → v5.4.0 Design Studio First.
+
+---
+
 ## v5.3.7 — Editor Intelligence (Phase 1) — **MERGED & TAGGED** (`v5.3.7`)
 
 **Branch:** merged `feature/v5.3.6-smart-split-refactor` → `main` (2026-07-04)  
@@ -76,10 +120,7 @@ node scripts/test-oklch.mjs && node scripts/test-cue-cache.mjs
 
 ---
 
-## v5.3.9 — Worker Chunking (Phase 3) — **NEXT**
-
-**Design:** `docs/5.3.9-worker-and-chunked-parallelization-design.md`  
-**Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 3
+## v5.3.9 — Worker Chunking (Phase 3) — implemented as **Parallel Chunked Bake**, see section at top
 
 ---
 

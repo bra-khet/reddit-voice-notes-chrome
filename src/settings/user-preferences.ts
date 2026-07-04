@@ -118,6 +118,15 @@ export interface NotificationPreferences {
   showResultToasts?: boolean;
 }
 
+export interface ExperimentalPreferences {
+  /**
+   * v5.3.9 parallel chunked subtitle bake. Default true — eligible clips
+   * (≥20 s, enough cores/memory) render overlay chunks concurrently; set false
+   * to force the serial render path. Sync: subtitle-bake.ts, subtitle-overlay-parallel.ts
+   */
+  parallelBake?: boolean;
+}
+
 export interface UserPreferencesV1 {
   version: typeof USER_PREFS_VERSION;
   appearance: AppearancePreferences;
@@ -127,6 +136,8 @@ export interface UserPreferencesV1 {
   voiceEffect?: VoiceEffectConfig;
   /** Subtitle / transcript studio state (eloquent-2+). */
   transcriptConfig?: TranscriptConfig;
+  /** Experimental feature flags (v5.3.9+). */
+  experimental?: ExperimentalPreferences;
 }
 
 export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
@@ -146,6 +157,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   },
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
   transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
+  experimental: { parallelBake: true },
 };
 
 /** Synchronous cache on extension pages — survives design-studio tab close (BUG-019). */
@@ -270,6 +282,12 @@ function mergePreferences(raw: Partial<UserPreferencesV1> | undefined): UserPref
     },
     voiceEffect: normalizeVoiceEffectConfig(raw?.voiceEffect),
     transcriptConfig: normalizeTranscriptConfig(raw?.transcriptConfig),
+    // CHANGED: v5.3.9 — merge experimental flags explicitly (field-by-field merge
+    // WHY: mergePreferences reconstructs the object; unmerged fields are dropped.
+    experimental: {
+      ...DEFAULT_USER_PREFERENCES.experimental,
+      ...raw?.experimental,
+    },
   };
 }
 

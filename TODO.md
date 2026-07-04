@@ -1,15 +1,26 @@
 # TODO
 
-## v5.3.9 — Worker Render Loop + Temporal Chunking (Phase 3) — **NEXT**
+## v5.3.9 — Parallel Chunked Bake (Phase 3) — **IMPLEMENTED, pending QA + merge**
 
-**Design:** [`docs/5.3.9-worker-and-chunked-parallelization-design.md`](docs/5.3.9-worker-and-chunked-parallelization-design.md)  
-**Roadmap:** [`docs/5.3.6-5.3.9-integrated-roadmap.md`](docs/5.3.6-5.3.9-integrated-roadmap.md) § Phase 3
+**Branch:** `feature/v5.3.9-parallelization` (2026-07-04)  
+**Design:** [`docs/5.3.9-worker-and-chunked-parallelization-design.md`](docs/5.3.9-worker-and-chunked-parallelization-design.md) — **§0 As-Built Revision** (workers cut: pacing-bound, not paint-bound)  
+**Roadmap:** [`docs/5.3.6-5.3.9-integrated-roadmap.md`](docs/5.3.6-5.3.9-integrated-roadmap.md) § Phase 3 · **Release notes (draft):** [`docs/release-notes-v5.3.9.md`](docs/release-notes-v5.3.9.md)
 
 | Deliverable | Status |
 |-------------|--------|
-| Worker pool + offscreen MediaRecorder split | pending |
-| Temporal chunking + FFmpeg concat | pending |
-| Feature flag for first ship | pending |
+| ~~Worker pool + offscreen MediaRecorder split~~ → concurrent paced captures in Studio page | **done** (revised — design doc §0.1) |
+| Temporal chunking (cue-gap boundaries) + one-pass FFmpeg trim/concat/yuva420p | **done** — replaces alpha-normalize on parallel path |
+| Feature flag for first ship | **done** — `experimental.parallelBake` (default on, auto-gated ≥20 s / cores / memory; serial + drawtext fallback chain) |
+| Tests | **done** — `test-chunk-planner.mjs` (13), `test-overlay-concat-args.mjs` (5); full suite + `npm run build` green |
+| **User QA** (Overlay Lab parallel A/B + real ≥30 s bake, seam scrub) | **pending** |
+| Merge → `main`, tag `v5.3.9` | **pending QA** |
+
+```bash
+node scripts/test-chunk-planner.mjs
+node scripts/test-overlay-concat-args.mjs
+```
+
+Overlay Lab → "Parallel chunked render (v5.3.9)" toggle → long segment set → compare timing JSON `render.realtimeFactor` vs serial; scrub seams at `parallel-plan` startFrames / 30 s.
 
 ## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **MERGED & TAGGED**
 

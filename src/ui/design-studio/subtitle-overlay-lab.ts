@@ -5,11 +5,15 @@ import {
 import { normalizeHexColor } from '@/src/theme/color-utils';
 import {
   renderSubtitleOverlay,
+  type SubtitleOverlayFrameDebugInfo,
   type SubtitleOverlayRenderMetrics,
+  type SubtitleOverlayResult,
 } from '@/src/transcription/subtitle-overlay-renderer';
+import { renderSubtitleOverlayParallel } from '@/src/transcription/subtitle-overlay-parallel';
 import {
   CUE_OVERLAY_CACHE_MAX_ENTRIES,
   CUE_OVERLAY_CACHE_PHASE_BUCKETS,
+  type CueOverlayCacheStats,
 } from '@/src/transcription/subtitle-overlay-cue-cache';
 import {
   buildOverlayLabTimingSummary,
@@ -145,6 +149,7 @@ function readLabControls(panel: HTMLElement): {
   dualBorder: boolean;
   backdropBorderRadius: number;
   singleFrameDebug: boolean;
+  parallelRender: boolean;
 } {
   const segmentSet =
     (panel.querySelector<HTMLSelectElement>('[data-overlay-lab-segment-set]')?.value as
@@ -173,6 +178,8 @@ function readLabControls(panel: HTMLElement): {
     backdropBorderRadius: Number(backdropRadiusEl?.dataset.value ?? 8),
     singleFrameDebug:
       panel.querySelector<HTMLInputElement>('[data-overlay-lab-single-frame-debug]')?.checked === true,
+    parallelRender:
+      panel.querySelector<HTMLInputElement>('[data-overlay-lab-parallel-render]')?.checked === true,
   };
 }
 
@@ -278,6 +285,18 @@ export function renderSubtitleOverlayLabHtml(): string {
           type="checkbox"
           data-overlay-lab-single-frame-debug
           aria-label="Single-frame debug for canvas overlay render"
+        />
+      </label>
+      <label class="popup__toggle-row studio__subtitles-toggle">
+        <span class="popup__toggle-copy">
+          <span class="popup__toggle-label">Parallel chunked render (v5.3.9)</span>
+          <p class="popup__field-desc">Force concurrent chunk captures + FFmpeg concat for A/B timing. Ignored with single-frame debug.</p>
+        </span>
+        <input
+          class="popup__toggle-input"
+          type="checkbox"
+          data-overlay-lab-parallel-render
+          aria-label="Parallel chunked render for canvas overlay"
         />
       </label>
       <div class="popup__profile-actions studio__inline-actions studio__subtitle-overlay-lab-actions">
@@ -671,44 +690,87 @@ export function mountSubtitleOverlayLab(
       console.time('overlay-lab-render');
       try {
         appendTimingEntry(log, startedAtMs, 'render-start');
-        const renderResult = await renderSubtitleOverlay(
-          edited.segments,
-          style,
-          durationSeconds,
-          {
-            width: CANVAS_WIDTH,
-            height: CANVAS_HEIGHT,
-            fps: 30,
-            background: 'transparent',
-            offline: true,
-            themeBarColor,
-            singleFrameDebug: controls.singleFrameDebug,
-            enableCueCache: !controls.singleFrameDebug,
-            onFrameDebug: controls.singleFrameDebug
-              ? async (info) => {
-                  if (overlayPreviewFrameImg) {
-                    overlayPreviewFrameImg.hidden = false;
-                    overlayPreviewFrameImg.src = info.imageUrl;
-                  }
-                  if (overlayPreviewStatus) {
-                    overlayPreviewStatus.textContent =
-                      `Frame ${info.frameIndex + 1} @ ${info.timestampSeconds.toFixed(2)}s…`;
-                  }
+        const labRenderOptions = {
+          width: CANVAS_WIDTH,
+          height: CANVAS_HEIGHT,
+          fps: 30,
+          background: 'transparent' as const,
+          offline: true,
+          themeBarColor,
+          singleFrameDebug: controls.singleFrameDebug,
+          enableCueCache: !controls.singleFrameDebug,
+          onFrameDebug: controls.singleFrameDebug
+            ? async (info: SubtitleOverlayFrameDebugInfo) => {
+                if (overlayPreviewFrameImg) {
+                  overlayPreviewFrameImg.hidden = false;
+                  overlayPreviewFrameImg.src = info.imageUrl;
                 }
-              : undefined,
-            debug: {
-              onCacheStats: (stats) => {
+                if (overlayPreviewStatus) {
+                  overlayPreviewStatus.textContent =
+                    `Frame ${info.frameIndex + 1} @ ${info.timestampSeconds.toFixed(2)}s…`;
+                }
+              }
+            : undefined,
+          debug: {
+            onCacheStats: (stats: CueOverlayCacheStats) => {
+              appendTimingEntry(
+                log,
+                startedAtMs,
+                'cue-cache-stats',
+                undefined,
+                JSON.stringify(stats),
+              );
+            },
+          },
+        };
+        // v5.3.9 A/B: forced parallel chunked render vs classic serial path.
+        let renderResult: SubtitleOverlayResult;
+        if (controls.parallelRender && !controls.singleFrameDebug) {
+          const parallelResult = await renderSubtitleOverlayParallel(
+            edited.segments,
+            style,
+            durationSeconds,
+            { ...labRenderOptions, parallel: 'force' },
+            {
+              onPlan: (plan) => {
                 appendTimingEntry(
                   log,
                   startedAtMs,
-                  'cue-cache-stats',
+                  'parallel-plan',
                   undefined,
-                  JSON.stringify(stats),
+                  JSON.stringify(
+                    plan.map((chunk) => ({
+                      startFrame: chunk.startFrame,
+                      frameCount: chunk.frameCount,
+                      cutQuality: chunk.cutQuality,
+                    })),
+                  ),
                 );
               },
+              onConcatPhase: (phase) => {
+                appendTimingEntry(log, startedAtMs, `parallel-concat-${phase}`);
+              },
             },
-          },
-        );
+          );
+          appendTimingEntry(
+            log,
+            startedAtMs,
+            'parallel-result',
+            undefined,
+            JSON.stringify({
+              wasParallel: parallelResult.wasParallel,
+              chunkCount: parallelResult.chunkCount,
+            }),
+          );
+          renderResult = parallelResult;
+        } else {
+          renderResult = await renderSubtitleOverlay(
+            edited.segments,
+            style,
+            durationSeconds,
+            labRenderOptions,
+          );
+        }
         renderMetrics = renderResult.renderMetrics ?? null;
         const objectUrl = URL.createObjectURL(renderResult.overlayBlob);
         console.timeEnd('overlay-lab-render');
