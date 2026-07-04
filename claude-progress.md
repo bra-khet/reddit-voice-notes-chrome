@@ -40,28 +40,46 @@ node scripts/test-transcript-edit-diff.mjs && node scripts/test-smart-adjust.mjs
 
 Design Studio → Subtitles → Edit transcript → change font slider (auto-validates) → Smart Adjust when amber.
 
-**Next:** `git push origin main --tags` when ready; Phase 2 Oklch on `feature/v5.3.8-oklch-rainbow` (v5.3.8).
+**Next:** v5.3.9 worker chunking.
 
 ---
 
-## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **IN PROGRESS**
+## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **MERGED & TAGGED** (`v5.3.8`)
 
-**Branch:** `feature/v5.3.8-oklch-rainbow`  
-**Design:** `docs/5.3.8-oklch-rainbow-perceptual-uniformity-design.md`  
-**Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 2  
-**After:** v5.3.9 worker chunking (`docs/5.3.9-worker-and-chunked-parallelization-design.md`)
+**Branch:** merged `feature/v5.3.8-oklch-rainbow` → `main` (2026-07-04)  
+**Tag:** `v5.3.8` · **Release notes:** `docs/release-notes-v5.3.8.md`  
+**Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 2 · **Push:** deferred (local only)
 
-### Shipped (code)
+### Shipped
 
 - `src/utils/oklch.ts` — Oklch↔sRGB, `oklchRainbowHex`, `oklchMonochromaticGlowHex`
-- `subtitle-effects.ts` — `resolveCanvasOverlayRainbowGlowHex()` uses Oklch (rainbow + monochromatic)
+- `subtitle-effects.ts` — rainbow + monochromatic glow via Oklch hue rotation
 - `CUE_OVERLAY_CACHE_PHASE_BUCKETS` 32 → **24**
-- Tests: `node scripts/test-oklch.mjs` (10), `node scripts/test-cue-cache.mjs` (10)
+- Tests: `test-oklch.mjs` (10), `test-cue-cache.mjs` (10)
 
-### Pending
+### User QA (2026-07)
 
-- Visual QA on rainbow + monochromatic animated effects in Design Studio
-- Tag `v5.3.8` after QA pass
+| Area | Result |
+|------|--------|
+| Perceptually uniform rotation | **PASS** — smooth even hue motion in Oklch |
+| Quality @ 24 buckets vs 32 | **PASS** — barely noticeable regression |
+| Bake performance (rich animated) | **PASS** — ~45 s typical vs 60+ s prior experience |
+
+### Handoff
+
+```bash
+git checkout v5.3.8 && npm install && npm run dev
+node scripts/test-oklch.mjs && node scripts/test-cue-cache.mjs
+```
+
+**Next:** `git push origin main --tags` when ready; Phase 3 worker chunking → **v5.3.9**.
+
+---
+
+## v5.3.9 — Worker Chunking (Phase 3) — **NEXT**
+
+**Design:** `docs/5.3.9-worker-and-chunked-parallelization-design.md`  
+**Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 3
 
 ---
 
