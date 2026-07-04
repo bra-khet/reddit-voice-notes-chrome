@@ -73,14 +73,15 @@ export function mountSmartAdjustModal(root: HTMLElement): SmartAdjustModalHandle
     listEl.innerHTML = proposals
       .map(
         (proposal) => `
-          <article class="studio__smart-adjust-card">
+          <article class="studio__smart-adjust-card${proposal.recommended ? ' studio__smart-adjust-card--recommended' : ''}">
             <div class="studio__smart-adjust-card-head">
               <strong>${escapeHtml(proposal.title)}</strong>
+              ${proposal.recommended ? '<span class="studio__smart-adjust-recommended-tag">Recommended</span>' : ''}
               ${proposal.isGlobal ? '<span class="studio__smart-adjust-global-tag">Global</span>' : ''}
             </div>
             <p class="popup__field-desc">${escapeHtml(proposal.description)}</p>
-            <button type="button" class="popup__profile-btn popup__profile-btn--save studio__smart-adjust-apply">
-              Accept proposal
+            <button type="button" class="popup__profile-btn popup__profile-btn--save studio__smart-adjust-apply${proposal.recommended ? ' popup__profile-btn--amber' : ''}">
+              ${proposal.recommended ? 'Auto-fix' : 'Accept proposal'}
             </button>
           </article>
         `,

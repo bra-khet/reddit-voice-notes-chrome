@@ -1,14 +1,22 @@
 /**
- * Two-tier caption fit evaluation — heuristic pre-filter + real-canvas authority (Phase 1).
+ * Two-tier caption fit — bake-frame authority + Smart Split budget kept separate (Phase 1).
  */
 
 import { measureCueRenderedSize } from '@/src/transcription/subtitle-overlay-renderer';
 import type { CueFitStatus } from '@/src/transcription/subtitle-cue-measurement';
-import type { SubtitleStyleConfig } from '@/src/transcription/types';
 import {
+  bakeSafeInkMaxWidth,
+  BAKE_COMFORT_MARGIN_PX,
+  classifyBackdropFrameFit,
+  CUE_BACKDROP_BOX_BORDER_W,
+  estimateCenteredBackdropSpan,
+} from '@/src/transcription/subtitle-cue-measurement';
+import type { SubtitleStyleConfig } from '@/src/transcription/types';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
+import {
+  classifyHeuristicMeasureTier,
   heuristicNeedsRealCanvasMeasure,
   heuristicSkipsRealCanvasMeasure,
-  PREVIEW_CANVAS_HEIGHT,
   PREVIEW_CANVAS_WIDTH,
   smartSplitCaptionMaxWidth,
   type MeasureWidth,
@@ -18,8 +26,11 @@ export const CAPTION_FIT_DEBOUNCE_MS = 200;
 
 export interface CaptionMetricsContext {
   measure: MeasureWidth;
-  maxWidth: number;
+  /** Smart Split / word-shift budget only — NOT used for LONG badge. */
+  splitBudget: number;
   fontSize: number;
+  bakeWidth: number;
+  bakeSafeInkMax: number;
 }
 
 export type CueFitSource = 'heuristic' | 'canvas';
@@ -28,8 +39,8 @@ export interface CueFitEvaluation {
   overflows: boolean;
   fitStatus: CueFitStatus;
   overflowPx: number;
+  comfortMarginPx?: number;
   heuristicWidth: number;
-  renderedWidthPx?: number;
   source: CueFitSource;
   frameClipped?: boolean;
 }
@@ -42,16 +53,39 @@ export function buildCaptionMetricsContext(
     typeof style?.fontSize === 'number' && Number.isFinite(style.fontSize)
       ? style.fontSize
       : 22;
+  const backdropEnabled = style?.backdrop?.enabled !== false;
+  const backdropBorder = backdropEnabled ? CUE_BACKDROP_BOX_BORDER_W : 0;
   return {
     measure,
-    maxWidth: smartSplitCaptionMaxWidth(PREVIEW_CANVAS_WIDTH, fontSize),
+    splitBudget: smartSplitCaptionMaxWidth(PREVIEW_CANVAS_WIDTH, fontSize),
     fontSize,
+    bakeWidth: CANVAS_WIDTH,
+    bakeSafeInkMax: bakeSafeInkMaxWidth(CANVAS_WIDTH, backdropBorder),
   };
 }
 
-export function evaluateCueFitHeuristic(
+function evaluateBakeFitFromInkWidth(
+  inkWidthPx: number,
+  metrics: CaptionMetricsContext,
+  backdropBorderW: number,
+): CueFitEvaluation {
+  const span = estimateCenteredBackdropSpan(inkWidthPx, metrics.bakeWidth, backdropBorderW);
+  const fit = classifyBackdropFrameFit(span.left, span.right, metrics.bakeWidth);
+  return {
+    overflows: fit.overflows,
+    fitStatus: fit.fitStatus,
+    overflowPx: fit.overflowPx,
+    comfortMarginPx: fit.comfortMarginPx,
+    heuristicWidth: inkWidthPx,
+    source: 'heuristic',
+  };
+}
+
+/** LONG badge / Validate All — ink vs bake frame (640px), not Smart Split budget. */
+export function evaluateCueBakeFitHeuristic(
   text: string,
   metrics: CaptionMetricsContext,
+  style?: SubtitleStyleConfig,
 ): CueFitEvaluation {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -59,37 +93,27 @@ export function evaluateCueFitHeuristic(
       overflows: false,
       fitStatus: 'comfortable',
       overflowPx: 0,
+      comfortMarginPx: metrics.bakeWidth,
       heuristicWidth: 0,
       source: 'heuristic',
     };
   }
-  const heuristicWidth = metrics.measure(trimmed);
-  const overflows = heuristicWidth > metrics.maxWidth;
-  const overflowPx = heuristicWidth - metrics.maxWidth;
-  let fitStatus: CueFitStatus = 'comfortable';
-  if (overflows) {
-    fitStatus = 'overflow';
-  } else if (heuristicWidth > metrics.maxWidth * 0.85) {
-    fitStatus = 'marginal';
-  }
-  return {
-    overflows,
-    fitStatus,
-    overflowPx,
-    heuristicWidth,
-    source: 'heuristic',
-  };
+  const inkWidth = metrics.measure(trimmed);
+  const backdropBorder =
+    style?.backdrop?.enabled === false ? 0 : CUE_BACKDROP_BOX_BORDER_W;
+  return evaluateBakeFitFromInkWidth(inkWidth, metrics, backdropBorder);
 }
 
 export function cueFitNeedsCanvasMeasure(
   text: string,
   metrics: CaptionMetricsContext,
+  style?: SubtitleStyleConfig,
 ): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
-  const width = metrics.measure(trimmed);
-  if (heuristicSkipsRealCanvasMeasure(width, metrics.maxWidth)) return false;
-  return heuristicNeedsRealCanvasMeasure(width, metrics.maxWidth);
+  const inkWidth = metrics.measure(trimmed);
+  if (heuristicSkipsRealCanvasMeasure(inkWidth, metrics.bakeSafeInkMax)) return false;
+  return heuristicNeedsRealCanvasMeasure(inkWidth, metrics.bakeSafeInkMax);
 }
 
 export async function evaluateCueFitCanvas(
@@ -100,15 +124,14 @@ export async function evaluateCueFitCanvas(
 ): Promise<CueFitEvaluation> {
   const trimmed = text.trim();
   if (!trimmed) {
-    return evaluateCueFitHeuristic(text, metrics);
+    return evaluateCueBakeFitHeuristic(text, metrics, style);
   }
-  const heuristic = evaluateCueFitHeuristic(text, metrics);
+  const heuristic = evaluateCueBakeFitHeuristic(text, metrics, style);
   const canvas = await measureCueRenderedSize({
     text: trimmed,
     style,
-    width: PREVIEW_CANVAS_WIDTH,
-    height: PREVIEW_CANVAS_HEIGHT,
-    maxWidthPx: metrics.maxWidth,
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT,
     themeBarColor,
     timestampSeconds: 0,
   });
@@ -116,22 +139,22 @@ export async function evaluateCueFitCanvas(
     overflows: canvas.overflows,
     fitStatus: canvas.fitStatus,
     overflowPx: canvas.overflowPx,
+    comfortMarginPx: canvas.comfortMarginPx,
     heuristicWidth: heuristic.heuristicWidth,
-    renderedWidthPx: canvas.renderedWidthPx,
     frameClipped: canvas.frameClipped,
     source: 'canvas',
   };
 }
 
-/** Heuristic first; real-canvas when in the marginal band or heuristic overflow. */
+/** Instant heuristic, then canvas (debounced caller). */
 export async function resolveCueFit(
   text: string,
   style: SubtitleStyleConfig,
   metrics: CaptionMetricsContext,
   options?: { forceCanvas?: boolean; themeBarColor?: string },
 ): Promise<CueFitEvaluation> {
-  const heuristic = evaluateCueFitHeuristic(text, metrics);
-  if (!options?.forceCanvas && !cueFitNeedsCanvasMeasure(text, metrics)) {
+  const heuristic = evaluateCueBakeFitHeuristic(text, metrics, style);
+  if (!options?.forceCanvas && !cueFitNeedsCanvasMeasure(text, metrics, style)) {
     return heuristic;
   }
   try {
@@ -147,9 +170,19 @@ export function formatFitStatusLabel(evaluation: CueFitEvaluation): string {
     return 'Fits comfortably';
   }
   if (evaluation.overflows) {
-    const px = Math.max(1, Math.round(Math.abs(evaluation.overflowPx)));
-    return `Overflows (+${px}px)`;
+    const px = Math.max(1, Math.round(evaluation.overflowPx));
+    return `Needs fix (+${px}px past edge)`;
   }
-  const px = Math.max(1, Math.round(Math.abs(evaluation.overflowPx)));
-  return `Marginal (+${px}px)`;
+  const margin = evaluation.comfortMarginPx ?? 0;
+  return `Near edge (${Math.max(0, Math.round(margin))}px margin)`;
 }
+
+/** Two-tier band against bake-safe ink width (for canvas gating). */
+export function classifyInkMeasureTier(
+  inkWidthPx: number,
+  bakeSafeInkMax: number,
+): ReturnType<typeof classifyHeuristicMeasureTier> {
+  return classifyHeuristicMeasureTier(inkWidthPx, bakeSafeInkMax);
+}
+
+export { BAKE_COMFORT_MARGIN_PX };

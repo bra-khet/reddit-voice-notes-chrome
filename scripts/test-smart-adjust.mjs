@@ -56,7 +56,7 @@ function check(name, fn) {
 
 const charMeasure = (text) => text.length;
 const metrics = buildCaptionMetricsContext(undefined, charMeasure);
-metrics.maxWidth = 20;
+metrics.splitBudget = 20;
 
 console.log('word-shift proposals\n');
 
@@ -86,7 +86,7 @@ console.log('\nre-splice proposals\n');
 
 check('full re-splice splits long original segment', () => {
   const longText = 'alpha beta gamma delta epsilon zeta';
-  const tightMetrics = { ...metrics, maxWidth: 12 };
+  const tightMetrics = { ...metrics, splitBudget: 12 };
   const original = {
     text: longText,
     source: 'vosk',
@@ -118,12 +118,18 @@ check('preserve mode keeps hand-edited cue', () => {
 
 console.log('\noverflow scan\n');
 
-check('findOverflowingCueIndices flags wide cues only', () => {
+check('findOverflowingCueIndices flags bake-overflow cues only', () => {
+  const tightMetrics = {
+    ...metrics,
+    measure: (text) => text.length,
+    bakeWidth: 100,
+    bakeSafeInkMax: 70,
+  };
   const segments = [
     { start: 0, end: 1, text: 'short' },
-    { start: 1, end: 2, text: 'this one is definitely too long' },
+    { start: 1, end: 2, text: 'x'.repeat(80) },
   ];
-  const indices = findOverflowingCueIndices(segments, metrics);
+  const indices = findOverflowingCueIndices(segments, tightMetrics);
   assert.deepEqual(indices, [1]);
 });
 

@@ -3,7 +3,7 @@
  */
 
 import {
-  evaluateCueFitHeuristic,
+  evaluateCueBakeFitHeuristic,
   type CaptionMetricsContext,
 } from '@/src/transcription/subtitle-caption-fit';
 import {
@@ -31,6 +31,8 @@ export interface SmartAdjustProposal {
   description: string;
   cueIndex?: number;
   isGlobal?: boolean;
+  /** Primary path for new users — full re-splice from Vosk original. */
+  recommended?: boolean;
   /** Full segment list after applying this proposal to the modal draft. */
   segments: TranscriptSegment[];
   globalFontSize?: number;
@@ -41,7 +43,7 @@ function splitWords(text: string): string[] {
 }
 
 function segmentTextFits(text: string, metrics: CaptionMetricsContext): boolean {
-  return !evaluateCueFitHeuristic(stripScaffoldPlaceholder(text), metrics).overflows;
+  return !evaluateCueBakeFitHeuristic(stripScaffoldPlaceholder(text), metrics).overflows;
 }
 
 function cloneSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
@@ -127,14 +129,15 @@ export function proposeGlobalFontReduction(
   const scaledMetrics: CaptionMetricsContext = {
     ...metrics,
     fontSize: nextSize,
-    maxWidth: Math.round(metrics.maxWidth * scale),
+    splitBudget: Math.round(metrics.splitBudget * scale),
+    bakeSafeInkMax: Math.round(metrics.bakeSafeInkMax * scale),
     measure: (text: string) => metrics.measure(text) * scale,
   };
 
   const stillOverflow = segments.some((segment) => {
     const text = stripScaffoldPlaceholder(segment.text).trim();
     if (!text) return false;
-    return evaluateCueFitHeuristic(text, scaledMetrics).overflows;
+    return evaluateCueBakeFitHeuristic(text, scaledMetrics).overflows;
   });
   if (stillOverflow) return null;
 
@@ -156,7 +159,7 @@ function reSplitOriginalSegment(
 ): TranscriptSegment[] {
   const text = stripScaffoldPlaceholder(segment.text).trim();
   if (!text) return [{ ...segment }];
-  const chunks = groupWordsByWidth(text, metrics.maxWidth, metrics.measure);
+  const chunks = groupWordsByWidth(text, metrics.splitBudget, metrics.measure);
   if (chunks.length <= 1) return [{ ...segment, text }];
   return splitSegmentIntoChunks({ ...segment, text }, chunks);
 }
@@ -213,9 +216,10 @@ export function buildReSpliceProposal(
   return {
     id: mode === 'preserve' ? 're-splice-preserve' : 're-splice-full',
     kind: mode === 'preserve' ? 're-splice-preserve' : 're-splice-full',
-    title,
+    title: mode === 'full' ? 'Auto-fix — re-splice from original' : title,
     description,
     segments: merged,
+    recommended: mode === 'full',
   };
 }
 
@@ -258,7 +262,7 @@ export function findOverflowingCueIndices(
   segments.forEach((segment, index) => {
     const text = stripScaffoldPlaceholder(segment.text).trim();
     if (!text) return;
-    if (evaluateCueFitHeuristic(text, metrics).overflows) {
+    if (evaluateCueBakeFitHeuristic(text, metrics).overflows) {
       indices.push(index);
     }
   });

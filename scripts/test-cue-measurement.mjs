@@ -1,4 +1,4 @@
-// Pure cue fit classification for real-canvas measurement (Phase 1).
+// Bake-frame cue fit classification (Phase 1).
 //
 //   Run:  node scripts/test-cue-measurement.mjs
 
@@ -27,17 +27,13 @@ async function bundle(entry, name) {
 }
 
 const {
-  classifyCueFitStatus,
+  bakeSafeInkMaxWidth,
+  classifyBackdropFrameFit,
   buildCueRenderedSizeResult,
-  heuristicTierNeedsRealCanvas,
+  BAKE_FRAME_SAFE_PADDING_PX,
+  BAKE_COMFORT_MARGIN_PX,
+  CUE_BACKDROP_BOX_BORDER_W,
 } = await bundle('src/transcription/subtitle-cue-measurement.ts', 'measure');
-
-const {
-  classifyHeuristicMeasureTier,
-  heuristicSkipsRealCanvasMeasure,
-  heuristicNeedsRealCanvasMeasure,
-  SMART_SPLIT_HEURISTIC_COMFORT_RATIO,
-} = await bundle('src/utils/text-metrics.ts', 'metrics');
 
 let passed = 0;
 let failed = 0;
@@ -54,58 +50,45 @@ function check(name, fn) {
   }
 }
 
-const BUDGET = 381;
+const BAKE_W = 640;
 
-console.log('classifyHeuristicMeasureTier (two-tier pre-filter)\n');
+console.log('bakeSafeInkMaxWidth\n');
 
-check('well under budget → comfortable (skip real canvas)', () => {
-  const width = BUDGET * 0.5;
-  assert.equal(classifyHeuristicMeasureTier(width, BUDGET), 'comfortable');
-  assert.equal(heuristicSkipsRealCanvasMeasure(width, BUDGET), true);
-  assert.equal(heuristicNeedsRealCanvasMeasure(width, BUDGET), false);
+check('640px bake allows ~608px ink before backdrop hits safe edge', () => {
+  const max = bakeSafeInkMaxWidth(BAKE_W, CUE_BACKDROP_BOX_BORDER_W, BAKE_FRAME_SAFE_PADDING_PX);
+  assert.equal(max, 640 - 8 - 24);
 });
 
-check('marginal band → needs real canvas', () => {
-  const width = BUDGET * 0.9;
-  assert.equal(classifyHeuristicMeasureTier(width, BUDGET), 'marginal');
-  assert.equal(heuristicTierNeedsRealCanvas('marginal'), true);
-  assert.equal(heuristicNeedsRealCanvasMeasure(width, BUDGET), true);
+console.log('\nclassifyBackdropFrameFit\n');
+
+check('wide backdrop inside frame → comfortable', () => {
+  const fit = classifyBackdropFrameFit(80, 560, BAKE_W);
+  assert.equal(fit.overflows, false);
+  assert.equal(fit.fitStatus, 'comfortable');
 });
 
-check('heuristic overflow → needs real canvas', () => {
-  const width = BUDGET * 1.2;
-  assert.equal(classifyHeuristicMeasureTier(width, BUDGET), 'overflow');
+check('backdrop past right edge → overflow', () => {
+  const fit = classifyBackdropFrameFit(20, BAKE_W + 10, BAKE_W);
+  assert.equal(fit.overflows, true);
+  assert.ok(fit.overflowPx > 0);
 });
 
-console.log('\nclassifyCueFitStatus (post real-canvas)\n');
-
-check('under comfort ratio → comfortable', () => {
-  const width = BUDGET * (SMART_SPLIT_HEURISTIC_COMFORT_RATIO - 0.05);
-  assert.equal(classifyCueFitStatus(width, BUDGET, false), 'comfortable');
-});
-
-check('between comfort and budget → marginal', () => {
-  const width = BUDGET * 0.95;
-  assert.equal(classifyCueFitStatus(width, BUDGET, false), 'marginal');
-});
-
-check('over budget or frame clip → overflow', () => {
-  assert.equal(classifyCueFitStatus(BUDGET + 1, BUDGET, false), 'overflow');
-  assert.equal(classifyCueFitStatus(BUDGET - 10, BUDGET, true), 'overflow');
+check('fits but tight margin → marginal', () => {
+  const right = BAKE_W - 6;
+  const left = right - 200;
+  const fit = classifyBackdropFrameFit(left, right, BAKE_W);
+  assert.equal(fit.overflows, false);
+  assert.equal(fit.fitStatus, 'marginal');
+  assert.ok(fit.comfortMarginPx < BAKE_COMFORT_MARGIN_PX);
 });
 
 console.log('\nbuildCueRenderedSizeResult\n');
 
-check('assembles overflowPx and fitStatus', () => {
-  const result = buildCueRenderedSizeResult({
-    renderedWidthPx: 400,
-    renderedHeightPx: 48,
-    maxWidthPx: BUDGET,
-    frameClipped: false,
-  });
+check('assembles bake overflow fields', () => {
+  const fit = classifyBackdropFrameFit(0, BAKE_W + 20, BAKE_W);
+  const result = buildCueRenderedSizeResult(fit, BAKE_W);
   assert.equal(result.overflows, true);
-  assert.equal(result.overflowPx, 400 - BUDGET);
-  assert.equal(result.fitStatus, 'overflow');
+  assert.equal(result.bakeWidth, BAKE_W);
 });
 
 rmSync(outdir, { recursive: true, force: true });

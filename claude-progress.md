@@ -12,7 +12,9 @@
 - `transcript-edit-diff.ts`, `smart-adjust.ts`, `subtitle-caption-fit.ts`
 - Tests: `test-cue-measurement.mjs`, `test-transcript-edit-diff.mjs`, `test-smart-adjust.mjs`, extended `test-smart-split.mjs`
 
-**Next:** user QA on dense transcripts; tune marginal-band constants if needed; then merge + tag (rolls with post-v5.3.6 fixes).
+**QA fix (2026-07):** LONG / Validate All used Smart Split budget on 320px canvas; bake is 640×360. Overflow authority is now **backdrop plate vs frame edge** only. Validate All no longer overwrites canvas cache with heuristic refresh.
+
+**Next:** re-QA LONG badge + Validate All on 22/24px dense transcripts; Smart Adjust UX polish tracked in `docs/future-ideas.md`.
 
 ---
 

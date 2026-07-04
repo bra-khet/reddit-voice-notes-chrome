@@ -213,6 +213,35 @@ Per-frame animated glow color on canvas overlay when **Glow color = Hue rotate**
 
 ---
 
+## Smart Adjust — Transcript Editor UX (v5.3.6 Phase 1 QA)
+
+**Priority:** Medium — after bake-fit threshold QA passes  
+**Effort:** Medium–Large (UI/UX)  
+**Status:** Core logic shipped; presentation deferred
+
+### Shipped (functionality)
+
+- Mode A: per-cue word shift, global font −1px.
+- Mode B: full re-splice from Vosk original (promoted as **Auto-fix / Recommended**).
+- Fit status + Validate all cues + two-tier real-canvas measurement.
+
+### QA notes (2026-07)
+
+- Logic and proposal quality are good; primary gap is **visual sophistication** — users need before/after preview, inline diff, or timeline context to trust multi-cue proposals.
+- **Recommended proposal highlight:** amber `Recommended` tag + primary **Auto-fix** button on full re-splice (shipped). Future: extend to best Mode A pick when heuristics can rank word-shift vs font tweak reliably.
+- **Default path for new users:** full re-splice from original transcript — lowest friction, most reliable; keep visually dominant until a richer UI exists.
+
+### Future directions
+
+- Side-by-side or overlay preview of measurement / backdrop bounds per cue.
+- Visual cue map showing which segments overflow vs near-edge vs comfortable.
+- Rank proposals (re-splice > word-shift > font) with amber recommended state on the top pick only.
+- Integrate Smart Adjust into a unified “subtitle health” panel rather than a stacked modal.
+
+See also: `docs/5.3.6-5.3.8-integrated-roadmap.md` Phase 1.
+
+---
+
 ## Canvas Subtitle Bake — Performance (v5.3.4 QA)
 
 **Priority:** Medium — revisit after v5.3.5 ships  

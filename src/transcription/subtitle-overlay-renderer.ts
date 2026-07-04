@@ -43,7 +43,10 @@ import {
 } from '@/src/transcription/types';
 import { normalizeHexColor } from '@/src/theme/color-utils';
 import {
+  BAKE_FRAME_SAFE_PADDING_PX,
   buildCueRenderedSizeResult,
+  classifyBackdropFrameFit,
+  CUE_BACKDROP_BOX_BORDER_W,
   type CueRenderedSizeResult,
 } from '@/src/transcription/subtitle-cue-measurement';
 
@@ -679,22 +682,18 @@ function paintMainText(
   ctx.fillText(text, x, y);
 }
 
-interface CueRenderedExtent {
-  renderedWidthPx: number;
-  renderedHeightPx: number;
-  frameClipped: boolean;
-}
-
 /**
- * Ink + glow bleed extent using the same geometry as paintCue (no duplicate paint stack).
+ * Backdrop plate bounds — authoritative LONG / bake overflow (not glow bleed or split budget).
+ * BUG FIX: false LONG badge at bake resolution
+ * Fix: measure at bake width; overflow = backdrop plate past frame safe inset only.
  */
-function computeCueRenderedExtent(
+function computeCueBakeFitExtent(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   text: string,
   style: SubtitleStyleConfig,
   width: number,
   height: number,
-): CueRenderedExtent {
+) {
   const fontSize = style.fontSize ?? 22;
   const fontFamily = overlayCssFontFamily(style.fontFamily);
   ctx.font = `normal ${fontSize}px ${fontFamily}, sans-serif`;
@@ -704,24 +703,20 @@ function computeCueRenderedExtent(
   const textX = Math.round(drawtextXpx(width));
   const textY = Math.round(drawtextYpx(style.position, fontSize, height));
   const ink = measureCueInkMetrics(ctx, text, textX, textY, fontSize);
-  const insets = glowBleedInsetsPx(style, fontSize);
 
-  const left = ink.inkLeft - insets.left;
-  const right = ink.inkLeft + ink.inkWidth + insets.right;
-  const top = ink.inkTop - insets.top;
-  const bottom = ink.inkTop + ink.inkHeight + insets.bottom;
+  const backdropEnabled = style.backdrop?.enabled !== false;
+  const borderW = backdropEnabled ? CUE_BACKDROP_BOX_BORDER_W : 4;
+  const backdropLeft = ink.inkLeft - borderW;
+  const backdropRight = ink.inkLeft + ink.inkWidth + borderW;
+  const comfortMarginPx = Math.min(backdropLeft, width - backdropRight);
 
-  const frameClipped =
-    left < FRAME_EDGE_INSET_PX ||
-    right > width - FRAME_EDGE_INSET_PX ||
-    top < FRAME_EDGE_INSET_PX ||
-    bottom > height - FRAME_EDGE_INSET_PX;
-
-  return {
-    renderedWidthPx: right - left,
-    renderedHeightPx: bottom - top,
-    frameClipped,
-  };
+  return classifyBackdropFrameFit(
+    backdropLeft,
+    backdropRight,
+    width,
+    BAKE_FRAME_SAFE_PADDING_PX,
+    comfortMarginPx,
+  );
 }
 
 export type { CueRenderedSizeResult };
@@ -731,8 +726,6 @@ export interface MeasureCueRenderedSizeInput {
   style: SubtitleStyleConfig;
   width: number;
   height: number;
-  /** Budget from smartSplitCaptionMaxWidth at measure time. */
-  maxWidthPx: number;
   themeBarColor?: string;
   /** Representative animation phase — fixed 0 for width checks (roadmap §3.2). */
   timestampSeconds?: number;
@@ -750,7 +743,6 @@ export async function measureCueRenderedSize(
     style,
     width,
     height,
-    maxWidthPx,
     themeBarColor = DEFAULT_THEME_BAR,
     timestampSeconds = 0,
   } = input;
@@ -762,14 +754,8 @@ export async function measureCueRenderedSize(
   clearFrame(surface.paintCtx, width, height, 'transparent');
   paintCue(surface.paintCtx, cue, style, width, height, themeBarColor, timestampSeconds);
 
-  const extent = computeCueRenderedExtent(surface.paintCtx, text, style, width, height);
-  return buildCueRenderedSizeResult({
-    renderedWidthPx: extent.renderedWidthPx,
-    renderedHeightPx: extent.renderedHeightPx,
-    maxWidthPx,
-    frameClipped: extent.frameClipped,
-    lineCount: 1,
-  });
+  const fit = computeCueBakeFitExtent(surface.paintCtx, text, style, width, height);
+  return buildCueRenderedSizeResult(fit, width, 1);
 }
 
 function paintCue(

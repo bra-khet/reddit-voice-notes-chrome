@@ -33,7 +33,7 @@ import {
 import {
   buildCaptionMetricsContext,
   CAPTION_FIT_DEBOUNCE_MS,
-  evaluateCueFitHeuristic,
+  evaluateCueBakeFitHeuristic,
   formatFitStatusLabel,
   resolveCueFit,
   type CaptionMetricsContext,
@@ -340,7 +340,7 @@ export function mountSubtitleSegmentEditor(
 
   function getCueOverflow(evaluation: CueFitEvaluation | undefined, text: string, metrics: CaptionMetrics): boolean {
     if (evaluation) return evaluation.overflows;
-    return evaluateCueFitHeuristic(text, metrics).overflows;
+    return evaluateCueBakeFitHeuristic(text, metrics, metrics.style).overflows;
   }
 
   function syncRowFitStatus(row: HTMLElement, evaluation: CueFitEvaluation | undefined): void {
@@ -361,7 +361,7 @@ export function mountSubtitleSegmentEditor(
     const existing = cueFitDebounceTimers.get(index);
     if (existing !== undefined) window.clearTimeout(existing);
 
-    const heuristic = evaluateCueFitHeuristic(text, metrics);
+    const heuristic = evaluateCueBakeFitHeuristic(text, metrics, metrics.style);
     cueFitCache.set(index, heuristic);
     syncRowFitStatus(row, heuristic);
     syncRowOverflowUi(row, metrics, heuristic);
@@ -369,6 +369,7 @@ export function mountSubtitleSegmentEditor(
     const timer = window.setTimeout(() => {
       cueFitDebounceTimers.delete(index);
       void resolveCueFit(text, metrics.style, metrics, {
+        forceCanvas: true,
         themeBarColor: handlers?.getThemeBarColor?.(),
       }).then((evaluation) => {
         if (modalEl.hidden) return;
@@ -618,7 +619,7 @@ export function mountSubtitleSegmentEditor(
     const textInput = row.querySelector<HTMLTextAreaElement>('[data-segment-text]');
     const text = stripScaffoldPlaceholder(textInput?.value ?? '');
     const overflow = getCueOverflow(evaluation ?? cueFitCache.get(Number(row.dataset.segmentIndex)), text, metrics);
-    const canSplit = groupWordsByWidth(text, metrics.maxWidth, metrics.measure).length > 1;
+    const canSplit = groupWordsByWidth(text, metrics.splitBudget, metrics.measure).length > 1;
 
     const badge = row.querySelector<HTMLElement>('[data-segment-overflow]');
     if (badge) badge.hidden = !overflow;
@@ -688,7 +689,7 @@ export function mountSubtitleSegmentEditor(
             <span
               class="studio__transcript-overflow-badge"
               data-segment-overflow
-              title="Too long for one line — will trail off screen in the baked video. Use Split."
+              title="Backdrop will clip on bake — use Split or Smart Adjust Auto-fix."
               hidden
             >${OVERFLOW_LABEL}</span>
             <span
@@ -731,6 +732,20 @@ export function mountSubtitleSegmentEditor(
       if (text.trim()) scheduleCueFitMeasure(row, index, text, metrics);
       segmentsEl.append(row);
     }
+  }
+
+  function syncModalSegmentUiFromCache(): void {
+    const metrics = buildCaptionMetrics();
+    const rows = segmentsEl.querySelectorAll<HTMLElement>('[data-segment-index]');
+    rows.forEach((row) => {
+      const index = Number(row.dataset.segmentIndex);
+      if (!Number.isFinite(index)) return;
+      const evaluation = cueFitCache.get(index);
+      syncRowOobBadge(row);
+      syncPlayButtonState(row, index);
+      syncRowFitStatus(row, evaluation);
+      syncRowOverflowUi(row, metrics, evaluation);
+    });
   }
 
   function refreshModalSegmentUi(): void {
@@ -833,8 +848,8 @@ export function mountSubtitleSegmentEditor(
     const text = stripScaffoldPlaceholder(segment.text).trim();
     if (!text) return;
 
-    const { measure, maxWidth } = buildCaptionMetrics();
-    const chunks = groupWordsByWidth(text, maxWidth, measure);
+    const { measure, splitBudget } = buildCaptionMetrics();
+    const chunks = groupWordsByWidth(text, splitBudget, measure);
     if (chunks.length <= 1) return; // already fits, or a single un-splittable word
 
     const replacement = splitSegmentIntoChunks({ ...segment, text }, chunks);
@@ -911,8 +926,8 @@ export function mountSubtitleSegmentEditor(
       else if (evaluation.fitStatus === 'marginal') marginalCount += 1;
     }
 
-    refreshModalSegmentUi();
-    validateSummaryEl.textContent = `Validated ${measured} cue(s): ${overflowCount} overflow, ${marginalCount} marginal.`;
+    syncModalSegmentUiFromCache();
+    validateSummaryEl.textContent = `Validated ${measured} cue(s): ${overflowCount} need fix, ${marginalCount} near edge.`;
     validateAllRunning = false;
     validateAllBtn.disabled = false;
     smartAdjustBtn.disabled = false;
@@ -957,9 +972,9 @@ export function mountSubtitleSegmentEditor(
         : null;
 
     const proposals = [
-      ...minimal,
-      ...(reSplicePreserve ? [reSplicePreserve] : []),
       ...(reSpliceFull ? [reSpliceFull] : []),
+      ...(reSplicePreserve ? [reSplicePreserve] : []),
+      ...minimal,
     ];
 
     smartAdjustModal.open({
