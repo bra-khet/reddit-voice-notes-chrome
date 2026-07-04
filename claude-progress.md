@@ -1,9 +1,10 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (pre-merge polish, hand-off ready)
+## v5.3.7 — Editor Intelligence (Phase 1) — **MERGED & TAGGED** (`v5.3.7`)
 
-**Branch:** `feature/v5.3.6-smart-split-refactor` → merge to `main` for next tag  
-**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` · **Commits:** `c2628ef` … `9257546` + pre-merge polish
+**Branch:** merged `feature/v5.3.6-smart-split-refactor` → `main` (2026-07-04)  
+**Tag:** `v5.3.7` · **Release notes:** `docs/release-notes-v5.3.7.md`  
+**Roadmap:** `docs/5.3.6-5.3.8-integrated-roadmap.md` · **Push:** deferred (local only)
 
 ### Shipped
 
@@ -39,7 +40,7 @@ node scripts/test-transcript-edit-diff.mjs && node scripts/test-smart-adjust.mjs
 
 Design Studio → Subtitles → Edit transcript → change font slider (auto-validates) → Smart Adjust when amber.
 
-**Next:** merge Phase 1 + post-`v5.3.6` fixes to `main`, tag next release; Phase 2 Oklch per roadmap.
+**Next:** `git push origin main --tags` when ready; Phase 2 Oklch (v5.3.8 per roadmap).
 
 ---
 

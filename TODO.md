@@ -1,9 +1,10 @@
 # TODO
 
-## v5.3.6 Phase 1 — Editor Intelligence — **COMPLETE** (pre-merge polish)
+## v5.3.7 — Editor Intelligence (Phase 1) — **MERGED & TAGGED**
 
-**Branch:** `feature/v5.3.6-smart-split-refactor` — ready to merge → `main` (rolls into next tag with BUG-036 + 24px headroom).  
-**Roadmap:** [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md)
+**Tag:** `v5.3.7` on `main` · **Release notes:** [`docs/release-notes-v5.3.7.md`](docs/release-notes-v5.3.7.md)  
+**Roadmap:** [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md)  
+**Push:** deferred (local tag + merge only)
 
 | Deliverable | Status |
 |-------------|--------|
@@ -16,7 +17,7 @@
 
 **Deferred:** Smart Adjust rich visual UI → `docs/future-ideas.md` § Smart Adjust UX.
 
-**Next:** merge branch → `main`, tag next release. **Then:** Oklch (v5.3.7 / Phase 2); worker chunking (v5.3.8 / Phase 3).
+**Next:** `git push origin main --tags` when ready. **Then:** Oklch (v5.3.8 / Phase 2); worker chunking (v5.3.9 / Phase 3).
 
 ## v5.3.6+ — on `main` (next tag)
 
