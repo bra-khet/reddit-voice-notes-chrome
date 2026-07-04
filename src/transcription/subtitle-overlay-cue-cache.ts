@@ -12,8 +12,8 @@ import {
   type SubtitleStyleConfig,
 } from '@/src/transcription/types';
 
-/** Quantized animation buckets per cycle — 32 ≈ ~30 updates/s at 30 fps (v5.3.5 QA tuning). */
-export const CUE_OVERLAY_CACHE_PHASE_BUCKETS = 32;
+/** Quantized animation buckets per cycle — 24 aligns with 24/30 fps; smooth with Oklch hue (v5.3.8). */
+export const CUE_OVERLAY_CACHE_PHASE_BUCKETS = 24;
 
 /** Defensive cap for pathological transcripts (v5.3.5 design §3.3). */
 export const CUE_OVERLAY_CACHE_MAX_ENTRIES = 64;

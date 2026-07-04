@@ -44,12 +44,24 @@ Design Studio → Subtitles → Edit transcript → change font slider (auto-val
 
 ---
 
-## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **NEXT**
+## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **IN PROGRESS**
 
-**Branch:** `feature/v5.3.8-oklch-rainbow` (not created yet)  
+**Branch:** `feature/v5.3.8-oklch-rainbow`  
 **Design:** `docs/5.3.8-oklch-rainbow-perceptual-uniformity-design.md`  
 **Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 2  
 **After:** v5.3.9 worker chunking (`docs/5.3.9-worker-and-chunked-parallelization-design.md`)
+
+### Shipped (code)
+
+- `src/utils/oklch.ts` — Oklch↔sRGB, `oklchRainbowHex`, `oklchMonochromaticGlowHex`
+- `subtitle-effects.ts` — `resolveCanvasOverlayRainbowGlowHex()` uses Oklch (rainbow + monochromatic)
+- `CUE_OVERLAY_CACHE_PHASE_BUCKETS` 32 → **24**
+- Tests: `node scripts/test-oklch.mjs` (10), `node scripts/test-cue-cache.mjs` (10)
+
+### Pending
+
+- Visual QA on rainbow + monochromatic animated effects in Design Studio
+- Tag `v5.3.8` after QA pass
 
 ---
 

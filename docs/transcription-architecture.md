@@ -220,7 +220,9 @@ cuesAtTimestamp(timestamp)
   → cache miss → paintCue on temp OffscreenCanvas → createImageBitmap → LRU store
 ```
 
-**Key module:** `subtitle-overlay-cue-cache.ts` — `CueOverlayCache` (64-entry LRU), `CUE_OVERLAY_CACHE_PHASE_BUCKETS = 32`, `hashSubtitleStyleForCueCache()`, `quantizeOverlayAnimationPhase()`.
+**Key module:** `subtitle-overlay-cue-cache.ts` — `CueOverlayCache` (64-entry LRU), `CUE_OVERLAY_CACHE_PHASE_BUCKETS = 24` (v5.3.8 Oklch), `hashSubtitleStyleForCueCache()`, `quantizeOverlayAnimationPhase()`.
+
+**Animated hue (v5.3.8):** rainbow / monochromatic glow rotation uses perceptually uniform Oklch hue in `src/utils/oklch.ts` via `resolveCanvasOverlayGlowHex()` — replaces prior HSV rotation that required 32 phase buckets to mask uneven steps.
 
 **Frame pacing (BUG-036 fix):** cache misses must not block MediaRecorder delivery. Miss path blits synchronously; `createImageBitmap` populates LRU in the background. `compensatedCaptureWaitMs()` keeps wall-clock frame spacing at `1/fps` after variable paint cost.
 

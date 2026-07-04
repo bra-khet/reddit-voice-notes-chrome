@@ -62,6 +62,10 @@ function check(name, fn) {
 
 console.log('cue overlay cache\n');
 
+check('phase bucket count is 24 (v5.3.8 Oklch)', () => {
+  assert.equal(CUE_OVERLAY_CACHE_PHASE_BUCKETS, 24);
+});
+
 check('stableCueId is deterministic', () => {
   assert.equal(stableCueId(baseCue), '1.2|3.4|Hello world');
   assert.equal(stableCueId(baseCue), stableCueId({ ...baseCue }));

@@ -5,6 +5,7 @@ import {
   hsvToHex,
   normalizeHexColor,
 } from '@/src/theme/color-utils';
+import { oklchMonochromaticGlowHex, oklchRainbowHex } from '@/src/utils/oklch';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   DEFAULT_SUBTITLE_HUE_ROTATE_SPEED,
@@ -164,18 +165,14 @@ function resolveCanvasOverlayRainbowGlowHex(
   const speed = Math.max(1, hueRotateSpeed);
   const hue = ((timestampSeconds * speed) % 360 + 360) % 360;
 
+  // CHANGED: Oklch perceptually uniform hue rotation (v5.3.8)
+  // WHY: HSV hue steps are visually uneven; Oklch rotation removes stutter at lower bucket counts
   if (hueRotateMode === 'rainbow') {
-    return hsvToHex(hue, 82, 92);
+    return oklchRainbowHex(hue);
   }
 
   const baseHex = resolveGlowColorHex('theme', themeBarColor, specialHue);
-  const baseHsv = hexToHsv(baseHex);
-  if (!baseHsv) return baseHex;
-
-  const t = (hue / 360) * Math.PI * 2;
-  const value = Math.max(38, Math.min(100, baseHsv.v + 16 * Math.sin(t)));
-  const saturation = Math.max(20, Math.min(100, baseHsv.s * (0.78 + 0.22 * Math.cos(t))));
-  return hsvToHex(baseHsv.h, saturation, value);
+  return oklchMonochromaticGlowHex(baseHex, hue) ?? baseHex;
 }
 
 /**

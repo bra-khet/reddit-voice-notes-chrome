@@ -8,9 +8,9 @@
 
 | Deliverable | Status |
 |-------------|--------|
-| Oklch ↔ sRGB conversion module + tests | pending |
-| Rainbow / monochromatic hue paths → Oklch rotation | pending |
-| Phase buckets 32 → 24 | pending |
+| Oklch ↔ sRGB conversion module + tests | **done** — `src/utils/oklch.ts`, `scripts/test-oklch.mjs` |
+| Rainbow / monochromatic hue paths → Oklch rotation | **done** — `subtitle-effects.ts` |
+| Phase buckets 32 → 24 | **done** — `subtitle-overlay-cue-cache.ts` |
 | Visual QA on animated effects | pending |
 
 **After v5.3.8:** worker chunking → **v5.3.9** (`docs/5.3.9-worker-and-chunked-parallelization-design.md`).
@@ -55,6 +55,7 @@ node scripts/test-transcript-edit-diff.mjs
 node scripts/test-smart-adjust.mjs
 node scripts/test-overlay-frame-pacing.mjs
 node scripts/test-cue-cache.mjs
+node scripts/test-oklch.mjs
 ```
 
 Design Studio → Subtitles → **Edit transcript** → Validate all / Smart Adjust when ⚠ LONG cues appear.
