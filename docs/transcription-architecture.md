@@ -207,16 +207,37 @@ prepareSegmentsForSubtitleBake()     [transcript-editing.ts — shared with draw
 
 **Perf guard (Phase 5.3):** production bake aborts offline render past a 2.5–3 min budget (`canvas-render-perf-guard.ts`) and falls back to drawtext. Guard covers **render only**; VP8A normalize can exceed render time on long clips (see perf notes in `docs/v5.3.4-subtitle-canvas-overlay.md` and `docs/future-ideas.md` § Canvas Subtitle Bake Performance).
 
-**QA harness:** gated **Subtitle Overlay Lab** in Design Studio (`subtitle-overlay-lab.ts`) — synthetic segment sets, effect toggles, compare, downloads, JSON timing logs. Spec: `docs/v5.3.4-subtitle-canvas-overlay.md`.
+#### Cue-stable overlay caching (v5.3.5)
+
+**Goal:** Skip redundant `paintCue` work when cue identity, style, and quantized animation phase are unchanged across frames.
+
+**Flow (inside `recordOverlayTimeline` → `paintFrame`):**
+
+```
+cuesAtTimestamp(timestamp)
+  → per cue: makeCueOverlayCacheKey(cue, style, themeBar, timestamp)
+  → cache hit  → paintCtx.drawImage(ImageBitmap)
+  → cache miss → paintCue on temp OffscreenCanvas → createImageBitmap → LRU store
+```
+
+**Key module:** `subtitle-overlay-cue-cache.ts` — `CueOverlayCache` (64-entry LRU), `CUE_OVERLAY_CACHE_PHASE_BUCKETS = 32`, `hashSubtitleStyleForCueCache()`, `quantizeOverlayAnimationPhase()`.
+
+**Options:** `enableCueCache` (default true), `debug.onCacheStats` / `debug.logCacheStats`. Bypassed when `singleFrameDebug` is on. Returns `renderMetrics.cueCache` on `SubtitleOverlayResult`.
+
+**Observed limits (QA 2026-07):** Sparse transcripts hit ~99% cache rate and stay at MediaRecorder pacing floor (~1.1× render realtime). Rich wave+hue styles generate many unique phase keys; LRU cap causes evictions on animated dense clips. Full bake total time remains normalize-dominated. Spec + harness data: `docs/5.3.5-cue-stable-overlay-caching-design.md` §5.
+
+**QA harness:** gated **Subtitle Overlay Lab** in Design Studio (`subtitle-overlay-lab.ts`) — synthetic segment sets, effect toggles, compare, downloads, **timing JSON v2** (`overlay-lab-timing-summary.ts`). Spec: `docs/v5.3.4-subtitle-canvas-overlay.md`; cache QA: `docs/5.3.5-cue-stable-overlay-caching-design.md`.
 
 | Module | Role |
 |--------|------|
-| `subtitle-overlay-renderer.ts` | Paint loop, MediaRecorder, preview/bake entry |
+| `subtitle-overlay-renderer.ts` | Paint loop, MediaRecorder, cue cache fast path, preview/bake entry |
+| `subtitle-overlay-cue-cache.ts` | Cache keys, phase buckets, LRU `ImageBitmap` store (v5.3.5) |
 | `subtitle-overlay-fonts.ts` | DejaVu FontFace loading |
 | `overlay-webm-finalize.ts` | VP8 remux / yuva normalize before composite |
 | `subtitle-canvas-bake.ts` | Dev + production canvas bake orchestration |
 | `subtitle-overlay-compare.ts` | Side-by-side drawtext vs canvas QA |
 | `subtitle-overlay-lab.ts` | Persistent lab panel + timing logs |
+| `overlay-lab-timing-summary.ts` | Timing JSON v2 `summary` builder (v5.3.5) |
 | `canvas-render-perf-guard.ts` | Render budget + drawtext fallback |
 | `bake-chronos.ts` | Elapsed / ETA meter on production bake |
 
@@ -251,6 +272,7 @@ Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031, BUG
 | eloquent-3 | FFmpeg subtitle burn-in | **Done** |
 | eloquent-4 | Studio editor polish + relay hardening | **Partial** (`v3.6.0`) |
 | v5.3 Subtitle QoL | Graceful failure → scaffold, Smart Split, per-cue delete, bake budget, rainbow removed | **Done** (`subtitle-qol-failure-scaffold-v1`) |
-| v5.3.4 Canvas overlay | Offline Canvas 2D overlay WebM + alpha composite; lab harness; perf guard | **Done** (`feature/v5.3.4-subtitle-canvas-overlay`) |
+| v5.3.4 Canvas overlay | Offline Canvas 2D overlay WebM + alpha composite; lab harness; perf guard | **Done** (`v5.3.4`) |
+| v5.3.5 Cue-stable cache | `ImageBitmap` LRU cache per cue/phase; timing JSON v2; 32 phase buckets | **Done** (`v5.3.5`) |
 
-See `eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, and `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec + perf QA.
+See `eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec, and `docs/5.3.5-cue-stable-overlay-caching-design.md` for cache design + QA record.

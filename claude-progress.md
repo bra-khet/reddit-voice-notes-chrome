@@ -1,20 +1,21 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.5 — Cue-Stable Overlay Caching (`feature/v5.3.5-cue-stable-overlay-caching`) — QA COMPLETE (2026-07-04)
+## v5.3.5 — Cue-Stable Overlay Caching — COMPLETE (2026-07-04)
 
-**Plan + QA record:** `docs/5.3.5-cue-stable-overlay-caching-design.md` (§5 harness findings)  
-**Commits:** `86165ad` (core), `d154867` (32 buckets + timing v2)
+**Merged:** `feature/v5.3.5-cue-stable-overlay-caching` → `main`  
+**Package:** `5.3.5`  
+**Docs:** `docs/5.3.5-cue-stable-overlay-caching-design.md`, `docs/release-notes-v5.3.5.md`, `docs/transcription-architecture.md` § cue cache
 
-**QA logs:** `.ignore/sub-QA-harness-logs-5.3.5b-light`, `…-5.3.5b-heavy` (timing JSON v2)
+**Shipped:** `ImageBitmap` LRU cue cache (32 phase buckets, cap 64), `SubtitleOverlayRenderMetrics`, Overlay Lab timing JSON v2.
 
-**Headline:** Sparse/light — 99% hit rate, ~1.1× render RT (pacing floor). Rich animated — 32 buckets visually OK; LRU cap (64) saturates → 62% hits on 21 cues, worse on dense (882–2940). Full bake still normalize-dominated (~47%). Original 5–10× render target not met — pacing + LRU thrashing.
+**QA headline:** Sparse/light 99% hits @ ~1.1× render RT. Rich animated OK visually at 32 buckets; LRU thrashes on dense/animated. Total bake still normalize-heavy. Further speed → v5.3.6/v5.3.7.
 
-**Remaining:** `docs/transcription-architecture.md`, `release-notes-v5.3.5.md`, merge to `main`.
+**Push/tag:** deferred (user).
 
 ### Restore / test
 
 ```bash
-git checkout feature/v5.3.5-cue-stable-overlay-caching && npm install && npm run dev
+git checkout main && npm install && npm run dev
 node scripts/test-cue-cache.mjs && node scripts/test-overlay-lab-timing-summary.mjs
 ```
 

@@ -1,46 +1,30 @@
 # TODO
 
-## v5.3.5 — Cue-stable overlay caching
+## v5.3.5 — Cue-stable overlay caching — **COMPLETE** (merged 2026-07-04)
 
-**Branch:** `feature/v5.3.5-cue-stable-overlay-caching`  
-**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md) (living record incl. QA §5)
+**Tag:** `v5.3.5` (push deferred)  
+**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md) (design + QA §5)  
+**Release notes:** [`docs/release-notes-v5.3.5.md`](docs/release-notes-v5.3.5.md)
 
-| Item | Status |
-|------|--------|
-| Cache module + renderer integration | **DONE** (`86165ad`) |
-| 32 phase buckets + timing JSON v2 | **DONE** (`d154867`) |
-| Overlay Lab QA (5.3.5b light/heavy) | **DONE** — see design doc §5 |
-| `test-cue-cache.mjs` + timing summary tests | **DONE** |
-| `docs/transcription-architecture.md` + release notes | Pending |
+Speed-up goals beyond cue-cache (pacing floor, VP8A normalize, worker chunking) → **v5.3.6 / v5.3.7** — see `docs/future-ideas.md` § Canvas Subtitle Bake Performance.
+
+## Next — v5.3.6 / v5.3.7 (planned)
+
+| Doc | Topic |
+|-----|-------|
+| `docs/5.3.6-smart-split-relaxation-design.md` | Relax Smart Split thresholds (pair with cache/LRU) |
+| `docs/5.3.7-worker-and-chunked-parallelization-design.md` | Worker + temporal chunking; burst capture |
 
 ## v5.3.4 — Subtitle canvas overlay (complete)
 
-**Branch:** `feature/v5.3.4-subtitle-canvas-overlay`  
-**Source of truth:** [`docs/v5.3.4-subtitle-canvas-overlay.md`](docs/v5.3.4-subtitle-canvas-overlay.md) (phases, specs, checklists)  
-**Session log:** [`claude-progress.md`](claude-progress.md) (v5.3.4 entry at top)
+**Tag:** `v5.3.4`  
+**Source of truth:** [`docs/v5.3.4-subtitle-canvas-overlay.md`](docs/v5.3.4-subtitle-canvas-overlay.md)  
+**Release notes:** [`docs/release-notes-v5.3.4.md`](docs/release-notes-v5.3.4.md)
 
-| Phase | Status |
-|-------|--------|
-| 1–3 | DONE (`2c8c450` … `2334c6b`) |
-| **3.5 — canvas visual polish** | **DONE** (`5.3.4-phase-3.5-complete` @ `432683a`) |
-| **4 — burn-in integration** | **DONE**, user-QA'd (`5.3.4-phase-4-complete`) |
-| 5 — lab panel, arch docs, perf QA | **DONE** — merged to `main` (`5.3.4-complete`) |
-
-**Future (post–v5.3.4):** Canvas subtitle bake performance — see `docs/future-ideas.md` § Canvas Subtitle Bake Performance (stress QA: 120s clips ~6–8+ min total).
-
-### Phase 3.5 (summary — see design doc for full spec)
-
-1. Halo diffusion — **done** (integral normalize `324ab90`)
-2. Dual contrasting border — **done** (opacity + long-cue clip polish)
-3. Text gradient + wave — QA pass (`5.3.4-gradient-wave`)
-4. Backdrop rounding — deferred (visual QA pass)
-5. Rainbow / monochromatic hue rotate — **done** (QA pass)
-6. Dev harness 3.5 QA note — **done**
-
-### Restore / test
+### Restore / test (current stable)
 
 ```bash
-git checkout feature/v5.3.4-subtitle-canvas-overlay && npm install && npm run dev
+git checkout main && npm install && npm run dev
+node scripts/test-cue-cache.mjs
+node scripts/test-overlay-lab-timing-summary.mjs
 ```
-
-Design Studio → Subtitles → DEV harness. Record on Reddit first for compare drawtext side.

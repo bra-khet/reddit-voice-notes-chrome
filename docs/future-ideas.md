@@ -215,9 +215,9 @@ Per-frame animated glow color on canvas overlay when **Glow color = Hue rotate**
 
 ## Canvas Subtitle Bake — Performance (v5.3.4 QA)
 
-**Priority:** Medium — revisit after v5.3.4 ships  
+**Priority:** Medium — revisit after v5.3.5 ships  
 **Effort:** Large (pipeline / architecture)  
-**Status:** Documented from stress QA; acceptable for now
+**Status:** v5.3.5 cue cache shipped (render paint deduped); **total bake** and **pacing floor** still open
 
 ### Observed (2026-07 stress tests + Overlay Lab timing logs)
 
@@ -236,18 +236,21 @@ Render-only lab runs: ~1.0–1.3× realtime vs clip duration; cue count is secon
 
 Analysis and driver matrix: `docs/v5.3.4-subtitle-canvas-overlay.md` § Performance QA.
 
-### Current mitigations (v5.3.4)
+### Current mitigations (v5.3.4–v5.3.5)
 
 - Chronos meter + stage labels during bake.
 - User-facing hint: longer clips / rich effects may take several minutes.
 - `FINALIZE_TIMEOUT_MS` = 6 min (`overlay-webm-finalize.ts`).
 - Canvas render perf guard: 2.5–3 min budget → drawtext fallback (render phase only).
+- **v5.3.5:** Cue-stable `ImageBitmap` cache — 99% hit rate on sparse static cues; flattens cue-count scaling when LRU not saturated. Does **not** beat MediaRecorder ~1× realtime pacing floor on typical clips. See `docs/5.3.5-cue-stable-overlay-caching-design.md` §5.
 
-### Future directions (out of scope v5.3.4)
+### Future directions (v5.3.6+)
 
 - Skip or fast-path alpha normalize when MediaRecorder blob is already composite-safe.
 - Lower overlay fps or adaptive fps for long clips.
-- Worker / OffscreenCanvas render (if MediaRecorder constraints allow).
+- Worker / OffscreenCanvas render + temporal chunking (`docs/5.3.7-worker-and-chunked-parallelization-design.md`).
+- Raise LRU cap or per-cue cache shards for rich animated styles (64 entries thrashes in QA).
+- Burst capture without per-frame `waitForNextCaptureTick` pacing.
 - Parallel cue batches or incremental overlay segments.
 - Hardware-accelerated encode outside wasm FFmpeg where MV3 permits.
 - Progress chronos tied to FFmpeg `progress.time` during normalize/composite (see Chronos Indicator idea above).
