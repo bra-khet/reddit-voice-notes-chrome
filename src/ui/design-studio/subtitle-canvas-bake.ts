@@ -2,7 +2,10 @@ import { runSubtitleBurnIn } from '@/src/ffmpeg/ffmpeg-runner';
 import { normalizeOverlayWebmForComposite } from '@/src/ffmpeg/overlay-webm-finalize';
 import { withTranscodeLock } from '@/src/ffmpeg/transcode-lock';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
-import { renderSubtitleOverlay } from '@/src/transcription/subtitle-overlay-renderer';
+import {
+  renderSubtitleOverlay,
+  type SubtitleOverlayRenderMetrics,
+} from '@/src/transcription/subtitle-overlay-renderer';
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
 import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
 import { computeCreepRatio } from '@/src/ui/design-studio/bake-chronos';
@@ -60,6 +63,8 @@ export interface CanvasOverlayBakeOptions {
    * CanvasRenderPerfExceededError when exceeded. Omit for dev harness (force canvas).
    */
   renderPerfBudgetMs?: number;
+  /** v5.3.5 — capture canvas render metrics for Overlay Lab timing JSON. */
+  onRenderMetrics?: (metrics: SubtitleOverlayRenderMetrics) => void;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
@@ -139,6 +144,10 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
     if (renderPerfTimer != null) {
       window.clearTimeout(renderPerfTimer);
     }
+  }
+
+  if (overlayResult.renderMetrics) {
+    options.onRenderMetrics?.(overlayResult.renderMetrics);
   }
 
   throwIfAborted(options.signal);

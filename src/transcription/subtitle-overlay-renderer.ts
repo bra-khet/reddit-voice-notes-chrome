@@ -29,6 +29,8 @@ import {
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
 import { throwIfRenderAborted } from '@/src/transcription/canvas-render-perf-guard';
 import {
+  CUE_OVERLAY_CACHE_MAX_ENTRIES,
+  CUE_OVERLAY_CACHE_PHASE_BUCKETS,
   CueOverlayCache,
   makeCueOverlayCacheKey,
   type CueOverlayCacheStats,
@@ -110,6 +112,18 @@ export interface SubtitleOverlayRenderOptions {
   };
 }
 
+/** Canvas capture metrics — v5.3.5 Overlay Lab timing logs. */
+export interface SubtitleOverlayRenderMetrics {
+  totalFrames: number;
+  fps: number;
+  /** Wall time for MediaRecorder capture loop (excludes FFmpeg finalize). */
+  renderWallMs: number;
+  msPerFrame: number;
+  /** renderWallMs / (durationSeconds * 1000). */
+  realtimeFactor: number;
+  cueCache: CueOverlayCacheStats;
+}
+
 export interface SubtitleOverlayResult {
   /** The rendered overlay as a video Blob (webm or mp4) */
   overlayBlob: Blob;
@@ -117,6 +131,13 @@ export interface SubtitleOverlayResult {
   durationSeconds: number;
   /** Actual framerate used */
   fps: number;
+  /** Populated after offline capture — used by Overlay Lab QA (v5.3.5). */
+  renderMetrics?: SubtitleOverlayRenderMetrics;
+}
+
+interface RecordOverlayTimelineResult {
+  overlayBlob: Blob;
+  renderMetrics: SubtitleOverlayRenderMetrics;
 }
 
 interface NormalizedCue {
@@ -799,18 +820,35 @@ async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> 
   });
 }
 
+function buildDisabledCueCacheStats(): CueOverlayCacheStats {
+  return {
+    enabled: false,
+    phaseBuckets: CUE_OVERLAY_CACHE_PHASE_BUCKETS,
+    maxEntries: CUE_OVERLAY_CACHE_MAX_ENTRIES,
+    hits: 0,
+    misses: 0,
+    lookups: 0,
+    creates: 0,
+    evictions: 0,
+    uniqueKeys: 0,
+    hitRate: 0,
+  };
+}
+
 async function recordOverlayTimeline(
   target: RenderTarget,
   cues: NormalizedCue[],
   style: SubtitleStyleConfig,
   durationSeconds: number,
   options: SubtitleOverlayRenderOptions,
-): Promise<Blob> {
+): Promise<RecordOverlayTimelineResult> {
   const fps = Math.max(1, options.fps);
   const totalFrames = Math.max(1, Math.ceil(durationSeconds * fps));
   const mimeType = pickOverlayMimeType();
   const singleFrameDebug = options.singleFrameDebug === true;
-  const cueCache = shouldUseCueOverlayCache(options) ? new CueOverlayCache() : undefined;
+  const cacheEnabled = shouldUseCueOverlayCache(options);
+  const cueCache = cacheEnabled ? new CueOverlayCache() : undefined;
+  const renderStartedAt = performance.now();
   // BUG FIX: regular dev harness produced empty overlay.webm (Phase 2 QA)
   // Fix: captureStream(fps) + wall-clock frame pacing — MediaRecorder cannot encode
   //      when frames are painted in a tight microtask loop (~164ms total); single-frame
@@ -884,12 +922,6 @@ async function recordOverlayTimeline(
           await waitForNextCaptureTick(fps, false);
         }
 
-        if (cueCache && options.debug?.logCacheStats) {
-          const stats = cueCache.stats();
-          console.info('[subtitle-overlay] cue cache stats', stats);
-          options.debug.onCacheStats?.(stats);
-        }
-
         await new Promise<void>((r) => {
           window.setTimeout(() => r(), RECORDER_FLUSH_MS);
         });
@@ -910,14 +942,32 @@ async function recordOverlayTimeline(
     track.stop();
   }
 
-  const blobType = mimeType ?? 'video/webm';
+  const renderWallMs = Math.round(performance.now() - renderStartedAt);
+  const cueCacheStats = cueCache?.stats(true) ?? buildDisabledCueCacheStats();
+
+  if (options.debug?.logCacheStats) {
+    console.info('[subtitle-overlay] cue cache stats', cueCacheStats);
+  }
+  options.debug?.onCacheStats?.(cueCacheStats);
+
   cueCache?.clear();
 
+  const blobType = mimeType ?? 'video/webm';
   const overlayBlob = new Blob(chunks, { type: blobType });
   if (overlayBlob.size === 0) {
     throw new Error('Subtitle overlay capture produced an empty video blob.');
   }
-  return overlayBlob;
+
+  const renderMetrics: SubtitleOverlayRenderMetrics = {
+    totalFrames,
+    fps,
+    renderWallMs,
+    msPerFrame: totalFrames > 0 ? renderWallMs / totalFrames : 0,
+    realtimeFactor: durationSeconds > 0 ? renderWallMs / (durationSeconds * 1000) : 0,
+    cueCache: cueCacheStats,
+  };
+
+  return { overlayBlob, renderMetrics };
 }
 
 /**
@@ -941,7 +991,7 @@ export async function renderSubtitleOverlay(
   await ensureOverlayFonts();
 
   const target = createRenderTarget(options.width, options.height);
-  const rawBlob = await recordOverlayTimeline(target, cues, style, duration, {
+  const { overlayBlob: rawBlob, renderMetrics } = await recordOverlayTimeline(target, cues, style, duration, {
     ...options,
     fps,
     offline: options.offline ?? true,
@@ -954,6 +1004,7 @@ export async function renderSubtitleOverlay(
     overlayBlob,
     durationSeconds: duration,
     fps,
+    renderMetrics,
   };
 }
 

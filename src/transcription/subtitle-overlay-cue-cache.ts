@@ -12,8 +12,8 @@ import {
   type SubtitleStyleConfig,
 } from '@/src/transcription/types';
 
-/** Quantized animation buckets per cycle — ~15 updates/s at 30 fps (v5.3.5 design §3.5). */
-export const CUE_OVERLAY_CACHE_PHASE_BUCKETS = 16;
+/** Quantized animation buckets per cycle — 32 ≈ ~30 updates/s at 30 fps (v5.3.5 QA tuning). */
+export const CUE_OVERLAY_CACHE_PHASE_BUCKETS = 32;
 
 /** Defensive cap for pathological transcripts (v5.3.5 design §3.3). */
 export const CUE_OVERLAY_CACHE_MAX_ENTRIES = 64;
@@ -25,8 +25,14 @@ export interface CueOverlayCacheLookupCue {
 }
 
 export interface CueOverlayCacheStats {
+  enabled: boolean;
+  phaseBuckets: number;
+  maxEntries: number;
   hits: number;
   misses: number;
+  lookups: number;
+  creates: number;
+  evictions: number;
   uniqueKeys: number;
   hitRate: number;
 }
@@ -118,10 +124,15 @@ export class CueOverlayCache {
   private readonly order: string[] = [];
   private hits = 0;
   private misses = 0;
+  private creates = 0;
+  private evictions = 0;
 
   get(key: string): ImageBitmap | undefined {
     const bitmap = this.map.get(key);
-    if (!bitmap) return undefined;
+    if (!bitmap) {
+      this.misses += 1;
+      return undefined;
+    }
 
     const index = this.order.indexOf(key);
     if (index >= 0) {
@@ -137,17 +148,20 @@ export class CueOverlayCache {
       this.map.get(key)?.close();
       const index = this.order.indexOf(key);
       if (index >= 0) this.order.splice(index, 1);
-    } else if (this.map.size >= CUE_OVERLAY_CACHE_MAX_ENTRIES) {
-      const evictKey = this.order.shift();
-      if (evictKey) {
-        this.map.get(evictKey)?.close();
-        this.map.delete(evictKey);
+    } else {
+      this.creates += 1;
+      if (this.map.size >= CUE_OVERLAY_CACHE_MAX_ENTRIES) {
+        const evictKey = this.order.shift();
+        if (evictKey) {
+          this.map.get(evictKey)?.close();
+          this.map.delete(evictKey);
+          this.evictions += 1;
+        }
       }
     }
 
     this.map.set(key, bitmap);
     this.order.push(key);
-    this.misses += 1;
   }
 
   clear(): void {
@@ -158,17 +172,25 @@ export class CueOverlayCache {
     this.order.length = 0;
     this.hits = 0;
     this.misses = 0;
+    this.creates = 0;
+    this.evictions = 0;
   }
 
   get size(): number {
     return this.map.size;
   }
 
-  stats(): CueOverlayCacheStats {
+  stats(enabled = true): CueOverlayCacheStats {
     const lookups = this.hits + this.misses;
     return {
+      enabled,
+      phaseBuckets: CUE_OVERLAY_CACHE_PHASE_BUCKETS,
+      maxEntries: CUE_OVERLAY_CACHE_MAX_ENTRIES,
       hits: this.hits,
       misses: this.misses,
+      lookups,
+      creates: this.creates,
+      evictions: this.evictions,
       uniqueKeys: this.map.size,
       hitRate: lookups > 0 ? this.hits / lookups : 0,
     };

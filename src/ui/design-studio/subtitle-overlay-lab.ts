@@ -3,7 +3,21 @@ import {
   resolveInnerBorderColor,
 } from '@/src/transcription/subtitle-effects';
 import { normalizeHexColor } from '@/src/theme/color-utils';
-import { renderSubtitleOverlayForPreview } from '@/src/transcription/subtitle-overlay-renderer';
+import {
+  renderSubtitleOverlay,
+  type SubtitleOverlayRenderMetrics,
+} from '@/src/transcription/subtitle-overlay-renderer';
+import {
+  CUE_OVERLAY_CACHE_MAX_ENTRIES,
+  CUE_OVERLAY_CACHE_PHASE_BUCKETS,
+} from '@/src/transcription/subtitle-overlay-cue-cache';
+import {
+  buildOverlayLabTimingSummary,
+  OVERLAY_LAB_TIMING_LOG_VERSION,
+  type OverlayLabEffectSnapshot,
+  type OverlayLabRenderConfig,
+  type OverlayLabTimingSummary,
+} from '@/src/ui/design-studio/overlay-lab-timing-summary';
 import {
   DEFAULT_SUBTITLE_SPECIAL_HUE,
   normalizeSubtitleStyle,
@@ -52,6 +66,8 @@ export interface OverlayLabTimingEntry {
 }
 
 export interface OverlayLabTimingLog {
+  /** Schema version — v2 adds summary, renderConfig, effects, cache stats. */
+  version: number;
   action: 'render' | 'compare' | 'bake';
   segmentSet: OverlayLabSegmentSetId;
   cueCount: number;
@@ -60,6 +76,9 @@ export interface OverlayLabTimingLog {
   finishedAt: string;
   elapsedMs: number;
   entries: OverlayLabTimingEntry[];
+  renderConfig?: OverlayLabRenderConfig;
+  effects?: OverlayLabEffectSnapshot;
+  summary?: OverlayLabTimingSummary;
   error?: string;
 }
 
@@ -521,14 +540,38 @@ export function mountSubtitleOverlayLab(
   labRoot.addEventListener('change', onLabControlChange);
   labRoot.addEventListener('input', onLabControlChange);
 
+  const buildLabRenderConfig = (): OverlayLabRenderConfig => ({
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT,
+    fps: 30,
+    cueCacheEnabled: true,
+    phaseBuckets: CUE_OVERLAY_CACHE_PHASE_BUCKETS,
+    cacheMaxEntries: CUE_OVERLAY_CACHE_MAX_ENTRIES,
+  });
+
+  const buildLabEffectSnapshot = (
+    controls: ReturnType<typeof readLabControls>,
+  ): OverlayLabEffectSnapshot => ({
+    textGradient: controls.textGradient,
+    textGradientWave: controls.textGradientWave,
+    glowEnabled: controls.glowEnabled,
+    glowMode: controls.glowMode,
+    glowColorSource: controls.glowColorSource,
+    hueRotateMode: controls.hueRotateMode,
+    dualBorder: controls.dualBorder,
+    backdropBorderRadius: controls.backdropBorderRadius,
+  });
+
   const startTimingLog = (
     action: OverlayLabTimingLog['action'],
     segmentSet: OverlayLabSegmentSetId,
     cueCount: number,
     durationSeconds: number,
+    controls: ReturnType<typeof readLabControls>,
   ): { log: OverlayLabTimingLog; startedAtMs: number } => {
     const startedAtMs = performance.now();
     const log: OverlayLabTimingLog = {
+      version: OVERLAY_LAB_TIMING_LOG_VERSION,
       action,
       segmentSet,
       cueCount,
@@ -537,16 +580,30 @@ export function mountSubtitleOverlayLab(
       finishedAt: '',
       elapsedMs: 0,
       entries: [],
+      renderConfig: buildLabRenderConfig(),
+      effects: buildLabEffectSnapshot(controls),
     };
     timingLog = log;
     syncDownloadButtons();
     return { log, startedAtMs };
   };
 
-  const finishTimingLog = (log: OverlayLabTimingLog, startedAtMs: number, error?: string): void => {
+  const finishTimingLog = (
+    log: OverlayLabTimingLog,
+    startedAtMs: number,
+    renderMetrics?: SubtitleOverlayRenderMetrics | null,
+    error?: string,
+  ): void => {
     log.finishedAt = new Date().toISOString();
     log.elapsedMs = Math.round(performance.now() - startedAtMs);
     if (error) log.error = error;
+    log.summary = buildOverlayLabTimingSummary({
+      totalMs: log.elapsedMs,
+      durationSeconds: log.durationSeconds,
+      cueCount: log.cueCount,
+      entries: log.entries,
+      renderMetrics,
+    });
     timingLog = log;
     syncDownloadButtons();
   };
@@ -590,7 +647,9 @@ export function mountSubtitleOverlayLab(
         controls.segmentSet,
         edited.segments.length,
         durationSeconds,
+        controls,
       );
+      let renderMetrics: SubtitleOverlayRenderMetrics | null = null;
 
       if (overlayPreviewModal) overlayPreviewModal.hidden = false;
       setPreviewMode('single');
@@ -612,7 +671,7 @@ export function mountSubtitleOverlayLab(
       console.time('overlay-lab-render');
       try {
         appendTimingEntry(log, startedAtMs, 'render-start');
-        const objectUrl = await renderSubtitleOverlayForPreview(
+        const renderResult = await renderSubtitleOverlay(
           edited.segments,
           style,
           durationSeconds,
@@ -624,6 +683,7 @@ export function mountSubtitleOverlayLab(
             offline: true,
             themeBarColor,
             singleFrameDebug: controls.singleFrameDebug,
+            enableCueCache: !controls.singleFrameDebug,
             onFrameDebug: controls.singleFrameDebug
               ? async (info) => {
                   if (overlayPreviewFrameImg) {
@@ -636,11 +696,24 @@ export function mountSubtitleOverlayLab(
                   }
                 }
               : undefined,
+            debug: {
+              onCacheStats: (stats) => {
+                appendTimingEntry(
+                  log,
+                  startedAtMs,
+                  'cue-cache-stats',
+                  undefined,
+                  JSON.stringify(stats),
+                );
+              },
+            },
           },
         );
+        renderMetrics = renderResult.renderMetrics ?? null;
+        const objectUrl = URL.createObjectURL(renderResult.overlayBlob);
         console.timeEnd('overlay-lab-render');
         appendTimingEntry(log, startedAtMs, 'render-complete');
-        finishTimingLog(log, startedAtMs);
+        finishTimingLog(log, startedAtMs, renderMetrics);
 
         overlayUrl = objectUrl;
         if (overlayPreviewVideo) {
@@ -655,7 +728,7 @@ export function mountSubtitleOverlayLab(
       } catch (error: unknown) {
         console.timeEnd('overlay-lab-render');
         const message = error instanceof Error ? error.message : String(error);
-        finishTimingLog(log, startedAtMs, message);
+        finishTimingLog(log, startedAtMs, renderMetrics, message);
         if (overlayPreviewStatus) overlayPreviewStatus.textContent = `Render failed: ${message}`;
         console.error('[Reddit Voice Notes] Overlay lab render failed', error);
       } finally {
@@ -680,6 +753,7 @@ export function mountSubtitleOverlayLab(
         controls.segmentSet,
         edited.segments.length,
         durationSeconds,
+        controls,
       );
 
       if (overlayPreviewModal) overlayPreviewModal.hidden = false;
@@ -723,7 +797,7 @@ export function mountSubtitleOverlayLab(
         );
         console.timeEnd('overlay-lab-compare');
         appendTimingEntry(log, startedAtMs, 'compare-complete');
-        finishTimingLog(log, startedAtMs);
+        finishTimingLog(log, startedAtMs, null);
 
         overlayUrl = result.canvasOverlayUrl;
         drawtextUrl = result.drawtextBakedUrl;
@@ -743,7 +817,7 @@ export function mountSubtitleOverlayLab(
       } catch (error: unknown) {
         console.timeEnd('overlay-lab-compare');
         const message = error instanceof Error ? error.message : String(error);
-        finishTimingLog(log, startedAtMs, message);
+        finishTimingLog(log, startedAtMs, null, message);
         if (overlayPreviewStatus) overlayPreviewStatus.textContent = `Compare failed: ${message}`;
         console.error('[Reddit Voice Notes] Overlay lab compare failed', error);
       } finally {
@@ -768,7 +842,9 @@ export function mountSubtitleOverlayLab(
         controls.segmentSet,
         edited.segments.length,
         durationSeconds,
+        controls,
       );
+      let bakeRenderMetrics: SubtitleOverlayRenderMetrics | null = null;
 
       if (overlayPreviewModal) overlayPreviewModal.hidden = false;
       setPreviewMode('baked');
@@ -803,6 +879,16 @@ export function mountSubtitleOverlayLab(
           style,
           durationSeconds,
           themeBarColor,
+          onRenderMetrics: (metrics) => {
+            bakeRenderMetrics = metrics;
+            appendTimingEntry(
+              log,
+              startedAtMs,
+              'cue-cache-stats',
+              undefined,
+              JSON.stringify(metrics.cueCache),
+            );
+          },
           onProgress: (ratio, stage) => {
             appendTimingEntry(log, startedAtMs, stage, ratio);
             if (overlayPreviewStatus) {
@@ -823,7 +909,7 @@ export function mountSubtitleOverlayLab(
         });
         console.timeEnd('overlay-lab-bake');
         appendTimingEntry(log, startedAtMs, 'bake-complete');
-        finishTimingLog(log, startedAtMs);
+        finishTimingLog(log, startedAtMs, bakeRenderMetrics);
 
         compositeUrl = URL.createObjectURL(bakedBlob);
         if (overlayPreviewVideo) {
@@ -839,7 +925,7 @@ export function mountSubtitleOverlayLab(
       } catch (error: unknown) {
         console.timeEnd('overlay-lab-bake');
         const message = error instanceof Error ? error.message : String(error);
-        finishTimingLog(log, startedAtMs, message);
+        finishTimingLog(log, startedAtMs, bakeRenderMetrics, message);
         if (overlayPreviewStatus) overlayPreviewStatus.textContent = `Canvas bake failed: ${message}`;
         console.error('[Reddit Voice Notes] Overlay lab bake failed', error);
       } finally {
