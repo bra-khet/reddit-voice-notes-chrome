@@ -6,7 +6,9 @@
 **BUG-036:** cue-cache overlay A/V drift — **fixed** (user QA pass).  
 **Docs:** [`docs/5.3.6-smart-split-relaxation-design.md`](docs/5.3.6-smart-split-relaxation-design.md), [`docs/bug-archive.md`](docs/bug-archive.md) BUG-036
 
-Roll into next tag (not a separate v5.3.6 patch). Additional v5.3.6 scope docs pending (user).
+Roll into next tag (not a separate v5.3.6 patch).
+
+**Next up (Phase 1 of integrated roadmap):** real-canvas measurement + Smart Adjust (minimal fixes + full re-splice from original transcript) on `feature/v5.3.6-smart-split-refactor`. See [`docs/5.3.6-5.3.8-integrated-roadmap.md`](docs/5.3.6-5.3.8-integrated-roadmap.md) — synthesizes the measurement/Smart-Adjust supplements plus resequences Oklch (now Phase 2 / v5.3.7) ahead of worker/chunking (now Phase 3 / v5.3.8).
 
 ## v5.3.6 — Smart Split relaxation — **TAGGED** (`v5.3.6`)
 
