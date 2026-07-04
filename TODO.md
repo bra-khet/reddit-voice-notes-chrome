@@ -1,21 +1,21 @@
 # TODO
 
-## BUG-036 — Cue-cache overlay A/V drift — **FIX ON MAIN** (2026-07-04)
+## v5.3.6+ — Smart Split + overlay fixes (on `main`, next tag)
 
-**Archive:** [`docs/bug-archive.md`](docs/bug-archive.md) BUG-036 · **Design record:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md) §12
+**Smart Split:** `SMART_SPLIT_WIDTH_RELAXATION = 1.5` + font headroom above 22px (`SMART_SPLIT_REFERENCE_FONT_SIZE`).  
+**BUG-036:** cue-cache overlay A/V drift — **fixed** (user QA pass).  
+**Docs:** [`docs/5.3.6-smart-split-relaxation-design.md`](docs/5.3.6-smart-split-relaxation-design.md), [`docs/bug-archive.md`](docs/bug-archive.md) BUG-036
 
-Sync cache miss blit + compensated MediaRecorder frame pacing. Test: `node scripts/test-overlay-frame-pacing.mjs`. Manual dense-transcript bake QA pending.
+Roll into next tag (not a separate v5.3.6 patch). Additional v5.3.6 scope docs pending (user).
 
-## v5.3.6 — Smart Split relaxation — **COMPLETE**
+## v5.3.6 — Smart Split relaxation — **TAGGED** (`v5.3.6`)
 
-**Tag:** `v5.3.6`  
-**Source of truth:** [`docs/5.3.6-smart-split-relaxation-design.md`](docs/5.3.6-smart-split-relaxation-design.md)  
 **Release notes:** [`docs/release-notes-v5.3.6.md`](docs/release-notes-v5.3.6.md)
 
 ## v5.3.5 — Cue-stable overlay caching — **COMPLETE** (merged 2026-07-04)
 
 **Tag:** `v5.3.5` (push deferred)  
-**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md) (design + QA §5)  
+**Source of truth:** [`docs/5.3.5-cue-stable-overlay-caching-design.md`](docs/5.3.5-cue-stable-overlay-caching-design.md)  
 **Release notes:** [`docs/release-notes-v5.3.5.md`](docs/release-notes-v5.3.5.md)
 
 Speed-up goals beyond cue-cache (pacing floor, VP8A normalize, worker chunking) → **v5.3.7** — see `docs/future-ideas.md` § Canvas Subtitle Bake Performance.
@@ -36,6 +36,7 @@ Speed-up goals beyond cue-cache (pacing floor, VP8A normalize, worker chunking) 
 
 ```bash
 git checkout main && npm install && npm run dev
+node scripts/test-smart-split.mjs
+node scripts/test-overlay-frame-pacing.mjs
 node scripts/test-cue-cache.mjs
-node scripts/test-overlay-lab-timing-summary.mjs
 ```

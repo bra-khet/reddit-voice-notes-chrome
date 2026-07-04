@@ -40,6 +40,7 @@ const {
   previewCaptionMaxWidth,
   smartSplitCaptionMaxWidth,
   SMART_SPLIT_WIDTH_RELAXATION,
+  SMART_SPLIT_REFERENCE_FONT_SIZE,
 } = await bundle('src/utils/text-metrics.ts', 'metrics');
 const { splitSegmentIntoChunks } = await bundle(
   'src/transcription/transcript-editing.ts',
@@ -107,16 +108,24 @@ check('estimateMaxWords returns largest leading word count that fits', () => {
 // ── v5.3.6 relaxed Smart Split width budget ───────────────────────────────────
 console.log('\nv5.3.6 — relaxed caption max width\n');
 
-check('smartSplitCaptionMaxWidth is ~1.5× previewCaptionMaxWidth', () => {
+check('smartSplitCaptionMaxWidth is ~1.5× previewCaptionMaxWidth at reference font', () => {
   assert.equal(SMART_SPLIT_WIDTH_RELAXATION, 1.5);
+  assert.equal(SMART_SPLIT_REFERENCE_FONT_SIZE, 22);
   const previewMax = previewCaptionMaxWidth();
-  const relaxedMax = smartSplitCaptionMaxWidth();
+  const relaxedMax = smartSplitCaptionMaxWidth(undefined, SMART_SPLIT_REFERENCE_FONT_SIZE);
   assert.equal(relaxedMax, Math.round(previewMax * SMART_SPLIT_WIDTH_RELAXATION));
+});
+
+check('smartSplitCaptionMaxWidth tightens above reference font (24px headroom)', () => {
+  const at22 = smartSplitCaptionMaxWidth(undefined, 22);
+  const at24 = smartSplitCaptionMaxWidth(undefined, 24);
+  assert.equal(at24, Math.round(at22 * (22 / 24)));
+  assert.ok(at24 < at22);
 });
 
 check('borderline cue splits on old budget but stays single on relaxed budget', () => {
   const previewMax = previewCaptionMaxWidth();
-  const relaxedMax = smartSplitCaptionMaxWidth();
+  const relaxedMax = smartSplitCaptionMaxWidth(undefined, SMART_SPLIT_REFERENCE_FONT_SIZE);
   // ~1.3× preview width with spaced words (groupWordsByWidth is word-based).
   const unit = 'abcd ';
   const unitsNeeded = Math.ceil((previewMax * 1.3) / unit.length);
@@ -129,7 +138,7 @@ check('borderline cue splits on old budget but stays single on relaxed budget', 
 });
 
 check('genuinely wide cue still overflows and splits under relaxed budget', () => {
-  const relaxedMax = smartSplitCaptionMaxWidth();
+  const relaxedMax = smartSplitCaptionMaxWidth(undefined, SMART_SPLIT_REFERENCE_FONT_SIZE);
   const text = 'word '.repeat(Math.ceil((relaxedMax * 1.4) / 5));
   assert.equal(textOverflowsWidth(text, relaxedMax, charMeasure), true);
   assert.ok(groupWordsByWidth(text, relaxedMax, charMeasure).length > 1);

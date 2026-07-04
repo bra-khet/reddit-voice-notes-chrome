@@ -26,6 +26,7 @@ import type {
 import {
   createTextMeasurer,
   groupWordsByWidth,
+  PREVIEW_CANVAS_WIDTH,
   smartSplitCaptionMaxWidth,
   textOverflowsWidth,
   PREVIEW_FONT_WEIGHT,
@@ -287,7 +288,7 @@ export function mountSubtitleSegmentEditor(
     const fontFamily =
       PREVIEW_FAMILY_FOR_KEY[style?.fontFamily ?? DEFAULT_CAPTION_FONT_KEY] ?? 'RVN-DejaVu-Sans';
     const measure = createTextMeasurer({ fontSize, fontFamily, fontWeight: PREVIEW_FONT_WEIGHT });
-    return { measure, maxWidth: smartSplitCaptionMaxWidth() };
+    return { measure, maxWidth: smartSplitCaptionMaxWidth(PREVIEW_CANVAS_WIDTH, fontSize) };
   }
 
   function computeDirty(): boolean {

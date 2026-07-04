@@ -1,39 +1,38 @@
 # Reddit Voice Notes — Session Progress
 
-## BUG-036 — Cue-cache overlay A/V drift fix (2026-07-04)
+## v5.3.6+ — on `main` (next tag rolls up post-`v5.3.6` work)
 
-**Branch:** `main` (post-v5.3.6 tag)  
-**Symptom:** baked canvas subtitles drift late vs editor timestamps; lag accumulates per cue (v5.3.5 cue cache).  
-**Cause:** `await createImageBitmap()` on cache miss + fixed post-paint wait stretched overlay WebM timeline.  
+**Tagged baseline:** `v5.3.6` (Smart Split 1.5× relaxation)  
+**Package:** `5.3.6` (version bump deferred until next tag)
+
+### BUG-036 — Cue-cache overlay A/V drift — **COMPLETE** (user QA pass)
+
+**Symptom:** baked canvas subtitles drifted late vs editor timestamps; lag accumulated per cue.  
+**Cause:** `await createImageBitmap()` on cache miss + fixed post-paint wait stretched overlay WebM PTS.  
 **Fix:** sync miss blit + background cache populate; `compensatedCaptureWaitMs()` frame pacing.  
-**Tests:** `node scripts/test-overlay-frame-pacing.mjs` (5/5)  
-**Docs:** `docs/bug-archive.md` BUG-036, `docs/5.3.5-cue-stable-overlay-caching-design.md` §12  
-**Pending:** manual re-bake QA on dense clip
+**Commit:** `f593594` · **Tests:** `node scripts/test-overlay-frame-pacing.mjs`
 
----
+### Smart Split — font-size headroom (2026-07-04)
 
-## v5.3.6 — Smart Split Relaxation — COMPLETE (2026-07-04)
+**Symptom:** at **24px** font, relaxed cues barely clip on bake; **22px** comfortable at 1.5×.  
+**Fix:** `SMART_SPLIT_REFERENCE_FONT_SIZE = 22`; above reference, budget × `22/fontSize` (349 px @ 24px vs 381 @ 22px) — covers glow/stroke not in ink-width metrics.  
+**Tests:** `node scripts/test-smart-split.mjs` (19 checks)
 
-**Branch:** `main` (patch on `v5.3.5`)  
-**Package:** `5.3.6`  
-**Docs:** `docs/5.3.6-smart-split-relaxation-design.md` (living record), `docs/release-notes-v5.3.6.md`
-
-**Scope:** Relax Smart Split / LONG-badge width budget by **1.5×** (revised down from draft 2× after dense-transcript testing). Primary symptom: cues split too short in text length.
-
-**Shipped so far:**
-- `SMART_SPLIT_WIDTH_RELAXATION = 1.5` + `smartSplitCaptionMaxWidth()` in `text-metrics.ts` (254 → 381 px @ default geometry)
-- `subtitle-segment-editor.ts` `buildCaptionMetrics()` wired to relaxed budget
-- `test-smart-split.mjs` — 3 new relaxation checks (18 total)
-- Arch docs + release notes + version bump
-
-**Tagged:** `v5.3.6` (user). Manual QA pass on cue length.
+**Pending:** additional v5.3.6 scope docs from user; v5.3.7 worker/chunking.
 
 ### Restore / test
 
 ```bash
 git checkout main && npm install && npm run dev
-node scripts/test-smart-split.mjs
+node scripts/test-smart-split.mjs && node scripts/test-overlay-frame-pacing.mjs
 ```
+
+---
+
+## v5.3.6 — Smart Split Relaxation — **TAGGED** (2026-07-04)
+
+**Tag:** `v5.3.6` · **Docs:** `docs/5.3.6-smart-split-relaxation-design.md`, `docs/release-notes-v5.3.6.md`  
+**Scope:** 1.5× width relaxation (revised from draft 2×). Post-tag tweaks (BUG-036, 24px headroom) on `main` for next release.
 
 ---
 

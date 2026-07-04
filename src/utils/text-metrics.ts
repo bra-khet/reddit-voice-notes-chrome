@@ -45,9 +45,24 @@ export function previewCaptionMaxWidth(canvasWidth: number = PREVIEW_CANVAS_WIDT
  */
 export const SMART_SPLIT_WIDTH_RELAXATION = 1.5;
 
-/** Max measured width before Smart Split or the ⚠ LONG badge triggers. */
-export function smartSplitCaptionMaxWidth(canvasWidth: number = PREVIEW_CANVAS_WIDTH): number {
-  return Math.round(previewCaptionMaxWidth(canvasWidth) * SMART_SPLIT_WIDTH_RELAXATION);
+/** Font size (px) where 1.5× relaxation was tuned — 22px fits; 24px needed headroom. */
+export const SMART_SPLIT_REFERENCE_FONT_SIZE = 22;
+
+/**
+ * Max measured width before Smart Split or the ⚠ LONG badge triggers.
+ * Above {@link SMART_SPLIT_REFERENCE_FONT_SIZE}, budget tightens by reference/fontSize
+ * so glow/stroke bleed on bake is covered (text metrics are ink-width only).
+ */
+export function smartSplitCaptionMaxWidth(
+  canvasWidth: number = PREVIEW_CANVAS_WIDTH,
+  fontSize: number = SMART_SPLIT_REFERENCE_FONT_SIZE,
+): number {
+  const base = previewCaptionMaxWidth(canvasWidth) * SMART_SPLIT_WIDTH_RELAXATION;
+  if (fontSize <= SMART_SPLIT_REFERENCE_FONT_SIZE) {
+    return Math.round(base);
+  }
+  const headroom = SMART_SPLIT_REFERENCE_FONT_SIZE / fontSize;
+  return Math.round(base * headroom);
 }
 
 /**
