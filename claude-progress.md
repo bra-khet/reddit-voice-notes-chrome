@@ -1,10 +1,11 @@
 # Reddit Voice Notes — Session Progress
 
-## v5.3.9 — Parallel Chunked Bake (Phase 3) — **IMPLEMENTED** (pending user QA + merge)
+## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 
-**Branch:** `feature/v5.3.9-parallelization` (2026-07-04) · **Package:** `5.3.9`  
+**Branch:** merged `feature/v5.3.9-parallelization` → `main` (2026-07-05) · **Package:** `5.3.9`  
 **Design:** `docs/5.3.9-worker-and-chunked-parallelization-design.md` — **§0 As-Built Revision is authoritative**  
-**Release notes (draft):** `docs/release-notes-v5.3.9.md` · **Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 3
+**Release notes:** `docs/release-notes-v5.3.9.md` · **Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 3  
+**Push:** deferred (local only)
 
 ### Architecture decision (deliberate revision of the proposal)
 
@@ -76,7 +77,17 @@ compare `summary.stages.concatMs` (should now be small, not tens of seconds) and
 `summary.totalMs` vs serial; scrub overlay near chunk `startFrame/30` s for seams;
 then real ≥30 s production bake.
 
-**Next:** user QA (this time on the fixed pipeline) → merge → tag `v5.3.9` → v5.4.0 Design Studio First.
+### User QA (2026-07-05, post-fix — `.ignore/sub-QA-5.3.9b/`)
+
+| Area | Result |
+|------|--------|
+| Concat regression fix | **PASS** — full bake parallel vs serial parity (~145 s vs ~143 s on 200-cue / 60 s session bake) |
+| Parallel capture | **PASS** — ~0.29× realtime (17 s vs ~68 s serial pacing on render-off) |
+| Overlay-only render | **NOTE** — parallel slower than serial (concat wait in download path); not a bake blocker |
+| vs v5.3.8 ~45 s production bake | **REGRESSION** — normalize (~111 s, 77%) dominates; expected until v5.3.10 WebCodecs |
+| Seam / visual | **PASS** — acceptable per user |
+
+**Next:** v5.3.10 WebCodecs (`feature/v5.3.10-webcodecs-encoding`) → v5.4.0 Design Studio First.
 
 ---
 
@@ -156,7 +167,15 @@ node scripts/test-oklch.mjs && node scripts/test-cue-cache.mjs
 
 ---
 
-## v5.3.9 — Worker Chunking (Phase 3) — implemented as **Parallel Chunked Bake**, see section at top
+## v5.3.10 — WebCodecs Per-Chunk Encoding — **NEXT**
+
+**Branch:** `feature/v5.3.10-webcodecs-encoding` (from `main` @ `v5.3.9`)  
+**Design:** `docs/5.3.10-webcodecs-per-chunk-encoding.md`  
+**Goal:** Replace per-chunk MediaRecorder with `VideoEncoder` — sub-real-time bake (≤30 s for 60 s rich-effects clip).
+
+---
+
+## v5.3.9 — Worker Chunking (Phase 3) — shipped as **Parallel Chunked Bake**, see section at top
 
 ---
 
