@@ -6,7 +6,7 @@
 **Prior stable:** `v5.3.8` (Oklch Perceptual Hue Rotation)  
 **Design:** `docs/5.3.9-worker-and-chunked-parallelization-design.md` §0 As-Built Revision  
 **Roadmap:** `docs/5.3.6-5.3.9-integrated-roadmap.md` § Phase 3  
-**Next:** **v5.3.10** WebCodecs per-chunk encoding — `docs/5.3.10-webcodecs-per-chunk-encoding.md` · branch `feature/v5.3.10-webcodecs-encoding`
+**Superseded by:** **v5.3.10** WebCodecs encoding — `docs/release-notes-v5.3.10.md` (sub-real-time bake; normalize eliminated on fast path)
 
 ## Summary
 

@@ -230,7 +230,7 @@ cuesAtTimestamp(timestamp)
 
 **Observed limits (QA 2026-07):** Sparse transcripts hit ~99% cache rate and stay at MediaRecorder pacing floor (~1.1× render realtime). Rich wave+hue styles generate many unique phase keys; LRU cap causes evictions on animated dense clips. Full bake total time remains normalize-dominated. Spec + harness data: `docs/5.3.5-cue-stable-overlay-caching-design.md` §5.
 
-**QA harness:** gated **Subtitle Overlay Lab** in Design Studio (`subtitle-overlay-lab.ts`) — synthetic segment sets, effect toggles, compare, downloads, **timing JSON v2** (`overlay-lab-timing-summary.ts`), forced parallel A/B toggle (v5.3.9). Spec: `docs/v5.3.4-subtitle-canvas-overlay.md`; cache QA: `docs/5.3.5-cue-stable-overlay-caching-design.md`.
+**QA harness:** gated **Subtitle Overlay Lab** in Design Studio (`subtitle-overlay-lab.ts`) — synthetic segment sets, effect toggles, compare, downloads, **timing JSON v3** (`overlay-lab-timing-summary.ts`), parallel A/B toggle (v5.3.9), WebCodecs A/B toggle (v5.3.10). Spec: `docs/v5.3.4-subtitle-canvas-overlay.md`; cache QA: `docs/5.3.5-cue-stable-overlay-caching-design.md`.
 
 #### Parallel chunked bake (v5.3.9)
 
@@ -248,9 +248,20 @@ resolveParallelChunkCount()        [overlay-chunk-planner.ts — duration/cores/
 
 **Determinism rule:** chunks paint at global timestamps `(startFrame + i) / fps` — the exact serial expression — so animation phase, cue timing, and cache keys are chunk-invariant (no seam hue jumps). Chunk boundaries prefer **cue gaps** (MediaRecorder duration jitter is ±1 frame per chunk; invisible when the seam is blank). Per-chunk `outpoint` / `trim=end=` drops tail-hold frames each capture appends, so seams add zero blank time and cue drift does not accumulate.
 
-**Normalize always runs (v5.3.9.1):** concat stitches only; `normalizeOverlayWebmForComposite` runs afterward for both serial and parallel paths. The original decode+re-encode concat that skipped normalize caused a 70–150 s regression (design doc §0.4). Post-fix QA (2026-07-05): capture ~0.3× realtime, but full bake still normalize-dominated (~77% wall) — **v5.3.10** WebCodecs targets sub-real-time encode (`docs/5.3.10-webcodecs-per-chunk-encoding.md`).
+**Normalize (MediaRecorder paths only, v5.3.9.1):** concat stitches only; `normalizeOverlayWebmForComposite` runs afterward for serial and parallel MediaRecorder paths. **WebCodecs path (v5.3.10):** normalize **eliminated** — dual IVF streams are composite-ready by construction; `alphamerge` runs inside the burn-in graph. QA (2026-07-05): WebCodecs 60 s bake **46–50 s** sub-real-time vs legacy **228–310 s**.
 
-**Gating + fallback chain:** prefs `experimental.parallelBake` (default true) → auto-eligibility (≥20 s clip, ≥3 effective cores, deviceMemory ≥4 GB, chunks ≥2 after the 8 s min-chunk floor) → any chunk/concat failure falls back to the untouched serial render → perf guard still falls back to drawtext. User cancel and perf-guard aborts are never swallowed by the fallback. Per-chunk cue caches get `max(24, 64/N)` entries so N caches stay inside the serial memory envelope.
+#### WebCodecs overlay encode (v5.3.10) — **preferred fast path**
+
+```
+plan chunks (same v5.3.9 planner)
+  → per chunk: createOverlayFramePainter → dual VideoEncoder (VP8 color + alpha-as-gray)
+  → pure-TS IVF concat (src/encoding/ivf.ts — ~ms stitch)
+  → runSubtitleBurnIn via buildWebCodecsOverlayStrategies
+       (alphamerge + calibrated lutyuv range expand + unpremultiply + overlay)
+  → NO normalize stage
+```
+
+**Gating + fallback chain (combined):** `experimental.webCodecsBake` (default false; `true` → `'auto'`) → capability + alpha-luma calibration probe → WebCodecs orchestrator (`subtitle-overlay-webcodecs.ts`) → on failure: `experimental.parallelBake` MediaRecorder path (parallel → serial) → perf guard → drawtext. Alphamerge tier failure does **not** fall to drawtext directly — retries full MediaRecorder pipeline first.
 
 | Module | Role |
 |--------|------|
@@ -267,7 +278,10 @@ resolveParallelChunkCount()        [overlay-chunk-planner.ts — duration/cores/
 | `overlay-chunk-planner.ts` | v5.3.9 pure chunk planning: count heuristic, cue-gap boundaries, cache budget |
 | `subtitle-overlay-parallel.ts` | v5.3.9 orchestrator: concurrent staggered captures, abort fan-out, serial fallback |
 | `overlay-concat-args.ts` | v5.3.9 pure FFmpeg concat arg builder (leaf, Node-tested) |
-| `overlay-chunk-concat.ts` | v5.3.9 concat exec: stream-copy demuxer primary; re-encode fallback tiers |
+| `overlay-chunk-concat.ts` | v5.3.9 concat exec: stream-copy demuxer (MediaRecorder path only) |
+| `src/encoding/*` | v5.3.10: IVF mux/concat, WebCodecs dual encoder, calibration probe, segment model |
+| `subtitle-overlay-webcodecs.ts` | v5.3.10 WebCodecs orchestrator (planner reuse, dual IVF output) |
+| `overlay-alphamerge-args.ts` | v5.3.10 pure composite arg builder (alphamerge tiers) |
 
 | Capability | `drawtext` + bundled TTF | Canvas overlay (v5.3.4) | `subtitles` + SRT/ASS (libass) |
 |------------|--------------------------|-------------------------|--------------------------------|
@@ -303,6 +317,6 @@ Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031, BUG
 | v5.3.4 Canvas overlay | Offline Canvas 2D overlay WebM + alpha composite; lab harness; perf guard | **Done** (`v5.3.4`) |
 | v5.3.5 Cue-stable cache | `ImageBitmap` LRU cache per cue/phase; timing JSON v2; 32 phase buckets | **Done** (`v5.3.5`) |
 | v5.3.9 Parallel chunked bake | Concurrent paced chunk captures + stream-copy concat + normalize; auto-gated, serial fallback | **Done** (`v5.3.9`) |
-| v5.3.10 WebCodecs encode | Per-chunk `VideoEncoder` swap behind encoder-agnostic seam | **Planned** (`feature/v5.3.10-webcodecs-encoding`) |
+| v5.3.10 WebCodecs encode | Dual VP8 IVF + alphamerge composite; normalize eliminated on fast path | **Done** (`v5.3.10`) |
 
 See `eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec, and `docs/5.3.5-cue-stable-overlay-caching-design.md` for cache design + QA record.

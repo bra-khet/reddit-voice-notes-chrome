@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-04
-- **Reflects branch/tag:** `feature/v5.3.10-webcodecs-encoding`
+- **Reflects branch/tag:** `v5.3.10` on `main` (merged from `feature/v5.3.10-webcodecs-encoding`)
 - **Deciders:** v5.3.10 implementation session (Claude + bra-khet)
 
 ## Context

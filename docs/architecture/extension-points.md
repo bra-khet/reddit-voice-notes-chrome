@@ -1,6 +1,6 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.2 · **Updated:** 2026-07-04 · **Reflects:** `feature/v5.3.10-webcodecs-encoding`  
+**Version:** v1.2 · **Updated:** 2026-07-05 · **Reflects:** `v5.3.10` on `main`  
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
 **Changelog:** v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
