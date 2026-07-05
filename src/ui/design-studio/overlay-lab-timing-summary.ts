@@ -3,6 +3,7 @@
  */
 
 import type { CueOverlayCacheStats } from '@/src/transcription/subtitle-overlay-cue-cache';
+import { OVERLAY_CONCAT_STAGE } from '@/src/transcription/subtitle-overlay-parallel';
 import type { SubtitleOverlayRenderMetrics } from '@/src/transcription/subtitle-overlay-renderer';
 
 export const OVERLAY_LAB_TIMING_LOG_VERSION = 2;
@@ -14,6 +15,12 @@ export interface OverlayLabTimingEntryLike {
 
 export interface OverlayLabStageDurations {
   renderMs: number | null;
+  /**
+   * v5.3.9.1 — parallel-path stitch bracket (OVERLAY_CONCAT_STAGE), distinct
+   * from normalizeMs. Before this fix both shared one stage label, which is
+   * exactly how a 70-150s concat regression hid inside "normalizeMs".
+   */
+  concatMs: number | null;
   normalizeMs: number | null;
   bufferMs: number | null;
   compositeMs: number | null;
@@ -22,6 +29,7 @@ export interface OverlayLabStageDurations {
 
 export interface OverlayLabStageShare {
   render: number | null;
+  concat: number | null;
   normalize: number | null;
   buffer: number | null;
   composite: number | null;
@@ -91,6 +99,11 @@ export function computeOverlayLabStageDurations(
   const renderStart = first['canvas-overlay-render'] ?? first['render-start'] ?? 0;
   const renderEnd = last['canvas-overlay-render'] ?? last['render-complete'] ?? renderStart;
 
+  // v5.3.9.1: concat/stitch is its own stage now, distinct from normalize —
+  // this is what used to hide a 70-150s regression inside "normalizeMs".
+  const concatStart = first[OVERLAY_CONCAT_STAGE];
+  const concatEnd = last[OVERLAY_CONCAT_STAGE];
+
   const normStart = first['canvas-overlay-alpha-normalize'];
   const normEnd = last['canvas-overlay-alpha-normalize'];
 
@@ -100,6 +113,8 @@ export function computeOverlayLabStageDurations(
   const compStart = first['canvas-overlay-composite'] ?? first['burnin-start'];
   const compEnd = last['burnin-done'] ?? last['canvas-overlay-done'] ?? last['bake-complete'];
 
+  const concatMs =
+    concatStart != null && concatEnd != null ? Math.max(0, concatEnd - concatStart) : null;
   const normalizeMs =
     normStart != null && normEnd != null ? Math.max(0, normEnd - normStart) : null;
   const bufferMs =
@@ -107,12 +122,13 @@ export function computeOverlayLabStageDurations(
   const compositeMs =
     compStart != null && compEnd != null ? Math.max(0, compEnd - compStart) : null;
 
-  const postRenderAnchor = normEnd ?? renderEnd;
+  const postRenderAnchor = normEnd ?? concatEnd ?? renderEnd;
   const postRenderMs =
     compEnd != null ? Math.max(0, compEnd - postRenderAnchor) : null;
 
   return {
     renderMs: Math.max(0, renderEnd - renderStart),
+    concatMs,
     normalizeMs,
     bufferMs,
     compositeMs,
@@ -173,6 +189,7 @@ export function buildOverlayLabTimingSummary(input: {
     stages,
     stageShare: {
       render: share(stages.renderMs, input.totalMs),
+      concat: share(stages.concatMs, input.totalMs),
       normalize: share(stages.normalizeMs, input.totalMs),
       buffer: share(stages.bufferMs, input.totalMs),
       composite: share(stages.compositeMs, input.totalMs),

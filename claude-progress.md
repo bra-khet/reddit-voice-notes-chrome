@@ -24,23 +24,59 @@ follow-on (seam is encoder-agnostic; blocked on Chrome VP8A alpha or dual-stream
 - `overlay-chunk-planner.ts` — pure: exact frame partition, cue-gap boundary snap (±5 s), mid-cue fallback, count heuristic (≥20 s, cores−1, ≥4 GB, 8 s floor, cap 4), cache budget `max(24, 64/N)`
 - `subtitle-overlay-renderer.ts` — `timeRange {startFrame, frameCount}` (paints at global `(startFrame+i)/fps` → animation phase + cache keys chunk-invariant), `captureOverlayChunkRaw()`, `cueCacheMaxEntries`; `CueOverlayCache` ctor budget
 - `subtitle-overlay-parallel.ts` — orchestrator: staggered concurrent captures, abort fan-out, aggregate progress/stats, **serial fallback on any non-deliberate failure** (user cancel / perf-guard rethrow)
-- `overlay-concat-args.ts` (pure leaf) + `overlay-chunk-concat.ts` — per-input `+genpts -c:v libvpx` VP8A decode, `trim=end=` drops per-chunk tail frames (zero seam drift, non-accumulating ±1-frame jitter), concat, encode tail contract-locked to normalize; libvpx→generic tiers
-- `subtitle-canvas-bake.ts` — parallel result `compositeReady` → skips finalize AND normalize; concat reports on normalize progress band; perf guard unchanged
+- `overlay-concat-args.ts` (pure leaf) + `overlay-chunk-concat.ts` — stream-copy concat demuxer (v5.3.9.1, see below)
+- `subtitle-canvas-bake.ts` — normalize always runs after concat (v5.3.9.1); concat reports on its own stage, not normalize's
 - `user-preferences.ts` — `experimental.parallelBake` (default **true**; merged explicitly in `mergePreferences` — field-by-field merge drops unknown keys)
-- Overlay Lab — "Parallel chunked render (v5.3.9)" force toggle; timing log entries `parallel-plan` / `parallel-concat-*` / `parallel-result`
-- Tests: `test-chunk-planner.mjs` (13), `test-overlay-concat-args.mjs` (5); **full suite 17/17 PASS**, `npm run build` PASS, `tsc` at exact HEAD parity (3 pre-existing strictness warnings only: subtitle-bake base-null, canvas-bake Timeout, lab backdrop)
+- Overlay Lab — "Parallel chunked render (v5.3.9)" force toggle on render **and bake** buttons (v5.3.9.1 fixed the bake button); timing log entries `parallel-plan` / `canvas-overlay-concat-stitch` / `parallel-result`
+- Tests: `test-chunk-planner.mjs` (13), `test-overlay-concat-args.mjs` (8); **full suite 17/17 PASS**, `npm run build` PASS, `tsc` at exact HEAD parity (3 pre-existing strictness warnings only: subtitle-bake base-null, canvas-bake Timeout, lab backdrop)
+
+### v5.3.9.1 — perf regression found + fixed same day (2026-07-04)
+
+**Real QA timing JSONs showed the parallel path was 1.4×-2.7× SLOWER end-to-end than
+serial** on 60s rich-effects clips (20 cues: 169.4s parallel vs 62.8s serial; 120 cues:
+87.8s vs 64.5s) — the render-phase win landed exactly as designed (16.9s capture,
+0.28 realtimeFactor), but concat cost **70-150s** on top of it.
+
+**Root cause:** the original `overlay-chunk-concat.ts` used one FFmpeg filter_complex
+graph that DECODED all N chunks' VP8 alpha, trimmed+concatenated, then did a full
+quality-based (`-deadline good`) libvpx RE-ENCODE of the whole clip — the same
+expensive operation `normalizeOverlayWebmForComposite` already does once for serial,
+done again (and more expensively, across N decode contexts) inside concat. On top of
+that, its output was marked `compositeReady: true`, skipping normalize entirely — an
+assumption that was never validated by real QA. A contributing bug (found while
+investigating): the Overlay Lab's bake button never wired the parallel toggle, so both
+"toggle-on/off" bake benchmarks had actually run parallel, hiding the real serial
+baseline for full bakes.
+
+**Fix:** concat is now a **stream-copy `-f concat` demuxer pass** (`-c copy`, no
+decoder, no filter graph, no encoder) with per-file `outpoint` directives doing the
+frame-exact trim (same precision as the old `trim=end=` filter, zero decode cost) —
+this is the SAME mechanism `finalizeOverlayWebm`'s already-proven `vp8-copy-remux`
+strategy relies on for alpha preservation. The old decode+filter+re-encode path is now
+a fallback tier only. `compositeReady` is removed — normalize always runs after concat,
+for both paths, exactly as serial always did. Concat now reports its own progress
+stage (`OVERLAY_CONCAT_STAGE` / `canvas-overlay-concat-stitch`) instead of sharing
+normalize's label, and `overlay-lab-timing-summary.ts` surfaces `stages.concatMs`
+separately — this is precisely what made the original regression hide inside
+`normalizeMs` in bake timing JSONs. Lab bake button now passes `parallelBake:
+controls.parallelRender`.
+
+Full root-cause writeup + before/after math: `docs/5.3.9-worker-and-chunked-parallelization-design.md` §0.4.
+QA source data: `.ignore/sub-QA-5.3.9/` (toggle-on/off render + bake timing JSONs).
 
 ### Verify / QA
 
 ```bash
-node scripts/test-chunk-planner.mjs && node scripts/test-overlay-concat-args.mjs
+node scripts/test-chunk-planner.mjs && node scripts/test-overlay-concat-args.mjs  # 8 checks
 npm run build
 ```
 
-Overlay Lab → long set → parallel toggle A/B (`render.realtimeFactor` in timing JSON);
-scrub overlay near chunk `startFrame/30` s for seams; then real ≥30 s production bake.
+Overlay Lab → long set → parallel toggle A/B on **both render and bake buttons** —
+compare `summary.stages.concatMs` (should now be small, not tens of seconds) and
+`summary.totalMs` vs serial; scrub overlay near chunk `startFrame/30` s for seams;
+then real ≥30 s production bake.
 
-**Next:** user QA → merge → tag `v5.3.9` → v5.4.0 Design Studio First.
+**Next:** user QA (this time on the fixed pipeline) → merge → tag `v5.3.9` → v5.4.0 Design Studio First.
 
 ---
 

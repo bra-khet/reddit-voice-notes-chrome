@@ -1,5 +1,8 @@
 // v5.3.9 overlay concat FFmpeg argument builder tests — trim graph, per-input
 // decoder/genpts flags, encode-tail parity with the alpha-normalize contract.
+// v5.3.9.1 adds the primary stream-copy concat demuxer tier (list file +
+// outpoint trimming + args) that replaced the filter-graph re-encode as the
+// default path after it was found to cost 70-150s on 60s clips in real QA.
 //
 //   Run:  node scripts/test-overlay-concat-args.mjs
 
@@ -24,8 +27,14 @@ await build({
   logLevel: 'silent',
 });
 
-const { buildOverlayConcatArgs, buildOverlayConcatFilterGraph, overlayConcatEncodeArgs } =
-  await import(pathToFileURL(outfile).href);
+const {
+  buildOverlayConcatArgs,
+  buildOverlayConcatDemuxerArgs,
+  buildOverlayConcatFilterGraph,
+  buildOverlayConcatListFile,
+  escapeConcatListPath,
+  overlayConcatEncodeArgs,
+} = await import(pathToFileURL(outfile).href);
 
 let checks = 0;
 function check(name, fn) {
@@ -33,6 +42,49 @@ function check(name, fn) {
   checks += 1;
   console.log(`  ok ${name}`);
 }
+
+check('concat list file pairs each chunk with an outpoint trim', () => {
+  const listFile = buildOverlayConcatListFile([
+    { file: 'overlay-chunk-0.webm', outpointSeconds: 15 },
+    { file: 'overlay-chunk-1.webm', outpointSeconds: 15.5 },
+  ]);
+  assert.equal(
+    listFile,
+    "file 'overlay-chunk-0.webm'\noutpoint 15.000000\n" +
+      "file 'overlay-chunk-1.webm'\noutpoint 15.500000\n",
+  );
+});
+
+check('concat list file escapes single quotes in filenames', () => {
+  assert.equal(escapeConcatListPath(`it's-a-chunk.webm`), `it'\\''s-a-chunk.webm`);
+  const listFile = buildOverlayConcatListFile([
+    { file: `weird'name.webm`, outpointSeconds: 1 },
+  ]);
+  assert.equal(listFile, "file 'weird'\\''name.webm'\noutpoint 1.000000\n");
+});
+
+check('demuxer args are a pure stream copy (no decoder, no filter)', () => {
+  const args = buildOverlayConcatDemuxerArgs({
+    listFile: 'overlay-concat-list.txt',
+    outputFile: 'out.webm',
+  });
+  assert.deepEqual(args, [
+    '-fflags', '+genpts',
+    '-f', 'concat',
+    '-safe', '0',
+    '-i', 'overlay-concat-list.txt',
+    '-c', 'copy',
+    '-f', 'webm',
+    'out.webm',
+  ]);
+  // Root-cause regression test: the fast tier must never carry an encoder,
+  // pixel-format conversion, or filter graph — those are exactly what made
+  // the original (filter-based) tier cost 70-150s instead of near-instant.
+  assert.ok(!args.includes('-c:v'));
+  assert.ok(!args.includes('-filter_complex'));
+  assert.ok(!args.includes('libvpx'));
+  assert.ok(!args.includes('yuva420p'));
+});
 
 check('filter graph trims each chunk to its exact planned duration', () => {
   const graph = buildOverlayConcatFilterGraph([15, 15.5]);

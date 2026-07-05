@@ -9,18 +9,33 @@
 | Deliverable | Status |
 |-------------|--------|
 | ~~Worker pool + offscreen MediaRecorder split~~ → concurrent paced captures in Studio page | **done** (revised — design doc §0.1) |
-| Temporal chunking (cue-gap boundaries) + one-pass FFmpeg trim/concat/yuva420p | **done** — replaces alpha-normalize on parallel path |
+| Temporal chunking (cue-gap boundaries) + FFmpeg stitch | **done** — stream-copy concat demuxer (v5.3.9.1 fix; see below) |
 | Feature flag for first ship | **done** — `experimental.parallelBake` (default on, auto-gated ≥20 s / cores / memory; serial + drawtext fallback chain) |
-| Tests | **done** — `test-chunk-planner.mjs` (13), `test-overlay-concat-args.mjs` (5); full suite + `npm run build` green |
+| Tests | **done** — `test-chunk-planner.mjs` (13), `test-overlay-concat-args.mjs` (8); full suite + `npm run build` green |
 | **User QA** (Overlay Lab parallel A/B + real ≥30 s bake, seam scrub) | **pending** |
 | Merge → `main`, tag `v5.3.9` | **pending QA** |
 
+### v5.3.9.1 — perf regression found + fixed same day (2026-07-04)
+
+Real QA timing JSONs showed the parallel path **1.4×-2.7× SLOWER end-to-end** than
+serial (concat cost 70-150s on 60s clips — the original filter-based concat did a full
+decode+re-encode of the whole clip and skipped normalize on top of that). Root cause,
+fix, and before/after numbers: [design doc §0.4](docs/5.3.9-worker-and-chunked-parallelization-design.md).
+Fix: concat is now a stream-copy `-f concat` demuxer pass (no decode/encode);
+`normalizeOverlayWebmForComposite` always runs afterward for both paths; concat gets
+its own timing-JSON stage (`concatMs`) instead of hiding inside `normalizeMs`. Also
+fixed: Lab's bake button never wired the A/B toggle, so the original "toggle-off" bake
+benchmark wasn't actually serial.
+
 ```bash
 node scripts/test-chunk-planner.mjs
-node scripts/test-overlay-concat-args.mjs
+node scripts/test-overlay-concat-args.mjs  # now 8 checks — stream-copy tier + escaping
 ```
 
-Overlay Lab → "Parallel chunked render (v5.3.9)" toggle → long segment set → compare timing JSON `render.realtimeFactor` vs serial; scrub seams at `parallel-plan` startFrames / 30 s.
+Overlay Lab → "Parallel chunked render (v5.3.9)" toggle → long segment set → render
+**and** bake buttons → compare `summary.stages.concatMs` (should be small now, not
+tens of seconds) and `summary.totalMs` vs serial; scrub seams at `parallel-plan`
+startFrames / 30 s.
 
 ## v5.3.8 — Oklch Perceptual Hue Rotation (Phase 2) — **MERGED & TAGGED**
 

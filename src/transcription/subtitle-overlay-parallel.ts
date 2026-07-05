@@ -10,15 +10,24 @@
  * idle wait time for a ~N× render-stage speedup with zero cross-context plumbing.
  *
  * Pipeline: plan chunks (cue-gap boundaries, frame-aligned) → N staggered
- * concurrent captures → single-pass FFmpeg trim+concat+yuva420p encode (replaces
- * the serial path's alpha-normalize pass) → existing composite step unchanged.
+ * concurrent captures → cheap FFmpeg stitch (stream-copy concat demuxer,
+ * fallback to decode+re-encode only on failure) → existing normalize +
+ * composite steps, unchanged and ALWAYS run (see v5.3.9.1 note below).
+ *
+ * v5.3.9.1 PERF FIX (2026-07-04): the concat step used to do a full
+ * decode+re-encode of the whole clip and its output was treated as already
+ * composite-ready, skipping normalizeOverlayWebmForComposite. Real QA timing
+ * showed that re-encode cost 70-150s on 60s clips — worse than the entire
+ * render-phase saving, and it made the parallel path slower end-to-end than
+ * serial. Concat is now a cheap stream-copy stitch ONLY; normalize always
+ * runs afterward, identically for both paths (see subtitle-canvas-bake.ts).
  *
  * Failure policy: user cancel / perf-guard abort rethrow; any other chunk or
  * concat failure falls back to the untouched serial render path.
  *
  * Sync: overlay-chunk-planner.ts (plan math), subtitle-overlay-renderer.ts
  *       captureOverlayChunkRaw/timeRange, overlay-chunk-concat.ts (stitch),
- *       subtitle-canvas-bake.ts (consumer — skips normalize when compositeReady)
+ *       subtitle-canvas-bake.ts (consumer — always normalizes after concat)
  */
 
 import { concatOverlayChunksForComposite } from '@/src/ffmpeg/overlay-chunk-concat';
@@ -60,20 +69,23 @@ export interface ParallelOverlayRenderOptions extends SubtitleOverlayRenderOptio
 }
 
 export interface ParallelOverlayRenderHooks {
-  /** Concat stage bracket — bake maps this onto the normalize progress band. */
+  /** Concat stage bracket — fires around the (now cheap) stitch call. */
   onConcatPhase?: (phase: 'start' | 'done') => void;
   /** Fired once when the plan is fixed (diagnostics / timing logs). */
   onPlan?: (plan: PlannedOverlayChunk[]) => void;
 }
 
+/**
+ * Progress-report stage label for the concat/stitch bracket — distinct from
+ * the real normalize stage so Overlay Lab timing JSON can tell them apart.
+ * (v5.3.9.1: before this fix both used the same label, which is exactly how
+ * the 70-150s regression hid inside "normalizeMs" in bake timing summaries.)
+ */
+export const OVERLAY_CONCAT_STAGE = 'canvas-overlay-concat-stitch';
+
 export interface ParallelOverlayRenderResult extends SubtitleOverlayResult {
   wasParallel: boolean;
   chunkCount: number;
-  /**
-   * True when overlayBlob is already yuva420p composite-ready (parallel concat
-   * output) — the bake must skip normalizeOverlayWebmForComposite.
-   */
-  compositeReady: boolean;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -104,7 +116,7 @@ async function runSerial(
   options: SubtitleOverlayRenderOptions,
 ): Promise<ParallelOverlayRenderResult> {
   const result = await renderSubtitleOverlay(segments, style, durationSeconds, options);
-  return { ...result, wasParallel: false, chunkCount: 1, compositeReady: false };
+  return { ...result, wasParallel: false, chunkCount: 1 };
 }
 
 /**
@@ -267,6 +279,5 @@ export async function renderSubtitleOverlayParallel(
     renderMetrics,
     wasParallel: true,
     chunkCount: plan.length,
-    compositeReady: true,
   };
 }

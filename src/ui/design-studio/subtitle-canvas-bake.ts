@@ -2,7 +2,10 @@ import { runSubtitleBurnIn } from '@/src/ffmpeg/ffmpeg-runner';
 import { normalizeOverlayWebmForComposite } from '@/src/ffmpeg/overlay-webm-finalize';
 import { withTranscodeLock } from '@/src/ffmpeg/transcode-lock';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
-import { renderSubtitleOverlayParallel } from '@/src/transcription/subtitle-overlay-parallel';
+import {
+  OVERLAY_CONCAT_STAGE,
+  renderSubtitleOverlayParallel,
+} from '@/src/transcription/subtitle-overlay-parallel';
 import {
   renderSubtitleOverlay,
   type SubtitleOverlayRenderMetrics,
@@ -164,13 +167,13 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
     },
   };
 
-  // CHANGED: v5.3.9 — parallel chunked render when allowed; concat replaces the
-  //          alpha-normalize pass (compositeReady), so its wall time reports on
-  //          the same normalize progress band via onConcatPhase.
+  // CHANGED: v5.3.9.1 — parallel chunked render when allowed. Concat is now a
+  //          cheap stitch-only step (stream-copy demuxer); normalize ALWAYS
+  //          runs afterward for both paths, exactly like the serial pipeline
+  //          always did. Skipping normalize for "compositeReady" concat output
+  //          was the root cause of a 70-150s regression (see design doc §0.5) —
+  //          that re-encode-to-skip-normalize trick is gone.
   // WHY: capture is real-time paced; N concurrent chunks cut the render stage ~N×.
-  // Mutable ref (not a let) — assignments happen inside the onConcatPhase
-  // closure, and TS control-flow narrowing would pin a plain let to null here.
-  const concatCreep: { stop: (() => void) | null } = { stop: null };
   let overlayResult;
   try {
     overlayResult = options.parallelBake !== false
@@ -180,14 +183,10 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
           options.durationSeconds,
           renderOptions,
           {
-            onConcatPhase: (phase) => {
-              if (phase === 'start') {
-                concatCreep.stop = startNormalizeProgressCreep(report, options.durationSeconds);
-              } else {
-                concatCreep.stop?.();
-                concatCreep.stop = null;
-              }
-            },
+            // Concat is now sub-second — two discrete ticks, no creep timer;
+            // both 'start' and 'done' report the same ratio (start/end of a
+            // near-instant stitch, distinct from normalize's own stage below).
+            onConcatPhase: () => report(NORMALIZE_RATIO_START, OVERLAY_CONCAT_STAGE),
           },
         )
       : {
@@ -199,10 +198,8 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
           )),
           wasParallel: false,
           chunkCount: 1,
-          compositeReady: false,
         };
   } finally {
-    concatCreep.stop?.();
     if (renderPerfTimer != null) {
       window.clearTimeout(renderPerfTimer);
     }
@@ -213,13 +210,12 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   }
 
   throwIfAborted(options.signal);
-  const compositeOverlay = overlayResult.compositeReady
-    ? overlayResult.overlayBlob
-    : await withNormalizeProgressCreep(
-        () => normalizeOverlayWebmForComposite(overlayResult.overlayBlob, overlayResult.fps),
-        report,
-        options.durationSeconds,
-      );
+  // Always normalize — concat's job is stitching only, never encoding.
+  const compositeOverlay = await withNormalizeProgressCreep(
+    () => normalizeOverlayWebmForComposite(overlayResult.overlayBlob, overlayResult.fps),
+    report,
+    options.durationSeconds,
+  );
   report(0.445, 'canvas-overlay-buffer');
   const overlayBytes = new Uint8Array(await compositeOverlay.arrayBuffer());
   const baseBytes = new Uint8Array(await baseBlob.arrayBuffer());

@@ -9,7 +9,10 @@ import {
   type SubtitleOverlayRenderMetrics,
   type SubtitleOverlayResult,
 } from '@/src/transcription/subtitle-overlay-renderer';
-import { renderSubtitleOverlayParallel } from '@/src/transcription/subtitle-overlay-parallel';
+import {
+  OVERLAY_CONCAT_STAGE,
+  renderSubtitleOverlayParallel,
+} from '@/src/transcription/subtitle-overlay-parallel';
 import {
   CUE_OVERLAY_CACHE_MAX_ENTRIES,
   CUE_OVERLAY_CACHE_PHASE_BUCKETS,
@@ -747,8 +750,10 @@ export function mountSubtitleOverlayLab(
                   ),
                 );
               },
+              // Shared stage label — lets computeOverlayLabStageDurations report
+              // concatMs for the Lab's render action too (v5.3.9.1).
               onConcatPhase: (phase) => {
-                appendTimingEntry(log, startedAtMs, `parallel-concat-${phase}`);
+                appendTimingEntry(log, startedAtMs, OVERLAY_CONCAT_STAGE, undefined, phase);
               },
             },
           );
@@ -941,6 +946,14 @@ export function mountSubtitleOverlayLab(
           style,
           durationSeconds,
           themeBarColor,
+          // BUG FIX: Lab bake button ignored the parallel A/B toggle
+          // Fix: without this, bakeWithCanvasOverlay's parallelBake default
+          //      (true) always won, so "toggle off" bake QA runs were never
+          //      actually serial — both toggle-on/off bake timing JSONs showed
+          //      the same fast (chunked) render, making them useless for a
+          //      true before/after comparison. Wire the same toggle the
+          //      "Render overlay" button already respects.
+          parallelBake: controls.parallelRender,
           onRenderMetrics: (metrics) => {
             bakeRenderMetrics = metrics;
             appendTimingEntry(
