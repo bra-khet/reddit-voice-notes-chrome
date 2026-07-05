@@ -25,7 +25,10 @@ import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
 import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
 import { fetchBakedMp4FromExtension } from '@/src/storage/baked-mp4-fetch';
-import { BAKED_MP4_READY_KEY } from '@/src/settings/user-preferences';
+import {
+  BAKED_MP4_READY_KEY,
+  LAST_RECORDING_READY_KEY,
+} from '@/src/settings/user-preferences';
 import { openDesignStudioWindow } from '@/src/ui/design-studio/open-design-studio';
 import {
   getTakeManager,
@@ -106,6 +109,10 @@ export class RecorderPanel {
   private mode: 'record' | 'attach' = 'record';
   private attachableTake: CurrentTake | null = null;
   private unsubTakeManager: (() => void) | null = null;
+  private takeArtifactListener: ((changes: Record<string, unknown>, area: string) => void) | null =
+    null;
+  /** Latest take snapshot from TakeManager — drives Studio-capture guards. */
+  private lastObservedTake: CurrentTake | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -608,6 +615,7 @@ export class RecorderPanel {
       }
       this.renderAttachMode();
       this.wireTakeManagerSync();
+      this.wireAttachArtifactSignals();
       this.panelEl.focus();
       return;
     }
@@ -653,8 +661,44 @@ export class RecorderPanel {
     });
   }
 
+  /** Artifact stamps can lag status by one relay — refresh when IDB/meta signals land. */
+  private wireAttachArtifactSignals(): void {
+    if (this.takeArtifactListener) {
+      browser.storage.onChanged.removeListener(this.takeArtifactListener);
+    }
+    this.takeArtifactListener = (changes, area) => {
+      if (area !== 'local') return;
+      if (BAKED_MP4_READY_KEY in changes || LAST_RECORDING_READY_KEY in changes) {
+        void this.refreshAttachFromStorage();
+      }
+    };
+    browser.storage.onChanged.addListener(this.takeArtifactListener);
+  }
+
+  private async refreshAttachFromStorage(): Promise<void> {
+    if (this.mode !== 'attach' || this.attaching) return;
+    try {
+      this.onTakeManagerChange(await getTakeManager().getCurrentTake());
+    } catch {
+      // Non-blocking — TakeManager subscription will retry on the next write.
+    }
+  }
+
+  /** ready/baked promoted before background stamps baseMp4/bakedMp4 into the snapshot. */
+  private isTakeArtifactPending(take: CurrentTake): boolean {
+    if (take.artifacts.bakedMp4 || take.artifacts.baseMp4) return false;
+    return take.status === 'ready' || take.status === 'baked';
+  }
+
+  private isStudioCaptureBlocking(): boolean {
+    const take = this.lastObservedTake;
+    return Boolean(take && take.source === 'studio' && isTransientTakeStatus(take.status));
+  }
+
   private onTakeManagerChange(take: CurrentTake | null): void {
     if (this.mode !== 'attach' || this.attaching) return;
+
+    this.lastObservedTake = take;
 
     const next = this.resolveAttachableTake(take);
     if (!next) {
@@ -662,7 +706,12 @@ export class RecorderPanel {
         this.renderAttachBusy(take);
         return;
       }
-      if (this.composer && document.contains(this.composer)) {
+      if (take && this.isTakeArtifactPending(take)) {
+        this.renderAttachWaiting(take);
+        return;
+      }
+      // Snapshot cleared — only then fall back to the legacy mic capture UI.
+      if (!take && this.composer && document.contains(this.composer)) {
         void this.startRecordSession();
       }
       return;
@@ -679,6 +728,11 @@ export class RecorderPanel {
   private async startRecordSession(): Promise<void> {
     this.mode = 'record';
     this.attachableTake = null;
+    this.lastObservedTake = null;
+    if (this.takeArtifactListener) {
+      browser.storage.onChanged.removeListener(this.takeArtifactListener);
+      this.takeArtifactListener = null;
+    }
     this.setAttachChromeVisible(false);
 
     this.session?.dispose();
@@ -746,6 +800,27 @@ export class RecorderPanel {
         : 'Processing in the Studio…';
 
     this.statusEl.textContent = 'A new Studio take is on the way — attach will unlock when it is ready.';
+    this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
+
+    this.primaryBtn.textContent = 'Attach Studio take';
+    this.primaryBtn.disabled = true;
+    this.secondaryBtn.hidden = false;
+    this.secondaryBtn.disabled = true;
+    this.secondaryBtn.textContent = 'Record new here';
+    this.tertiaryBtn.hidden = true;
+  }
+
+  /** Take is complete but MP4 stamps are still syncing from the background relay. */
+  private renderAttachWaiting(take: CurrentTake): void {
+    this.setAttachChromeVisible(true);
+
+    const chip = this.shadow.querySelector<HTMLElement>('[data-take-chip]')!;
+    const cardState = this.shadow.querySelector<HTMLElement>('[data-take-card-state]')!;
+    chip.hidden = true;
+    cardState.textContent =
+      take.status === 'baked' ? 'Finalizing baked take…' : 'Finalizing Studio take…';
+
+    this.statusEl.textContent = 'Almost ready — your attachable MP4 is syncing.';
     this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
 
     this.primaryBtn.textContent = 'Attach Studio take';
@@ -863,6 +938,10 @@ export class RecorderPanel {
       browser.storage.onChanged.removeListener(this.bakedMp4Listener);
       this.bakedMp4Listener = null;
     }
+    if (this.takeArtifactListener) {
+      browser.storage.onChanged.removeListener(this.takeArtifactListener);
+      this.takeArtifactListener = null;
+    }
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = null;
     this.unsubWorkflowPhase?.();
@@ -937,6 +1016,10 @@ export class RecorderPanel {
 
   private onSecondaryClick(): void {
     if (this.mode === 'attach') {
+      if (this.isStudioCaptureBlocking()) {
+        showToast('A Studio recording is in progress — wait for it to finish.', 'info', 4500);
+        return;
+      }
       // "Record new here" — classic capture flow; TakeManager stashes the
       // prior snapshot, so a discarded recording restores this take intact.
       void this.startRecordSession();
