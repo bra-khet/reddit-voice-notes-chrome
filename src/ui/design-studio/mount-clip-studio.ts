@@ -104,6 +104,7 @@ import {
   forkButtonLabel,
   promptNameForFork,
 } from '@/src/ui/design-studio/studio-save-pathways';
+import { getTakeManager, type CurrentTake } from '@/src/session/take-manager';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -264,10 +265,14 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const studioShell = root.querySelector<HTMLElement>('.studio-v4')!;
   applyStudioV4ShellChrome(studioShell);
 
-  // v5.4.0 Phase 0 Prep — FABLE / MAIN AGENT: TakeManager subscription + status strip
-  // const takeUnsub = getTakeManager().subscribe((take) => syncStudioStatusStrip(...));
-  // browser.storage.onChanged.addListener((changes, area) => { ... MSG_TAKE_CHANGED ... });
-  // teardown: takeUnsub() in return () => { ... } below
+  // v5.4.0 Phase 0: reactive current-take state — cross-context via
+  // storage.onChanged inside the manager. Phase 1 renders this in the
+  // Current Take status panel; for now it feeds the status strip refresh.
+  let currentTake: CurrentTake | null = null;
+  const takeUnsub = getTakeManager().subscribe((take) => {
+    currentTake = take;
+    syncSectionSummaries();
+  });
 
   const previewCanvases = () =>
     [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')].filter(
@@ -705,6 +710,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       hasSessionRecording: subtitleControls.hasSessionRecording(),
       hasTranscriptCues: subtitleControls.hasTranscriptCues(),
       bakedForSession: subtitleControls.isBakedForCurrentSession(),
+      currentTake,
     });
     workflowBanner?.update({
       hasSessionRecording: subtitleControls.hasSessionRecording(),
@@ -1088,6 +1094,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   return () => {
     cancelPendingColorSave();
     stopPreviewLoop();
+    takeUnsub();
     workflowBanner.dispose();
     subpanelShell.dispose();
     voiceControls.dispose();

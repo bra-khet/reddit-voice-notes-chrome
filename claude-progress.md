@@ -35,25 +35,25 @@ node scripts/test-ivf.mjs && node scripts/test-overlay-alphamerge-args.mjs
 
 ---
 
-## v5.4.0 — Design Studio First — **NEXT**
+## v5.4.0 — Design Studio First — **IN PROGRESS**
 
-**Roadmap:** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`  
-**Prep doc:** `docs/5.4.0-pre-0-prep.md`  
+**Roadmap:** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md` (Phase 0 as-built section is authoritative)  
 **Branch:** `feature/v5.4.0-standalone-design-studio`  
 Studio becomes standalone authoring environment; consumes v5.3.10 bake backend as composable layer. Baseline: `main` @ `v5.3.10`.
 
-### Phase 0 Prep — scaffolding complete (2026-07-05)
+### Phase 0 — TakeManager foundation **COMPLETE** (2026-07-05)
 
-Neutral skeleton only — **no implementation decisions**. Main agent owns storage, messaging handlers, UI wiring.
+Single source of truth for the current take across all contexts:
 
-| Artifact | Path | Status |
-|----------|------|--------|
-| TakeManager types + stub | `src/session/take-manager.ts` | scaffolded |
-| Take message contracts | `src/messaging/types.ts` (`MSG_TAKE_*`) | scaffolded |
-| Recorder host API (interface) | `src/recorder/recorder-host.ts` | scaffolded |
-| UI placeholders | `recorder-panel.ts`, `studio-v4-shell.ts`, `mount-clip-studio.ts` | commented hooks |
+- `src/session/take-manager.ts` — snapshot in `browser.storage.local` (`rvn.take.current`), blobs stay in existing IDB stores, `TakeArtifactStamp` freshness stamps, `storage.onChanged` subscription, stale-transient demotion on read (`normalizeStaleTake`, 2 min), same-context write serialization. **No MSG_TAKE_* family** — storage IS the sync channel (placeholders removed from `messaging/types.ts`).
+- `voice-recorder.ts` — owns capture transitions: `beginTake` (stashes prior snapshot) → `processing` → `ready`; discard/error-while-recording restores prior (blobs only written at stop); cancel/error during processing → `draft`. `sessionEpoch` guards sub-second races. `persistTakeOnClose()` = auto-draft hook.
+- `recorder-panel.ts` — auto-draft on `close()` + `pagehide`.
+- `background.ts` — stamps `baseRecording`/`baseMp4` artifacts after relayed IDB writes; adopts orphan artifacts into a draft.
+- `subtitle-bake.ts` — `updateFromBake` → status `baked` (adopts untracked pre-v5.4.0 sessions).
+- `mount-clip-studio.ts` — reactive subscription; status strip shows a compact Take row (`buildTakeStatusLine`).
+- Tests: `node scripts/test-take-manager.mjs` (12 checks). Suite 21/21 PASS, `tsc` HEAD parity, build PASS.
 
-**Next:** Prep implementation (real TakeManager + relays) → Phase 1 Current Take status + Download MP4.
+**Next:** Phase 1 — Current Take status panel + Download MP4 CTA on main studio screen (consumes the subscription plumbing + `last-baked-mp4-db`/`last-base-mp4-db` reads, which are extension-origin in the Studio).
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 

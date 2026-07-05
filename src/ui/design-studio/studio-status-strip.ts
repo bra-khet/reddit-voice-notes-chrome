@@ -7,6 +7,7 @@ import type { TranscriptDeliveryStatus } from '@/src/ui/design-studio/subtitle-s
 import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 import type { TranscriptConfig } from '@/src/transcription/types';
 import type { VoiceEffectConfig } from '@/src/voice/types';
+import type { CurrentTake } from '@/src/session/take-manager';
 
 export type StudioStatusStripInput = {
   prefs: UserPreferencesV1;
@@ -18,6 +19,8 @@ export type StudioStatusStripInput = {
   hasSessionRecording: boolean;
   hasTranscriptCues: boolean;
   bakedForSession: boolean;
+  /** v5.4.0: reactive current-take snapshot (undefined = not wired by caller). */
+  currentTake?: CurrentTake | null;
 };
 
 export type SubtitlesStatusState =
@@ -44,10 +47,68 @@ export type ProfileStatusSnapshot = {
     hint?: string;
   };
   advisories: Array<{ icon: string; text: string }>;
+  /** v5.4.0: current-take line (absent when the caller has not wired TakeManager). */
+  take?: {
+    state: CurrentTake['status'] | 'none';
+    icon: string;
+    label: string;
+  };
 };
 
-// DEFERRED: RECORDED? row — in-studio recording is out of scope for v4 UI refresh (docs/design-studio.md §10.1).
-// Future: YES | NO | ERROR from recorder session bridge.
+function formatTakeClock(durationSeconds: number | undefined): string {
+  if (typeof durationSeconds !== 'number' || durationSeconds <= 0) return '';
+  const total = Math.round(durationSeconds);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return ` · ${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+/** v5.4.0: one-glance current-take line (roadmap §3.6 — best available state). */
+export function buildTakeStatusLine(
+  take: CurrentTake | null,
+): NonNullable<ProfileStatusSnapshot['take']> {
+  if (!take) {
+    return {
+      state: 'none',
+      icon: STUDIO_V4_ASSETS.status.info,
+      label: 'No take yet',
+    };
+  }
+  const clock = formatTakeClock(
+    take.meta.durationSeconds ?? take.artifacts.baseMp4?.durationSeconds,
+  );
+  switch (take.status) {
+    case 'recording':
+      return { state: take.status, icon: STUDIO_V4_ASSETS.status.pending, label: 'Recording…' };
+    case 'processing':
+      return { state: take.status, icon: STUDIO_V4_ASSETS.status.pending, label: 'Processing…' };
+    case 'ready':
+      return {
+        state: take.status,
+        icon: STUDIO_V4_ASSETS.status.complete,
+        label: `Ready${clock}`,
+      };
+    case 'baked':
+      return {
+        state: take.status,
+        icon: STUDIO_V4_ASSETS.status.complete,
+        label: `Baked${clock}`,
+      };
+    case 'error':
+      return {
+        state: take.status,
+        icon: STUDIO_V4_ASSETS.status.failure,
+        label: take.meta.note ?? 'Last session failed',
+      };
+    case 'draft':
+    default:
+      return {
+        state: 'draft',
+        icon: STUDIO_V4_ASSETS.status.warning,
+        label: take.meta.note ?? 'Incomplete take — resume when ready',
+      };
+  }
+}
 
 function profileDirty(
   prefs: UserPreferencesV1,
@@ -198,6 +259,7 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
       hint: readyHint,
     },
     advisories,
+    take: input.currentTake === undefined ? undefined : buildTakeStatusLine(input.currentTake),
   };
 }
 
@@ -232,8 +294,20 @@ export function syncStudioStatusStrip(root: HTMLElement, input: StudioStatusStri
     )
     .join('');
 
+  const takeRow = snapshot.take
+    ? `
+      <div class="studio-v4__status-row">
+        <span class="studio-v4__status-label">Take:</span>
+        <span class="studio-v4__status-value studio-v4__status-value--take-${snapshot.take.state}">
+          <img class="studio-v4__icon studio-v4__icon--16" src="${studioV4AssetUrl(snapshot.take.icon)}" alt="" width="16" height="16" />
+          <span>${escapeHtml(snapshot.take.label)}</span>
+        </span>
+      </div>`
+    : '';
+
   strip.innerHTML = `
     <div class="studio-v4__status-grid" role="group" aria-label="Session status">
+      ${takeRow}
       <div class="studio-v4__status-row">
         <span class="studio-v4__status-label">
           <img class="studio-v4__icon studio-v4__icon--16" src="${subtitlesIconUrl}" alt="" width="16" height="16" />

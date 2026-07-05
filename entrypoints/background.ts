@@ -41,6 +41,7 @@ import {
   SESSION_TRANSCRIPT_READY_KEY,
 } from '@/src/settings/user-preferences';
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
+import { getTakeManager } from '@/src/session/take-manager';
 import type { TranscriptFailureReason, TranscriptResult } from '@/src/transcription/types';
 import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-studio';
 import { BURNIN_PIPELINE_STAMP, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
@@ -983,6 +984,13 @@ export default defineBackground(() => {
             const bytes = unpackBinary(request.mp4Base64, request.mp4ByteLength);
             const blob = new Blob([Uint8Array.from(bytes)], { type: 'video/mp4' });
             await saveLastBaseMp4(blob, request.durationSeconds);
+            // v5.4.0: stamp the artifact into the current take AFTER the IDB
+            // write succeeds — the snapshot must never claim blobs it lacks.
+            void getTakeManager().recordArtifact('baseMp4', {
+              savedAt: Date.now(),
+              byteLength: request.mp4ByteLength,
+              durationSeconds: request.durationSeconds,
+            });
             response.ok = true;
             sendResponse(response);
           } catch (error) {
@@ -1009,6 +1017,13 @@ export default defineBackground(() => {
             // CHANGED: signal Design Studio to reload voice preview without tab visibility flip.
             // WHY: recording completes on Reddit while studio may stay open (eloquent-2 UX).
             await browser.storage.local.set({ [LAST_RECORDING_READY_KEY]: Date.now() });
+            // v5.4.0: stamp the artifact into the current take AFTER the IDB
+            // write succeeds — the snapshot must never claim blobs it lacks.
+            void getTakeManager().recordArtifact('baseRecording', {
+              savedAt: Date.now(),
+              byteLength: request.webmByteLength,
+              durationSeconds: request.durationSeconds,
+            });
             response.ok = true;
             sendResponse(response);
           } catch (error) {

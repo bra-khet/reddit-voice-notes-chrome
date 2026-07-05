@@ -92,6 +92,8 @@ export class RecorderPanel {
   private bakedMp4Listener: ((changes: Record<string, unknown>, area: string) => void) | null = null;
   private workflowPhase: WorkflowPhase = 'design';
   private unsubWorkflowPhase: (() => void) | null = null;
+  /** v5.4.0: auto-draft when the Reddit tab itself is torn down mid-session. */
+  private pageHideHandler: (() => void) | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -542,6 +544,12 @@ export class RecorderPanel {
       this.render(this.currentState);
     });
 
+    // v5.4.0: tab navigation / close mid-session — same auto-draft semantics
+    // as panel close. storage.local writes from pagehide are best-effort but
+    // reliable in practice (same pattern as the Studio's BUG-017 flushes).
+    this.pageHideHandler = () => this.session?.persistTakeOnClose();
+    window.addEventListener('pagehide', this.pageHideHandler);
+
     try {
       const [prefs, phase] = await Promise.all([loadUserPreferences(), getWorkflowPhase()]);
       this.workflowPhase = phase;
@@ -578,8 +586,13 @@ export class RecorderPanel {
   }
 
   close(): void {
-    // v5.4.0 Phase 0 Prep — FABLE / MAIN AGENT: auto-draft hook on recorder close
-    // void getTakeManager().saveDraft({ status: 'draft', ... });
+    // v5.4.0: auto-draft — a panel torn down mid-session must leave a
+    // recoverable take snapshot (or restore the prior one) before dispose.
+    this.session?.persistTakeOnClose();
+    if (this.pageHideHandler) {
+      window.removeEventListener('pagehide', this.pageHideHandler);
+      this.pageHideHandler = null;
+    }
     if (this.bakedMp4Listener) {
       browser.storage.onChanged.removeListener(this.bakedMp4Listener);
       this.bakedMp4Listener = null;
@@ -606,8 +619,9 @@ export class RecorderPanel {
     if (phase === 'recording' && elapsedSeconds > 0) {
       const discard = window.confirm('Discard this recording?');
       if (!discard) return;
+      // Take reconciliation happens inside session.cancel() — discard restores
+      // the pre-session snapshot (nothing durable was captured yet).
       this.session?.cancel();
-      // v5.4.0 Phase 0 Prep — FABLE / MAIN AGENT: saveDraft on discard vs promote on stop
       this.close();
       return;
     }

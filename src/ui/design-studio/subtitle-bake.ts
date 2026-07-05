@@ -15,6 +15,7 @@ import {
   isCanvasRenderPerfExceeded,
 } from '@/src/transcription/canvas-render-perf-guard';
 import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
+import { getTakeManager } from '@/src/session/take-manager';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 export interface SubtitleBakeProgress {
@@ -163,6 +164,12 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
   report({ ratio: 0.94, stage: 'saving', message: 'Saving baked MP4…' });
   await saveLastBakedMp4(burned, base.meta.durationSeconds);
   await browser.storage.local.set({ [BAKED_MP4_READY_KEY]: Date.now() });
+  // v5.4.0: promote the bake into the current take — every context (status
+  // panel, Reddit attach) learns about the fresh baked MP4 via the snapshot.
+  void getTakeManager().updateFromBake({
+    durationSeconds: base.meta.durationSeconds,
+    byteLength: burned.size,
+  });
 
   report({ ratio: 1, stage: 'done', message: 'Subtitles baked — attach from Reddit recorder.' });
   return burned;
