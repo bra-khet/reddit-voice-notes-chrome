@@ -264,6 +264,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const studioShell = root.querySelector<HTMLElement>('.studio-v4')!;
   applyStudioV4ShellChrome(studioShell);
 
+  // v5.4.0 Phase 0 Prep — FABLE / MAIN AGENT: TakeManager subscription + status strip
+  // const takeUnsub = getTakeManager().subscribe((take) => syncStudioStatusStrip(...));
+  // browser.storage.onChanged.addListener((changes, area) => { ... MSG_TAKE_CHANGED ... });
+  // teardown: takeUnsub() in return () => { ... } below
+
   const previewCanvases = () =>
     [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')].filter(
       (canvas) => canvas.dataset.previewKind !== 'subtitle-text',

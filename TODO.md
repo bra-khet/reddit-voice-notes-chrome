@@ -9,7 +9,7 @@ Studio-native recording, persistent take management, standalone export. Reuse v5
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| Prep | `TakeManager` + session storage + messaging sync | pending |
+| Prep | `TakeManager` + session storage + messaging sync | **scaffolding complete** (Phase 0 — implementation deferred) |
 | 1 | Current Take status strip + Download MP4 on main studio screen | pending |
 | 2 | Re-record / live mic preview in main preview area | pending |
 | 3 | Reddit as optional output target (not recording gateway) | pending |

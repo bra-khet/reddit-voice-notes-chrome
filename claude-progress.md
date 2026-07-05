@@ -38,7 +38,22 @@ node scripts/test-ivf.mjs && node scripts/test-overlay-alphamerge-args.mjs
 ## v5.4.0 — Design Studio First — **NEXT**
 
 **Roadmap:** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`  
+**Prep doc:** `docs/5.4.0-pre-0-prep.md`  
+**Branch:** `feature/v5.4.0-standalone-design-studio`  
 Studio becomes standalone authoring environment; consumes v5.3.10 bake backend as composable layer. Baseline: `main` @ `v5.3.10`.
+
+### Phase 0 Prep — scaffolding complete (2026-07-05)
+
+Neutral skeleton only — **no implementation decisions**. Main agent owns storage, messaging handlers, UI wiring.
+
+| Artifact | Path | Status |
+|----------|------|--------|
+| TakeManager types + stub | `src/session/take-manager.ts` | scaffolded |
+| Take message contracts | `src/messaging/types.ts` (`MSG_TAKE_*`) | scaffolded |
+| Recorder host API (interface) | `src/recorder/recorder-host.ts` | scaffolded |
+| UI placeholders | `recorder-panel.ts`, `studio-v4-shell.ts`, `mount-clip-studio.ts` | commented hooks |
+
+**Next:** Prep implementation (real TakeManager + relays) → Phase 1 Current Take status + Download MP4.
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 

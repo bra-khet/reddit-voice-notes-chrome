@@ -273,6 +273,68 @@ export interface BurnInCompleteMessage {
 
 export type BurnInBroadcast = BurnInAckResponse | BurnInProgressMessage | BurnInCompleteMessage;
 
+/**
+ * v5.4.0 Phase 0 Prep — take/session message placeholders (parallel to Transcode* / BurnIn*).
+ * FABLE / MAIN AGENT: rename, expand, or replace; wire handlers in background + relays.
+ *
+ * @see docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md Phase 0
+ */
+export const MSG_TAKE_GET_CURRENT = 'rvn/take-get-current' as const;
+export const MSG_TAKE_CURRENT = 'rvn/take-current' as const;
+export const MSG_TAKE_SAVE_DRAFT = 'rvn/take-save-draft' as const;
+export const MSG_TAKE_DRAFT_SAVED = 'rvn/take-draft-saved' as const;
+export const MSG_TAKE_UPDATE_FROM_BAKE = 'rvn/take-update-from-bake' as const;
+export const MSG_TAKE_CHANGED = 'rvn/take-changed' as const;
+export const MSG_TAKE_CLEAR = 'rvn/take-clear' as const;
+
+/** FABLE / MAIN AGENT: align payload with TakeManager / CurrentTake in take-manager.ts */
+export interface TakeSnapshotPayload {
+  takeJson: string;
+}
+
+export interface TakeGetCurrentRequest {
+  type: typeof MSG_TAKE_GET_CURRENT;
+}
+
+export interface TakeCurrentResponse {
+  type: typeof MSG_TAKE_CURRENT;
+  ok: boolean;
+  takeJson?: string;
+  error?: string;
+}
+
+export interface TakeSaveDraftRequest {
+  type: typeof MSG_TAKE_SAVE_DRAFT;
+  /** Partial CurrentTake JSON — main agent defines serialization rules. */
+  takeJson?: string;
+}
+
+export interface TakeDraftSavedResponse {
+  type: typeof MSG_TAKE_DRAFT_SAVED;
+  ok: boolean;
+  error?: string;
+}
+
+export interface TakeUpdateFromBakeRequest {
+  type: typeof MSG_TAKE_UPDATE_FROM_BAKE;
+  jobId: string;
+  mp4Base64?: string;
+  mp4ByteLength?: number;
+  durationSeconds?: number;
+  error?: string;
+}
+
+export interface TakeChangedMessage {
+  type: typeof MSG_TAKE_CHANGED;
+  takeJson?: string;
+}
+
+export interface TakeClearRequest {
+  type: typeof MSG_TAKE_CLEAR;
+}
+
+export type TakeBroadcast = TakeCurrentResponse | TakeDraftSavedResponse | TakeChangedMessage;
+
 export function parseBurnInSegmentsJson(json: string): TranscriptSegment[] {
   const parsed = JSON.parse(json) as TranscriptSegment[];
   if (!Array.isArray(parsed)) return [];

@@ -74,4 +74,8 @@ export function applyStudioV4ShellChrome(root: HTMLElement): void {
   if (profileIcon) {
     profileIcon.src = studioV4AssetUrl(icons.profile32);
   }
+
+  // v5.4.0 Phase 0 Prep — FABLE / MAIN AGENT: Current Take status strip chrome lives here
+  // or in a new current-take-status.ts module. Subscribe via getTakeManager().subscribe()
+  // and chrome.storage.onChanged for cross-context sync. See roadmap Phase 1.
 }

@@ -578,6 +578,8 @@ export class RecorderPanel {
   }
 
   close(): void {
+    // v5.4.0 Phase 0 Prep — FABLE / MAIN AGENT: auto-draft hook on recorder close
+    // void getTakeManager().saveDraft({ status: 'draft', ... });
     if (this.bakedMp4Listener) {
       browser.storage.onChanged.removeListener(this.bakedMp4Listener);
       this.bakedMp4Listener = null;
@@ -605,6 +607,7 @@ export class RecorderPanel {
       const discard = window.confirm('Discard this recording?');
       if (!discard) return;
       this.session?.cancel();
+      // v5.4.0 Phase 0 Prep — FABLE / MAIN AGENT: saveDraft on discard vs promote on stop
       this.close();
       return;
     }
