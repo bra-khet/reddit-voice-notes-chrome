@@ -132,6 +132,8 @@ const burnInTabByJobId = new Map<string, number>();
 const activeBurnInJobByTabId = new Map<number, string>();
 /** Design Studio uses runtime.onMessage — skip tabs.sendMessage relay (no content script). */
 const burnInSkipTabRelayByJobId = new Map<string, boolean>();
+const transcodeSkipTabRelayByJobId = new Map<string, boolean>();
+const transcribeSkipTabRelayByJobId = new Map<string, boolean>();
 
 let activeRelayJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -187,34 +189,43 @@ async function resolveRelayTabId(
 }
 
 function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
-  void (async () => {
-    const tabId = await resolveRelayTabId(message.jobId, transcodeTabByJobId, 'transcode');
-    if (tabId === undefined) return;
+  const jobId = message.jobId;
+  const skipTabRelay = transcodeSkipTabRelayByJobId.get(jobId) === true;
 
-    void browser.tabs.sendMessage(tabId, message).catch((error) => {
-      const msg = error instanceof Error ? error.message : String(error);
-      // CHANGED: detect dead-tab connection errors and clean up relay mapping
-      // WHY: "Receiving end does not exist" means the content script is gone; stale entry would
-      //      block resolveRelayTabId fallback from finding a valid tab on future sends
-      if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
-        transcodeTabByJobId.delete(message.jobId);
-        if (tabId !== undefined) activeTranscodeJobByTabId.delete(tabId);
-        void forgetRelayTab(message.jobId);
-        console.warn('[Reddit Voice Notes] Transcode relay target gone — cleaned up', { jobId: message.jobId, tabId });
-      } else {
-        console.warn('[Reddit Voice Notes] Tab relay failed:', error);
-      }
-    });
+  if (!skipTabRelay) {
+    void (async () => {
+      const tabId = await resolveRelayTabId(jobId, transcodeTabByJobId, 'transcode');
+      if (tabId === undefined) return;
 
-    if (message.type === MSG_TRANSCODE_COMPLETE) {
-      if (activeTranscodeJobByTabId.get(tabId) === message.jobId) {
+      void browser.tabs.sendMessage(tabId, message).catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        // CHANGED: detect dead-tab connection errors and clean up relay mapping
+        // WHY: "Receiving end does not exist" means the content script is gone; stale entry would
+        //      block resolveRelayTabId fallback from finding a valid tab on future sends
+        if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+          transcodeTabByJobId.delete(jobId);
+          if (tabId !== undefined) activeTranscodeJobByTabId.delete(tabId);
+          void forgetRelayTab(jobId);
+          console.warn('[Reddit Voice Notes] Transcode relay target gone — cleaned up', { jobId, tabId });
+        } else {
+          console.warn('[Reddit Voice Notes] Tab relay failed:', error);
+        }
+      });
+    })();
+  }
+
+  if (message.type === MSG_TRANSCODE_COMPLETE) {
+    void (async () => {
+      const tabId = transcodeTabByJobId.get(jobId);
+      if (tabId !== undefined && activeTranscodeJobByTabId.get(tabId) === jobId) {
         activeTranscodeJobByTabId.delete(tabId);
       }
-      transcodeTabByJobId.delete(message.jobId);
-      await forgetRelayTab(message.jobId);
+      transcodeTabByJobId.delete(jobId);
+      transcodeSkipTabRelayByJobId.delete(jobId);
+      await forgetRelayTab(jobId);
       stopRelayKeepAlive();
-    }
-  })();
+    })();
+  }
 }
 
 function isExtensionPageTabUrl(url: string | undefined): boolean {
@@ -260,33 +271,42 @@ function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMes
 }
 
 function relayTranscribeBroadcast(message: TranscribeProgressMessage | TranscribeCompleteMessage): void {
-  void (async () => {
-    const tabId = await resolveRelayTabId(message.jobId, transcribeTabByJobId, 'transcribe');
-    if (tabId === undefined) return;
+  const jobId = message.jobId;
+  const skipTabRelay = transcribeSkipTabRelayByJobId.get(jobId) === true;
 
-    void browser.tabs.sendMessage(tabId, message).catch((error) => {
-      const msg = error instanceof Error ? error.message : String(error);
-      // CHANGED: detect dead-tab connection errors and clean up relay mapping
-      // WHY: mirrors transcode relay cleanup — stale entry would block resolveRelayTabId fallback
-      if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
-        transcribeTabByJobId.delete(message.jobId);
-        if (tabId !== undefined) activeTranscribeJobByTabId.delete(tabId);
-        void forgetRelayTab(message.jobId);
-        console.warn('[Reddit Voice Notes] Transcribe relay target gone — cleaned up', { jobId: message.jobId, tabId });
-      } else {
-        console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
-      }
-    });
+  if (!skipTabRelay) {
+    void (async () => {
+      const tabId = await resolveRelayTabId(jobId, transcribeTabByJobId, 'transcribe');
+      if (tabId === undefined) return;
 
-    if (message.type === MSG_TRANSCRIBE_COMPLETE) {
-      if (activeTranscribeJobByTabId.get(tabId) === message.jobId) {
+      void browser.tabs.sendMessage(tabId, message).catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        // CHANGED: detect dead-tab connection errors and clean up relay mapping
+        // WHY: mirrors transcode relay cleanup — stale entry would block resolveRelayTabId fallback
+        if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+          transcribeTabByJobId.delete(jobId);
+          if (tabId !== undefined) activeTranscribeJobByTabId.delete(tabId);
+          void forgetRelayTab(jobId);
+          console.warn('[Reddit Voice Notes] Transcribe relay target gone — cleaned up', { jobId, tabId });
+        } else {
+          console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
+        }
+      });
+    })();
+  }
+
+  if (message.type === MSG_TRANSCRIBE_COMPLETE) {
+    void (async () => {
+      const tabId = transcribeTabByJobId.get(jobId);
+      if (tabId !== undefined && activeTranscribeJobByTabId.get(tabId) === jobId) {
         activeTranscribeJobByTabId.delete(tabId);
       }
-      transcribeTabByJobId.delete(message.jobId);
-      await forgetRelayTab(message.jobId);
+      transcribeTabByJobId.delete(jobId);
+      transcribeSkipTabRelayByJobId.delete(jobId);
+      await forgetRelayTab(jobId);
       stopRelayKeepAlive();
-    }
-  })();
+    })();
+  }
 }
 
 async function cancelOffscreenJob(jobId: string): Promise<void> {
@@ -317,7 +337,15 @@ async function cancelOffscreenTranscribeJob(jobId: string): Promise<void> {
   }
 }
 
-async function registerTranscodeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
+async function registerTranscodeTab(
+  jobId: string,
+  sender: Browser.runtime.MessageSender,
+): Promise<void> {
+  const senderTabId = sender.tab?.id;
+  const skipTabRelay =
+    isExtensionPageTabUrl(sender.url) || isExtensionPageTabUrl(sender.tab?.url);
+  transcodeSkipTabRelayByJobId.set(jobId, skipTabRelay);
+
   if (senderTabId !== undefined) {
     const previousJobId = activeTranscodeJobByTabId.get(senderTabId);
     if (previousJobId && previousJobId !== jobId) {
@@ -327,12 +355,13 @@ async function registerTranscodeTab(jobId: string, senderTabId: number | undefin
         jobId,
       });
       transcodeTabByJobId.delete(previousJobId);
+      transcodeSkipTabRelayByJobId.delete(previousJobId);
       void forgetRelayTab(previousJobId);
       void cancelOffscreenJob(previousJobId);
     }
     activeTranscodeJobByTabId.set(senderTabId, jobId);
     transcodeTabByJobId.set(jobId, senderTabId);
-    await rememberRelayTab(jobId, senderTabId);
+    if (!skipTabRelay) await rememberRelayTab(jobId, senderTabId);
     return;
   }
 
@@ -393,7 +422,15 @@ async function registerBurnInTab(
   console.warn('[Reddit Voice Notes] Could not resolve Reddit tab for burn-in relay', jobId);
 }
 
-async function registerTranscribeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
+async function registerTranscribeTab(
+  jobId: string,
+  sender: Browser.runtime.MessageSender,
+): Promise<void> {
+  const senderTabId = sender.tab?.id;
+  const skipTabRelay =
+    isExtensionPageTabUrl(sender.url) || isExtensionPageTabUrl(sender.tab?.url);
+  transcribeSkipTabRelayByJobId.set(jobId, skipTabRelay);
+
   if (senderTabId !== undefined) {
     const previousJobId = activeTranscribeJobByTabId.get(senderTabId);
     if (previousJobId && previousJobId !== jobId) {
@@ -403,12 +440,13 @@ async function registerTranscribeTab(jobId: string, senderTabId: number | undefi
         jobId,
       });
       transcribeTabByJobId.delete(previousJobId);
+      transcribeSkipTabRelayByJobId.delete(previousJobId);
       void forgetRelayTab(previousJobId);
       void cancelOffscreenTranscribeJob(previousJobId);
     }
     activeTranscribeJobByTabId.set(senderTabId, jobId);
     transcribeTabByJobId.set(jobId, senderTabId);
-    await rememberRelayTab(jobId, senderTabId);
+    if (!skipTabRelay) await rememberRelayTab(jobId, senderTabId);
     return;
   }
 
@@ -1109,7 +1147,7 @@ export default defineBackground(() => {
 
         try {
           validateTranscribeStartRequest(transcribeRequest);
-          await registerTranscribeTab(transcribeRequest.jobId, sender.tab?.id);
+          await registerTranscribeTab(transcribeRequest.jobId, sender);
           startRelayKeepAlive();
 
           const ack: TranscribeAckResponse = {
@@ -1225,7 +1263,7 @@ export default defineBackground(() => {
 
       try {
         validateTranscodeStartRequest(request);
-        await registerTranscodeTab(request.jobId, sender.tab?.id);
+        await registerTranscodeTab(request.jobId, sender);
         startRelayKeepAlive();
 
         const ack: TranscodeAckResponse = {

@@ -114,6 +114,12 @@ export function mountStudioRecorder(
     setActive(false);
   }
 
+  /** Hide transport + restore preview without tearing down the capture session. */
+  function finishAuditionUi(): void {
+    deps.onLiveCanvas(null);
+    setActive(false);
+  }
+
   function render(state: RecorderState): void {
     currentState = state;
 
@@ -179,7 +185,11 @@ export function mountStudioRecorder(
       case 'stopped':
         // Take is promoted to 'ready' by the session; the deck takes over.
         void setWorkflowPhase('polish');
-        closeAudition();
+        // BUG FIX: Studio subtitle relay aborted on stop
+        // Fix: closeAudition() called session.dispose() which bumpSession() aborts the
+        //      parallel transcribe fork and drops relaySaveSessionTranscript — Reddit panel
+        //      keeps the session alive on 'stopped'; hide audition UI only.
+        finishAuditionUi();
         break;
       case 'error':
         statusEl.textContent = state.errorMessage ?? 'Something went wrong.';
