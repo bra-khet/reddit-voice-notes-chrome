@@ -60,7 +60,15 @@ Single source of truth for the current take across all contexts:
 - Status strip take row removed — deck is the single authoritative take display (`buildTakeStatusLine` deleted).
 - Tests: `node scripts/test-take-deck.mjs` (11 checks — state → CTA/badge matrix).
 
-**Next:** Phase 2 — hostable recorder + Studio-native capture with live preview in the main preview area.
+### Phase 2 — Studio-native recording + live preview **COMPLETE** (2026-07-05)
+
+- `src/recorder/recorder-host.ts` — **headless** `mountRecorder` host (contract revised from the scaffold): owns session lifecycle + auto-draft; hands over the **WaveformRenderer canvas itself** via `onLiveCanvas` (the exact element `captureStream()` feeds MediaRecorder — zero-copy WYSIWYG, no per-frame callbacks). Each surface renders its own transport chrome.
+- `src/ui/design-studio/studio-recorder.ts` — deck-embedded transport (Record ● / Stop ■ / Discard), chronos mono timer + cap track (amber → warning → critical), FFmpeg processing bar; reuses the amber bake-btn family (`--ready` armed, `--baking` pulse while recording). Concurrent-session guard (fresh transient reddit-sourced take → confirm). Workflow phases: 'capture' on record, 'polish' on stop. `pagehide` auto-draft.
+- `mount-clip-studio.ts` — live canvas swaps into the hero monitor (`.studio__preview-canvas--live`, static canvas hidden, label → "LIVE MIC", bezel + label glow, faster breath), theme RAF loop paused while live (`auditionActive` guard in `syncPreviewLoop`). Deck morphs into the transport via `.studio-v4__take-deck--audition`.
+- `VoiceRecorderSession` runs unmodified on the extension page — relays (`MSG_SAVE_LAST_RECORDING`/base-MP4), transcribe fork, and transcode client are all `runtime.sendMessage`-based, so the entire downstream (voice preview, subtitles, bake) lights up identically to a Reddit capture. Studio edits during audition hot-swap the live canvas via the existing prefs listener — **you can restyle the clip while recording it**.
+- Reddit panel path untouched (Phase 0 wiring only); UI unification lands with Phase 3/4 polish.
+
+**Next:** Phase 3 — Reddit voice-note button becomes an output target ("Attach current Studio take" primary).
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 

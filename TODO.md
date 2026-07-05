@@ -11,8 +11,8 @@ Studio-native recording, persistent take management, standalone export. Reuse v5
 |-------|-------|--------|
 | Prep | `TakeManager` + session storage + storage-key sync + auto-draft | **done** (as-built: roadmap §4 Phase 0; `node scripts/test-take-manager.mjs`) |
 | 1 | Current Take deck + Download MP4 on main studio screen | **done** (`current-take-status.ts`; `node scripts/test-take-deck.mjs`) |
-| 2 | Re-record / live mic preview in main preview area | in progress |
-| 3 | Reddit as optional output target (not recording gateway) | pending |
+| 2 | Re-record / live mic preview in main preview area | **done** (`studio-recorder.ts` + headless `recorder-host.ts`; live canvas = encoded pixels) |
+| 3 | Reddit as optional output target (not recording gateway) | in progress |
 | 4 | Polish, progressive disclosure, demo parity | pending |
 
 **Optional before/during 5.4.0:** enable `experimental.webCodecsBake` default in production; composite-stage perf (~43 s alphamerge wall).

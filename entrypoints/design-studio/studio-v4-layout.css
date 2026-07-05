@@ -341,6 +341,130 @@ body:has(.studio-v4) {
   color: var(--studio-amber);
 }
 
+/* ── v5.4.0 Phase 2: studio audition transport (deck morphs into recorder) ── */
+
+.studio-v4 .studio-v4__take-deck--audition .studio-v4__take-state,
+.studio-v4 .studio-v4__take-deck--audition .studio-v4__take-hint,
+.studio-v4 .studio-v4__take-deck--audition .studio-v4__take-actions {
+  display: none;
+}
+
+.studio-v4 .studio-v4__audition {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.studio-v4 .studio-v4__audition[hidden] {
+  display: none;
+}
+
+.studio-v4 .studio-v4__audition-status {
+  margin: 0;
+  min-height: 2.6em;
+  font-size: var(--studio-font-meta);
+  line-height: 1.4;
+  color: var(--studio-text-muted);
+}
+
+.studio-v4 .studio-v4__audition-status--warning {
+  color: var(--studio-warning);
+}
+
+.studio-v4 .studio-v4__audition-status--error {
+  color: var(--studio-negate-text);
+}
+
+/* Chronos readout — instrument mono, amber-lit. */
+.studio-v4 .studio-v4__audition-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--studio-font-mono);
+}
+
+.studio-v4 .studio-v4__audition-timer {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--studio-amber);
+  text-shadow: 0 0 12px rgba(255, 213, 79, 0.35);
+}
+
+.studio-v4 .studio-v4__audition-timer--warning {
+  color: var(--studio-warning);
+}
+
+.studio-v4 .studio-v4__audition-timer--critical {
+  color: var(--studio-negate-text);
+}
+
+.studio-v4 .studio-v4__audition-cap {
+  font-size: var(--studio-font-meta);
+  color: var(--studio-text-muted);
+}
+
+.studio-v4 .studio-v4__audition-track,
+.studio-v4 .studio-v4__audition-progress {
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--studio-surface-raised);
+}
+
+.studio-v4 .studio-v4__audition-track[hidden],
+.studio-v4 .studio-v4__audition-progress[hidden] {
+  display: none;
+}
+
+.studio-v4 .studio-v4__audition-track-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--studio-amber);
+  transition: width 0.25s linear, background 0.2s ease;
+}
+
+.studio-v4 .studio-v4__audition-track-bar--warning {
+  background: var(--studio-warning);
+}
+
+.studio-v4 .studio-v4__audition-track-bar--critical {
+  background: var(--studio-negate-text);
+}
+
+.studio-v4 .studio-v4__audition-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--studio-amber-action);
+  transition: width 0.2s ease;
+}
+
+.studio-v4 .studio-v4__audition-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-v4 .studio-v4__audition-cancel {
+  align-self: flex-start;
+}
+
+/* Hero monitor goes live: label + bezel pick up capture energy. */
+.studio-v4 .studio__hero .studio__preview-wrap--audition .studio__preview-label {
+  color: #ffe08a;
+  border-color: color-mix(in srgb, var(--studio-amber) 55%, transparent);
+  box-shadow:
+    0 0 18px rgba(255, 213, 79, 0.25),
+    inset 0 0 0 1px rgba(255, 213, 79, 0.14);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-v4 .studio__hero .studio__preview-wrap--audition .studio__preview-label::before {
+    animation: studio-live-breath 0.9s ease-in-out infinite;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .studio-v4 .studio-v4__take-deck--live [data-take-icon] {
     animation: studio-v4-take-live-blink 1.6s ease-in-out infinite;

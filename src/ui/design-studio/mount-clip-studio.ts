@@ -110,6 +110,7 @@ import {
   renderCurrentTakeDeck,
   type CurrentTakeDeckHandle,
 } from '@/src/ui/design-studio/current-take-status';
+import { mountStudioRecorder } from '@/src/ui/design-studio/studio-recorder';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -275,9 +276,43 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   // inside the manager; drives the hero Current Take deck (Phase 1).
   // The initial emit is async, so takeDeck is always assigned before it fires.
   let takeDeck: CurrentTakeDeckHandle | null = null;
+  let auditionActive = false;
   const takeUnsub = getTakeManager().subscribe((take) => {
     takeDeck?.update(take);
   });
+
+  // v5.4.0 Phase 2: live audition — the WaveformRenderer canvas (the exact
+  // pixels MediaRecorder encodes) replaces the static theme preview in the
+  // hero monitor. "PREVIEW = OUTPUT" becomes literal while recording.
+  let liveAuditionCanvas: HTMLCanvasElement | null = null;
+  let savedPreviewLabel: string | null = null;
+
+  function setLivePreviewCanvas(canvas: HTMLCanvasElement | null): void {
+    const wrap = root.querySelector<HTMLElement>('.studio__hero .studio__preview-wrap');
+    if (!wrap) return;
+    const staticCanvas = wrap.querySelector<HTMLCanvasElement>('[data-preview-canvas]');
+    const label = wrap.querySelector<HTMLElement>('.studio__preview-label');
+    if (canvas) {
+      liveAuditionCanvas = canvas;
+      canvas.classList.add('studio__preview-canvas', 'studio__preview-canvas--live');
+      if (staticCanvas) staticCanvas.style.visibility = 'hidden';
+      wrap.appendChild(canvas);
+      wrap.classList.add('studio__preview-wrap--audition');
+      if (label) {
+        savedPreviewLabel = label.textContent;
+        label.textContent = 'LIVE MIC';
+      }
+    } else {
+      liveAuditionCanvas?.remove();
+      liveAuditionCanvas = null;
+      if (staticCanvas) staticCanvas.style.visibility = '';
+      wrap.classList.remove('studio__preview-wrap--audition');
+      if (label && savedPreviewLabel !== null) {
+        label.textContent = savedPreviewLabel;
+        savedPreviewLabel = null;
+      }
+    }
+  }
 
   const previewCanvases = () =>
     [...root.querySelectorAll<HTMLCanvasElement>('[data-preview-canvas]')].filter(
@@ -515,6 +550,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   }
 
   function syncPreviewLoop(): void {
+    // v5.4.0 Phase 2: while a live audition owns the main preview, the theme
+    // RAF loop would paint a hidden canvas — the mic canvas is the preview.
+    if (auditionActive) {
+      stopPreviewLoop();
+      return;
+    }
     const theme = resolvedTheme();
     const presetBokeh = backgroundIsBokeh(theme.background);
     const animatedOverlay = themeHasAnimatedOverlay(theme);
@@ -824,7 +865,25 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     },
   );
 
-  takeDeck = mountCurrentTakeDeck(root);
+  const studioRecorder = mountStudioRecorder(root, {
+    onLiveCanvas: setLivePreviewCanvas,
+    onActiveChange: (active) => {
+      auditionActive = active;
+      takeDeck?.setAuditionActive(active);
+      if (active) {
+        stopPreviewLoop();
+      } else {
+        void refreshPreview();
+      }
+    },
+  });
+
+  takeDeck = mountCurrentTakeDeck(root, {
+    onRecordRequest: () => {
+      void studioRecorder.openAudition();
+    },
+  });
+  takeDeck.setAuditionActive(studioRecorder.isActive());
 
   subpanelShell = mountStudioV4SubpanelShell(studioShell, {
     isPanelDirty: (panelId) => {
@@ -1101,6 +1160,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     cancelPendingColorSave();
     stopPreviewLoop();
     takeUnsub();
+    studioRecorder.dispose();
     takeDeck?.dispose();
     workflowBanner.dispose();
     subpanelShell.dispose();

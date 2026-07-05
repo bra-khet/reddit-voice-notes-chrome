@@ -17,8 +17,8 @@ import { loadLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
-import { activateRedditTab, setWorkflowPhase } from '@/src/workflow/workflow-state';
 import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
+import { renderStudioAudition } from '@/src/ui/design-studio/studio-recorder';
 
 export function renderCurrentTakeDeck(): string {
   return `
@@ -43,6 +43,7 @@ export function renderCurrentTakeDeck(): string {
           </button>
         </div>
       </div>
+      ${renderStudioAudition()}
     </section>
   `;
 }
@@ -181,12 +182,22 @@ export function deriveTakeDeckModel(take: CurrentTake | null): TakeDeckModel {
   }
 }
 
+export interface CurrentTakeDeckDeps {
+  /** Record/Re-record CTA — Phase 2 routes to the Studio-native recorder. */
+  onRecordRequest: () => void;
+}
+
 export interface CurrentTakeDeckHandle {
   update(take: CurrentTake | null): void;
+  /** Audition mode: transport controls replace the status/actions rows. */
+  setAuditionActive(active: boolean): void;
   dispose(): void;
 }
 
-export function mountCurrentTakeDeck(root: HTMLElement): CurrentTakeDeckHandle {
+export function mountCurrentTakeDeck(
+  root: HTMLElement,
+  deps: CurrentTakeDeckDeps,
+): CurrentTakeDeckHandle {
   const deck = root.querySelector<HTMLElement>('[data-current-take-deck]')!;
   const iconEl = deck.querySelector<HTMLImageElement>('[data-take-icon]')!;
   const stateEl = deck.querySelector<HTMLElement>('[data-take-state]')!;
@@ -262,12 +273,7 @@ export function mountCurrentTakeDeck(root: HTMLElement): CurrentTakeDeckHandle {
   });
 
   recordBtn.addEventListener('click', () => {
-    // Phase 1: recording still happens on Reddit — set the capture phase and
-    // take the user there. Phase 2 swaps this for Studio-native capture.
-    void setWorkflowPhase('capture');
-    void activateRedditTab().catch((error: unknown) => {
-      console.warn(`${EXTENSION_LOG_PREFIX} Could not focus a Reddit tab`, error);
-    });
+    deps.onRecordRequest();
   });
 
   clearBtn.addEventListener('click', () => {
@@ -288,6 +294,9 @@ export function mountCurrentTakeDeck(root: HTMLElement): CurrentTakeDeckHandle {
     update(take: CurrentTake | null): void {
       model = deriveTakeDeckModel(take);
       render();
+    },
+    setAuditionActive(active: boolean): void {
+      deck.classList.toggle('studio-v4__take-deck--audition', active);
     },
     dispose(): void {
       disposed = true;
