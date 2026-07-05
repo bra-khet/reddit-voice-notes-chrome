@@ -28,6 +28,10 @@ import {
 } from '@/src/transcription/subtitle-overlay-fonts';
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
 import { throwIfRenderAborted } from '@/src/transcription/canvas-render-perf-guard';
+import type {
+  EncodedOverlaySegmentMeta,
+  OverlayEncoderType,
+} from '@/src/encoding/encoded-segment';
 import {
   CUE_OVERLAY_CACHE_MAX_ENTRIES,
   CUE_OVERLAY_CACHE_PHASE_BUCKETS,
@@ -138,6 +142,10 @@ export interface SubtitleOverlayRenderMetrics {
   /** renderWallMs / (durationSeconds * 1000). */
   realtimeFactor: number;
   cueCache: CueOverlayCacheStats;
+  /** v5.3.10 — which capture/encode strategy produced this render (default 'mediarecorder'). */
+  encoderType?: OverlayEncoderType;
+  /** v5.3.10 — per-segment telemetry when the WebCodecs path ran. */
+  encodeSegments?: EncodedOverlaySegmentMeta[];
 }
 
 export interface SubtitleOverlayResult {
@@ -163,12 +171,21 @@ export interface NormalizedCue {
   text: string;
 }
 
-interface RenderTarget {
-  paintCanvas: HTMLCanvasElement | OffscreenCanvas;
+/**
+ * v5.3.10 — what paintFrame actually needs. The MediaRecorder RenderTarget
+ * satisfies this structurally; the WebCodecs painter provides a paint-only
+ * surface with a no-op blit (VideoFrames are created straight from the paint
+ * canvas — no DOM capture canvas, no captureStream).
+ */
+interface FramePaintTarget {
   paintCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+  blitToCapture: () => void;
+}
+
+interface RenderTarget extends FramePaintTarget {
+  paintCanvas: HTMLCanvasElement | OffscreenCanvas;
   captureCanvas: HTMLCanvasElement;
   captureCtx: CanvasRenderingContext2D;
-  blitToCapture: () => void;
 }
 
 function pickOverlayMimeType(): string | undefined {
@@ -854,7 +871,7 @@ function scheduleCueCacheBitmap(
 
 function paintCueWithCache(
   cache: CueOverlayCache,
-  target: RenderTarget,
+  target: FramePaintTarget,
   cue: NormalizedCue,
   style: SubtitleStyleConfig,
   options: SubtitleOverlayRenderOptions,
@@ -882,7 +899,7 @@ function paintCueWithCache(
 }
 
 function paintFrame(
-  target: RenderTarget,
+  target: FramePaintTarget,
   cues: NormalizedCue[],
   style: SubtitleStyleConfig,
   options: SubtitleOverlayRenderOptions,
@@ -1177,6 +1194,89 @@ export async function captureOverlayChunkRaw(
     input.globalDurationSeconds,
     { ...input.options, fps: Math.max(1, input.options.fps), offline: input.options.offline ?? true },
   );
+}
+
+/**
+ * v5.3.10 — the strengthened encoder-agnostic seam. A painter is "the ability
+ * to draw the overlay's global frame at any timestamp onto a canvas", with the
+ * cue cache and font loading handled — and nothing about HOW the frames get
+ * captured/encoded. MediaRecorder capture and WebCodecs encoding both sit on
+ * top of the same paint semantics, so seam invariants (paint at global
+ * (startFrame+i)/fps, chunk-invariant animation phase + cache keys) hold for
+ * every encoder, present or future.
+ */
+export interface OverlayFramePainter {
+  /** Paint surface — OffscreenCanvas when available (worker-portable). */
+  canvas: HTMLCanvasElement | OffscreenCanvas;
+  width: number;
+  height: number;
+  /** Paint the overlay's global frame for this timestamp (seconds). */
+  paintFrameAt(timestampSeconds: number): void;
+  cacheStats(): CueOverlayCacheStats;
+  dispose(): void;
+}
+
+export interface CreateOverlayFramePainterInput {
+  /** Pre-normalized global cues (normalizeOverlaySegments output). */
+  cues: NormalizedCue[];
+  style: SubtitleStyleConfig;
+  /** Full clip duration (global) — drives last-frame cue semantics. */
+  globalDurationSeconds: number;
+  width: number;
+  height: number;
+  background?: string | 'transparent';
+  themeBarColor?: string;
+  enableCueCache?: boolean;
+  /** Per-chunk budget for parallel renders (parallelCueCacheMaxEntries). */
+  cueCacheMaxEntries?: number;
+}
+
+/** Build a paint-only frame painter (awaits overlay fonts). */
+export async function createOverlayFramePainter(
+  input: CreateOverlayFramePainterInput,
+): Promise<OverlayFramePainter> {
+  await ensureOverlayFonts();
+
+  const surface = createTempPaintSurface(input.width, input.height);
+  const cache = input.enableCueCache !== false
+    ? new CueOverlayCache(input.cueCacheMaxEntries)
+    : undefined;
+  // Minimal options view for the shared paint internals; fps is irrelevant to
+  // painting (timestamps arrive pre-computed) but the type requires it.
+  const paintOptions: SubtitleOverlayRenderOptions = {
+    width: input.width,
+    height: input.height,
+    fps: 1,
+    background: input.background ?? 'transparent',
+    themeBarColor: input.themeBarColor,
+    enableCueCache: input.enableCueCache,
+    cueCacheMaxEntries: input.cueCacheMaxEntries,
+  };
+  const target: FramePaintTarget = {
+    paintCtx: surface.paintCtx,
+    blitToCapture: () => undefined,
+  };
+
+  return {
+    canvas: surface.paintCanvas,
+    width: input.width,
+    height: input.height,
+    paintFrameAt: (timestampSeconds: number): void => {
+      paintFrame(
+        target,
+        input.cues,
+        input.style,
+        paintOptions,
+        timestampSeconds,
+        input.globalDurationSeconds,
+        cache,
+      );
+    },
+    cacheStats: () => cache?.stats(true) ?? buildDisabledCueCacheStats(),
+    dispose: () => {
+      cache?.clear();
+    },
+  };
 }
 
 /**

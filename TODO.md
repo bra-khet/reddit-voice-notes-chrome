@@ -1,18 +1,27 @@
 # TODO
 
-## v5.3.10 — WebCodecs Per-Chunk Encoding — **NEXT**
+## v5.3.10 — WebCodecs Per-Chunk Encoding — **IMPLEMENTED, PENDING QA**
 
-**Branch:** `feature/v5.3.10-webcodecs-encoding` (branch from `main` @ `v5.3.9`)  
-**Design:** [`docs/5.3.10-webcodecs-per-chunk-encoding.md`](docs/5.3.10-webcodecs-per-chunk-encoding.md)  
+**Branch:** `feature/v5.3.10-webcodecs-encoding` (from `main` @ `v5.3.9`)  
+**Design:** [`docs/5.3.10-webcodecs-per-chunk-encoding.md`](docs/5.3.10-webcodecs-per-chunk-encoding.md) **§0 As-Built** · ADR: [`docs/architecture/adr/0001-webcodecs-encoding-backbone.md`](docs/architecture/adr/0001-webcodecs-encoding-backbone.md)  
 **Depends on:** v5.3.9 encoder-agnostic chunk seam (shipped)
+
+Key reframe vs the draft: normalize (~111 s, 77% of bake wall) — not capture —
+was the blocker. The WebCodecs path produces dual color+alpha IVF streams that
+are composite-ready **by construction** (integer global PTS, frame-exact,
+explicit alpha via `alphamerge` in the composite graph), so normalize is
+eliminated on this path, not just faster. Expected 200-cue/60 s bake:
+~145 s → ~25–40 s (real-browser QA to confirm).
 
 | Deliverable | Status |
 |-------------|--------|
-| Capability detection + `experimental.webCodecsBake` flag | pending |
-| Per-chunk `VideoEncoder` loop (`webcodecs-chunk-encoder.ts`) | pending |
-| Wire into chunk orchestrator behind flag | pending |
-| Timing JSON `encoderType` + `encodeMs` | pending |
-| QA: 60 s rich-effects bake ≤30 s target | pending |
+| Capability detection + alpha-luma **calibration probe** + `experimental.webCodecsBake` flag (default off) | **done** |
+| Encoding layer: segment model, pure-TS IVF mux/concat, dual `VideoEncoder` per-chunk loop | **done** |
+| WebCodecs orchestrator (planner reuse) + alphamerge composite tiers + bake fallback chain | **done** |
+| Timing schema v3: `encoderType`, `encode` aggregates; Lab toggle on BOTH buttons | **done** |
+| Tests: `test-ivf` (7) · `test-overlay-alphamerge-args` (6, incl. never-re-encode regression guard) · `test-encoded-segment` (5) — 20/20 suites green, tsc baseline, build clean | **done** |
+| **QA (real browser):** design doc §0.7 checklist — timing JSONs, visual alpha fidelity, fallback drill, ≤30 s target | **pending** |
+| Merge → tag `v5.3.10` → version bump (release commit, after QA) | **pending** |
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED**
 

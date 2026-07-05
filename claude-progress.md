@@ -1,5 +1,81 @@
 # Reddit Voice Notes — Session Progress
 
+## v5.3.10 — WebCodecs Per-Chunk Encoding — **IMPLEMENTED, PENDING QA** (2026-07-04)
+
+**Branch:** `feature/v5.3.10-webcodecs-encoding` (from `main` @ `v5.3.9`) · not merged  
+**Design:** `docs/5.3.10-webcodecs-per-chunk-encoding.md` — **§0 As-Built Revision is authoritative** (draft §§1-8 historical)  
+**ADR:** `docs/architecture/adr/0001-webcodecs-encoding-backbone.md` · Extension-points registry v1.2 § Overlay encoding backbone
+
+### The reframe (why this isn't just an encoder swap)
+
+Post-v5.3.9 QA proved **normalize (~111 s, 77% of the 143 s bake) — not capture —
+is the blocker**. `normalizeOverlayWebmForComposite` exists only to repair
+MediaRecorder output (VFR, missing metadata, tail frames, implicit VP8A alpha).
+The v5.3.10 WebCodecs path produces streams with **nothing to repair**: dual
+color+alpha VP8 IVF streams with integer global-frame-index PTS, frame-exact by
+construction, alpha materialized by `alphamerge` inside the composite graph.
+Normalize is **eliminated on this path** (not skipped — see §0.4 of the design
+doc for why this is NOT the v5.3.9.1 `compositeReady` mistake: constructed vs
+captured streams, stitch-time validation, regression-guard tests).
+Expected 200-cue/60 s bake: ~145 s → ~25-40 s (QA to confirm).
+
+### Shipped
+
+- `src/encoding/encoded-segment.ts` — segment model: `EncodedOverlaySegmentMeta`
+  (timing, cue span, codec, paint/encode ms, bytes) — "segments, not files"; the
+  5.4.0 selective-re-encode key. Pure.
+- `src/encoding/ivf.ts` — pure-TS IVF mux/parse/concat; global PTS; concat
+  validates strict continuity + param agreement and THROWS (never "fixes").
+- `src/encoding/webcodecs-support.ts` — capability + **alpha-luma calibration
+  probe**: real encode→decode round trip measures limited (16-235) vs full
+  (0-255) range so "opaque" text can't silently become 92% opaque. Cached;
+  probe failure ⇒ path unavailable ⇒ MediaRecorder.
+- `src/encoding/overlay-webcodecs-encoder.ts` — dual VP8 `VideoEncoder` loop:
+  color = paint canvas w/ `alpha:'discard'` (premultiplied-over-black), alpha =
+  3 GPU compositing ops (white fill → destination-in → over black); queue
+  backpressure (8), `scheduler.yield` every 8 frames, per-segment keyframes,
+  frame-count assertions.
+- `src/transcription/subtitle-overlay-webcodecs.ts` — orchestrator reusing the
+  v5.3.9 planner/progress/abort; returns dual IVF + metas or **null** (caller
+  falls back); deliberate aborts rethrow; no min-duration gate (single-chunk
+  clips still win).
+- `subtitle-overlay-renderer.ts` — **`createOverlayFramePainter`**: the
+  strengthened encoder-agnostic seam (paint any global frame, cue cache + fonts
+  handled, OffscreenCanvas, no DOM in loop → worker-portable). MediaRecorder
+  path untouched on top of the same internals.
+- `src/ffmpeg/overlay-alphamerge-args.ts` (pure leaf) — 3 composite tiers
+  (unpremultiply-gray / unpremultiply-yuv / premultiplied-last) + calibrated
+  `lutyuv=y=(val-16)*255/219` range expansion (comma-free ⇒ no graph quoting).
+- `subtitle-burnin.ts` — `buildWebCodecsOverlayStrategies`; dual-IVF input ⇒
+  alphamerge tiers ONLY (failure bubbles to bake-level MediaRecorder retry,
+  never a silent drawtext downgrade). Fallback order: webcodecs →
+  mediarecorder-parallel → serial → drawtext.
+- `subtitle-canvas-bake.ts` — `encoder: 'auto'|'webcodecs'|'mediarecorder'`
+  (explicit at every call site — v5.3.9.1 lesson); extracted
+  `withRenderPerfGuard` (fresh budget per attempt); shared `runComposite`.
+- `user-preferences.ts` — `experimental.webCodecsBake` (default **false**);
+  production maps true→`'auto'` in `subtitle-bake.ts`.
+- Overlay Lab — "WebCodecs encode (v5.3.10)" toggle on render **and** bake;
+  render action logs `webcodecs-plan`/`webcodecs-segment`/`webcodecs-result`
+  (IVF has no direct preview — status says bake to view). Timing schema **v3**:
+  `encoderType`, `encode` aggregates, stitch-stage post-render anchor.
+- Codec: **VP8 first** (deliberate inversion of the draft's VP9/AV1 preference:
+  same encoder family as today's MediaRecorder ⇒ identical quality character,
+  cheapest wasm decode, broadest support); VP9 second candidate; AV1 rejected.
+- Tests: `test-ivf` (7) · `test-overlay-alphamerge-args` (6, incl. regression
+  guard: overlay streams decoded never re-encoded, single x264 encoder) ·
+  `test-encoded-segment` (5) · timing-summary → 4. **Full suite 20/20 PASS**,
+  `tsc` at 3-error baseline, `npm run build` PASS.
+
+### Pending
+
+Real-browser QA per design doc **§0.7** (timing JSONs A/B, visual alpha
+fidelity vs MediaRecorder bake, calibration console line, fallback drill,
+≤30 s target) → merge → tag `v5.3.10` + version bump at release commit.
+Verification limits stated in §0.6 (no WebCodecs/FFmpeg execution possible
+from repo tooling; `alphamerge`/`unpremultiply` presence in the vendored
+`@ffmpeg/core` 0.12 expected but unverified — tier + pipeline fallbacks cover).
+
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 
 **Branch:** merged `feature/v5.3.9-parallelization` → `main` (2026-07-05) · **Package:** `5.3.9`  

@@ -35,6 +35,7 @@ import {
   type TranscriptResult,
 } from '@/src/transcription/types';
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
+import { renderSubtitleOverlayWebCodecs } from '@/src/transcription/subtitle-overlay-webcodecs';
 import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
 import {
   formatBakeChronosLine,
@@ -153,6 +154,7 @@ function readLabControls(panel: HTMLElement): {
   backdropBorderRadius: number;
   singleFrameDebug: boolean;
   parallelRender: boolean;
+  webCodecsRender: boolean;
 } {
   const segmentSet =
     (panel.querySelector<HTMLSelectElement>('[data-overlay-lab-segment-set]')?.value as
@@ -183,6 +185,8 @@ function readLabControls(panel: HTMLElement): {
       panel.querySelector<HTMLInputElement>('[data-overlay-lab-single-frame-debug]')?.checked === true,
     parallelRender:
       panel.querySelector<HTMLInputElement>('[data-overlay-lab-parallel-render]')?.checked === true,
+    webCodecsRender:
+      panel.querySelector<HTMLInputElement>('[data-overlay-lab-webcodecs]')?.checked === true,
   };
 }
 
@@ -300,6 +304,22 @@ export function renderSubtitleOverlayLabHtml(): string {
           type="checkbox"
           data-overlay-lab-parallel-render
           aria-label="Parallel chunked render for canvas overlay"
+        />
+      </label>
+      <label class="popup__toggle-row studio__subtitles-toggle">
+        <span class="popup__toggle-copy">
+          <span class="popup__toggle-label">WebCodecs encode (v5.3.10)</span>
+          <p class="popup__field-desc">
+            VideoEncoder dual-stream IVF path (probe-gated, MediaRecorder fallback). Render action
+            reports timing only — segments have no direct preview; use full bake to view. Ignored
+            with single-frame debug.
+          </p>
+        </span>
+        <input
+          class="popup__toggle-input"
+          type="checkbox"
+          data-overlay-lab-webcodecs
+          aria-label="WebCodecs encode for canvas overlay"
         />
       </label>
       <div class="popup__profile-actions studio__inline-actions studio__subtitle-overlay-lab-actions">
@@ -726,6 +746,86 @@ export function mountSubtitleOverlayLab(
             },
           },
         };
+        // v5.3.10 A/B: WebCodecs dual-stream encode. Produces IVF segments
+        // (not a playable WebM), so this branch reports timing + metrics and
+        // skips the preview player; the full-bake button is the visual check.
+        if (controls.webCodecsRender && !controls.singleFrameDebug) {
+          const webCodecsResult = await renderSubtitleOverlayWebCodecs(
+            edited.segments,
+            style,
+            durationSeconds,
+            {
+              ...labRenderOptions,
+              parallel: controls.parallelRender ? 'force' : 'auto',
+            },
+            {
+              onPlan: (plan) => {
+                appendTimingEntry(
+                  log,
+                  startedAtMs,
+                  'webcodecs-plan',
+                  undefined,
+                  JSON.stringify(
+                    plan.map((chunk) => ({
+                      startFrame: chunk.startFrame,
+                      frameCount: chunk.frameCount,
+                      cutQuality: chunk.cutQuality,
+                    })),
+                  ),
+                );
+              },
+              onSegmentEncoded: (meta) => {
+                appendTimingEntry(
+                  log,
+                  startedAtMs,
+                  'webcodecs-segment',
+                  undefined,
+                  JSON.stringify({
+                    index: meta.index,
+                    frames: meta.frameCount,
+                    encodeMs: meta.encodeMs,
+                    paintMs: meta.paintMs,
+                    colorBytes: meta.colorBytes,
+                    alphaBytes: meta.alphaBytes,
+                    cueCount: meta.cueSpan.cueCount,
+                  }),
+                );
+              },
+            },
+          );
+          if (webCodecsResult) {
+            console.timeEnd('overlay-lab-render');
+            renderMetrics = webCodecsResult.renderMetrics;
+            appendTimingEntry(
+              log,
+              startedAtMs,
+              'webcodecs-result',
+              undefined,
+              JSON.stringify({
+                codec: webCodecsResult.codec,
+                chunkCount: webCodecsResult.chunkCount,
+                stitchMs: webCodecsResult.stitchMs,
+                alphaLimitedRange: webCodecsResult.calibration.limitedRange,
+                colorBytes: webCodecsResult.colorIvf.byteLength,
+                alphaBytes: webCodecsResult.alphaIvf.byteLength,
+              }),
+            );
+            appendTimingEntry(log, startedAtMs, 'render-complete');
+            finishTimingLog(log, startedAtMs, renderMetrics);
+            if (overlayPreviewStatus) {
+              overlayPreviewStatus.textContent =
+                `WebCodecs segments ready (${webCodecsResult.chunkCount} × ${webCodecsResult.codec}, ` +
+                `${webCodecsResult.renderMetrics.renderWallMs}ms, ` +
+                `${webCodecsResult.renderMetrics.realtimeFactor.toFixed(2)}× realtime). ` +
+                'IVF has no direct preview — run the full bake to view.';
+            }
+            syncDownloadButtons();
+            return;
+          }
+          // Probe/encode declined — record it and A/B via MediaRecorder below.
+          appendTimingEntry(log, startedAtMs, 'webcodecs-unavailable');
+        }
+
         // v5.3.9 A/B: forced parallel chunked render vs classic serial path.
         let renderResult: SubtitleOverlayResult;
         if (controls.parallelRender && !controls.singleFrameDebug) {
@@ -954,6 +1054,9 @@ export function mountSubtitleOverlayLab(
           //      true before/after comparison. Wire the same toggle the
           //      "Render overlay" button already respects.
           parallelBake: controls.parallelRender,
+          // v5.3.10 — explicit at every call site (v5.3.9.1 lesson: silent
+          // encoder defaults make Lab A/B toggle runs meaningless).
+          encoder: controls.webCodecsRender ? 'webcodecs' : 'mediarecorder',
           onRenderMetrics: (metrics) => {
             bakeRenderMetrics = metrics;
             appendTimingEntry(

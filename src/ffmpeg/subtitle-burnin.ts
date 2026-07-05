@@ -9,6 +9,12 @@ import {
 } from '@/src/transcription/subtitle-effects';
 import type { SubtitleStyleConfig, TranscriptSegment } from '@/src/transcription/types';
 import { prepareSegmentsForSubtitleBake, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
+import {
+  buildOverlayAlphamergeArgs,
+  buildOverlayAlphamergeTiers,
+  OVERLAY_ALPHA_IVF_FS_PATH,
+  OVERLAY_COLOR_IVF_FS_PATH,
+} from '@/src/ffmpeg/overlay-alphamerge-args';
 import { BURNIN_PIPELINE_STAMP } from '@/src/utils/constants';
 
 export { BURNIN_PIPELINE_STAMP };
@@ -30,6 +36,18 @@ export interface SubtitleBurnInInput {
   useCanvasOverlay?: boolean;
   /** Pre-rendered VP8 overlay WebM from renderSubtitleOverlay (content-script only). */
   canvasOverlayBytes?: Uint8Array;
+  /**
+   * v5.3.10 — WebCodecs dual-stream overlay: color IVF + alpha-as-luma IVF
+   * (renderSubtitleOverlayWebCodecs output). When both are present the
+   * composite runs the alphamerge tier family INSTEAD of the WebM overlay /
+   * drawtext strategies — a tier failure must bubble up so the caller retries
+   * via the fully-normalized MediaRecorder pipeline rather than silently
+   * downgrading rich effects to drawtext.
+   */
+  overlayColorIvfBytes?: Uint8Array;
+  overlayAlphaIvfBytes?: Uint8Array;
+  /** From the WebCodecs calibration probe — expand alpha luma in the graph. */
+  overlayAlphaLimitedRange?: boolean;
 }
 
 // BUG FIX: drawtext fontfile= with relative path fails silently in Emscripten MEMFS on some builds
@@ -509,6 +527,38 @@ export function buildCanvasOverlayStrategy(overlayBytes: Uint8Array): BurnInStra
   return buildCanvasOverlayStrategies(overlayBytes)[0];
 }
 
+/**
+ * v5.3.10 — WebCodecs dual-stream composite strategies. The overlay streams
+ * are CFR + frame-exact by construction, so no normalize pre-pass exists on
+ * this path: alphamerge + unpremultiply build the alpha overlay inside the
+ * composite graph itself (see overlay-alphamerge-args.ts for the full
+ * rationale, premultiplication semantics, and the alpha luma range story).
+ */
+export function buildWebCodecsOverlayStrategies(
+  colorIvfBytes: Uint8Array,
+  alphaIvfBytes: Uint8Array,
+  alphaLimitedRange: boolean,
+): BurnInStrategy[] {
+  if (colorIvfBytes.byteLength < 64 || alphaIvfBytes.byteLength < 64) {
+    throw new Error('WebCodecs overlay IVF streams are empty or too small for composite.');
+  }
+  return buildOverlayAlphamergeTiers(alphaLimitedRange).map((tier) => ({
+    name: tier.name,
+    requiresFont: false,
+    extraFiles: {
+      [OVERLAY_COLOR_IVF_FS_PATH]: colorIvfBytes,
+      [OVERLAY_ALPHA_IVF_FS_PATH]: alphaIvfBytes,
+    },
+    args: buildOverlayAlphamergeArgs({
+      tier,
+      baseFile: INPUT_MP4,
+      colorFile: OVERLAY_COLOR_IVF_FS_PATH,
+      alphaFile: OVERLAY_ALPHA_IVF_FS_PATH,
+      outputFile: OUTPUT_MP4,
+    }),
+  }));
+}
+
 function buildDrawtextBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
   const segments = normalizeSegmentsForBurnIn(input.segments, input.videoDurationSeconds);
   if (segments.length === 0) {
@@ -557,6 +607,19 @@ function buildDrawtextBurnInStrategies(input: SubtitleBurnInInput): BurnInStrate
 // alone — it's the smallest possible graph. ffmpeg-runner reloads a fresh wasm instance per tier,
 // so a tier that still OOMs at runtime degrades to the next instead of hard-failing.
 export function buildBurnInStrategies(input: SubtitleBurnInInput): BurnInStrategy[] {
+  // v5.3.10 — WebCodecs dual-stream composite: alphamerge tiers ONLY, no
+  // drawtext tail. If every tier fails the runner throws, and the bake layer
+  // retries through the MediaRecorder pipeline (which still ends in drawtext
+  // as the true last resort) — quality-first fallback order, not a silent
+  // rich-effects downgrade.
+  if (input.overlayColorIvfBytes && input.overlayAlphaIvfBytes) {
+    return buildWebCodecsOverlayStrategies(
+      input.overlayColorIvfBytes,
+      input.overlayAlphaIvfBytes,
+      input.overlayAlphaLimitedRange === true,
+    );
+  }
+
   const drawtextStrategies = buildDrawtextBurnInStrategies(input);
   const overlayBytes = input.canvasOverlayBytes;
 

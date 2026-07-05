@@ -4,9 +4,15 @@
 
 import type { CueOverlayCacheStats } from '@/src/transcription/subtitle-overlay-cue-cache';
 import { OVERLAY_CONCAT_STAGE } from '@/src/transcription/subtitle-overlay-parallel';
+import { WEBCODECS_STITCH_STAGE } from '@/src/transcription/subtitle-overlay-webcodecs';
 import type { SubtitleOverlayRenderMetrics } from '@/src/transcription/subtitle-overlay-renderer';
+import {
+  summarizeEncodedSegments,
+  type EncodedSegmentSummary,
+  type OverlayEncoderType,
+} from '@/src/encoding/encoded-segment';
 
-export const OVERLAY_LAB_TIMING_LOG_VERSION = 2;
+export const OVERLAY_LAB_TIMING_LOG_VERSION = 3;
 
 export interface OverlayLabTimingEntryLike {
   stage: string;
@@ -75,6 +81,14 @@ export interface OverlayLabTimingSummary {
   stages: OverlayLabStageDurations;
   stageShare: OverlayLabStageShare;
   cueCache: CueOverlayCacheStats | null;
+  /**
+   * v5.3.10 — which capture/encode strategy the render used. 'mediarecorder'
+   * runs are paced (render ≈ clip duration ÷ chunks); 'webcodecs' runs are
+   * compute-bound (render = paint + encode, per-segment detail below).
+   */
+  encoderType: OverlayEncoderType | null;
+  /** v5.3.10 — per-segment encode aggregates when the WebCodecs path ran. */
+  encode: EncodedSegmentSummary | null;
 }
 
 function stageBounds(entries: OverlayLabTimingEntryLike[]): {
@@ -122,7 +136,9 @@ export function computeOverlayLabStageDurations(
   const compositeMs =
     compStart != null && compEnd != null ? Math.max(0, compEnd - compStart) : null;
 
-  const postRenderAnchor = normEnd ?? concatEnd ?? renderEnd;
+  // v5.3.10: WebCodecs bakes have no normalize stage (composite-ready by
+  // construction) — the stitch marker tick anchors post-render instead.
+  const postRenderAnchor = normEnd ?? concatEnd ?? last[WEBCODECS_STITCH_STAGE] ?? renderEnd;
   const postRenderMs =
     compEnd != null ? Math.max(0, compEnd - postRenderAnchor) : null;
 
@@ -196,5 +212,9 @@ export function buildOverlayLabTimingSummary(input: {
       postRender: share(stages.postRenderMs, input.totalMs),
     },
     cueCache: renderMetrics?.cueCache ?? null,
+    encoderType: renderMetrics ? renderMetrics.encoderType ?? 'mediarecorder' : null,
+    encode: renderMetrics?.encodeSegments
+      ? summarizeEncodedSegments(renderMetrics.encodeSegments)
+      : null,
   };
 }

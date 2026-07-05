@@ -15,9 +15,14 @@ import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/
 import { computeCreepRatio } from '@/src/ui/design-studio/bake-chronos';
 import {
   CanvasRenderPerfExceededError,
+  isCanvasRenderPerfExceeded,
   linkAbortSignals,
 } from '@/src/transcription/canvas-render-perf-guard';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@/src/utils/constants';
+import {
+  renderSubtitleOverlayWebCodecs,
+  WEBCODECS_STITCH_STAGE,
+} from '@/src/transcription/subtitle-overlay-webcodecs';
+import { CANVAS_HEIGHT, CANVAS_WIDTH, EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 const NORMALIZE_RATIO_START = 0.32;
 const NORMALIZE_RATIO_END = 0.44;
@@ -93,11 +98,60 @@ export interface CanvasOverlayBakeOptions {
    * clips, low-core/low-memory devices, or any chunk/concat failure.
    */
   parallelBake?: boolean;
+  /**
+   * v5.3.10 — capture/encode strategy (prefs experimental.webCodecsBake).
+   * 'auto': WebCodecs when the probe passes, MediaRecorder otherwise.
+   * 'webcodecs': WebCodecs with the chunk-count memory gate skipped (Lab A/B)
+   *   — still falls back to MediaRecorder if the probe or encode fails.
+   * 'mediarecorder' (DEFAULT when omitted): the proven v5.3.9 pipeline.
+   * Every call site must pass this explicitly (v5.3.9.1 lesson: a silent
+   * default at one Lab call site made A/B toggle QA runs meaningless).
+   */
+  encoder?: OverlayBakeEncoderPreference;
 }
+
+export type OverlayBakeEncoderPreference = 'auto' | 'webcodecs' | 'mediarecorder';
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
     throw new DOMException('Subtitle burn-in cancelled.', 'AbortError');
+  }
+}
+
+/** Rethrow-worthy at the bake layer: user cancel / perf budget — never retried. */
+function isDeliberateBakeAbort(error: unknown, signal: AbortSignal | undefined): boolean {
+  if (isCanvasRenderPerfExceeded(error)) return true;
+  if (signal?.aborted) return true;
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+/**
+ * Arm the render perf-guard budget around one render attempt. Extracted
+ * (v5.3.10) so the WebCodecs attempt and the MediaRecorder retry each get a
+ * fresh budget window instead of sharing one timer across both.
+ */
+async function withRenderPerfGuard<T>(
+  budgetMs: number | undefined,
+  userSignal: AbortSignal | undefined,
+  work: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const renderAbort = linkAbortSignals(userSignal);
+  const startedAt = performance.now();
+  let timer: ReturnType<typeof window.setTimeout> | undefined;
+  if (budgetMs != null && budgetMs > 0) {
+    timer = window.setTimeout(() => {
+      renderAbort.abort(
+        new CanvasRenderPerfExceededError(
+          budgetMs,
+          Math.round(performance.now() - startedAt),
+        ),
+      );
+    }, budgetMs);
+  }
+  try {
+    return await work(renderAbort.signal);
+  } finally {
+    if (timer != null) window.clearTimeout(timer);
   }
 }
 
@@ -134,38 +188,87 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   const RENDER_RATIO_START = 0.05;
   const RENDER_RATIO_END = 0.32;
 
-  report(RENDER_RATIO_START, 'canvas-overlay-render');
-  throwIfAborted(options.signal);
-
-  const renderAbort = linkAbortSignals(options.signal);
-  const renderStartedAt = performance.now();
-  let renderPerfTimer: ReturnType<typeof window.setTimeout> | undefined;
-  if (options.renderPerfBudgetMs != null && options.renderPerfBudgetMs > 0) {
-    renderPerfTimer = window.setTimeout(() => {
-      renderAbort.abort(
-        new CanvasRenderPerfExceededError(
-          options.renderPerfBudgetMs!,
-          Math.round(performance.now() - renderStartedAt),
-        ),
-      );
-    }, options.renderPerfBudgetMs);
-  }
-
-  const renderOptions = {
+  const makeRenderOptions = (signal: AbortSignal) => ({
     width: CANVAS_WIDTH,
     height: CANVAS_HEIGHT,
     fps: 30,
     background: 'transparent' as const,
     offline: true,
     themeBarColor: options.themeBarColor,
-    signal: renderAbort.signal,
+    signal,
     onRenderProgress: ({ ratio }: { ratio: number }) => {
       report(
         RENDER_RATIO_START + ratio * (RENDER_RATIO_END - RENDER_RATIO_START),
         'canvas-overlay-render',
       );
     },
+  });
+
+  const runComposite = async (burnIn: Parameters<typeof runSubtitleBurnIn>[1]): Promise<Blob> => {
+    const baseBytes = new Uint8Array(await baseBlob.arrayBuffer());
+    report(COMPOSITE_RATIO_START, 'canvas-overlay-composite');
+    throwIfAborted(options.signal);
+    const burnedBytes = await withTranscodeLock(async () =>
+      runSubtitleBurnIn(baseBytes, burnIn, (ratio, stage) => {
+        report(COMPOSITE_RATIO_START + ratio * (1 - COMPOSITE_RATIO_START), stage);
+      }),
+    );
+    report(1, 'canvas-overlay-done');
+    return new Blob([burnedBytes.slice()], { type: 'video/mp4' });
   };
+
+  // ---- v5.3.10 WebCodecs path -------------------------------------------
+  // Dual color+alpha IVF streams, composite-ready by construction: no
+  // normalize pass exists here — its two repair jobs (CFR enforcement,
+  // explicit alpha plane) can't be needed for constructed streams, and the
+  // alphamerge composite builds the alpha overlay inside the graph itself.
+  // Any non-abort failure (probe, encode, stitch, composite) retries the
+  // whole bake through the proven MediaRecorder pipeline below.
+  const encoderPreference = options.encoder ?? 'mediarecorder';
+  if (encoderPreference !== 'mediarecorder') {
+    report(RENDER_RATIO_START, 'canvas-overlay-render');
+    throwIfAborted(options.signal);
+    try {
+      const webCodecsResult = await withRenderPerfGuard(
+        options.renderPerfBudgetMs,
+        options.signal,
+        (signal) =>
+          renderSubtitleOverlayWebCodecs(segments, options.style, options.durationSeconds, {
+            ...makeRenderOptions(signal),
+            parallel: encoderPreference === 'webcodecs' ? 'force' : 'auto',
+          }),
+      );
+      if (webCodecsResult) {
+        options.onRenderMetrics?.(webCodecsResult.renderMetrics);
+        throwIfAborted(options.signal);
+        // Stitch already happened (pure-TS, ms-scale) — single marker tick on
+        // its own stage label so timing logs can attribute it (v5.3.9.1 rule:
+        // distinct work gets distinct stage strings).
+        report(NORMALIZE_RATIO_END, WEBCODECS_STITCH_STAGE);
+        report(0.445, 'canvas-overlay-buffer');
+        return await runComposite({
+          segments,
+          style: options.style,
+          videoDurationSeconds: options.durationSeconds ?? durationFromMeta,
+          themeBarColor: options.themeBarColor,
+          overlayColorIvfBytes: webCodecsResult.colorIvf,
+          overlayAlphaIvfBytes: webCodecsResult.alphaIvf,
+          overlayAlphaLimitedRange: webCodecsResult.calibration.limitedRange,
+        });
+      }
+      // null → WebCodecs unavailable on this machine; MediaRecorder path below.
+    } catch (error: unknown) {
+      if (isDeliberateBakeAbort(error, options.signal)) throw error;
+      console.warn(
+        `${EXTENSION_LOG_PREFIX} WebCodecs bake path failed — retrying via MediaRecorder pipeline`,
+        error,
+      );
+    }
+  }
+
+  // ---- MediaRecorder path (the proven v5.3.9 pipeline, unchanged) --------
+  report(RENDER_RATIO_START, 'canvas-overlay-render');
+  throwIfAborted(options.signal);
 
   // CHANGED: v5.3.9.1 — parallel chunked render when allowed. Concat is now a
   //          cheap stitch-only step (stream-copy demuxer); normalize ALWAYS
@@ -174,36 +277,36 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   //          was the root cause of a 70-150s regression (see design doc §0.5) —
   //          that re-encode-to-skip-normalize trick is gone.
   // WHY: capture is real-time paced; N concurrent chunks cut the render stage ~N×.
-  let overlayResult;
-  try {
-    overlayResult = options.parallelBake !== false
-      ? await renderSubtitleOverlayParallel(
-          segments,
-          options.style,
-          options.durationSeconds,
-          renderOptions,
-          {
-            // Concat is now sub-second — two discrete ticks, no creep timer;
-            // both 'start' and 'done' report the same ratio (start/end of a
-            // near-instant stitch, distinct from normalize's own stage below).
-            onConcatPhase: () => report(NORMALIZE_RATIO_START, OVERLAY_CONCAT_STAGE),
-          },
-        )
-      : {
-          ...(await renderSubtitleOverlay(
+  const overlayResult = await withRenderPerfGuard(
+    options.renderPerfBudgetMs,
+    options.signal,
+    async (signal) => {
+      const renderOptions = makeRenderOptions(signal);
+      return options.parallelBake !== false
+        ? renderSubtitleOverlayParallel(
             segments,
             options.style,
             options.durationSeconds,
             renderOptions,
-          )),
-          wasParallel: false,
-          chunkCount: 1,
-        };
-  } finally {
-    if (renderPerfTimer != null) {
-      window.clearTimeout(renderPerfTimer);
-    }
-  }
+            {
+              // Concat is now sub-second — two discrete ticks, no creep timer;
+              // both 'start' and 'done' report the same ratio (start/end of a
+              // near-instant stitch, distinct from normalize's own stage below).
+              onConcatPhase: () => report(NORMALIZE_RATIO_START, OVERLAY_CONCAT_STAGE),
+            },
+          )
+        : {
+            ...(await renderSubtitleOverlay(
+              segments,
+              options.style,
+              options.durationSeconds,
+              renderOptions,
+            )),
+            wasParallel: false,
+            chunkCount: 1,
+          };
+    },
+  );
 
   if (overlayResult.renderMetrics) {
     options.onRenderMetrics?.(overlayResult.renderMetrics);
@@ -218,27 +321,13 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   );
   report(0.445, 'canvas-overlay-buffer');
   const overlayBytes = new Uint8Array(await compositeOverlay.arrayBuffer());
-  const baseBytes = new Uint8Array(await baseBlob.arrayBuffer());
 
-  report(COMPOSITE_RATIO_START, 'canvas-overlay-composite');
-  throwIfAborted(options.signal);
-  const burnedBytes = await withTranscodeLock(async () =>
-    runSubtitleBurnIn(
-      baseBytes,
-      {
-        segments,
-        style: options.style,
-        videoDurationSeconds: options.durationSeconds ?? durationFromMeta,
-        themeBarColor: options.themeBarColor,
-        useCanvasOverlay: true,
-        canvasOverlayBytes: overlayBytes,
-      },
-      (ratio, stage) => {
-        report(COMPOSITE_RATIO_START + ratio * (1 - COMPOSITE_RATIO_START), stage);
-      },
-    ),
-  );
-
-  report(1, 'canvas-overlay-done');
-  return new Blob([burnedBytes.slice()], { type: 'video/mp4' });
+  return runComposite({
+    segments,
+    style: options.style,
+    videoDurationSeconds: options.durationSeconds ?? durationFromMeta,
+    themeBarColor: options.themeBarColor,
+    useCanvasOverlay: true,
+    canvasOverlayBytes: overlayBytes,
+  });
 }

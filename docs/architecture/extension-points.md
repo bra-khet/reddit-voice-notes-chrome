@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.1 · **Updated:** 2026-06-27 · **Reflects:** `feature/voice-preview-live-mic` (v5.3.1)  
+**Version:** v1.2 · **Updated:** 2026-07-04 · **Reflects:** `feature/v5.3.10-webcodecs-encoding`  
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -110,6 +110,49 @@ capture into the existing voice render path.
   feature must be a deliberate, separate decision, not a silent IDB write here.
 - **Gotcha:** Design Studio is a *separate origin* from reddit.com, so `getUserMedia`
   prompts again on first use there (verified working — v5.3.1 §6.0 gate).
+
+## Overlay encoding backbone — v1 (v5.3.9 / v5.3.10)
+
+The subtitle-overlay bake is "segments, not files": the chunk planner partitions
+the timeline, a **painter** draws any global frame, an **encoder strategy**
+turns painted frames into encoded segments, a **stitcher** joins them, and the
+composite consumes the result. Two encoder strategies exist; both sit on the
+same paint seam.
+
+- **The paint seam (encoder-agnostic):** `createOverlayFramePainter` in
+  `src/transcription/subtitle-overlay-renderer.ts` — paints the overlay's
+  global frame at any timestamp (cue cache + fonts handled). Every capture
+  strategy MUST paint at `(startFrame + i) / fps` — the exact serial expression
+  — so animation phase (Oklch, gradient wave) and cue-cache keys stay
+  chunk-invariant. OffscreenCanvas-backed, no DOM in the loop → worker-portable.
+- **Add an encoder strategy:** produce per-chunk artifacts + a stitcher for
+  them, decide what the composite consumes, and give the strategy its own
+  fallback edge to the MediaRecorder pipeline. Reference implementations:
+  MediaRecorder (`captureOverlayChunkRaw` → FFmpeg stream-copy concat →
+  normalize → WebM overlay composite) and WebCodecs
+  (`src/encoding/overlay-webcodecs-encoder.ts` → pure-TS IVF concat →
+  alphamerge composite, NO normalize — see ADR-0001 for why that is safe there
+  and only there).
+- **Segment metadata:** `src/encoding/encoded-segment.ts`
+  (`EncodedOverlaySegmentMeta`) — timing, cue span, codec, cost telemetry.
+  New strategies must emit it; future editing features consume it.
+- **Preview=bake?** YES via the shared painter — the paint pixels are identical
+  regardless of encoder. The encode/composite leg is the per-strategy QA surface.
+- **Sync points:** `overlay-chunk-planner.ts` (partition invariants, tested),
+  `subtitle-canvas-bake.ts` (strategy selection + fallback order:
+  webcodecs → mediarecorder-parallel → serial → drawtext),
+  `experimental.parallelBake` / `experimental.webCodecsBake` prefs,
+  Overlay Lab toggles (BOTH the render and bake buttons must pass strategy
+  flags explicitly — v5.3.9.1 gotcha), timing summary
+  (`overlay-lab-timing-summary.ts`: distinct stage label per distinct work).
+- **Gotchas:**
+  - Never mark an encoder's output "composite-ready" without construction-level
+    guarantees + validation (v5.3.9.1 regression class; ADR-0001).
+  - MediaRecorder output is VFR with tail-hold frames — it always needs
+    normalize; only constructed (WebCodecs) streams may skip it.
+  - Alpha luma range from `VideoEncoder` is machine-dependent — always go
+    through the calibration probe (`src/encoding/webcodecs-support.ts`), never
+    assume limited or full.
 
 ---
 

@@ -125,6 +125,14 @@ export interface ExperimentalPreferences {
    * to force the serial render path. Sync: subtitle-bake.ts, subtitle-overlay-parallel.ts
    */
   parallelBake?: boolean;
+  /**
+   * v5.3.10 WebCodecs overlay encoding. Default false during rollout — when
+   * true, the bake tries the VideoEncoder dual-stream path (probe-gated) and
+   * falls back to the MediaRecorder pipeline on any failure.
+   * Sync: subtitle-bake.ts, subtitle-canvas-bake.ts encoder,
+   *       subtitle-overlay-webcodecs.ts
+   */
+  webCodecsBake?: boolean;
 }
 
 export interface UserPreferencesV1 {
@@ -157,7 +165,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   },
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
   transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
-  experimental: { parallelBake: true },
+  experimental: { parallelBake: true, webCodecsBake: false },
 };
 
 /** Synchronous cache on extension pages — survives design-studio tab close (BUG-019). */

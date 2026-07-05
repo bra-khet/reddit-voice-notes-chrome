@@ -123,6 +123,10 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
         // v5.3.9 experimental flag — orchestrator still auto-gates by clip
         // length/hardware and serial-falls-back on any chunk failure.
         parallelBake: prefs.experimental?.parallelBake !== false,
+        // v5.3.10 experimental flag — 'auto' probe-gates WebCodecs and falls
+        // back to the MediaRecorder pipeline on any failure. Passed explicitly
+        // at every call site (v5.3.9.1 lesson — no silent defaults in A/B paths).
+        encoder: prefs.experimental?.webCodecsBake === true ? 'auto' : 'mediarecorder',
         onProgress: (ratio, stage) => {
           const overallRatio = 0.1 + ratio * 0.82;
           report({

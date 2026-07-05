@@ -13,9 +13,9 @@ This directory holds the **living, versioned** architecture index for the extens
 | File | Owns | Version |
 |------|------|---------|
 | [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: contexts, diagrams, first-class concerns, invariants, confidence ledger | v1.0 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: where new voice effects, subtitle effects, pipelines, storage, and surfaces plug in | v1.0 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: where new voice effects, subtitle effects, pipelines, storage, and surfaces plug in | v1.2 |
 | [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening items with ROI scores, evidence, blast radius, and non-goals | v1.0 |
-| `adr/` | Architecture Decision Records (stubs opened in Phase 2/3; resolved in future sprints) | — |
+| `adr/` | Architecture Decision Records — [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) (v5.3.10) | — |
 
 ---
 
