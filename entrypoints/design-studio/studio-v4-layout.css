@@ -54,22 +54,30 @@ body:has(.studio-v4) {
   width: 100%;
 }
 
-/* Wide: preview left, profile right — explicit grid placement (not order). */
+/* Wide: preview left (spans both rows), take deck + profile stacked right.
+   CHANGED (v5.4.0): the Current Take deck heads the right column — session
+   state is the studio's headline, profile/status support it below. */
 @media (min-width: 900px) {
   .studio-v4 .studio__hero {
     display: grid;
     grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
+    grid-template-rows: auto 1fr;
     align-items: stretch;
   }
 
   .studio-v4 .studio__hero .studio__preview-wrap {
     grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .studio-v4 .studio__hero .studio-v4__take-deck {
+    grid-column: 2;
     grid-row: 1;
   }
 
   .studio-v4 .studio__hero .studio__profile-cluster {
     grid-column: 2;
-    grid-row: 1;
+    grid-row: 2;
   }
 }
 
@@ -199,6 +207,155 @@ body:has(.studio-v4) {
   border-image: var(--studio-v4-border-panel);
   background: var(--studio-bg-deep);
   box-sizing: border-box;
+}
+
+/* ── v5.4.0 Current Take deck — headline session state + primary export ── */
+
+.studio-v4 .studio-v4__take-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 12px 10px;
+  border-style: solid;
+  border-width: 10px;
+  border-image: var(--studio-v4-border-panel);
+  background: var(--studio-bg-deep);
+  box-sizing: border-box;
+}
+
+.studio-v4 .studio-v4__take-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 213, 79, 0.15);
+}
+
+.studio-v4 .studio-v4__take-title {
+  margin: 0;
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-label);
+  letter-spacing: var(--studio-letter-label);
+  text-transform: uppercase;
+  color: var(--studio-amber);
+}
+
+.studio-v4 .studio-v4__take-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* Chip family — mono readout face, chronos-amber for time, cyan for "ready". */
+.studio-v4 .studio-v4__take-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-label);
+  letter-spacing: var(--studio-letter-meta);
+  white-space: nowrap;
+}
+
+.studio-v4 .studio-v4__take-badge--amber {
+  color: var(--studio-amber);
+  background: rgba(212, 160, 32, 0.16);
+  border: 1px solid rgba(255, 213, 79, 0.45);
+}
+
+.studio-v4 .studio-v4__take-badge--ready {
+  color: var(--studio-cyan-ready);
+  background: rgba(94, 200, 232, 0.12);
+  border: 1px solid rgba(94, 200, 232, 0.4);
+}
+
+.studio-v4 .studio-v4__take-badge--warning {
+  color: var(--studio-warning);
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 184, 77, 0.5);
+}
+
+.studio-v4 .studio-v4__take-badge--muted {
+  color: var(--studio-text-muted);
+  background: rgba(74, 74, 138, 0.18);
+  border: 1px solid var(--studio-hairline-strong);
+}
+
+.studio-v4 .studio-v4__take-state {
+  margin: 2px 0 0;
+  font-size: var(--studio-font-title);
+  font-weight: var(--studio-font-weight-strong);
+  color: var(--studio-text);
+}
+
+.studio-v4 .studio-v4__take-hint {
+  margin: 0;
+  font-size: var(--studio-font-meta);
+  line-height: 1.4;
+  color: var(--studio-text-muted);
+}
+
+.studio-v4 .studio-v4__take-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.studio-v4 .studio-v4__take-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.studio-v4 .studio-v4__take-clear {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: var(--studio-font-caption);
+  color: var(--studio-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.studio-v4 .studio-v4__take-clear:hover {
+  color: var(--studio-negate-text);
+}
+
+.studio-v4 .studio-v4__take-clear:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Live session elsewhere (recording/processing) — soft amber breath. */
+.studio-v4 .studio-v4__take-deck--live .studio-v4__take-state {
+  color: var(--studio-amber);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-v4 .studio-v4__take-deck--live [data-take-icon] {
+    animation: studio-v4-take-live-blink 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes studio-v4-take-live-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .studio-v4 .studio__profile-cluster-head {

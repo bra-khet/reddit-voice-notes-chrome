@@ -53,7 +53,14 @@ Single source of truth for the current take across all contexts:
 - `mount-clip-studio.ts` — reactive subscription; status strip shows a compact Take row (`buildTakeStatusLine`).
 - Tests: `node scripts/test-take-manager.mjs` (12 checks). Suite 21/21 PASS, `tsc` HEAD parity, build PASS.
 
-**Next:** Phase 1 — Current Take status panel + Download MP4 CTA on main studio screen (consumes the subscription plumbing + `last-baked-mp4-db`/`last-base-mp4-db` reads, which are extension-origin in the Studio).
+### Phase 1 — Current Take deck **COMPLETE** (2026-07-05)
+
+- `src/ui/design-studio/current-take-status.ts` — hero "Current Take" deck: 9-slice panel frame, status icons, mono duration/badge chips (DRAFT / BAKED / SUBS PENDING), state headline + hint, **Download MP4 primary CTA** (amber bake-btn language; baked preferred over base, resolved from extension-origin IDB at click time), Record/Re-record secondary (Phase 1: routes to Reddit via `activateRedditTab` + workflow 'capture'; Phase 2 swaps to native), Discard tertiary (snapshot only — single-slot blobs overwrite on next take).
+- Hero layout: deck heads the right column on wide (preview spans two rows), DOM-first on narrow. CSS: `studio-v4-layout.css` § Current Take deck; live states breathe via `prefers-reduced-motion`-guarded blink.
+- Status strip take row removed — deck is the single authoritative take display (`buildTakeStatusLine` deleted).
+- Tests: `node scripts/test-take-deck.mjs` (11 checks — state → CTA/badge matrix).
+
+**Next:** Phase 2 — hostable recorder + Studio-native capture with live preview in the main preview area.
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 

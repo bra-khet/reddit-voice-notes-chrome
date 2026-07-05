@@ -104,7 +104,12 @@ import {
   forkButtonLabel,
   promptNameForFork,
 } from '@/src/ui/design-studio/studio-save-pathways';
-import { getTakeManager, type CurrentTake } from '@/src/session/take-manager';
+import { getTakeManager } from '@/src/session/take-manager';
+import {
+  mountCurrentTakeDeck,
+  renderCurrentTakeDeck,
+  type CurrentTakeDeckHandle,
+} from '@/src/ui/design-studio/current-take-status';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -160,6 +165,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       <div class="studio__layout">
         <div class="studio__layout-main" data-studio-layout-main>
         <div class="studio__hero">
+          ${renderCurrentTakeDeck()}
           <div class="studio__profile-cluster">
             <div class="studio__profile-cluster-head">
               <img class="studio__profile-cluster-icon studio-v4__icon studio-v4__icon--32" alt="" width="32" height="32" />
@@ -265,13 +271,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const studioShell = root.querySelector<HTMLElement>('.studio-v4')!;
   applyStudioV4ShellChrome(studioShell);
 
-  // v5.4.0 Phase 0: reactive current-take state — cross-context via
-  // storage.onChanged inside the manager. Phase 1 renders this in the
-  // Current Take status panel; for now it feeds the status strip refresh.
-  let currentTake: CurrentTake | null = null;
+  // v5.4.0: reactive current-take state — cross-context via storage.onChanged
+  // inside the manager; drives the hero Current Take deck (Phase 1).
+  // The initial emit is async, so takeDeck is always assigned before it fires.
+  let takeDeck: CurrentTakeDeckHandle | null = null;
   const takeUnsub = getTakeManager().subscribe((take) => {
-    currentTake = take;
-    syncSectionSummaries();
+    takeDeck?.update(take);
   });
 
   const previewCanvases = () =>
@@ -710,7 +715,6 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       hasSessionRecording: subtitleControls.hasSessionRecording(),
       hasTranscriptCues: subtitleControls.hasTranscriptCues(),
       bakedForSession: subtitleControls.isBakedForCurrentSession(),
-      currentTake,
     });
     workflowBanner?.update({
       hasSessionRecording: subtitleControls.hasSessionRecording(),
@@ -819,6 +823,8 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       transcriptDelivery: 'idle',
     },
   );
+
+  takeDeck = mountCurrentTakeDeck(root);
 
   subpanelShell = mountStudioV4SubpanelShell(studioShell, {
     isPanelDirty: (panelId) => {
@@ -1095,6 +1101,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     cancelPendingColorSave();
     stopPreviewLoop();
     takeUnsub();
+    takeDeck?.dispose();
     workflowBanner.dispose();
     subpanelShell.dispose();
     voiceControls.dispose();

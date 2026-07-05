@@ -10,8 +10,8 @@ Studio-native recording, persistent take management, standalone export. Reuse v5
 | Phase | Scope | Status |
 |-------|-------|--------|
 | Prep | `TakeManager` + session storage + storage-key sync + auto-draft | **done** (as-built: roadmap §4 Phase 0; `node scripts/test-take-manager.mjs`) |
-| 1 | Current Take status panel + Download MP4 on main studio screen | in progress |
-| 2 | Re-record / live mic preview in main preview area | pending |
+| 1 | Current Take deck + Download MP4 on main studio screen | **done** (`current-take-status.ts`; `node scripts/test-take-deck.mjs`) |
+| 2 | Re-record / live mic preview in main preview area | in progress |
 | 3 | Reddit as optional output target (not recording gateway) | pending |
 | 4 | Polish, progressive disclosure, demo parity | pending |
 
