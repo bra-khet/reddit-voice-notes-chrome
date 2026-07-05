@@ -68,7 +68,14 @@ Single source of truth for the current take across all contexts:
 - `VoiceRecorderSession` runs unmodified on the extension page — relays (`MSG_SAVE_LAST_RECORDING`/base-MP4), transcribe fork, and transcode client are all `runtime.sendMessage`-based, so the entire downstream (voice preview, subtitles, bake) lights up identically to a Reddit capture. Studio edits during audition hot-swap the live canvas via the existing prefs listener — **you can restyle the clip while recording it**.
 - Reddit panel path untouched (Phase 0 wiring only); UI unification lands with Phase 3/4 polish.
 
-**Next:** Phase 3 — Reddit voice-note button becomes an output target ("Attach current Studio take" primary).
+### Phase 3 — Reddit as output target **COMPLETE** (2026-07-05)
+
+- **Attach mode:** `RecorderPanel.open()` checks the TakeManager first — a completed take (non-transient + MP4 artifact) with a live composer opens the panel as an output target: "Current Studio Take" card (amber signage + mono chronos chip, mirroring the deck), **Attach Studio take** primary, **Record new here** secondary, "Edit in Design Studio" CTA. No mic acquisition until the user chooses to record.
+- **Relay generalized:** `MSG_GET_BAKED_MP4_META/_CHUNK` accept `store: 'baked' | 'base'` (default 'baked' — backward compatible); background keeps a per-store byte cache. Never-baked takes attach their base MP4.
+- Attach flow: fetch (chunked) → `attachMp4ToComposer` → workflow 'design' on success. "Record new here" runs the classic capture path — TakeManager's prior-snapshot stash means a discarded re-record restores the attachable take intact.
+- Voice-note button copy: "attach your Studio take or record here". All shadow-DOM/observer/composer-detection logic untouched.
+
+**Next:** Phase 4 — progressive disclosure, cross-surface copy polish, docs/QA/release prep.
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 

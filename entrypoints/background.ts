@@ -25,7 +25,7 @@ import {
 } from '@/src/messaging/relay-registry';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import { saveLastRecording } from '@/src/storage/last-recording-db';
-import { saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
+import { loadLastBaseMp4, saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { loadLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import {
   BAKED_MP4_CHUNK_BYTES,
@@ -35,6 +35,7 @@ import {
   type BakedMp4MetaPayload,
   type GetBakedMp4ChunkRequest,
   type GetBakedMp4MetaRequest,
+  type TakeMp4Store,
 } from '@/src/messaging/baked-mp4-blob';
 import {
   LAST_RECORDING_READY_KEY,
@@ -680,20 +681,30 @@ function backgroundBlobMeta(bytes: Uint8Array, mimeType: string): BackgroundBlob
   };
 }
 
-let cachedBakedMp4Bytes: Uint8Array | null = null;
-let cachedBakedMp4Mime = 'video/mp4';
-let cachedBakedMp4SavedAt = 0;
+// v5.4.0 Phase 3: relay serves 'baked' AND 'base' MP4 stores (per-store cache)
+// so the Reddit panel can attach never-baked Studio takes.
+interface Mp4RelayCacheEntry {
+  bytes: Uint8Array | null;
+  mime: string;
+  savedAt: number;
+}
 
-async function loadBakedMp4Bytes(): Promise<Uint8Array | null> {
-  const snapshot = await loadLastBakedMp4();
+const mp4RelayCache: Record<TakeMp4Store, Mp4RelayCacheEntry> = {
+  baked: { bytes: null, mime: 'video/mp4', savedAt: 0 },
+  base: { bytes: null, mime: 'video/mp4', savedAt: 0 },
+};
+
+async function loadTakeMp4Bytes(store: TakeMp4Store): Promise<Uint8Array | null> {
+  const snapshot = store === 'base' ? await loadLastBaseMp4() : await loadLastBakedMp4();
   if (!snapshot?.blob) return null;
-  if (cachedBakedMp4SavedAt === snapshot.meta.savedAt && cachedBakedMp4Bytes) {
-    return cachedBakedMp4Bytes;
+  const cache = mp4RelayCache[store];
+  if (cache.savedAt === snapshot.meta.savedAt && cache.bytes) {
+    return cache.bytes;
   }
-  cachedBakedMp4Bytes = new Uint8Array(await snapshot.blob.arrayBuffer());
-  cachedBakedMp4Mime = snapshot.meta.mimeType || 'video/mp4';
-  cachedBakedMp4SavedAt = snapshot.meta.savedAt;
-  return cachedBakedMp4Bytes;
+  cache.bytes = new Uint8Array(await snapshot.blob.arrayBuffer());
+  cache.mime = snapshot.meta.mimeType || 'video/mp4';
+  cache.savedAt = snapshot.meta.savedAt;
+  return cache.bytes;
 }
 
 function bakedMp4Meta(bytes: Uint8Array, mimeType: string, savedAt: number): BakedMp4MetaPayload {
@@ -936,13 +947,16 @@ export default defineBackground(() => {
         void (async () => {
           const response: BakedMp4MetaPayload = { ok: false };
           try {
-            const bytes = await loadBakedMp4Bytes();
+            const request = message as GetBakedMp4MetaRequest;
+            const store: TakeMp4Store = request.store === 'base' ? 'base' : 'baked';
+            const bytes = await loadTakeMp4Bytes(store);
             if (!bytes) {
-              response.error = 'No baked MP4 available.';
+              response.error = `No ${store} MP4 available.`;
               sendResponse(response);
               return;
             }
-            sendResponse(bakedMp4Meta(bytes, cachedBakedMp4Mime, cachedBakedMp4SavedAt));
+            const cache = mp4RelayCache[store];
+            sendResponse(bakedMp4Meta(bytes, cache.mime, cache.savedAt));
           } catch (error) {
             response.error = error instanceof Error ? error.message : String(error);
             sendResponse(response);
@@ -956,9 +970,10 @@ export default defineBackground(() => {
           const response: BakedMp4ChunkPayload = { ok: false };
           try {
             const request = message as GetBakedMp4ChunkRequest;
-            const bytes = await loadBakedMp4Bytes();
+            const store: TakeMp4Store = request.store === 'base' ? 'base' : 'baked';
+            const bytes = await loadTakeMp4Bytes(store);
             if (!bytes) {
-              response.error = 'No baked MP4 available.';
+              response.error = `No ${store} MP4 available.`;
               sendResponse(response);
               return;
             }
