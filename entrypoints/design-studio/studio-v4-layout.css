@@ -54,43 +54,46 @@ body:has(.studio-v4) {
   width: 100%;
 }
 
-/* Wide: preview left (spans both rows), take deck + profile stacked right.
-   CHANGED (v5.4.0): the Current Take deck heads the right column — session
-   state is the studio's headline, profile/status support it below. */
+/* Wide: profile/status right (spans both rows); preview + Current Take deck
+   stacked left — take deck sits directly under the live preview monitor. */
 @media (min-width: 900px) {
   .studio-v4 .studio__hero {
     display: grid;
     grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
-    grid-template-rows: auto 1fr;
-    align-items: stretch;
-  }
-
-  .studio-v4 .studio__hero .studio__preview-wrap {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-  }
-
-  .studio-v4 .studio__hero .studio-v4__take-deck {
-    grid-column: 2;
-    grid-row: 1;
+    grid-template-rows: auto auto;
+    align-items: start;
   }
 
   .studio-v4 .studio__hero .studio__profile-cluster {
     grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: stretch;
+  }
+
+  .studio-v4 .studio__hero .studio__preview-wrap {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .studio-v4 .studio__hero .studio-v4__take-deck {
+    grid-column: 1;
     grid-row: 2;
+    align-self: start;
+    max-width: 640px;
+    width: 100%;
   }
 }
 
-/* CHANGED: hero preview couples canvas + frame in one 628×348 artboard (symmetric 12px bezel).
-   WHY: 640×360 viewBox had 12px dead margin → frame underhung top-left, overhung bottom-right.
-   Logic (shared box + clip-path + mask overlay) is correct — artboard must match drawn frame. */
+/* CHANGED: hero preview artboard is true 16:9 (640×360) — matches canvas bitmap + frame SVG.
+   WHY: 628×348 outer box + grid row-span stretched the draw window vertically in landscape. */
 .studio-v4 .studio__hero .studio__preview-wrap {
-  --studio-v4-preview-w: 628;
-  --studio-v4-preview-h: 348;
+  --studio-v4-preview-w: 640;
+  --studio-v4-preview-h: 360;
   --studio-v4-preview-hole-x: 12;
   --studio-v4-preview-hole-y: 12;
-  --studio-v4-preview-hole-w: 604;
-  --studio-v4-preview-hole-h: 324;
+  --studio-v4-preview-hole-w: 616;
+  --studio-v4-preview-hole-h: 336;
   position: relative;
   margin-bottom: 0;
   border: none;
@@ -99,8 +102,9 @@ body:has(.studio-v4) {
   background: #0a0014;
   overflow: hidden;
   width: 100%;
-  max-width: 628px;
-  aspect-ratio: 628 / 348;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  align-self: start;
 }
 
 /* Bezel ring — locked to same artboard as canvas (top-left, 100% stretch). */

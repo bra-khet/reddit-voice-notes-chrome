@@ -166,7 +166,6 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       <div class="studio__layout">
         <div class="studio__layout-main" data-studio-layout-main>
         <div class="studio__hero">
-          ${renderCurrentTakeDeck()}
           <div class="studio__profile-cluster">
             <div class="studio__profile-cluster-head">
               <img class="studio__profile-cluster-icon studio-v4__icon studio-v4__icon--32" alt="" width="32" height="32" />
@@ -197,6 +196,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
             <div class="studio__status-strip" data-studio-status-strip aria-live="polite"></div>
           </div>
           ${renderPreviewBlock('primary')}
+          ${renderCurrentTakeDeck()}
         </div>
         <div class="studio__panel-strip">
       <section class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">
