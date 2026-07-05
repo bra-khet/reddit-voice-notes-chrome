@@ -478,11 +478,11 @@ export class RecorderPanel {
             </p>
             <p class="how-it-works__step">
               <span class="how-it-works__num" aria-hidden="true">2</span>
-              <span class="how-it-works__step-text"><strong>Capture</strong> — return here and record your voice comment.</span>
+              <span class="how-it-works__step-text"><strong>Capture</strong> — record in the Studio's live preview, or right here.</span>
             </p>
             <p class="how-it-works__step">
               <span class="how-it-works__num" aria-hidden="true">3</span>
-              <span class="how-it-works__step-text"><strong>Polish &amp; Bake</strong> — go back to Studio to edit subtitles and bake your final MP4.</span>
+              <span class="how-it-works__step-text"><strong>Polish &amp; Bake</strong> — edit subtitles and bake in the Studio, then attach or download.</span>
             </p>
           </div>
         </details>

@@ -171,6 +171,10 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
     byteLength: burned.size,
   });
 
-  report({ ratio: 1, stage: 'done', message: 'Subtitles baked — attach from Reddit recorder.' });
+  report({
+    ratio: 1,
+    stage: 'done',
+    message: 'Subtitles baked — download from the Current Take deck or attach on Reddit.',
+  });
   return burned;
 }

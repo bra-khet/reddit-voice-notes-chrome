@@ -75,7 +75,15 @@ Single source of truth for the current take across all contexts:
 - Attach flow: fetch (chunked) → `attachMp4ToComposer` → workflow 'design' on success. "Record new here" runs the classic capture path — TakeManager's prior-snapshot stash means a discarded re-record restores the attachable take intact.
 - Voice-note button copy: "attach your Studio take or record here". All shadow-DOM/observer/composer-detection logic untouched.
 
-**Next:** Phase 4 — progressive disclosure, cross-surface copy polish, docs/QA/release prep.
+### Phase 4 — Polish + release prep **COMPLETE (code)** — awaiting user QA (2026-07-05)
+
+- Studio-first copy sweep: workflow banner (record-in-Studio primary, "Record on Reddit instead" secondary, "How does Reddit fit in?" explainer), status strip (deck-first hints/blockers), panel 3-phase intro, bake done-message.
+- Progressive disclosure: main screen = workflow banner + hero (take deck / profile / preview) + collapsed v4 section cards — unchanged subpanel pattern, no new top-level controls.
+- Version **5.4.0** (`package.json` + `version.ts`); release notes `docs/release-notes-v5.4.0.md` incl. **manual QA checklist** (studio recording, recovery, attach mode, regression sweep).
+- Verification: suite **23/23**, `tsc` pre-existing-parity, `npm run build` PASS.
+- Demo (`demo/src/studio/`) parity for the standalone flow = future work (no capture pipeline there); noted in release notes.
+
+**Merge/tag `v5.4.0` after user QA pass** (checklist in release notes). Push deferred per repo convention.
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 
