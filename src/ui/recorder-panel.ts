@@ -105,6 +105,7 @@ export class RecorderPanel {
    */
   private mode: 'record' | 'attach' = 'record';
   private attachableTake: CurrentTake | null = null;
+  private unsubTakeManager: (() => void) | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -606,23 +607,72 @@ export class RecorderPanel {
         // Default chrome is fine — attach itself relays through the background.
       }
       this.renderAttachMode();
+      this.wireTakeManagerSync();
       this.panelEl.focus();
       return;
     }
 
     await this.startRecordSession();
+    this.wireTakeManagerSync();
   }
 
-  /** Completed takes only — a mid-flight or artifact-less snapshot records fresh. */
-  private async findAttachableTake(): Promise<CurrentTake | null> {
+  /** Fingerprint for attach-card refresh — id/artifacts/status, not full object identity. */
+  private takeAttachFingerprint(take: CurrentTake | null): string {
+    if (!take) return '';
+    return [
+      take.id,
+      take.lastUpdated,
+      take.status,
+      take.artifacts.bakedMp4?.savedAt ?? 0,
+      take.artifacts.baseMp4?.savedAt ?? 0,
+      take.meta.durationSeconds ?? 0,
+    ].join('|');
+  }
+
+  /** Completed takes only — a mid-flight or artifact-less snapshot is not attachable. */
+  private resolveAttachableTake(take: CurrentTake | null): CurrentTake | null {
     if (!this.composer || !document.contains(this.composer)) return null;
+    if (!take || isTransientTakeStatus(take.status)) return null;
+    if (!take.artifacts.bakedMp4 && !take.artifacts.baseMp4) return null;
+    return take;
+  }
+
+  private async findAttachableTake(): Promise<CurrentTake | null> {
     try {
-      const take = await getTakeManager().getCurrentTake();
-      if (!take || isTransientTakeStatus(take.status)) return null;
-      if (!take.artifacts.bakedMp4 && !take.artifacts.baseMp4) return null;
-      return take;
+      return this.resolveAttachableTake(await getTakeManager().getCurrentTake());
     } catch {
       return null;
+    }
+  }
+
+  /** Live sync while the panel stays open — Studio record/rebake updates the attach card. */
+  private wireTakeManagerSync(): void {
+    this.unsubTakeManager?.();
+    this.unsubTakeManager = getTakeManager().subscribe((take) => {
+      this.onTakeManagerChange(take);
+    });
+  }
+
+  private onTakeManagerChange(take: CurrentTake | null): void {
+    if (this.mode !== 'attach' || this.attaching) return;
+
+    const next = this.resolveAttachableTake(take);
+    if (!next) {
+      if (take && isTransientTakeStatus(take.status)) {
+        this.renderAttachBusy(take);
+        return;
+      }
+      if (this.composer && document.contains(this.composer)) {
+        void this.startRecordSession();
+      }
+      return;
+    }
+
+    const changed = this.takeAttachFingerprint(next) !== this.takeAttachFingerprint(this.attachableTake);
+    this.attachableTake = next;
+    this.renderAttachMode();
+    if (changed) {
+      showToast('Studio take updated — ready to attach.', 'info', 3500);
     }
   }
 
@@ -681,6 +731,29 @@ export class RecorderPanel {
     timerWrap.hidden = visible;
     this.waveformSlot.hidden = visible;
     this.timeProgressEl.hidden = true;
+  }
+
+  /** Studio is mid-capture — hold attach until the new take lands. */
+  private renderAttachBusy(take: CurrentTake): void {
+    this.setAttachChromeVisible(true);
+
+    const chip = this.shadow.querySelector<HTMLElement>('[data-take-chip]')!;
+    const cardState = this.shadow.querySelector<HTMLElement>('[data-take-card-state]')!;
+    chip.hidden = true;
+    cardState.textContent =
+      take.status === 'recording'
+        ? 'Recording in the Studio…'
+        : 'Processing in the Studio…';
+
+    this.statusEl.textContent = 'A new Studio take is on the way — attach will unlock when it is ready.';
+    this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
+
+    this.primaryBtn.textContent = 'Attach Studio take';
+    this.primaryBtn.disabled = true;
+    this.secondaryBtn.hidden = false;
+    this.secondaryBtn.disabled = false;
+    this.secondaryBtn.textContent = 'Record new here';
+    this.tertiaryBtn.hidden = true;
   }
 
   private renderAttachMode(): void {
@@ -794,6 +867,8 @@ export class RecorderPanel {
     this.themeUnsubscribe = null;
     this.unsubWorkflowPhase?.();
     this.unsubWorkflowPhase = null;
+    this.unsubTakeManager?.();
+    this.unsubTakeManager = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.session?.dispose();
