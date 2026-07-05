@@ -116,6 +116,31 @@ export function isTransientTakeStatus(status: TakeStatus): boolean {
   return status === 'recording' || status === 'processing';
 }
 
+/**
+ * Monotonic "last changed" instant for cross-context precedence (Reddit panel vs
+ * Studio deck). Uses the latest of lastUpdated and every artifact savedAt so a
+ * rebake or relayed IDB stamp wins over an older session-local blob binding.
+ */
+export function takeFreshnessMs(take: CurrentTake): number {
+  let max = 0;
+  const candidates = [
+    take.lastUpdated,
+    take.createdAt,
+    take.artifacts.bakedMp4?.savedAt,
+    take.artifacts.baseMp4?.savedAt,
+    take.artifacts.baseRecording?.savedAt,
+  ];
+  for (const value of candidates) {
+    if (typeof value === 'number' && value > max) max = value;
+  }
+  return max;
+}
+
+/** True when `candidate` should win over a panel bound to `anchorFreshnessMs`. */
+export function isNewerTakeThan(candidate: CurrentTake, anchorFreshnessMs: number): boolean {
+  return takeFreshnessMs(candidate) > anchorFreshnessMs;
+}
+
 export function createTakeId(now = Date.now()): string {
   return `take-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

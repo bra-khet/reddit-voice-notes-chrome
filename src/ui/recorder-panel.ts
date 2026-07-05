@@ -32,7 +32,9 @@ import {
 import { openDesignStudioWindow } from '@/src/ui/design-studio/open-design-studio';
 import {
   getTakeManager,
+  isNewerTakeThan,
   isTransientTakeStatus,
+  takeFreshnessMs,
   type CurrentTake,
 } from '@/src/session/take-manager';
 import { showToast } from './toast';
@@ -113,6 +115,11 @@ export class RecorderPanel {
     null;
   /** Latest take snapshot from TakeManager — drives Studio-capture guards. */
   private lastObservedTake: CurrentTake | null = null;
+  /**
+   * When the local Reddit session reaches 'stopped', bind to the TakeManager
+   * row that produced the in-memory mp4Blob — used to detect a newer Studio take.
+   */
+  private localTakeAnchor: { takeId: string; freshnessMs: number } | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -622,6 +629,7 @@ export class RecorderPanel {
 
     await this.startRecordSession();
     this.wireTakeManagerSync();
+    this.wireAttachArtifactSignals();
   }
 
   /** Fingerprint for attach-card refresh — id/artifacts/status, not full object identity. */
@@ -669,19 +677,36 @@ export class RecorderPanel {
     this.takeArtifactListener = (changes, area) => {
       if (area !== 'local') return;
       if (BAKED_MP4_READY_KEY in changes || LAST_RECORDING_READY_KEY in changes) {
-        void this.refreshAttachFromStorage();
+        void this.refreshTakeFromStorage();
       }
     };
     browser.storage.onChanged.addListener(this.takeArtifactListener);
   }
 
-  private async refreshAttachFromStorage(): Promise<void> {
-    if (this.mode !== 'attach' || this.attaching) return;
+  private async refreshTakeFromStorage(): Promise<void> {
+    if (this.attaching) return;
     try {
       this.onTakeManagerChange(await getTakeManager().getCurrentTake());
     } catch {
       // Non-blocking — TakeManager subscription will retry on the next write.
     }
+  }
+
+  private async captureLocalTakeAnchor(): Promise<void> {
+    try {
+      const take = await getTakeManager().getCurrentTake();
+      if (!take) return;
+      this.localTakeAnchor = { takeId: take.id, freshnessMs: takeFreshnessMs(take) };
+    } catch {
+      // Non-blocking — promotion falls back to authoritative TakeManager reads.
+    }
+  }
+
+  private shouldPreferTakeOverLocalSession(take: CurrentTake): boolean {
+    if (this.currentState.phase !== 'stopped') return false;
+    const anchor = this.localTakeAnchor;
+    if (!anchor) return true;
+    return isNewerTakeThan(take, anchor.freshnessMs) || take.id !== anchor.takeId;
   }
 
   /** ready/baked promoted before background stamps baseMp4/bakedMp4 into the snapshot. */
@@ -696,9 +721,14 @@ export class RecorderPanel {
   }
 
   private onTakeManagerChange(take: CurrentTake | null): void {
-    if (this.mode !== 'attach' || this.attaching) return;
+    if (this.attaching) return;
 
     this.lastObservedTake = take;
+
+    if (this.mode === 'record') {
+      void this.maybePromoteNewerTake(take);
+      return;
+    }
 
     const next = this.resolveAttachableTake(take);
     if (!next) {
@@ -725,10 +755,77 @@ export class RecorderPanel {
     }
   }
 
+  /**
+   * Record-mode panel finished a local capture — if TakeManager later reports a
+   * newer attachable take (e.g. Studio re-record), morph into attach chrome so
+   * download/attach paths read the same IDB blobs as Design Studio.
+   */
+  private maybePromoteNewerTake(take: CurrentTake | null): void {
+    if (this.isLocalCaptureActive()) return;
+    if (!this.composer || !document.contains(this.composer)) return;
+
+    if (take && isTransientTakeStatus(take.status)) {
+      if (this.currentState.phase === 'stopped') {
+        this.promoteToAttachFromRecord(take, 'busy');
+      }
+      return;
+    }
+
+    if (this.currentState.phase !== 'stopped') return;
+
+    if (take && this.isTakeArtifactPending(take) && this.shouldPreferTakeOverLocalSession(take)) {
+      this.promoteToAttachFromRecord(take, 'waiting');
+      return;
+    }
+
+    const next = this.resolveAttachableTake(take);
+    if (!next || !this.shouldPreferTakeOverLocalSession(next)) return;
+
+    const changed =
+      this.takeAttachFingerprint(next) !== this.takeAttachFingerprint(this.attachableTake);
+    this.promoteToAttachFromRecord(next, 'ready');
+    if (changed) {
+      showToast('A newer take is ready — attach when ready.', 'info', 3500);
+    }
+  }
+
+  private isLocalCaptureActive(): boolean {
+    const phase = this.currentState.phase;
+    return phase === 'recording' || phase === 'processing';
+  }
+
+  private promoteToAttachFromRecord(
+    take: CurrentTake,
+    view: 'busy' | 'waiting' | 'ready',
+  ): void {
+    this.mode = 'attach';
+    this.attachableTake = view === 'ready' ? take : null;
+
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+    if (this.bakedMp4Listener) {
+      browser.storage.onChanged.removeListener(this.bakedMp4Listener);
+      this.bakedMp4Listener = null;
+    }
+    if (this.session) {
+      this.session.dispose();
+      this.session = null;
+    }
+
+    if (!this.takeArtifactListener) {
+      this.wireAttachArtifactSignals();
+    }
+
+    if (view === 'busy') this.renderAttachBusy(take);
+    else if (view === 'waiting') this.renderAttachWaiting(take);
+    else this.renderAttachMode();
+  }
+
   private async startRecordSession(): Promise<void> {
     this.mode = 'record';
     this.attachableTake = null;
     this.lastObservedTake = null;
+    this.localTakeAnchor = null;
     if (this.takeArtifactListener) {
       browser.storage.onChanged.removeListener(this.takeArtifactListener);
       this.takeArtifactListener = null;
@@ -741,6 +838,9 @@ export class RecorderPanel {
     this.unsubscribe = this.session.subscribe((state) => {
       this.currentState = state;
       this.render(state);
+      if (state.phase === 'stopped') {
+        void this.captureLocalTakeAnchor();
+      }
     });
 
     if (this.bakedMp4Listener) {
@@ -1183,9 +1283,14 @@ export class RecorderPanel {
         this.secondaryBtn.textContent = 'Cancel';
         break;
       case 'ready':
-        this.statusEl.textContent = 'Microphone ready — press Record when you are set.';
+        if (this.isStudioCaptureBlocking()) {
+          this.statusEl.textContent = 'Studio is recording — wait for it to finish before recording here.';
+          this.primaryBtn.disabled = true;
+        } else {
+          this.statusEl.textContent = 'Microphone ready — press Record when you are set.';
+          this.primaryBtn.disabled = false;
+        }
         this.primaryBtn.textContent = 'Record';
-        this.primaryBtn.disabled = false;
         this.secondaryBtn.textContent = 'Cancel';
         this.panelEl.focus();
         break;

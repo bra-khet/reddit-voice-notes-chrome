@@ -36,6 +36,8 @@ const {
   mergeTakePatch,
   normalizeStaleTake,
   parseCurrentTake,
+  takeFreshnessMs,
+  isNewerTakeThan,
 } = await import(pathToFileURL(outfile).href);
 
 let checks = 0;
@@ -179,6 +181,35 @@ check('empty patch only bumps lastUpdated', () => {
   assert.equal(merged.status, take.status);
   assert.equal(merged.lastUpdated, NOW);
   assert.deepEqual(merged.artifacts, take.artifacts);
+});
+
+console.log('takeFreshnessMs');
+
+check('takeFreshnessMs picks the latest stamp', () => {
+  const take = validTake({
+    lastUpdated: NOW - 10_000,
+    artifacts: {
+      baseMp4: { savedAt: NOW - 5_000, byteLength: 1, durationSeconds: 10 },
+      bakedMp4: { savedAt: NOW - 1_000, byteLength: 2, durationSeconds: 10 },
+    },
+  });
+  assert.equal(takeFreshnessMs(parseCurrentTake(take)), NOW - 1_000);
+});
+
+check('isNewerTakeThan respects anchor freshness', () => {
+  const older = parseCurrentTake(validTake({ lastUpdated: NOW - 60_000 }));
+  const newer = parseCurrentTake(
+    validTake({
+      id: 'take-studio-new',
+      source: 'studio',
+      lastUpdated: NOW - 1_000,
+      artifacts: {
+        baseMp4: { savedAt: NOW - 500, byteLength: 1, durationSeconds: 12 },
+      },
+    }),
+  );
+  assert.equal(isNewerTakeThan(newer, takeFreshnessMs(older)), true);
+  assert.equal(isNewerTakeThan(older, takeFreshnessMs(newer)), false);
 });
 
 console.log('helpers');
