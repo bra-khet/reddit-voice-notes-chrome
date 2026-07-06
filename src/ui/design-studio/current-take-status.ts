@@ -12,7 +12,11 @@
  * 'capture' phase); Phase 2 replaces this with Studio-native capture.
  */
 
-import { getTakeManager, type CurrentTake } from '@/src/session/take-manager';
+import {
+  getTakeManager,
+  takeArtifactMatchesStore,
+  type CurrentTake,
+} from '@/src/session/take-manager';
 import { loadLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { buildVoiceNoteFilename, downloadBlob } from '@/src/utils/download';
@@ -214,6 +218,8 @@ export function mountCurrentTakeDeck(
   const clearBtn = deck.querySelector<HTMLButtonElement>('[data-take-clear]')!;
 
   let model: TakeDeckModel = deriveTakeDeckModel(null);
+  // Kept alongside the derived model — the H6 stamp check needs the raw take.
+  let currentTake: CurrentTake | null = null;
   let downloading = false;
   let downloadFlashTimer = 0;
   let disposed = false;
@@ -255,14 +261,33 @@ export function mountCurrentTakeDeck(
       try {
         // Resolve at click time — the snapshot may have advanced (fresh bake)
         // since the last render; always export the best available MP4.
-        const snapshot =
-          model.download.prefer === 'baked'
-            ? ((await loadLastBakedMp4()) ?? (await loadLastBaseMp4()))
-            : ((await loadLastBaseMp4()) ?? (await loadLastBakedMp4()));
+        let kind: 'bakedMp4' | 'baseMp4' =
+          model.download.prefer === 'baked' ? 'bakedMp4' : 'baseMp4';
+        let snapshot = kind === 'bakedMp4' ? await loadLastBakedMp4() : await loadLastBaseMp4();
+        if (!snapshot) {
+          kind = kind === 'bakedMp4' ? 'baseMp4' : 'bakedMp4';
+          snapshot = kind === 'bakedMp4' ? await loadLastBakedMp4() : await loadLastBaseMp4();
+        }
         if (!snapshot) {
           downloadBtn.textContent = 'No MP4 found';
           return;
         }
+
+        // BUG FIX: H6 stale-artifact adoption
+        // Fix: verify this take's stamp against the resolved store meta —
+        //      the single-slot store may hold a different capture's MP4;
+        //      exporting it under this take's name is the bug.
+        // Sync: takeArtifactMatchesStore in take-manager.ts;
+        //       studio-take-recovery.ts resume; recorder-panel.ts attach.
+        const stamp = currentTake?.artifacts[kind];
+        if (stamp && !takeArtifactMatchesStore(stamp, snapshot.meta)) {
+          downloadBtn.textContent = 'Take superseded';
+          void getTakeManager().clearArtifact(kind, {
+            note: 'Recording superseded — re-record.',
+          });
+          return;
+        }
+
         downloadBlob(snapshot.blob, buildVoiceNoteFilename('mp4'));
         downloadBtn.textContent = 'Downloaded ✓';
       } catch (error) {
@@ -298,6 +323,7 @@ export function mountCurrentTakeDeck(
 
   return {
     update(take: CurrentTake | null): void {
+      currentTake = take;
       model = deriveTakeDeckModel(take);
       render();
     },

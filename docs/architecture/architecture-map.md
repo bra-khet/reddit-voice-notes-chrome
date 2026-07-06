@@ -1,11 +1,12 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v2.0 · **Reflects branch/tag:** `main` @ package `5.4.0` (tag `v5.4.0` deferred; baseline tag `v5.3.10`) · **Updated:** 2026-07-06
+**Version:** v2.1 · **Reflects branch/tag:** `main` @ package `5.4.0` (tag `v5.4.0` deferred; baseline tag `v5.3.10`) · **Updated:** 2026-07-06
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v2.1` (2026-07-06) — hardening triage applied: **H6 shipped** (`takeArtifactMatchesStore` + `clearArtifact`; I15 now enforced → High), **H11 closed by user QA** (concurrent Studio recordings work; transient length-display edge noted, no code), H10 deferred by user decision, open question 2 resolved. Confidence ledger + carry-forward updated.
 - `v2.0` (2026-07-06) — MAJOR: three architectural shifts since v1.1. (1) **Subtitle bake re-architected**: FFmpeg `drawtext` is now the *last* fallback tier; the primary path is Canvas-2D overlay render (v5.3.4) → per-chunk encode (WebCodecs dual-IVF, v5.3.10; MediaRecorder parallel/serial, v5.3.9 fallback) → FFmpeg composite (`alphamerge`/`overlay`). Invariant I3 reworded. (2) **Take lifecycle** — new cross-context state class: `rvn.take.current` snapshot + `TakeArtifactStamp`s, synced by `storage.onChanged` (deliberately no message family — ADR-0002). (3) **Design Studio is now a capture surface** (`recorder-host.ts` headless mount, live WYSIWYG canvas handover, Reddit demoted to optional output target via attach mode). New diagrams 2.3 (take lifecycle) and updated 2.1/2.2; confidence ledger + self-critique fully refreshed.
 - `v1.1` (2026-07-04) — additive: v5.3.9 parallel chunked bake (N concurrent MediaRecorder capture loops in the Studio page; workers/offscreen deliberately rejected — pacing-bound). Detail: `docs/transcription-architecture.md` § Parallel chunked bake; `docs/5.3.9-worker-and-chunked-parallelization-design.md` §0.
 - `v1.0` (2026-06-24) — initial map; all four phases. Branch: `eloquent` at eloquent-5 hardening.
@@ -240,7 +241,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | `experimental.webCodecsBake` / `parallelBake` | `rvnUserPrefs` | `enqueuePrefsOp`; **default true since v5.4.0** (`resolveOverlayBakeEncoder`, one-time rollout migration — `user-preferences.ts:191,329`) |
 | Encoded segment metadata | in-memory per bake | `src/encoding/encoded-segment.ts` (`EncodedOverlaySegmentMeta`) — telemetry + future editing primitive; not persisted |
 
-**Invariants:** all `rvnUserPrefs` writes via `enqueuePrefsOp` (BUG-023). Content scripts can't read extension IDB — chunked relay only. The take snapshot references blobs through `TakeArtifactStamp` (`savedAt`/`byteLength`/`durationSeconds`) — **note:** the stamp↔store-meta cross-check the contract describes is not yet implemented at consumption sites (hardening backlog v2 **H6**).
+**Invariants:** all `rvnUserPrefs` writes via `enqueuePrefsOp` (BUG-023). Content scripts can't read extension IDB — chunked relay only. The take snapshot references blobs through `TakeArtifactStamp` (`savedAt`/`byteLength`/`durationSeconds`); consumers verify stamps against store metas via `takeArtifactMatchesStore()` before adopting blobs, demoting mismatched stamps with an honest note (**H6, shipped 2026-07-06** — enforced at recovery resume, Reddit attach, and the Download CTA).
 
 ---
 
@@ -262,7 +263,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | I12 | Only *constructed* streams (WebCodecs IVF) may skip normalize; *captured* MediaRecorder output must always be normalized | composition | ADR-0001 "not the compositeReady mistake"; `scripts/test-overlay-alphamerge-args.mjs` regression guard | High |
 | I13 | The alphamerge composite is gated by a measured luma-range calibration probe — codec metadata is never trusted for alpha range | composition | `src/encoding/webcodecs-support.ts`; ADR-0001 | High |
 | I14 | Stale transient takes (`recording`/`processing` > 2 min) are demoted to `draft` on read | state | `normalizeStaleTake` (`take-manager.ts:220`) | High |
-| I15 | Artifact stamps let consumers detect a snapshot whose blobs moved on (stamp `savedAt` ≈ store meta `savedAt`) | state | **documented but unimplemented at consumption sites** — `take-manager.ts:46-49` vs `recorder-panel.ts:662` (ordering only) | **Low → backlog H6** |
+| I15 | Artifact stamps let consumers detect a snapshot whose blobs moved on (stamp `savedAt` ≈ store meta `savedAt`, `byteLength` equal when both present) | state | `takeArtifactMatchesStore()` (`take-manager.ts`) at all three consumption sites: `studio-take-recovery.ts` resume, `recorder-panel.ts` attach, `current-take-status.ts` Download — H6, Node-tested | High |
 
 ---
 
@@ -287,7 +288,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 3. Draft with `baseRecording` stamp but no `baseMp4` → `resumeDraftTranscodeInner`: load WebM from `rvnLastRecording` (≥256 bytes) → re-transcode with **current** `prefs.voiceEffect` → `relaySaveLastBaseMp4` → take → `ready`
 4. Reddit attach mode available again (never-baked takes attach their base MP4)
 
-**Code verified at:** `studio-take-recovery.ts:44-70`. Note the two hardening seams found here: no stamp↔store cross-check before adopting the WebM (H6), and resume re-applies *current* voice prefs rather than capture-time settings (H8).
+**Code verified at:** `studio-take-recovery.ts:44-70`. Hardening applied here 2026-07-06 (H6): resume now cross-checks the draft's `baseRecording` stamp against `recording.meta` before adopting the WebM, demoting the stamp on mismatch. Remaining seam: resume re-applies *current* voice prefs rather than capture-time settings (H8, v5.4.x patch).
 
 ### Trace C — personal background WYSIWYG relay (carried from v1, unchanged)
 
@@ -303,18 +304,18 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | TakeManager pure core (parse/merge/stale/freshness) | **High** | Node-tested (`test-take-manager.mjs` 14/14); pure helpers isolated from `browser.*` |
 | Studio-native capture + live canvas | **High** | User QA checklist 1–11 PASS (2026-07-06); zero-copy contract structural |
 | WebCodecs encode + alphamerge composite | **High (single machine)** | QA PASS 2026-07-05, 8–10× render speedup, visual parity; calibration `white=234, black=17, limited` on ONE machine — cross-hardware variance untested |
-| Recovery paths (tab-close, orphan transcode, inflight query) | **Med** | QA #4 PASS once; many async branches (`recoveryChain`, background persistence) not exhaustively exercised; stamp cross-check absent (H6) |
-| Artifact stamp contract | **Low** | I15 — documented, unimplemented at consumers. Single-slot stores make stale adoption possible after crash + new capture |
-| Studio-initiated transcode progress relay mechanism | **Med** | Works (QA PASS) but the no-tab relay path (`sender.tab` undefined for extension pages) not re-read this session — open question §7 |
-| Concurrent Studio tabs / dual-writer take races | **Med-Low** | Same-context serialization + `sessionEpoch` exist; two Studio *tabs* both mounting recorders is unexamined |
-| MediaRecorder fallback health (post-default-flip) | **Med** | Fallback chain tested pre-flip; now that WebCodecs is default, a silent fallback means 5–6× slower bakes — is the reason surfaced to the user? (H11) |
+| Recovery paths (tab-close, orphan transcode, inflight query) | **Med-High** | QA #4 PASS; stamp cross-check now guards the resume path (H6); remaining: async branch coverage, H8 voice provenance |
+| Artifact stamp contract | **High** | I15 — `takeArtifactMatchesStore` enforced at all three consumers, 6 Node checks (H6, 2026-07-06) |
+| Studio-initiated transcode progress relay mechanism | **Med** | Works (QA PASS) but the no-tab relay path (`sender.tab` undefined for extension pages) not re-read — H12, v5.4.x verify |
+| Concurrent Studio recordings / dual-writer take races | **High** | User QA 2026-07-06: overlapping recordings capture correctly, processing serializes, first take downloadable (and downloads) while second processes; Reddit panel syncs as designed. Known accepted edge: transient window between the two completions where the status display shows the *second* take's length while the first is the downloadable one — display-only, self-corrects on second completion (backlog H11) |
+| MediaRecorder fallback health (post-default-flip) | **Med (accepted)** | Fallback chain tested pre-flip; observability instrumentation deferred by user decision (H10) — watch-symptom: unexplained multi-minute bakes |
 | Composite stage performance | **High (known bad)** | ~43 s of a ~46–50 s WebCodecs bake is the single x264 composite pass — measured, deferred (ADR-0003 stub) |
 | Vosk model caching | **Low (accepted)** | ~40 MB re-download per session; BUG-013 tradeoff stands |
 | Demo site (`demo/`) parity with v5.4.0 | **Low (out of scope)** | No capture pipeline there; explicitly deferred |
 
 **Open questions:**
-1. How does transcode PROGRESS reach a Studio-initiated job? (`rememberRelayTab` with no `sender.tab` → late-bind fallback? runtime broadcast?) Verify in `background.ts` before building anything on it.
-2. Do two simultaneously open Studio tabs fight over `rvn.take.current` during capture? (`sessionEpoch` guards a single session's races, not two sessions.)
+1. How does transcode PROGRESS reach a Studio-initiated job? (`rememberRelayTab` with no `sender.tab` → late-bind fallback? runtime broadcast?) Verify in `background.ts` before building anything on it. (H12, v5.4.x)
+2. ~~Do two simultaneously open Studio sessions fight over `rvn.take.current`?~~ **Resolved by user QA 2026-07-06** — concurrent recordings work end-to-end; only a transient length-display edge remains (see confidence ledger + backlog H11).
 3. Does the calibration probe re-run per bake or cache per session — and what happens on a hardware/driver change mid-session?
 
 ---
@@ -363,15 +364,17 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3 / WXT). Branch: main @ 5.4.0 (tag deferred, local only). Map: v2.0 (2026-07-06).
+Repo: Reddit Voice Notes (Chrome MV3 / WXT). Branch: main @ 5.4.0 (tag deferred, local only). Map: v2.1 (2026-07-06).
 Contexts: content(reddit) / background(SW) / offscreen(FFmpeg) / sandbox(Vosk) / Design-Studio(now ALSO capture+encode surface) / popup.
 Spine:
   preview=bake: shared overlay painter (createOverlayFramePainter) under all encoders; live canvas handed to Studio preview (zero-copy); drawtext = last fallback only
   effect composition: bg→bars→subs; subs = post-base.mp4 composite (alphamerge WebCodecs | overlay MediaRecorder | drawtext)
   message contracts: types.ts 3 pipelines + query kind (MSG_QUERY_TRANSCODE_INFLIGHT) + chunked blob relays (store: baked|base); take lifecycle is storage, NOT messages (ADR-0002)
-  state ownership: rvn.take.current via TakeManager only; stamps reference single-slot IDB blobs; webCodecsBake default TRUE since v5.4.0
-Top open item: H6 — artifact stamp cross-check documented but unimplemented (take-manager.ts:46 vs recorder-panel.ts:662).
-Open questions: Studio-job progress relay mechanism; concurrent Studio tabs; calibration probe caching.
-Backlog: docs/architecture/hardening-backlog.md v2.0 (H6-H12 + risk register). ADRs: 0001 accepted, 0002 accepted, 0003 stub.
+  state ownership: rvn.take.current via TakeManager only; stamps VERIFIED at consumers via takeArtifactMatchesStore (H6 shipped); webCodecsBake default TRUE since v5.4.0
+Hardening state: H6 SHIPPED (stamp verification, 20/20 tests) · H7 fixed · H11 closed by user QA
+(concurrent recordings OK; transient length-display edge accepted) · H8+H12 = v5.4.x patches ·
+H10 deferred (user) · H9 = v5.5+ decision-first (ADR-0003 stub).
+Open questions: Studio-job progress relay mechanism (H12); calibration probe caching.
+Backlog: docs/architecture/hardening-backlog.md v2.1. ADRs: 0001 accepted, 0002 accepted, 0003 stub.
 Read docs/architecture/architecture-map.md then run /architecture-hardening resume.
 ```

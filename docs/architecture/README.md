@@ -12,9 +12,9 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: contexts, diagrams (incl. take lifecycle), first-class concerns, invariants I1–I15, confidence ledger, money-path traces | v2.0 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: voice effects, subtitle effects, fonts, message pipelines (v2), storage, theme, Studio surfaces, live-mic preview, overlay encoding backbone, **take lifecycle**, **Studio capture host** | v1.3 |
-| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening items (H6–H12 open) + **risk register** for the WebCodecs/canvas paths | v2.0 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: contexts, diagrams (incl. take lifecycle), first-class concerns, invariants I1–I15, confidence ledger, money-path traces | v2.1 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: voice effects, subtitle effects, fonts, message pipelines (v2), storage, theme, Studio surfaces, live-mic preview, overlay encoding backbone, **take lifecycle** (stamp verification mandatory — H6), **Studio capture host** | v1.4 |
+| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening items (H6/H7/H11 resolved; H8/H12 v5.4.x; H10 deferred; H9 v5.5+) + **risk register** for the WebCodecs/canvas paths | v2.1 |
 | `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) (Accepted, v5.3.10) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) (Accepted, v5.4.0) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) (Proposed stub) | — |
 
 ---

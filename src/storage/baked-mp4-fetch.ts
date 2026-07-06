@@ -10,6 +10,26 @@ import {
   type TakeMp4Store,
 } from '@/src/messaging/baked-mp4-blob';
 
+// BUG FIX: H6 stale-artifact adoption
+// Fix: meta-only relay query so content-script consumers can verify a take's
+//      artifact stamp against the store BEFORE pulling megabytes of chunks —
+//      the store is single-slot and may hold a newer capture's bytes.
+// Sync: takeArtifactMatchesStore in take-manager.ts; recorder-panel.ts attach.
+export interface BakedMp4StoreMeta {
+  savedAt?: number;
+  byteLength: number;
+}
+
+/** Meta for the requested store slot, or null when empty/unavailable. */
+export async function fetchBakedMp4Meta(
+  store: TakeMp4Store = 'baked',
+): Promise<BakedMp4StoreMeta | null> {
+  const metaRequest: GetBakedMp4MetaRequest = { type: MSG_GET_BAKED_MP4_META, store };
+  const meta = (await browser.runtime.sendMessage(metaRequest)) as BakedMp4MetaPayload;
+  if (!meta?.ok || !meta.totalByteLength) return null;
+  return { savedAt: meta.savedAt, byteLength: meta.totalByteLength };
+}
+
 /**
  * Fetch the latest exported MP4 from extension IDB via chunked background
  * relay (eloquent-4). v5.4.0 Phase 3: `store` selects 'baked' (captioned,

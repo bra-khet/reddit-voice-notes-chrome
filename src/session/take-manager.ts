@@ -15,8 +15,10 @@
  * - Blobs: stay in the existing extension-origin IDB stores
  *   (rvnLastRecording WebM / rvnLastBaseMp4 / rvnLastBakedMp4). The snapshot
  *   carries artifact stamps `{ savedAt, byteLength, durationSeconds }` that
- *   consumers can cross-check against store metas for freshness — a stale
- *   'recording' snapshot never lies about which blobs it owns.
+ *   consumers MUST cross-check against store metas before adopting blobs —
+ *   via `takeArtifactMatchesStore()` (H6) — because the stores are single-slot
+ *   and a newer capture overwrites them: a stale snapshot never lies about
+ *   which blobs it owns, but only if readers actually verify the stamps.
  *
  * Writers:
  * - VoiceRecorderSession owns capture-lifecycle transitions
@@ -139,6 +141,50 @@ export function takeFreshnessMs(take: CurrentTake): number {
 /** True when `candidate` should win over a panel bound to `anchorFreshnessMs`. */
 export function isNewerTakeThan(candidate: CurrentTake, anchorFreshnessMs: number): boolean {
   return takeFreshnessMs(candidate) > anchorFreshnessMs;
+}
+
+/**
+ * Allowance between an IDB blob write and its stamp landing on the snapshot
+ * (the background stamps after the relayed save resolves — ms apart normally;
+ * seconds under load). Anything beyond this is a different capture.
+ */
+export const ARTIFACT_STAMP_TOLERANCE_MS = 5_000;
+
+/** Shape shared by the IDB store metas and the chunked-relay meta payload. */
+export interface ArtifactStoreMeta {
+  savedAt?: number;
+  byteLength?: number;
+}
+
+// BUG FIX: H6 stale-artifact adoption (hardening backlog v2.0)
+// Fix: the stamp↔store-meta cross-check documented in this file's header was
+//      never implemented at consumption sites, so a snapshot that survived a
+//      crash could adopt single-slot blobs a newer capture had overwritten
+//      (wrong take resumed / attached / downloaded with full confidence).
+// Sync: studio-take-recovery.ts (resume), recorder-panel.ts (attach mode),
+//       current-take-status.ts (Download CTA) — all verify via this helper.
+/**
+ * True when a take's artifact stamp plausibly describes the blob currently in
+ * its single-slot store: `savedAt` within `toleranceMs`, and `byteLength`
+ * equal when both sides carry it. Strict on missing input — verification
+ * requires both a stamp and a store meta; callers decide how to treat absent
+ * stamps (legacy takes) before calling.
+ */
+export function takeArtifactMatchesStore(
+  stamp: TakeArtifactStamp | undefined,
+  storeMeta: ArtifactStoreMeta | null | undefined,
+  toleranceMs: number = ARTIFACT_STAMP_TOLERANCE_MS,
+): boolean {
+  if (!stamp || !storeMeta || typeof storeMeta.savedAt !== 'number') return false;
+  if (Math.abs(stamp.savedAt - storeMeta.savedAt) > toleranceMs) return false;
+  if (
+    typeof stamp.byteLength === 'number' &&
+    typeof storeMeta.byteLength === 'number' &&
+    stamp.byteLength !== storeMeta.byteLength
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export function createTakeId(now = Date.now()): string {
@@ -291,6 +337,13 @@ export interface TakeManager {
 
   /** Promote bake completion into the current take (status 'baked'). */
   updateFromBake(result: TakeBakeResult): Promise<void>;
+
+  /**
+   * Drop an artifact stamp the store no longer backs (H6 mismatch path) and
+   * surface an honest note. Status is left alone — the deck model derives
+   * capability from the remaining stamps.
+   */
+  clearArtifact(kind: TakeArtifactKind, opts?: { note?: string }): Promise<void>;
 
   /** Clear the current take snapshot (explicit user action or full reset). */
   clearCurrentTake(): Promise<void>;
@@ -447,6 +500,26 @@ function createStorageTakeManager(): TakeManager {
           lastUpdated: now,
           meta: { durationSeconds: result.durationSeconds },
           artifacts: { bakedMp4: stamp },
+        });
+      });
+    },
+
+    // BUG FIX: H6 stale-artifact adoption
+    // Fix: mismatch path for takeArtifactMatchesStore — consumers demote the
+    //      dead stamp instead of silently adopting another take's blob.
+    // Sync: takeArtifactMatchesStore (this file); call sites listed there.
+    clearArtifact(kind: TakeArtifactKind, opts?: { note?: string }): Promise<void> {
+      return enqueueWrite(async () => {
+        const current = await readTakeRaw();
+        if (!current || !current.artifacts[kind]) return;
+        const artifacts = { ...current.artifacts };
+        delete artifacts[kind];
+        console.warn(`${TAKE_LOG_PREFIX} dropped stale ${kind} stamp on take ${current.id}`);
+        await writeTakeRaw({
+          ...current,
+          lastUpdated: Date.now(),
+          meta: opts?.note ? { ...current.meta, note: opts.note } : current.meta,
+          artifacts,
         });
       });
     },

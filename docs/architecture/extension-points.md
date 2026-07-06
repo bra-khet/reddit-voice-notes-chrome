@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.3 · **Updated:** 2026-07-06 · **Reflects:** `main` @ package `5.4.0` (tag deferred)  
+**Version:** v1.4 · **Updated:** 2026-07-06 · **Reflects:** `main` @ package `5.4.0` (tag deferred)  
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -190,15 +190,25 @@ Authoritative contract: the header of `src/session/take-manager.ts`.
   chain + `MSG_QUERY_TRANSCODE_INFLIGHT`), `recorder-panel.ts` (attach mode +
   `maybePromoteNewerTake` live-sync), tests `test-take-manager.mjs` /
   `test-take-deck.mjs`.
+- **Verify before adopting blobs (H6, mandatory since 2026-07-06):** any consumer
+  that resolves a blob a stamp points at MUST call
+  `takeArtifactMatchesStore(stamp, storeMeta)` first — the stores are
+  single-slot and may hold a newer capture's bytes. On mismatch, call
+  `getTakeManager().clearArtifact(kind, { note })` with an honest note
+  ("Recording superseded — re-record"); never adopt silently. Content-script
+  consumers get the store meta cheaply via `fetchBakedMp4Meta(store)`
+  (`src/storage/baked-mp4-fetch.ts`) before pulling chunks. Reference call
+  sites: `studio-take-recovery.ts` resume, `recorder-panel.ts` attach,
+  `current-take-status.ts` Download CTA.
 - **Gotchas:**
-  - **Stamps are currently ordering-only.** The documented stamp↔store-meta
-    cross-check (detect a snapshot whose blobs moved on) is not yet implemented
-    at consumption sites — hardening backlog **H6**. Until it lands, treat
-    "draft with baseRecording stamp" as *probably* matching `rvnLastRecording`.
   - Blobs are written **only at stop** — a feature that persists mid-recording
     audio breaks the discard-restore invariant (I10) and needs an ADR.
   - Keep the snapshot JSON-safe and small; `parseCurrentTake` drops anything
     malformed — additive fields must be optional.
+  - Concurrent recordings are supported (user-QA'd 2026-07-06): freshness
+    precedence resolves the winner; expect a transient window between two
+    completions where the display shows the newer take's length while the
+    older one is still the downloadable artifact (accepted, display-only).
 
 ## Studio capture host — v1 (v5.4.0)
 
@@ -238,3 +248,20 @@ can adopt the host when its UI is unified.
 When a feature introduces a genuinely new seam, add a `## <Seam> — v1` section here.
 When an existing seam's contract changes (new required sync point, new gotcha discovered),
 bump its version in the heading and add a one-line note of what changed.
+
+---
+
+## Resume in a new chat (carry-forward)
+
+```
+Extension points v1.4 (2026-07-06), main @ 5.4.0 (tag deferred).
+Seams: voice effects v5 (graph-native) · subtitle effects v1 · font pipeline v1 ·
+message pipelines v2 (pipeline + query kinds; store: baked|base relay param) ·
+storage v1 · theme/canvas v1 · Studio surfaces v1 · voice live-mic preview v1 ·
+overlay encoding backbone v1 (painter seam; webcodecs→mediarecorder→serial→drawtext;
+flags default TRUE since v5.4.0) · take lifecycle v1 (storage sync, ADR-0002;
+takeArtifactMatchesStore MANDATORY before adopting blobs — H6) ·
+Studio capture host v1 (onLiveCanvas zero-copy contract).
+Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
+one-shot question → query message.
+```

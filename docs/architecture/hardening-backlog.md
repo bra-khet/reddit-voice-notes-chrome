@@ -1,9 +1,12 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.0 · **Updated:** 2026-07-06 · **Reflects:** `main` @ package `5.4.0` (tag deferred)
+**Version:** v2.1 · **Updated:** 2026-07-06 · **Reflects:** `main` @ package `5.4.0` (tag deferred)
 **Status:** Ranked hardening items for the v5.4.x standalone-suite direction. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.0 (2026-07-06) — full refresh post-v5.4.0; v1 items archived below; risk register added.
+**Changelog:** v2.1 (2026-07-06) — triage + H6 implemented (user directive): H6 **resolved** (stamp
+verification shipped + tested), H11 **resolved** (user QA — concurrent recordings work; minor
+transient display note), H10 **deferred** (user decision), H8/H12 re-filed as v5.4.x patches,
+H9 stays decision-first (ADR-0003). v2.0 (2026-07-06) — full refresh post-v5.4.0; risk register.
 v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
@@ -14,19 +17,36 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 
 | # | Item | ROI | Effort | Status |
 |---|------|-----|--------|--------|
-| H6 | Artifact-stamp verification at take consumption points | **High** | S (~1 sprint) | **Open — top priority** |
-| H7 | Doc drift: `webCodecsBake` default + storage map | High (cheap) | XS | **Resolved this session** |
-| H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | Open |
-| H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L (multi-sprint) | **Deferred → ADR-0003 stub** |
-| H10 | Encoder-fallback observability (honest failure states post-default-flip) | Med-High | S | Open |
-| H11 | Concurrent Studio tabs vs single-slot take (dual-session guard) | Med-Low | S (investigate first) | Open — investigate |
-| H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | Open — verify |
+| H6 | Artifact-stamp verification at take consumption points | **High** | S | **Resolved (2026-07-06)** |
+| H7 | Doc drift: `webCodecsBake` default + storage map | High (cheap) | XS | **Resolved (2026-07-06)** |
+| H11 | Concurrent Studio recordings vs single-slot take | Med-Low | — | **Resolved — user QA, no code needed (2026-07-06)** |
+| H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **v5.4.x patch** |
+| H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **v5.4.x patch** |
+| H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
+| H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **v5.5+ — decision-first via ADR-0003** (stub stays as-is) |
 | H5 | Binary transport / 3:00 cap restoration (BUG-001 deferred) | Low | XL | Deferred (carried) |
 | — | Vosk model re-download (~40 MB/session, BUG-013) | Low | L | Accepted tradeoff (carried) |
 
 ---
 
-## H6 — Artifact-stamp verification at take consumption points (TOP)
+## H6 — Artifact-stamp verification at take consumption points (RESOLVED 2026-07-06)
+
+**Resolution:** implemented exactly as scoped. `takeArtifactMatchesStore(stamp, storeMeta,
+toleranceMs = ARTIFACT_STAMP_TOLERANCE_MS)` pure helper + `clearArtifact(kind, {note})` manager
+method in `src/session/take-manager.ts`; verification wired at all three consumption choke points —
+`studio-take-recovery.ts` `resumeDraftTranscodeInner` (before adopting the WebM),
+`recorder-panel.ts` `attachStudioTake` (stamp vs new meta-only relay query `fetchBakedMp4Meta`
+in `baked-mp4-fetch.ts`, before pulling chunks), and `current-take-status.ts` Download CTA
+(stamp vs resolved snapshot meta). Mismatch → stamp demoted + honest note
+("Recording superseded — re-record"), never silent adoption. Header contract in
+`take-manager.ts` updated from "can cross-check" to "MUST cross-check".
+**Bonus fix in the touched region:** recovery resume read `recording.durationSeconds`
+(nonexistent — TS2339, always undefined) instead of `recording.meta.durationSeconds`,
+so resumed base MP4s were saved with duration 0.
+**Verified:** `test-take-manager.mjs` 20/20 (6 new H6 checks), `test-take-deck.mjs` 12/12,
+`tsc` improved 6 → 4 pre-existing errors, `npm run build` PASS.
+
+<details><summary>Original scoping (for the record)</summary>
 
 - **Item / class it kills:** stale-blob adoption — a take snapshot that survived a crash
   pointing at single-slot IDB blobs that a *different* capture has since overwritten.
@@ -56,7 +76,9 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
   that's a product decision, not hardening); content hashing of blobs (savedAt+bytes is
   sufficient for a single-user local store); changing store meta shape.
 
-## H7 — Doc drift fixes (RESOLVED this session)
+</details>
+
+## H7 — Doc drift fixes (RESOLVED 2026-07-06)
 
 - **Evidence:** `transcription-architecture.md` §gating said `webCodecsBake` default false —
   code default true since `bd7d60a` (`user-preferences.ts:191`); `design-studio.md` §3.2
@@ -65,7 +87,7 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
   overlay-backbone gotcha updated; ADR-0001 left untouched (immutable record — its
   "follow-ups: flip default after QA" is now satisfied and noted here).
 
-## H8 — Recovery re-transcode uses resume-time voice prefs
+## H8 — Recovery re-transcode uses resume-time voice prefs (v5.4.x patch)
 
 - **Item / class it kills:** silent semantic drift — a draft recovered after tab close is
   re-transcoded with `prefs.voiceEffect` *as of resume time*
@@ -88,7 +110,7 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
   (would require persisting the full graph snapshot per take — not warranted for a
   single-slot session tool); blocking recovery on mismatch.
 
-## H9 — Composite-stage elimination (DEFERRED → ADR-0003)
+## H9 — Composite-stage elimination (v5.5+ scale — remains decision-first via ADR-0003)
 
 - **Item / class it kills:** the last super-linear wall in the bake — ~43 s of a ~46–50 s
   WebCodecs bake (88%) is the single x264 composite pass in single-threaded WASM.
@@ -101,7 +123,14 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
   sub-real-time and user-accepted; this is a v5.5+ feature-scale effort with an MP4-demuxer
   dependency decision inside it.
 
-## H10 — Encoder-fallback observability (honest failure states)
+## H10 — Encoder-fallback observability (DEFERRED — user decision 2026-07-06)
+
+**Deferral note (user):** not worried — both encoder paths work, and the failure cases this
+would instrument are hard to reproduce in practice. Revisit only if a real-world silent
+fallback is observed (symptom: a bake that should take ~50 s takes 4–5 minutes with no
+explanation). Original scoping below remains valid if that day comes.
+
+<details><summary>Original scoping (for the record)</summary>
 
 - **Item / class it kills:** silent 5–6× bake slowdowns. With `webCodecsBake` default TRUE,
   any calibration-probe failure, encoder error, or hardware quirk silently falls back to the
@@ -124,23 +153,25 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 - **Out of scope / Non-goals:** remote telemetry (privacy-first product — logs stay local);
   retry orchestration changes; exposing encoder knobs to users.
 
-## H11 — Concurrent Studio tabs vs single-slot take (INVESTIGATE)
+</details>
 
-- **Item / class it kills:** two Design Studio tabs both mounting `recorder-host` and
-  writing `rvn.take.current` — `sessionEpoch` guards races *within* one session;
-  same-context write serialization guards one page; nothing examined guards two pages.
-- **Evidence:** architecture map §6 open question 2; `take-manager.ts` same-context
-  serialization comment; the concurrent-session guard covers Reddit-vs-Studio, not
-  Studio-vs-Studio (`claude-progress.md` v5.4.0 Phase 2).
-- **Surgical change (investigate first, ~half sprint):** reproduce with two Studio tabs;
-  if broken, cheapest guard is `takeFreshnessMs`/`isNewerTakeThan` precedence already in
-  the manager + a "recording is active in another Studio tab" deck lock keyed off the
-  transient snapshot's `source`+freshness (no new storage).
-- **Out of scope / Non-goals:** tab leases/heartbeat locks, BroadcastChannel coordination —
-  only if the reproduction shows real corruption, and then still prefer the existing
-  freshness precedence.
+## H11 — Concurrent Studio recordings (RESOLVED — user QA 2026-07-06, no code)
 
-## H12 — Studio-job progress relay mechanism (VERIFY + document)
+**User test results:** two simultaneous recordings work correctly — both capture visual
+and audio even when overlapping; processing is sequential; the first take stays
+downloadable while the second is still processing, and clicking Download on the first
+succeeds. The Reddit recorder panel reflects Design Studio state as intended. The
+freshness-precedence design (`takeFreshnessMs` / `isNewerTakeThan` + same-context write
+serialization) holds under real concurrent use.
+
+**Known minor edge (accepted, no code change):** in the short gap after the first take
+finishes processing but before the second does, the profile/status display briefly shows
+the *second* take's length while the first take is the one actually available for
+download. Once the second finishes it correctly takes precedence. Transient,
+display-only, self-corrects — logged here so a future session doesn't re-diagnose it as
+data corruption (it is not; blobs and downloads resolve correctly throughout).
+
+## H12 — Studio-job progress relay mechanism (v5.4.x patch — verify + document)
 
 - **Item / class it kills:** building future features on an unverified assumption. Studio-
   initiated transcode works (QA PASS), but *how* PROGRESS reaches an extension page with
@@ -169,9 +200,9 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 |---|------|-----------|--------|--------------------|-----------------|
 | R1 | Alpha luma calibration differs on other hardware/drivers (probe measured `white=234, black=17, limited` on ONE machine) | Med | Wrong alpha → visible matte fringing | Probe is per-path gate (I13); any failure → MediaRecorder fallback | H10 surfaces when it fires; collect timing JSONs from a second machine before pushing the tag |
 | R2 | Premultiply round-trip precision at very low alpha (glow tails) | Low | Subtle edge halos on dark backgrounds | QA-passed on rich-effects clips 2026-07-05 | Keep the compare harness in Overlay Lab; re-check after any FFmpeg core upgrade |
-| R3 | `VideoEncoder` VP8 support removed/altered by a Chrome release | Low | Whole fast path dark → silent 5–6× slowdown | Capability probe + full fallback chain | H10 (observability) is the real mitigation |
+| R3 | `VideoEncoder` VP8 support removed/altered by a Chrome release | Low | Whole fast path dark → silent 5–6× slowdown | Capability probe + full fallback chain | Accepted residual — H10 deferred by user decision; symptom to watch: multi-minute bakes with no explanation |
 | R4 | MediaRecorder fallback path rots now that it's off the hot path | Med | Fallback fires and *also* fails → drawtext-only quality | v5.3.9 tests still in suite (`test-chunk-planner`, `test-overlay-concat-args`) | Add "force MediaRecorder" to the periodic QA sweep (Lab toggle exists) |
-| R5 | Stale take snapshot adopts overwritten single-slot blobs after crash | Med | Wrong audio/video attached to Reddit | Stale-transient demotion (I14); size floor | **H6 — top backlog item** |
+| R5 | Stale take snapshot adopts overwritten single-slot blobs after crash | ~~Med~~ **Mitigated** | Wrong audio/video attached to Reddit | **H6 shipped 2026-07-06**: `takeArtifactMatchesStore` verification at all three consumption points; mismatch → stamp demoted + honest note | Closed — watch for false-positive demotions near the 5 s tolerance |
 | R6 | Recovery triple-channel coupling (snapshot + inflight query + orphan persistence) drifts under future edits | Med | Phantom processing / doubled transcode returns | Recovery chain serialization; QA #4 pass | Money-path trace B in the map is the review checklist for any edit touching one channel |
 | R7 | Dual-encode + IVF buffers memory pressure on long clips (2:00 cap) at 640×360 | Low | OOM/abort mid-bake | Segment model bounds working set; 360p; cap | Watch `EncodedOverlaySegmentMeta` cost telemetry on long-clip QA |
 | R8 | Composite stage (~43 s) perceived as regression once users compare with render-only timings | Med (UX) | Trust in progress UI | Chronos stage labels are honest per stage | ADR-0003 decision; do not "fix" by fudging the meter |
@@ -201,10 +232,12 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.0 (2026-07-06), main @ 5.4.0 (tag deferred).
-Top open: H6 stamp verification (take-manager.ts:46 contract unimplemented at
-recorder-panel.ts:662 / studio-take-recovery.ts / Download CTA) — one pure helper + 3 call sites.
-Then: H8 voice-prefs provenance on recovery, H10 fallback observability, H12 verify Studio
-progress relay, H11 investigate dual Studio tabs. H9 composite wall → ADR-0003 (decision first).
-Risk register R1–R8 above; R5 is H6, R3/R4 are H10.
+Hardening backlog v2.1 (2026-07-06), main @ 5.4.0 (tag deferred).
+DONE: H6 stamp verification SHIPPED (takeArtifactMatchesStore + clearArtifact in
+take-manager.ts; wired at studio-take-recovery.ts / recorder-panel.ts attach /
+current-take-status.ts Download; 20/20 tests). H7 doc drift fixed. H11 closed by
+user QA (concurrent recordings work; known transient length-display edge, no code).
+OPEN: H8 voice-prefs provenance + H12 verify Studio progress relay = v5.4.x patches.
+DEFERRED: H10 fallback observability (user decision). H9 composite wall = v5.5+,
+decision-first via ADR-0003. Risk register: R5 mitigated by H6; R3 accepted residual.
 ```

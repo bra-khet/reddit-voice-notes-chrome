@@ -29,6 +29,7 @@ await build({
 });
 
 const {
+  ARTIFACT_STAMP_TOLERANCE_MS,
   CURRENT_TAKE_KEY,
   STALE_TRANSIENT_MS,
   createTakeId,
@@ -36,6 +37,7 @@ const {
   mergeTakePatch,
   normalizeStaleTake,
   parseCurrentTake,
+  takeArtifactMatchesStore,
   takeFreshnessMs,
   isNewerTakeThan,
 } = await import(pathToFileURL(outfile).href);
@@ -226,6 +228,55 @@ check('createTakeId is unique and prefixed; storage key is stable', () => {
   assert.match(createTakeId(), /^take-[a-z0-9]+-[a-z0-9]+$/);
   assert.notEqual(createTakeId(), createTakeId());
   assert.equal(CURRENT_TAKE_KEY, 'rvn.take.current');
+});
+
+// H6 — stamp↔store cross-check (hardening backlog v2.0)
+console.log('takeArtifactMatchesStore (H6)');
+
+check('matches when savedAt within tolerance and byteLength equal', () => {
+  const stamp = { savedAt: NOW, byteLength: 1_000_000 };
+  assert.equal(
+    takeArtifactMatchesStore(stamp, { savedAt: NOW + 1_500, byteLength: 1_000_000 }),
+    true,
+  );
+});
+
+check('rejects savedAt beyond tolerance (superseded blob)', () => {
+  const stamp = { savedAt: NOW, byteLength: 1_000_000 };
+  const meta = { savedAt: NOW + ARTIFACT_STAMP_TOLERANCE_MS + 1, byteLength: 1_000_000 };
+  assert.equal(takeArtifactMatchesStore(stamp, meta), false);
+});
+
+check('rejects byteLength mismatch even when savedAt is close', () => {
+  const stamp = { savedAt: NOW, byteLength: 1_000_000 };
+  assert.equal(
+    takeArtifactMatchesStore(stamp, { savedAt: NOW + 100, byteLength: 999_999 }),
+    false,
+  );
+});
+
+check('skips byteLength check when either side lacks it', () => {
+  assert.equal(
+    takeArtifactMatchesStore({ savedAt: NOW }, { savedAt: NOW + 100, byteLength: 5 }),
+    true,
+  );
+  assert.equal(
+    takeArtifactMatchesStore({ savedAt: NOW, byteLength: 5 }, { savedAt: NOW + 100 }),
+    true,
+  );
+});
+
+check('strict on missing input (no stamp / no meta / meta without savedAt)', () => {
+  assert.equal(takeArtifactMatchesStore(undefined, { savedAt: NOW, byteLength: 1 }), false);
+  assert.equal(takeArtifactMatchesStore({ savedAt: NOW }, null), false);
+  assert.equal(takeArtifactMatchesStore({ savedAt: NOW }, undefined), false);
+  assert.equal(takeArtifactMatchesStore({ savedAt: NOW }, { byteLength: 1 }), false);
+});
+
+check('custom tolerance is respected', () => {
+  const stamp = { savedAt: NOW };
+  assert.equal(takeArtifactMatchesStore(stamp, { savedAt: NOW + 900 }, 1_000), true);
+  assert.equal(takeArtifactMatchesStore(stamp, { savedAt: NOW + 1_100 }, 1_000), false);
 });
 
 rmSync(outdir, { recursive: true, force: true });

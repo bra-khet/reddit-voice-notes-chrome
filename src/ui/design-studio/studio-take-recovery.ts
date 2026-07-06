@@ -14,7 +14,7 @@ import {
   type QueryTranscodeInflightResponse,
 } from '@/src/messaging/types';
 import { loadUserPreferences } from '@/src/settings/user-preferences';
-import { getTakeManager } from '@/src/session/take-manager';
+import { getTakeManager, takeArtifactMatchesStore } from '@/src/session/take-manager';
 import { relaySaveLastBaseMp4 } from '@/src/storage/last-base-mp4-relay';
 import { loadLastRecording } from '@/src/storage/last-recording-db';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
@@ -51,7 +51,24 @@ async function resumeDraftTranscodeInner(): Promise<void> {
   const recording = await loadLastRecording();
   if (!recording?.blob || recording.blob.size < MIN_RESUME_WEBM_BYTES) return;
 
-  const durationSeconds = take.meta.durationSeconds ?? recording.durationSeconds ?? undefined;
+  // BUG FIX: H6 stale-artifact adoption
+  // Fix: verify the draft's stamp against the single-slot store meta before
+  //      re-transcoding — after a crash, a newer capture may have overwritten
+  //      rvnLastRecording, and resuming would author the WRONG take's MP4.
+  // Sync: takeArtifactMatchesStore in take-manager.ts; recorder-panel.ts
+  //       attach mode; current-take-status.ts Download CTA.
+  if (!takeArtifactMatchesStore(take.artifacts.baseRecording, recording.meta)) {
+    await getTakeManager().clearArtifact('baseRecording', {
+      note: 'Recording superseded — re-record.',
+    });
+    return;
+  }
+
+  // BUG FIX: recovery resume saved base MP4 with duration 0
+  // Fix: duration lives at recording.meta.durationSeconds — the top-level
+  //      access never existed on LastRecordingSnapshot (TS2339), so the
+  //      fallback always resolved undefined → 0.
+  const durationSeconds = take.meta.durationSeconds ?? recording.meta.durationSeconds ?? undefined;
 
   await getTakeManager().updateCurrentTake({
     status: 'processing',
@@ -66,7 +83,7 @@ async function resumeDraftTranscodeInner(): Promise<void> {
       undefined,
       prefs.voiceEffect,
     );
-    await relaySaveLastBaseMp4(result.mp4, durationSeconds ?? recording.durationSeconds ?? 0);
+    await relaySaveLastBaseMp4(result.mp4, durationSeconds ?? recording.meta.durationSeconds ?? 0);
     await getTakeManager().updateCurrentTake({ status: 'ready' });
   } catch (error) {
     console.warn(`${EXTENSION_LOG_PREFIX} Draft transcode resume failed`, error);

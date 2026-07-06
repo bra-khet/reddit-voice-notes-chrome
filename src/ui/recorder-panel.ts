@@ -24,7 +24,7 @@ import {
 import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
 import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
-import { fetchBakedMp4FromExtension } from '@/src/storage/baked-mp4-fetch';
+import { fetchBakedMp4FromExtension, fetchBakedMp4Meta } from '@/src/storage/baked-mp4-fetch';
 import {
   BAKED_MP4_READY_KEY,
   LAST_RECORDING_READY_KEY,
@@ -34,6 +34,7 @@ import {
   getTakeManager,
   isNewerTakeThan,
   isTransientTakeStatus,
+  takeArtifactMatchesStore,
   takeFreshnessMs,
   type CurrentTake,
 } from '@/src/session/take-manager';
@@ -1023,6 +1024,25 @@ export class RecorderPanel {
 
     try {
       const store = take.artifacts.bakedMp4 ? 'baked' : 'base';
+
+      // BUG FIX: H6 stale-artifact adoption
+      // Fix: cross-check the take's stamp against the store meta before the
+      //      chunked fetch — single-slot stores may hold a newer capture's
+      //      bytes; attaching them under this take's identity is the bug.
+      // Sync: takeArtifactMatchesStore in take-manager.ts; studio-take-recovery.ts;
+      //       current-take-status.ts Download CTA.
+      const stamp = store === 'baked' ? take.artifacts.bakedMp4 : take.artifacts.baseMp4;
+      if (stamp && !takeArtifactMatchesStore(stamp, await fetchBakedMp4Meta(store))) {
+        await getTakeManager().clearArtifact(store === 'baked' ? 'bakedMp4' : 'baseMp4', {
+          note: 'Recording superseded — re-record.',
+        });
+        this.statusEl.textContent =
+          'This Studio take was superseded by a newer recording — record again or check the Studio.';
+        this.statusEl.classList.add('status--error');
+        showToast('Studio take superseded — record a new clip.', 'error', 6000);
+        return;
+      }
+
       const blob = await fetchBakedMp4FromExtension(store);
       if (!blob) {
         this.statusEl.textContent =

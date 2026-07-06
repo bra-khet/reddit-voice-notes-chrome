@@ -43,8 +43,10 @@ npm run build
 
 **When ready:** `git tag v5.4.0` (after doc refresh) · `git push origin main --tags`
 
-## Architecture hardening v2.0 refresh — 2026-07-06
+## Architecture hardening v2.0 — **COMPLETE** (2026-07-06)
 
-Full `/architecture-hardening` pass on `main` @ 5.4.0. Map bumped **v2.0**, extension-points **v1.3** (take lifecycle + Studio capture host seams), hardening backlog **v2.0** (H6–H12 + WebCodecs/canvas risk register), ADR-0002 (TakeManager storage sync, accepted) + ADR-0003 (composite-stage, stub).
+Full `/architecture-hardening` pass + triage on `main` @ 5.4.0. Map **v2.1**, extension-points **v1.4**, hardening backlog **v2.1**, ADR-0002 (accepted) + ADR-0003 (stub, decision-first).
 
-**Top open hardening item:** **H6** — `TakeArtifactStamp` cross-check is documented in `src/session/take-manager.ts` but unimplemented at consumption sites (attach / recovery / Download CTA) — see [`docs/architecture/hardening-backlog.md`](docs/architecture/hardening-backlog.md). Recommended before or shortly after the `v5.4.0` tag.
+**H6 IMPLEMENTED:** `takeArtifactMatchesStore` + `clearArtifact` in `src/session/take-manager.ts`, verified at all three blob-consumption points (`studio-take-recovery.ts` resume · `recorder-panel.ts` attach via new `fetchBakedMp4Meta` · `current-take-status.ts` Download CTA). Mismatch → stamp demoted + "Recording superseded — re-record". Tests: `test-take-manager.mjs` **20/20** (6 new), `test-take-deck.mjs` 12/12, build PASS, tsc 6→4 pre-existing errors (fixed recovery `durationSeconds` TS2339 in passing).
+
+**Triage:** H11 closed (user QA — concurrent recordings solid; transient length-display edge accepted) · H10 deferred (user decision) · H8 + H12 = v5.4.x patches · H9 = v5.5+ via ADR-0003. Details: [`docs/architecture/hardening-backlog.md`](docs/architecture/hardening-backlog.md).
