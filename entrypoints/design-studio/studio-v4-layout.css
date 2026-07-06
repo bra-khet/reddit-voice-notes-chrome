@@ -454,6 +454,16 @@ body:has(.studio-v4) {
   gap: 8px;
 }
 
+/* CHANGED: Stop during live capture uses pointer, not bake wait cursor.
+   WHY: --baking is shared with subtitle bake; audition Stop must look clickable. */
+.studio-v4 .studio-v4__audition-primary.studio-v4__bake-btn--baking {
+  cursor: pointer;
+}
+
+.studio-v4 .studio-v4__audition-primary.studio-v4__bake-btn--baking:hover {
+  filter: brightness(1.06);
+}
+
 .studio-v4 .studio-v4__audition-cancel {
   align-self: flex-start;
 }
