@@ -120,10 +120,21 @@ check('draft with artifacts → DRAFT badge, download still possible, note surfa
   assert.match(m.hint, /Recorder closed/);
 });
 
-check('draft without artifacts → resume CTA, download locked', () => {
+check('draft without artifacts → record CTA, download locked', () => {
   const m = deriveTakeDeckModel(take('draft'));
   assert.equal(m.download.enabled, false);
-  assert.equal(m.recordLabel, 'Resume recording');
+  assert.equal(m.recordLabel, 'Record new take');
+});
+
+check('draft with WebM only → re-record CTA + finish-conversion hint', () => {
+  const m = deriveTakeDeckModel(
+    take('draft', {
+      artifacts: { baseRecording: stamp },
+      meta: { durationSeconds: 65 },
+    }),
+  );
+  assert.equal(m.recordLabel, 'Re-record take');
+  assert.match(m.hint, /finish MP4 conversion/);
 });
 
 check('error → failure copy from note; salvage download if artifacts exist', () => {

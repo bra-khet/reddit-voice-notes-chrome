@@ -655,6 +655,10 @@ export class RecorderPanel {
 
   private async findAttachableTake(): Promise<CurrentTake | null> {
     try {
+      const { resumeDraftTranscodeIfNeeded } = await import(
+        '@/src/ui/design-studio/studio-take-recovery'
+      );
+      await resumeDraftTranscodeIfNeeded();
       return this.resolveAttachableTake(await getTakeManager().getCurrentTake());
     } catch {
       return null;

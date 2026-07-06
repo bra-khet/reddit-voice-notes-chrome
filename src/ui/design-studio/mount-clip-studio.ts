@@ -282,11 +282,6 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     takeDeck?.update(take);
   });
 
-  // BUG FIX: Studio closed mid-processing left phantom 'processing' + grayed Record
-  // Fix: on mount, reconcile snapshot against background transcode queue (orphan UI reset
-  //      is handled in studio-recorder.ts pagehide/pageshow).
-  void reconcileStudioTakeAfterTabReturn();
-
   // v5.4.0 Phase 2: live audition — the WaveformRenderer canvas (the exact
   // pixels MediaRecorder encodes) replaces the static theme preview in the
   // hero monitor. "PREVIEW = OUTPUT" becomes literal while recording.
@@ -889,7 +884,13 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       void studioRecorder.openAudition();
     },
   });
-  takeDeck.setAuditionActive(studioRecorder.isActive());
+  takeDeck.setAuditionActive(false);
+
+  // BUG FIX: Studio closed mid-processing left draft + grayed controls
+  // Fix: reconcile after deck mount; resume WebM→MP4 when orphan transcode was aborted by unmount.
+  void reconcileStudioTakeAfterTabReturn().then(() => {
+    takeDeck?.setAuditionActive(false);
+  });
 
   subpanelShell = mountStudioV4SubpanelShell(studioShell, {
     isPanelDirty: (panelId) => {

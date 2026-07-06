@@ -167,18 +167,24 @@ export function deriveTakeDeckModel(take: CurrentTake | null): TakeDeckModel {
         live: false,
       };
     case 'draft':
-    default:
+    default: {
+      const hasRecordingOnly = Boolean(take.artifacts.baseRecording) && !hasBase && !hasBaked;
       badges.push({ label: 'DRAFT', tone: 'warning' });
       return {
         icon: status.warning,
         stateText: 'Incomplete take',
-        hint: take.meta.note ?? 'This session did not finish — resume or start fresh.',
+        hint:
+          take.meta.note ??
+          (hasRecordingOnly
+            ? 'Captured audio is safe — reopening the Studio will finish MP4 conversion.'
+            : 'This session did not finish — record again or discard.'),
         badges,
         download: { enabled: prefer !== null, label: downloadLabel, prefer },
-        recordLabel: prefer ? 'Re-record take' : 'Resume recording',
+        recordLabel: hasRecordingOnly || prefer ? 'Re-record take' : 'Record new take',
         showClear: true,
         live: false,
       };
+    }
   }
 }
 

@@ -151,6 +151,11 @@ export class VoiceRecorderSession {
     return this.waveform?.canvas ?? null;
   }
 
+  /** Exposed for host teardown — pagehide must not abort mid-transcode dispose. */
+  getPhase(): RecorderPhase {
+    return this.phase;
+  }
+
   subscribe(listener: StateListener): () => void {
     this.listeners.add(listener);
     listener(this.snapshot());

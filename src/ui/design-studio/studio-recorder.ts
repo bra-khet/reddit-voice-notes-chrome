@@ -318,9 +318,16 @@ export function mountStudioRecorder(
     },
 
     dispose(): void {
+      if (disposed) return;
       disposed = true;
       window.removeEventListener('pagehide', pageHideHandler);
       window.removeEventListener('pageshow', pageShowHandler);
+      // BUG FIX: main.ts pagehide unmount called closeAudition() during processing
+      // Fix: tab teardown must persist draft + detach UI only — dispose() aborts offscreen transcode.
+      if (host?.session.getPhase() === 'processing') {
+        detachAuditionOnPageHide();
+        return;
+      }
       closeAudition();
     },
   };
