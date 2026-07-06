@@ -1,8 +1,8 @@
 # Release notes — v5.4.0 **Design Studio First: Standalone Recording Suite**
 
-**Tag:** `v5.4.0` (pending user QA) · **Date:** 2026-07-05  
-**Branch:** `feature/v5.4.0-standalone-design-studio` (merge to `main` after QA)  
-**Restore:** `git checkout feature/v5.4.0-standalone-design-studio && npm install && npm run dev`  
+**Tag:** `v5.4.0` (**deferred** — user doc refresh before tag) · **Date:** 2026-07-05 (merge 2026-07-06)  
+**Branch:** merged `feature/v5.4.0-standalone-design-studio` → `main` (2026-07-06)  
+**Restore:** `git checkout main && npm install && npm run dev`  
 **Prior stable:** `v5.3.10` (WebCodecs Per-Chunk Encoding)  
 **Roadmap (as-built §4 Phase 0 authoritative):** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`
 
@@ -32,7 +32,7 @@ Untouched. Bake/export still flows through `subtitle-bake.ts` / `subtitle-canvas
 - `node scripts/test-take-deck.mjs` — 11 checks (state → CTA/badge matrix)
 - Full suite **22/22 scripts PASS** · `npx tsc --noEmit` at pre-existing-warning parity (3 known) · `npm run build` PASS
 
-## Manual QA checklist (user pass required before tag/merge)
+## Manual QA checklist — **PASS** (user sign-off 2026-07-06; tag deferred)
 
 **Studio-native recording**
 1. Open Design Studio → Current Take deck shows "No take yet" → **Record new take** → mic permission prompt (extension origin) → live waveform appears in the hero monitor with LIVE MIC label; theme/background edits update the live canvas.
@@ -43,7 +43,7 @@ Untouched. Bake/export still flows through `subtitle-bake.ts` / `subtitle-canvas
 4. Close the Studio tab mid-processing → reopen → deck shows draft/ready state (no lost session). **PASS** (2026-07-06) — see `studio-take-recovery.ts`, `main.ts` pagehide must not abort offscreen transcode via `dispose()`.
 5. Record on Reddit → open Studio during processing → deck shows live "Processing…" → flips to ready when the relay lands.
 6. Discard a re-record (Studio and Reddit) → previous take reappears intact in the deck.
-11. Open Reddit composer panel **while** Studio is recording/processing → panel shows attach-waiting chrome (not legacy mic UI) and morphs to attach mode when the Studio take lands — **no composer close/reopen required**.
+11. Open Reddit composer panel **while** Studio is recording/processing → panel shows attach-waiting chrome (not legacy mic UI) and morphs to attach mode when the Studio take lands — **no composer close/reopen required**. **PASS** (2026-07-06) — `recorder-panel.ts` `open()` + `maybePromoteNewerTake()`.
 
 **Reddit output target**
 7. With a ready/baked Studio take: click the voice-note button → attach mode (take card + duration) → **Attach Studio take** → MP4 lands in the composer. Baked takes attach captions; unbaked takes attach the base MP4.
@@ -63,7 +63,13 @@ When the Studio tab closes during post-stop transcode:
 4. On reopen, `reconcileStudioTakeAfterTabReturn()` demotes phantom `processing`, then `resumeDraftTranscodeIfNeeded()` re-encodes preserved WebM if needed.
 5. Reddit `findAttachableTake()` calls the same resume helper so attach mode can appear after draft recovery.
 
-## Known notes
+## Post-merge / pre-tag checklist (user)
+
+- [ ] External documentation refresh (user-owned)
+- [ ] `git tag v5.4.0` on `main`
+- [ ] `git push origin main --tags` when ready
+
+## Known notes / deferred
 
 - Deck "Discard take" clears the snapshot only; single-slot blobs are overwritten by the next take (roadmap §5 storage answer).
 - Mic permission for the Studio is granted per extension origin (lock icon in the address bar if denied).

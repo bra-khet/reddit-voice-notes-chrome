@@ -35,11 +35,28 @@ node scripts/test-ivf.mjs && node scripts/test-overlay-alphamerge-args.mjs
 
 ---
 
-## v5.4.0 — Design Studio First — **IN PROGRESS**
+## v5.4.0 — Design Studio First — **MERGED TO `main`** (tag deferred)
 
 **Roadmap:** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md` (Phase 0 as-built section is authoritative)  
-**Branch:** `feature/v5.4.0-standalone-design-studio`  
-Studio becomes standalone authoring environment; consumes v5.3.10 bake backend as composable layer. Baseline: `main` @ `v5.3.10`.
+**Branch:** merged `feature/v5.4.0-standalone-design-studio` → `main` (2026-07-06) · **Package:** `5.4.0`  
+**Release notes:** `docs/release-notes-v5.4.0.md` · **Tag:** `v5.4.0` **deferred** (user doc refresh first) · **Push:** deferred (local only)  
+Studio is the standalone authoring environment; consumes v5.3.10 bake backend as composable layer. Baseline: `main` @ `v5.3.10` pre-merge.
+
+### Handoff summary (2026-07-06)
+
+**Shipped (Phases 0–4 + QA hardening):** TakeManager (`rvn.take.current` + artifact stamps), Current Take deck, Studio-native recording (live WYSIWYG canvas), Reddit attach mode, Studio-first copy, production WebCodecs bake defaults (`bd7d60a`), mid-processing tab-close recovery (`studio-take-recovery.ts`), Reddit panel live-sync during Studio capture.
+
+**User QA:** checklist items **1–11** passed per user sign-off (2026-07-06); item **#4** and **#11** required post-Phase-4 hardening (commits `03e33c0`–`0d70478`).
+
+**Restore:** `git checkout main && npm install && npm run dev`
+
+**Verify:** `node scripts/test-take-manager.mjs` (14) · `node scripts/test-take-deck.mjs` (12) · `npm run build` PASS
+
+**Explicitly deferred (not blocking merge/tag):**
+- Demo site (`demo/src/studio/`) standalone capture parity — no pipeline there.
+- Composite-stage perf (~43 s alphamerge wall on WebCodecs bakes) — optional follow-up.
+- `git push origin main` — per repo convention, when ready.
+- Tag `v5.4.0` — after user external doc refresh.
 
 ### Phase 0 — TakeManager foundation **COMPLETE** (2026-07-05)
 
@@ -75,15 +92,13 @@ Single source of truth for the current take across all contexts:
 - Attach flow: fetch (chunked) → `attachMp4ToComposer` → workflow 'design' on success. "Record new here" runs the classic capture path — TakeManager's prior-snapshot stash means a discarded re-record restores the attachable take intact.
 - Voice-note button copy: "attach your Studio take or record here". All shadow-DOM/observer/composer-detection logic untouched.
 
-### Phase 4 — Polish + release prep **COMPLETE (code)** — awaiting user QA (2026-07-05)
+### Phase 4 — Polish + release prep **COMPLETE** (2026-07-05, QA 2026-07-06)
 
 - Studio-first copy sweep: workflow banner (record-in-Studio primary, "Record on Reddit instead" secondary, "How does Reddit fit in?" explainer), status strip (deck-first hints/blockers), panel 3-phase intro, bake done-message.
 - Progressive disclosure: main screen = workflow banner + hero (take deck / profile / preview) + collapsed v4 section cards — unchanged subpanel pattern, no new top-level controls.
 - Version **5.4.0** (`package.json` + `version.ts`); release notes `docs/release-notes-v5.4.0.md` incl. **manual QA checklist** (studio recording, recovery, attach mode, regression sweep).
-- Verification: suite **23/23**, `tsc` pre-existing-parity, `npm run build` PASS.
+- Verification: take-manager **14/14**, take-deck **12/12**, `npm run build` PASS at merge.
 - Demo (`demo/src/studio/`) parity for the standalone flow = future work (no capture pipeline there); noted in release notes.
-
-**Merge/tag `v5.4.0` after user QA pass** (checklist in release notes). Push deferred per repo convention.
 
 ### v5.4.0 QA — mid-processing tab-close recovery **PASS** (2026-07-06)
 
@@ -105,7 +120,12 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 
 **Bug:** Open Reddit composer panel while Studio is recording → legacy mic UI; stays there after Studio take completes until composer close/reopen.
 
-**Fix:** `RecorderPanel.open()` opens attach-waiting chrome when a Studio-sourced transient take exists; `maybePromoteNewerTake()` promotes from mic-ready (not only `stopped`) when TakeManager advances via `storage.onChanged` subscription.
+**Fix:** `RecorderPanel.open()` opens attach-waiting chrome when a Studio-sourced transient take exists; `maybePromoteNewerTake()` promotes from mic-ready (not only `stopped`) when TakeManager advances via `storage.onChanged` subscription. **PASS** (user 2026-07-06) · commit `0d70478`.
+
+### v5.4.0 hardening — production WebCodecs bake (2026-07-06)
+
+- **Issue:** Amber "Bake subtitles" button and production builds used legacy MediaRecorder path; Lab toggles worked but prefs default `webCodecsBake: false`.
+- **Fix:** `resolveOverlayBakeEncoder` / `resolveParallelBakeEnabled` in `user-preferences.ts`; one-time rollout migration; `subtitle-bake.ts` wired. Commit `bd7d60a`.
 
 ### v5.4.0 QA follow-up — hero preview aspect + layout (2026-07-05)
 
