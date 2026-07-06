@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.2 · **Updated:** 2026-07-05 · **Reflects:** `v5.3.10` on `main`  
+**Version:** v1.3 · **Updated:** 2026-07-06 · **Reflects:** `main` @ package `5.4.0` (tag deferred)  
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -53,16 +53,19 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Sync points:** picker value key (opaque string, e.g. `'dejavu-sans'`) must be consistent across all four maps above.
 - **web_accessible_resources:** `assets/fonts/*` must remain in `wxt.config.ts` `web_accessible_resources` for `browser.runtime.getURL` to work in content scripts and extension pages.
 
-## Message pipelines — v1
+## Message pipelines — v2 (v5.4.0)
 
 - **Add a pipeline:** define `MSG_<NAME>_{START,ACK,OFFSCREEN,PROGRESS,COMPLETE,CANCEL}` in `src/messaging/types.ts`, mirroring the existing shape (payload interfaces + parse helpers).
+- **Add a query (v2, new kind):** a plain request/response with no lifecycle — reference: `MSG_QUERY_TRANSCODE_INFLIGHT` (v5.4.0 recovery). Queries must be **idempotent and side-effect-free** so recovery chains can call them safely; do not grow a query into a pipeline — if it needs PROGRESS, it's a pipeline.
 - **Background relay:** add `register<Name>Tab` / `relay<Name>Broadcast` / `relay<Name>Failure` in `entrypoints/background.ts`; add to `rememberRelayTab` / `forgetRelayTab` via `src/messaging/relay-registry.ts`.
 - **Design Studio receiver:** decide tab-relay vs `runtime.onMessage` — if Design Studio is the consumer, use `burnInSkipTabRelayByJobId` pattern (extension page, not content script).
+- **Chunked blob relays (v2):** `MSG_GET_BAKED_MP4_META/_CHUNK` accept `store: 'baked' | 'base'` (default `'baked'`, backward compatible); background keeps a per-store byte cache. Adding a new fetchable store means extending that union, not a new message pair.
 - **Offscreen handler:** add to `entrypoints/offscreen/main.ts` job queue.
 - **Sync points:**
   - Failure must broadcast COMPLETE **before** `forgetRelayTab` (BUG-032).
   - Cross-pipeline queue races: burn-in reads `rvnLastBaseMp4` written by transcode — ensure ordering via IDB existence check, not queue coordination.
   - Heartbeats tagged `*-heartbeat` so stall detectors ignore them (BUG-006).
+  - **Not everything is a message (v2):** cross-context *state* belongs in a storage key with `storage.onChanged` (see Take lifecycle seam + ADR-0002). Reach for a pipeline only when there is work-with-progress to relay.
 
 ## Storage — v1
 
@@ -141,7 +144,10 @@ same paint seam.
 - **Sync points:** `overlay-chunk-planner.ts` (partition invariants, tested),
   `subtitle-canvas-bake.ts` (strategy selection + fallback order:
   webcodecs → mediarecorder-parallel → serial → drawtext),
-  `experimental.parallelBake` / `experimental.webCodecsBake` prefs,
+  `experimental.parallelBake` / `experimental.webCodecsBake` prefs
+  (**both default TRUE since v5.4.0** — `resolveOverlayBakeEncoder` /
+  `resolveParallelBakeEnabled` in `user-preferences.ts` + one-time rollout
+  migration; opt-out only),
   Overlay Lab toggles (BOTH the render and bake buttons must pass strategy
   flags explicitly — v5.3.9.1 gotcha), timing summary
   (`overlay-lab-timing-summary.ts`: distinct stage label per distinct work).
@@ -153,6 +159,77 @@ same paint seam.
   - Alpha luma range from `VideoEncoder` is machine-dependent — always go
     through the calibration probe (`src/encoding/webcodecs-support.ts`), never
     assume limited or full.
+
+## Take lifecycle & artifacts — v1 (v5.4.0)
+
+The "current take" is the single cross-context session datum: one snapshot under
+`rvn.take.current` (`chrome.storage.local`), synced by `storage.onChanged` —
+**deliberately not a message family** (ADR-0002). Blobs never enter the snapshot;
+they stay in the single-slot IDB stores, referenced by `TakeArtifactStamp`s.
+Authoritative contract: the header of `src/session/take-manager.ts`.
+
+- **Consume the take (read/subscribe):** `getTakeManager().getCurrentTake()` /
+  `.subscribe(listener)` — reads pass through `normalizeStaleTake` (transient
+  `recording`/`processing` older than `STALE_TRANSIENT_MS` = 2 min demote to
+  `draft`). Never read the raw storage key directly.
+- **Write the take:** only through TakeManager methods, and only from the three
+  sanctioned writers — recorder session (capture transitions), background
+  (artifact stamps after relayed IDB writes), Studio bake (`updateFromBake`).
+  A new writer is an architectural decision: name it in ADR-0002's successor.
+- **Add an artifact kind:** extend `TakeArtifactKind` +
+  stamp it where its blob is persisted; consumers must treat unknown kinds as
+  absent (forward compatibility).
+- **Add a status:** extend `TakeStatus` + the deck state matrix
+  (`current-take-status.ts`, tested in `scripts/test-take-deck.mjs`) + the
+  transient set in `isTransientTakeStatus` if it can strand on crash.
+- **Preview=bake?** N/A — pure state; but the deck's Download CTA must resolve
+  blobs from extension-origin IDB *at click time*, never cache bytes in the UI.
+- **Sync points:** `voice-recorder.ts` (transitions + `sessionEpoch` race guard +
+  prior-snapshot stash), `background.ts` (`recordArtifact`, orphan adoption,
+  `persistOrphanStudioTranscodeResult`), `studio-take-recovery.ts` (recovery
+  chain + `MSG_QUERY_TRANSCODE_INFLIGHT`), `recorder-panel.ts` (attach mode +
+  `maybePromoteNewerTake` live-sync), tests `test-take-manager.mjs` /
+  `test-take-deck.mjs`.
+- **Gotchas:**
+  - **Stamps are currently ordering-only.** The documented stamp↔store-meta
+    cross-check (detect a snapshot whose blobs moved on) is not yet implemented
+    at consumption sites — hardening backlog **H6**. Until it lands, treat
+    "draft with baseRecording stamp" as *probably* matching `rvnLastRecording`.
+  - Blobs are written **only at stop** — a feature that persists mid-recording
+    audio breaks the discard-restore invariant (I10) and needs an ADR.
+  - Keep the snapshot JSON-safe and small; `parseCurrentTake` drops anything
+    malformed — additive fields must be optional.
+
+## Studio capture host — v1 (v5.4.0)
+
+Headless recorder mount for any surface that wants native capture.
+Reference consumers: `src/ui/design-studio/studio-recorder.ts` (Studio deck
+transport); `src/ui/recorder-panel.ts` still drives the session directly and
+can adopt the host when its UI is unified.
+
+- **Mount:** `mountRecorder({ hostContext, onStateChange, onLiveCanvas,
+  onTakeComplete })` in `src/recorder/recorder-host.ts` → handle with
+  `open/startRecording/stopRecording/cancel/close`. The host owns mic/session
+  lifecycle + auto-draft on close; the surface owns ALL transport chrome.
+- **Live preview contract (the WYSIWYG invariant):** `onLiveCanvas` hands over
+  the `WaveformRenderer` **canvas element itself** — the exact element
+  `captureStream()` feeds MediaRecorder. Insert it; never copy pixels from it
+  per frame. Zero copies = zero preview-vs-output drift.
+- **Preview=bake?** YES by construction — the previewed canvas IS the encoded
+  video source.
+- **Sync points:** take transitions happen inside `VoiceRecorderSession`
+  (see Take lifecycle seam); `pagehide` auto-draft on every surface;
+  concurrent-session guard when a fresh transient take from the *other*
+  surface exists; workflow phase writes (`'capture'` on record, `'polish'` on
+  stop).
+- **Gotchas:**
+  - Design Studio is a separate origin from reddit.com — `getUserMedia`
+    permission prompts once per origin.
+  - `dispose()` must NOT tear down during `processing`
+    (`detachAuditionOnPageHide` — the v5.4.0 QA-#4 lesson: closing chrome must
+    not abort the offscreen transcode).
+  - Pause any theme RAF loops while the live canvas is mounted
+    (`auditionActive` guard) — two RAF writers on one preview surface flicker.
 
 ---
 

@@ -144,6 +144,7 @@ pagehide
 | `chrome.storage.local` | `rvn.sessionTranscript.ready` | Signal new transcript IDB row | Subtitle poll | — (background writes) |
 | `chrome.storage.local` | `rvn.bakedMp4.ready` | Signal baked MP4 for recorder | — | Bake completion |
 | `chrome.storage.local` | `rvn.workflow.phase` | 3-phase intent: `'design' \| 'capture' \| 'polish'` | Workflow banner (boot + listener) | Banner CTA, recorder stop |
+| `chrome.storage.local` | `rvn.take.current` | v5.4.0 current-take snapshot: status/source/meta + artifact stamps — **never blobs** | Current Take deck + recovery (boot + `storage.onChanged` via TakeManager subscription) | TakeManager only (`src/session/take-manager.ts`): recorder-session transitions, background artifact stamps, bake promotion |
 | IndexedDB | `rvnImageDb` | Personal background blobs | Direct (extension origin) | Upload/delete UI |
 | IndexedDB | `rvnLastRecording` | Last WebM for voice preview | Voice controls | — (recorder relay) |
 | IndexedDB | `rvnSessionTranscript` | Vosk + edited transcript | Subtitle controls | Confirm & save |
@@ -151,6 +152,8 @@ pagehide
 | IndexedDB | `rvnLastBakedMp4` | Burned MP4 output | — | Bake |
 
 **Never** put image blobs or transcript cue text in `rvnUserPrefs`.
+
+**Take lifecycle (v5.4.0):** `rvn.take.current` is a snapshot only — blobs stay in the single-slot IDB stores above, referenced by `TakeArtifactStamp` freshness stamps. The authoritative contract (writers, stale-transient demotion, stamp semantics) is the header of `src/session/take-manager.ts`; cross-context sync is `storage.onChanged`, deliberately **not** a message family (ADR-0002 in `docs/architecture/adr/`).
 
 ### 3.3 Preview = output guarantee
 

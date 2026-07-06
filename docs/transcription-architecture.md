@@ -261,7 +261,7 @@ plan chunks (same v5.3.9 planner)
   → NO normalize stage
 ```
 
-**Gating + fallback chain (combined):** `experimental.webCodecsBake` (default false; `true` → `'auto'`) → capability + alpha-luma calibration probe → WebCodecs orchestrator (`subtitle-overlay-webcodecs.ts`) → on failure: `experimental.parallelBake` MediaRecorder path (parallel → serial) → perf guard → drawtext. Alphamerge tier failure does **not** fall to drawtext directly — retries full MediaRecorder pipeline first.
+**Gating + fallback chain (combined):** `experimental.webCodecsBake` (default **true** since v5.4.0 `bd7d60a` — opt-out only via `resolveOverlayBakeEncoder` in `user-preferences.ts`, one-time migration flips the stored v5.3.10 rollout `false`; `undefined`/`true` → `'auto'`) → capability + alpha-luma calibration probe → WebCodecs orchestrator (`subtitle-overlay-webcodecs.ts`) → on failure: `experimental.parallelBake` MediaRecorder path (parallel → serial) → perf guard → drawtext. Alphamerge tier failure does **not** fall to drawtext directly — retries full MediaRecorder pipeline first.
 
 | Module | Role |
 |--------|------|

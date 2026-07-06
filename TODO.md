@@ -42,3 +42,9 @@ npm run build
 ```
 
 **When ready:** `git tag v5.4.0` (after doc refresh) · `git push origin main --tags`
+
+## Architecture hardening v2.0 refresh — 2026-07-06
+
+Full `/architecture-hardening` pass on `main` @ 5.4.0. Map bumped **v2.0**, extension-points **v1.3** (take lifecycle + Studio capture host seams), hardening backlog **v2.0** (H6–H12 + WebCodecs/canvas risk register), ADR-0002 (TakeManager storage sync, accepted) + ADR-0003 (composite-stage, stub).
+
+**Top open hardening item:** **H6** — `TakeArtifactStamp` cross-check is documented in `src/session/take-manager.ts` but unimplemented at consumption sites (attach / recovery / Download CTA) — see [`docs/architecture/hardening-backlog.md`](docs/architecture/hardening-backlog.md). Recommended before or shortly after the `v5.4.0` tag.
