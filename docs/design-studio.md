@@ -99,7 +99,7 @@ Summaries must stay accurate on the card face while the sub-panel is closed (`st
 
 **Sub-panel chrome:** nested header (negate back chip, section title, **Done**); **exit guard** (`studio-subpanel-guard.ts`) — cancel left, discard middle, confirm right (v4 button palette).
 
-**Preview count:** One **Live preview** canvas since v3.1.0 (secondary/tertiary previews removed — see `docs/release-notes-v3.1.0.md`). Older branch docs may still mention dual preview; current code mounts `renderPreviewBlock('primary')` only.
+**Preview count:** One **Live preview** canvas since v3.1.0 (secondary/tertiary previews removed — see `archive/docs/release-notes-v3.1.0.md`). Older branch docs may still mention dual preview; current code mounts `renderPreviewBlock('primary')` only.
 
 ### 2.3 Global chrome
 
@@ -880,18 +880,18 @@ reddit.com).
 | `docs/code-review.md` | Pre-change gate; fallback tags |
 | `docs/engineering-principles.md` | Semantic health, save pathways, ImageDB |
 | `docs/v4-development-principles.md` | Branch model, compositing, WASM queues |
-| `docs/eloquent-4-handoff.md` | Subtitle bake QA, BUG-025…032 |
+| `archive/docs/eloquent-4-handoff.md` | Subtitle bake QA, BUG-025…032 |
 | `docs/eloquent-profile-handoff.md` | Prefs race rules, BUG-021…024 |
 | `docs/transcription-architecture.md` | Vosk sandbox CSP stack (Studio §7 integration) |
 | `docs/bug-archive.md` | Full bug write-ups |
-| `docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
-| `docs/release-notes-v3.7.0.md` | v3.7 v4 UI shell (hero, cards, sub-panels, preview bezel) |
-| `eloquent-branch.md` | v4 subtitle phase plan (historical milestones + open work) |
-| `dulcet-branch.md` | v3 voice-effects phase plan (Voice section origin) |
-| `pretty-branch.md` | v2 personalization phase plan (Bar style / Background origin) |
+| `archive/docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
+| `archive/docs/release-notes-v3.7.0.md` | v3.7 v4 UI shell (hero, cards, sub-panels, preview bezel) |
+| `archive/progress/eloquent-branch.md` | v4 subtitle phase plan (historical milestones + open work) |
+| `archive/progress/dulcet-branch.md` | v3 voice-effects phase plan (Voice section origin) |
+| `archive/progress/pretty-branch.md` | v2 personalization phase plan (Bar style / Background origin) |
 | `claude-progress.md` | Session timeline and release tags |
-| `docs/eloquent-profile-checkpoint.md` | **Historical** profile bug cluster audit (superseded for semantics) |
-| `docs/eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint |
+| `archive/docs/eloquent-profile-checkpoint.md` | **Historical** profile bug cluster audit (superseded for semantics) |
+| `archive/docs/eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint |
 | `docs/architecture/` | Architecture map, extension-points registry, hardening backlog — cross-cutting view (`/architecture-hardening`) |
 
 ---

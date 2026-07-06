@@ -4,7 +4,7 @@
 
 **Design Studio (canonical):** `docs/design-studio.md` — start here for UI semantics, four sections, dirty-state taxonomy, and refresh guardrails. This file covers cross-branch pipeline law; Studio behavior lives in that doc.
 
-**Primary sources synthesized here:** `docs/design-studio.md` (Design Studio suite semantics), `eloquent-branch.md`, `dulcet-branch.md`, `pretty-branch.md`, `docs/engineering-principles.md`, `docs/transcription-architecture.md`, `claude-progress.md`, `docs/eloquent-profile-handoff.md`, bug history (BUG-001…024), and observed pipeline patterns.
+**Primary sources synthesized here:** `docs/design-studio.md` (Design Studio suite semantics), `archive/progress/eloquent-branch.md`, `archive/progress/dulcet-branch.md`, `archive/progress/pretty-branch.md`, `docs/engineering-principles.md`, `docs/transcription-architecture.md`, `claude-progress.md`, `docs/eloquent-profile-handoff.md`, bug history (BUG-001…024), and observed pipeline patterns.
 
 ## 1. Branch & Release Model (Do Not Change Lightly)
 

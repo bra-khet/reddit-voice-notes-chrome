@@ -5,7 +5,7 @@ It shows **what settings exist**, **how they nest**, and **why they belong toget
 Use this to keep UI design, code organization, and mental model in sync as v4 evolves.
 
 **Status**: Aligned to canonical `docs/design-studio.md` (v3.7.0 / `eloquent`, 2026-06-23).  
-**Shipped layout (v3.7)**: Hero 16:9 preview + profile/status cluster + **1×4 status card strip** → sub-panels. See `docs/release-notes-v3.7.0.md`.  
+**Shipped layout (v3.7)**: Hero 16:9 preview + profile/status cluster + **1×4 status card strip** → sub-panels. See `archive/docs/release-notes-v3.7.0.md`.  
 **Assets**: `public/assets/design-studio-v4/` (runtime); specs in `vector-ui-assets-spec.md`.
 **Canonical reference** (read-only): `C:\Users\robin\claude-code\reddit-voice-notes-chrome\docs\design-studio.md` — semantic framework, controls inventory, and architecture. Update this scaffold to stay copacetic with it.
 

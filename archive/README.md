@@ -1,0 +1,44 @@
+# Archive — Reddit Voice Notes
+
+> **Immutable historical layer. Do not edit files in here.**
+> Initialized **2026-07-06** at the **v5.4.0 (Design Studio First)** milestone via the `/docs-archiving` skill.
+
+This directory is the **raw/verbose history** tier of the project's two-tier documentation model:
+
+- **Living layer** (repo root + `docs/`): slim, actively maintained — `claude-progress.md`, the canonical reference docs, `docs/architecture/`, and the milestone index `docs/HISTORY.md`.
+- **Archive layer** (here): full, point-in-time history that never gets edited. Living docs link in only when deeper history is actually needed (*conditional disclosure*).
+
+If you're getting oriented, start at [`docs/HISTORY.md`](../docs/HISTORY.md) — it indexes every milestone and points here only where the detail lives.
+
+---
+
+## Contents
+
+### `progress/`
+Root-level session and branch progress logs, superseded by the slimmed living `claude-progress.md`.
+
+| File | What it is |
+|------|-----------|
+| `claude-progress-pre-v5.4.0.md` | **Full** session progress log (v5.3.10 → v1.0.0 MVP) as it stood at v5.4.0. The living root `claude-progress.md` keeps only v5.4.0 + the v5.3.10 handoff. |
+| `dulcet-branch.md` | v3 voice-effects (Dulcet) branch phase plan. |
+| `eloquent-branch.md` | v4 subtitle (Eloquent) branch phase plan. |
+| `pretty-branch.md` | v2 personalization (pretty) branch phase plan — bar style / background origin. |
+
+### `docs/`
+Shipped release notes and resolved handoff/checkpoint docs. **Design docs for shipped features stayed in the living `docs/`** because the architecture docs cite them as active canon — only inert records live here.
+
+| File(s) | What it is |
+|---------|-----------|
+| `release-notes-v3.1.0.md` … `release-notes-v5.3.8.md` (12) | Per-version release notes for shipped tags v3.1.0, v3.7.0, v4.0.0, v5.0.0, and v5.3.0–v5.3.8. (v5.3.9 / v5.3.10 / v5.4.0 notes remain living.) |
+| `eloquent-4-handoff.md` | Resolved v4 subtitle-bake QA handoff (BUG-025…032). |
+| `eloquent-profile-checkpoint.md` | **Historical** profile bug-cluster audit (superseded for semantics). |
+| `eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint. |
+| `5.3.x-version-swapping-log.md` | Ops log of v5.3.x version-swap testing. |
+
+---
+
+## Rules for this archive
+
+- **Never edit** an archived file — it is a point-in-time capture. New work goes in the living layer.
+- **Internal cross-references reflect archive-time state.** An archived file may still say `docs/…` for a doc that has since moved or changed; that is intentional (it records what was true then). Living docs, by contrast, are kept link-correct.
+- **Extending the archive:** future `/docs-archiving` **Refresh** runs add new dated snapshots here (e.g. `progress/claude-progress-pre-<next-milestone>.md`) and never overwrite existing ones.

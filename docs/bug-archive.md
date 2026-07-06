@@ -279,7 +279,7 @@ Heartbeats were **syntactic** health checks. Project rule going forward: **seman
 - `src/ffmpeg/ffmpeg-runner.ts` — `TRANSCODE_STRATEGIES`, log collector
 - `src/ffmpeg/webm-preflight.ts` — duration/size checks only today
 - `src/recorder/voice-recorder.ts` — `captureStream(WAVEFORM_TARGET_FPS)`, MediaRecorder stop
-- `pretty-branch.md` — pretty-9 diagnosis section
+- `archive/progress/pretty-branch.md` — pretty-9 diagnosis section
 
 ---
 
@@ -685,11 +685,11 @@ In a blob worker, `location.href` is `blob:null/<uuid>`. Stripping `blob:` yield
 ### Related files
 
 - `src/settings/user-preferences.ts`, `entrypoints/design-studio/main.ts`, `src/ui/design-studio/mount-clip-studio.ts`
-- `docs/eloquent-profile-checkpoint.md`
+- `archive/docs/eloquent-profile-checkpoint.md`
 
 ### Checkpoint tag
 
-- **`eloquent-prefs-hydrated`** (`7c11796`) — profiles switch; canvas bg works; BUG-024 throw still open. See `docs/eloquent-profile-checkpoint-hydrated.md`.
+- **`eloquent-prefs-hydrated`** (`7c11796`) — profiles switch; canvas bg works; BUG-024 throw still open. See `archive/docs/eloquent-profile-checkpoint-hydrated.md`.
 
 ---
 

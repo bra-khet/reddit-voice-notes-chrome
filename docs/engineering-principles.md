@@ -137,4 +137,4 @@ When a feature “should” vary over time or depend on expressive filter math, 
 - **Theme = data driving draw calls** — user overrides merge onto a base preset; do not fork parallel recorders.
 - **Layout constants stay fixed** in the studio v1 scope (no bar count/spacing/width sliders) — reduces risk to `waveform.ts` aggregation and preview=WYSIWYG guarantees.
 - **Cheap per-frame flairs only** — bokeh, sparkle/twinkle presets reuse existing background draw patterns; profile at 24 fps before merge.
-- **Separate studio popup** for HSV/HEX and effect toggles; main popup remains the quick settings hub. See `pretty-branch.md` § Light design studio.
+- **Separate studio popup** for HSV/HEX and effect toggles; main popup remains the quick settings hub. See `archive/progress/pretty-branch.md` § Light design studio.

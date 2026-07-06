@@ -31,11 +31,11 @@ extension (or paste one back out). It's a self-contained Vite app in
 
 ## Status
 
-**Stable `main` v5.2.0 — Voice QoL** (2026-06-26) — two small quality-of-life additions to the Design Studio voice panel: a **character lock** padlock that guards a tuned custom voice against an accidental preset-chip click, and **clipboard copy/paste** to back up a voice character (and restore it later) as portable versioned JSON. Both build directly on the v5.0.0 Dulcet II voice engine — see `docs/release-notes-v5.0.0.md` for the full voice system. (v5.1.0 added animated GIF backgrounds.)
+**Stable `main` v5.2.0 — Voice QoL** (2026-06-26) — two small quality-of-life additions to the Design Studio voice panel: a **character lock** padlock that guards a tuned custom voice against an accidental preset-chip click, and **clipboard copy/paste** to back up a voice character (and restore it later) as portable versioned JSON. Both build directly on the v5.0.0 Dulcet II voice engine — see `archive/docs/release-notes-v5.0.0.md` for the full voice system. (v5.1.0 added animated GIF backgrounds.)
 
-**v5.0.0 — Dulcet II** (2026-06-25) — full DSP rebuild of voice stylization on a graph-native engine: composable `StylizedGraph` fragments (21 effect primitives across 7 categories) replace the legacy flat-field layer, with character voice presets (one-click chips + Incognito), per-primitive Fine-tune intensity dials, and physical analog sliders in the Design Studio voice composer. The graph bake is the single source of truth for preview and export. Release: `docs/release-notes-v5.0.0.md`.
+**v5.0.0 — Dulcet II** (2026-06-25) — full DSP rebuild of voice stylization on a graph-native engine: composable `StylizedGraph` fragments (21 effect primitives across 7 categories) replace the legacy flat-field layer, with character voice presets (one-click chips + Incognito), per-primitive Fine-tune intensity dials, and physical analog sliders in the Design Studio voice composer. The graph bake is the single source of truth for preview and export. Release: `archive/docs/release-notes-v5.0.0.md`.
 
-Previous stable: **v4.0.0** (Eloquent I — subtitles), **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `pretty-branch.md` (v2), `dulcet-branch.md` (v3), `eloquent-branch.md` (v4 subtitles).
+Previous stable: **v4.0.0** (Eloquent I — subtitles), **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `archive/progress/pretty-branch.md` (v2), `archive/progress/dulcet-branch.md` (v3), `archive/progress/eloquent-branch.md` (v4 subtitles).
 
 ### What's new in v4.0 (Eloquent I)
 

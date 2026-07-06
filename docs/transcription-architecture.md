@@ -319,4 +319,4 @@ Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031, BUG
 | v5.3.9 Parallel chunked bake | Concurrent paced chunk captures + stream-copy concat + normalize; auto-gated, serial fallback | **Done** (`v5.3.9`) |
 | v5.3.10 WebCodecs encode | Dual VP8 IVF + alphamerge composite; normalize eliminated on fast path | **Done** (`v5.3.10`) |
 
-See `eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec, and `docs/5.3.5-cue-stable-overlay-caching-design.md` for cache design + QA record.
+See `archive/progress/eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec, and `docs/5.3.5-cue-stable-overlay-caching-design.md` for cache design + QA record.
