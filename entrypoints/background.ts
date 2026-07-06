@@ -16,6 +16,7 @@ import {
   type GetBackgroundBlobRequest,
 } from '@/src/messaging/background-blob';
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
+import { verifyMp4PackedBinary } from '@/src/messaging/binary-verify';
 import {
   clearAllRelayTabs,
   forgetRelayTab,
@@ -58,7 +59,9 @@ import {
   MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_OFFSCREEN,
   MSG_TRANSCODE_PROGRESS,
+  MSG_QUERY_TRANSCODE_INFLIGHT,
   MSG_TRANSCODE_START,
+  type QueryTranscodeInflightResponse,
   MSG_TRANSCRIBE_ACK,
   MSG_TRANSCRIBE_CANCEL,
   MSG_TRANSCRIBE_COMPLETE,
@@ -126,6 +129,8 @@ let creatingOffscreen: Promise<void> | null = null;
 // Fix: Offscreen runtime.sendMessage does not reach content scripts; relay via tabs.sendMessage.
 const transcodeTabByJobId = new Map<string, number>();
 const activeTranscodeJobByTabId = new Map<number, string>();
+/** Offscreen jobs still running — Studio recovery queries this set. */
+const inflightTranscodeJobIds = new Set<string>();
 const transcribeTabByJobId = new Map<string, number>();
 const activeTranscribeJobByTabId = new Map<number, string>();
 const burnInTabByJobId = new Map<string, number>();
@@ -188,6 +193,45 @@ async function resolveRelayTabId(
   return undefined;
 }
 
+/**
+ * Design Studio extension pages listen on runtime.onMessage for offscreen
+ * broadcasts. When the Studio tab is torn down mid-transcode, persist the MP4
+ * and promote the take so reopen shows draft/ready instead of a phantom live
+ * 'processing' state.
+ */
+async function persistOrphanStudioTranscodeResult(
+  message: TranscodeCompleteMessage,
+): Promise<void> {
+  if (!message.ok || !message.mp4Base64 || !message.mp4ByteLength) return;
+
+  try {
+    verifyMp4PackedBinary({
+      dataBase64: message.mp4Base64,
+      byteLength: message.mp4ByteLength,
+    });
+    const mp4Bytes = unpackBinary(message.mp4Base64, message.mp4ByteLength);
+    const blob = new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' });
+
+    const take = await getTakeManager().getCurrentTake();
+    const durationSeconds = take?.meta.durationSeconds ?? take?.artifacts.baseRecording?.durationSeconds;
+    await saveLastBaseMp4(blob, durationSeconds);
+    await getTakeManager().recordArtifact('baseMp4', {
+      savedAt: Date.now(),
+      byteLength: message.mp4ByteLength,
+      durationSeconds,
+    });
+
+    if (take && (take.status === 'processing' || take.status === 'draft')) {
+      await getTakeManager().updateCurrentTake({ status: 'ready' });
+    }
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Orphan studio transcode persist failed', {
+      jobId: message.jobId,
+      error,
+    });
+  }
+}
+
 function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
   const jobId = message.jobId;
   const skipTabRelay = transcodeSkipTabRelayByJobId.get(jobId) === true;
@@ -215,13 +259,19 @@ function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCo
   }
 
   if (message.type === MSG_TRANSCODE_COMPLETE) {
+    const completeMsg = message;
     void (async () => {
+      if (skipTabRelay && completeMsg.ok) {
+        await persistOrphanStudioTranscodeResult(completeMsg);
+      }
+
       const tabId = transcodeTabByJobId.get(jobId);
       if (tabId !== undefined && activeTranscodeJobByTabId.get(tabId) === jobId) {
         activeTranscodeJobByTabId.delete(tabId);
       }
       transcodeTabByJobId.delete(jobId);
       transcodeSkipTabRelayByJobId.delete(jobId);
+      inflightTranscodeJobIds.delete(jobId);
       await forgetRelayTab(jobId);
       stopRelayKeepAlive();
     })();
@@ -361,6 +411,7 @@ async function registerTranscodeTab(
     }
     activeTranscodeJobByTabId.set(senderTabId, jobId);
     transcodeTabByJobId.set(jobId, senderTabId);
+    inflightTranscodeJobIds.add(jobId);
     if (!skipTabRelay) await rememberRelayTab(jobId, senderTabId);
     return;
   }
@@ -368,6 +419,7 @@ async function registerTranscodeTab(
   const tabId = await resolveActiveRedditTabId();
   if (tabId !== undefined) {
     transcodeTabByJobId.set(jobId, tabId);
+    inflightTranscodeJobIds.add(jobId);
     await rememberRelayTab(jobId, tabId);
     return;
   }
@@ -876,6 +928,15 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
+
+      if (type === MSG_QUERY_TRANSCODE_INFLIGHT) {
+        const response: QueryTranscodeInflightResponse = {
+          ok: true,
+          inflight: inflightTranscodeJobIds.size > 0,
+        };
+        sendResponse(response);
+        return false;
+      }
 
       if (type === MSG_OFFSCREEN_PREWARM) {
         // BUG FIX: BUG-034 cold-start offscreen dispatch race

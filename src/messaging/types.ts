@@ -7,6 +7,8 @@ export const MSG_TRANSCODE_OFFSCREEN = 'rvn/transcode-offscreen' as const;
 export const MSG_TRANSCODE_PROGRESS = 'rvn/transcode-progress' as const;
 export const MSG_TRANSCODE_COMPLETE = 'rvn/transcode-complete' as const;
 export const MSG_TRANSCODE_CANCEL = 'rvn/transcode-cancel' as const;
+/** Studio recovery — is any offscreen transcode job still running? */
+export const MSG_QUERY_TRANSCODE_INFLIGHT = 'rvn/query-transcode-inflight' as const;
 export const MSG_OFFSCREEN_PING = 'rvn/offscreen-ping' as const;
 export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 // BUG FIX: BUG-034 cold-start offscreen dispatch race
@@ -73,6 +75,15 @@ export interface TranscodeCancelRequest {
   jobId: string;
   /** Set when background relays to the offscreen worker. */
   target?: 'offscreen';
+}
+
+export interface QueryTranscodeInflightRequest {
+  type: typeof MSG_QUERY_TRANSCODE_INFLIGHT;
+}
+
+export interface QueryTranscodeInflightResponse {
+  ok: boolean;
+  inflight: boolean;
 }
 
 export interface TranscodeProgressMessage {

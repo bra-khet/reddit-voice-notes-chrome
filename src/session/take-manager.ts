@@ -296,6 +296,13 @@ export interface TakeManager {
   clearCurrentTake(): Promise<void>;
 
   /**
+   * Studio tab returned while the snapshot still says 'processing' but no
+   * offscreen transcode is running — demote to draft (WebM preserved) or
+   * promote to ready when baseMp4 already landed.
+   */
+  reconcileInterruptedProcessing(opts: { transcodeInflight: boolean }): Promise<void>;
+
+  /**
    * Reactive subscription — emits the current value immediately (async) and
    * on every cross-context change via storage.onChanged.
    */
@@ -446,6 +453,32 @@ function createStorageTakeManager(): TakeManager {
 
     clearCurrentTake(): Promise<void> {
       return enqueueWrite(() => writeTakeRaw(null));
+    },
+
+    reconcileInterruptedProcessing(opts: { transcodeInflight: boolean }): Promise<void> {
+      return enqueueWrite(async () => {
+        const current = await readTakeRaw();
+        if (!current || current.status !== 'processing') return;
+        if (opts.transcodeInflight) return;
+
+        if (current.artifacts.baseMp4) {
+          const next = mergeTakePatch(current, { status: 'ready' });
+          await writeTakeRaw(next);
+          return;
+        }
+
+        const hasRecording = Boolean(current.artifacts.baseRecording);
+        const next = mergeTakePatch(current, {
+          status: 'draft',
+          meta: {
+            ...current.meta,
+            note: hasRecording
+              ? 'Session interrupted — captured audio was preserved.'
+              : 'Recording interrupted before processing finished.',
+          },
+        });
+        await writeTakeRaw(next);
+      });
     },
 
     subscribe(listener: TakeChangeListener): TakeUnsubscribe {

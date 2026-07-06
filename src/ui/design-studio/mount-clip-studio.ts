@@ -105,6 +105,7 @@ import {
   promptNameForFork,
 } from '@/src/ui/design-studio/studio-save-pathways';
 import { getTakeManager } from '@/src/session/take-manager';
+import { reconcileStudioTakeAfterTabReturn } from '@/src/ui/design-studio/studio-take-recovery';
 import {
   mountCurrentTakeDeck,
   renderCurrentTakeDeck,
@@ -280,6 +281,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const takeUnsub = getTakeManager().subscribe((take) => {
     takeDeck?.update(take);
   });
+
+  // BUG FIX: Studio closed mid-processing left phantom 'processing' + grayed Record
+  // Fix: on mount, reconcile snapshot against background transcode queue (orphan UI reset
+  //      is handled in studio-recorder.ts pagehide/pageshow).
+  void reconcileStudioTakeAfterTabReturn();
 
   // v5.4.0 Phase 2: live audition — the WaveformRenderer canvas (the exact
   // pixels MediaRecorder encodes) replaces the static theme preview in the

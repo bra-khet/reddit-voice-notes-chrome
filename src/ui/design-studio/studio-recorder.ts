@@ -22,6 +22,7 @@ import {
   isTransientTakeStatus,
   STALE_TRANSIENT_MS,
 } from '@/src/session/take-manager';
+import { reconcileStudioTakeAfterTabReturn } from '@/src/ui/design-studio/studio-take-recovery';
 import { setWorkflowPhase } from '@/src/workflow/workflow-state';
 
 function formatTime(totalSeconds: number): string {
@@ -112,6 +113,26 @@ export function mountStudioRecorder(
     host = null;
     currentState = null;
     setActive(false);
+  }
+
+  /**
+   * Tab teardown while a session is mid-flight — persist draft state and reset
+   * transport chrome without calling host.close() (that path runs dispose() and
+   * explicitly cancels in-flight offscreen transcode via AbortController).
+   * Matches recorder-panel.ts pagehide semantics (persistTakeOnClose only).
+   */
+  function detachAuditionOnPageHide(): void {
+    host?.session.persistTakeOnClose();
+    finishAuditionUi();
+    host = null;
+    currentState = null;
+  }
+
+  /** Recover from pagehide/bfcache leaving `active` true while `host` was nulled. */
+  function resetOrphanedAuditionUi(): void {
+    if (!active || host) return;
+    finishAuditionUi();
+    currentState = null;
   }
 
   /** Hide transport + restore preview without tearing down the capture session. */
@@ -234,14 +255,21 @@ export function mountStudioRecorder(
 
   // Studio tab teardown mid-session → same auto-draft semantics as the panel.
   const pageHideHandler = (): void => {
-    host?.close();
-    host = null;
+    detachAuditionOnPageHide();
+  };
+  const pageShowHandler = (event: PageTransitionEvent): void => {
+    if (event.persisted) resetOrphanedAuditionUi();
   };
   window.addEventListener('pagehide', pageHideHandler);
+  window.addEventListener('pageshow', pageShowHandler);
 
   return {
     async openAudition(): Promise<void> {
-      if (disposed || active) return;
+      if (disposed) return;
+      resetOrphanedAuditionUi();
+      if (active) return;
+
+      await reconcileStudioTakeAfterTabReturn();
 
       // Another context (Reddit panel) may have a live session — warn instead
       // of silently replacing its 'recording' snapshot.
@@ -292,6 +320,7 @@ export function mountStudioRecorder(
     dispose(): void {
       disposed = true;
       window.removeEventListener('pagehide', pageHideHandler);
+      window.removeEventListener('pageshow', pageShowHandler);
       closeAudition();
     },
   };
