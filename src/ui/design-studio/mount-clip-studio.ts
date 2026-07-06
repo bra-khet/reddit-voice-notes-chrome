@@ -193,10 +193,10 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
                 </button>
               </div>
             </section>
+            ${renderCurrentTakeDeck()}
             <div class="studio__status-strip" data-studio-status-strip aria-live="polite"></div>
           </div>
           ${renderPreviewBlock('primary')}
-          ${renderCurrentTakeDeck()}
         </div>
         <div class="studio__panel-strip">
       <section class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">

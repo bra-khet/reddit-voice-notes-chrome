@@ -54,20 +54,14 @@ body:has(.studio-v4) {
   width: 100%;
 }
 
-/* Wide: profile/status right (spans both rows); preview + Current Take deck
-   stacked left — take deck sits directly under the live preview monitor. */
+/* Wide: live preview left; profile/status column right (Current Take deck nested
+   inside profile cluster — below profile selector, above status strip). */
 @media (min-width: 900px) {
   .studio-v4 .studio__hero {
     display: grid;
     grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
-    grid-template-rows: auto auto;
+    grid-template-rows: auto;
     align-items: start;
-  }
-
-  .studio-v4 .studio__hero .studio__profile-cluster {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    align-self: stretch;
   }
 
   .studio-v4 .studio__hero .studio__preview-wrap {
@@ -76,12 +70,10 @@ body:has(.studio-v4) {
     align-self: start;
   }
 
-  .studio-v4 .studio__hero .studio-v4__take-deck {
-    grid-column: 1;
-    grid-row: 2;
-    align-self: start;
-    max-width: 640px;
-    width: 100%;
+  .studio-v4 .studio__hero .studio__profile-cluster {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: stretch;
   }
 }
 
@@ -226,6 +218,16 @@ body:has(.studio-v4) {
   border-image: var(--studio-v4-border-panel);
   background: var(--studio-bg-deep);
   box-sizing: border-box;
+}
+
+/* Nested in profile cluster — inset section, not a second framed panel. */
+.studio-v4 .studio__profile-cluster .studio-v4__take-deck {
+  margin-top: 10px;
+  padding: 10px 0 4px;
+  border: none;
+  border-image: none;
+  border-top: 1px solid rgba(255, 213, 79, 0.15);
+  background: transparent;
 }
 
 .studio-v4 .studio-v4__take-head {

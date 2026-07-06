@@ -56,7 +56,7 @@ Single source of truth for the current take across all contexts:
 ### Phase 1 — Current Take deck **COMPLETE** (2026-07-05)
 
 - `src/ui/design-studio/current-take-status.ts` — hero "Current Take" deck: 9-slice panel frame, status icons, mono duration/badge chips (DRAFT / BAKED / SUBS PENDING), state headline + hint, **Download MP4 primary CTA** (amber bake-btn language; baked preferred over base, resolved from extension-origin IDB at click time), Record/Re-record secondary (Phase 1: routes to Reddit via `activateRedditTab` + workflow 'capture'; Phase 2 swaps to native), Discard tertiary (snapshot only — single-slot blobs overwrite on next take).
-- Hero layout (revised 2026-07-05): profile → live preview → Current Take deck (DOM order); wide grid = preview + deck stacked left, profile/status right; narrow = same vertical stack. CSS: `studio-v4-layout.css` § Current Take deck; live states breathe via `prefers-reduced-motion`-guarded blink.
+- Hero layout (revised 2026-07-05): Current Take deck nested in profile/status panel (below profile selector, above status strip); hero = profile column then live preview (narrow stack); wide = preview left, profile column right. CSS: `studio-v4-layout.css` § Current Take deck; live states breathe via `prefers-reduced-motion`-guarded blink.
 - Status strip take row removed — deck is the single authoritative take display (`buildTakeStatusLine` deleted).
 - Tests: `node scripts/test-take-deck.mjs` (11 checks — state → CTA/badge matrix).
 
@@ -87,8 +87,9 @@ Single source of truth for the current take across all contexts:
 
 ### v5.4.0 QA follow-up — hero preview aspect + layout (2026-07-05)
 
-- **Bug:** landscape hero monitor stretched vertically (~4:3 draw window); bezel SVG misaligned; Current Take deck sat above preview / in right column while profile was below.
-- **Fix:** preview no longer `grid-row: span 2` (was inheriting right-column height); artboard + `preview-window-frame.svg` aligned to canvas **640×360 (16:9)**; `align-self: start` on preview/deck; DOM reordered profile → preview → take deck; wide grid places take deck under preview (left), profile spans right.
+- **Bug:** landscape hero monitor stretched vertically (~4:3 draw window); bezel SVG misaligned.
+- **Fix:** preview no longer `grid-row: span 2` (was inheriting right-column height); artboard + `preview-window-frame.svg` aligned to canvas **640×360 (16:9)**; `align-self: start` on preview.
+- **Layout (revised):** Current Take deck lives inside the profile/status panel — below profile selector, above status strip (not under live preview). Wide grid: preview left, profile column right.
 - **Files:** `studio-v4-layout.css`, `mount-clip-studio.ts`, `public/assets/design-studio-v4/panels/preview-window-frame.svg`
 - **Verify:** `npm run build` PASS
 
