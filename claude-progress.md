@@ -85,6 +85,28 @@ Single source of truth for the current take across all contexts:
 
 **Merge/tag `v5.4.0` after user QA pass** (checklist in release notes). Push deferred per repo convention.
 
+### v5.4.0 QA — mid-processing tab-close recovery **PASS** (2026-07-06)
+
+User QA checklist item **#4** (close Studio mid-processing → reopen → draft/ready, no lost session): **PASS**.
+
+**Root causes fixed (commits `03e33c0`, `ea03d8a`):**
+- Studio `pagehide` called `host.close()` → `dispose()` → aborted offscreen transcode; phantom `processing` snapshot + orphaned audition UI (grayed Record).
+- `main.ts` `pagehide` `unmount()` re-ran `closeAudition()` and cancelled transcode again.
+- Draft with preserved WebM had no MP4 → Reddit attach mode unavailable until manual recovery.
+
+**As-built recovery path:**
+- `src/ui/design-studio/studio-take-recovery.ts` — reconcile phantom `processing`, auto-resume WebM→MP4 from IDB, serialized via recovery chain.
+- `entrypoints/background.ts` — `persistOrphanStudioTranscodeResult`, `MSG_QUERY_TRANSCODE_INFLIGHT`.
+- `src/session/take-manager.ts` — `reconcileInterruptedProcessing()`.
+- `studio-recorder.ts` — `detachAuditionOnPageHide()`; `dispose()` skips teardown during `processing`.
+- `recorder-panel.ts` — `resumeDraftTranscodeIfNeeded()` before attach resolution.
+
+### v5.4.0 QA follow-up — Reddit panel live sync during Studio capture (2026-07-06)
+
+**Bug:** Open Reddit composer panel while Studio is recording → legacy mic UI; stays there after Studio take completes until composer close/reopen.
+
+**Fix:** `RecorderPanel.open()` opens attach-waiting chrome when a Studio-sourced transient take exists; `maybePromoteNewerTake()` promotes from mic-ready (not only `stopped`) when TakeManager advances via `storage.onChanged` subscription.
+
 ### v5.4.0 QA follow-up — hero preview aspect + layout (2026-07-05)
 
 - **Bug:** landscape hero monitor stretched vertically (~4:3 draw window); bezel SVG misaligned.

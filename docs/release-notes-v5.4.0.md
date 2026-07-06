@@ -40,9 +40,10 @@ Untouched. Bake/export still flows through `subtitle-bake.ts` / `subtitle-canvas
 3. Subtitles enabled: transcript arrives in Subtitles panel; bake → deck shows BAKED; Download exports the captioned MP4.
 
 **Persistence / recovery**
-4. Close the Studio tab mid-processing → reopen → deck shows draft/ready state (no lost session).
+4. Close the Studio tab mid-processing → reopen → deck shows draft/ready state (no lost session). **PASS** (2026-07-06) — see `studio-take-recovery.ts`, `main.ts` pagehide must not abort offscreen transcode via `dispose()`.
 5. Record on Reddit → open Studio during processing → deck shows live "Processing…" → flips to ready when the relay lands.
 6. Discard a re-record (Studio and Reddit) → previous take reappears intact in the deck.
+11. Open Reddit composer panel **while** Studio is recording/processing → panel shows attach-waiting chrome (not legacy mic UI) and morphs to attach mode when the Studio take lands — **no composer close/reopen required**.
 
 **Reddit output target**
 7. With a ready/baked Studio take: click the voice-note button → attach mode (take card + duration) → **Attach Studio take** → MP4 lands in the composer. Baked takes attach captions; unbaked takes attach the base MP4.
@@ -51,6 +52,16 @@ Untouched. Bake/export still flows through `subtitle-bake.ts` / `subtitle-canvas
 
 **Regression sweep**
 10. Voice character preview, Smart Split, segment editor, Overlay Lab, parallel/WebCodecs bake toggles, personal backgrounds, profiles — unchanged behavior expected.
+
+## Mid-processing tab-close recovery (as-built 2026-07-06)
+
+When the Studio tab closes during post-stop transcode:
+
+1. `studio-recorder.ts` `pagehide` persists draft via `persistTakeOnClose()` without `host.close()` (avoids explicit transcode cancel).
+2. `main.ts` `unmount()` → `studioRecorder.dispose()` skips full teardown while phase is `processing`.
+3. `background.ts` may persist orphan studio transcode MP4s when the Studio listener is gone.
+4. On reopen, `reconcileStudioTakeAfterTabReturn()` demotes phantom `processing`, then `resumeDraftTranscodeIfNeeded()` re-encodes preserved WebM if needed.
+5. Reddit `findAttachableTake()` calls the same resume helper so attach mode can appear after draft recovery.
 
 ## Known notes
 

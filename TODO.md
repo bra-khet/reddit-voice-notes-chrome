@@ -13,7 +13,7 @@ Studio-native recording, persistent take management, standalone export. Reuse v5
 | 1 | Current Take deck + Download MP4 on main studio screen | **done** (`current-take-status.ts`; `node scripts/test-take-deck.mjs`) |
 | 2 | Re-record / live mic preview in main preview area | **done** (`studio-recorder.ts` + headless `recorder-host.ts`; live canvas = encoded pixels) |
 | 3 | Reddit as optional output target (not recording gateway) | **done** (panel attach mode; relay `store: baked|base`) |
-| 4 | Polish, progressive disclosure, demo parity | **done (code)** — user QA checklist in [`docs/release-notes-v5.4.0.md`](docs/release-notes-v5.4.0.md); demo capture parity deferred |
+| 4 | Polish, progressive disclosure, demo parity | **done (code)** — user QA in [`docs/release-notes-v5.4.0.md`](docs/release-notes-v5.4.0.md); item **#4 recovery PASS** (2026-07-06); demo capture parity deferred |
 
 **Optional before/during 5.4.0:** enable `experimental.webCodecsBake` default in production; composite-stage perf (~43 s alphamerge wall).
 
