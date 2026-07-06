@@ -56,6 +56,8 @@ export type { DesignOverrides } from '@/src/theme/design-overrides';
  */
 export const USER_PREFS_STORAGE_KEY = 'rvnUserPrefs' as const;
 export const USER_PREFS_VERSION = 1 as const;
+/** One-time marker — flips stored v5.3.10 rollout `webCodecsBake: false` to true. */
+export const WEBCODECS_BAKE_ROLLOUT_MIGRATED_KEY = 'rvnWebCodecsBakeRolloutMigrated' as const;
 
 /** Atomic subtitle on/off — immune to rvnUserPrefs read-modify-write races (BUG-019). */
 export const SUBTITLES_ENABLED_STORAGE_KEY = 'rvnSubtitlesEnabled' as const;
@@ -126,13 +128,34 @@ export interface ExperimentalPreferences {
    */
   parallelBake?: boolean;
   /**
-   * v5.3.10 WebCodecs overlay encoding. Default false during rollout — when
-   * true, the bake tries the VideoEncoder dual-stream path (probe-gated) and
-   * falls back to the MediaRecorder pipeline on any failure.
+   * v5.3.10 WebCodecs overlay encoding. Default true after v5.3.10 QA — when
+   * enabled, production bake uses the VideoEncoder dual-stream path
+   * (probe-gated `'auto'`) and falls back to the MediaRecorder pipeline on any
+   * failure. Set false to force the legacy MediaRecorder path.
    * Sync: subtitle-bake.ts, subtitle-canvas-bake.ts encoder,
    *       subtitle-overlay-webcodecs.ts
    */
   webCodecsBake?: boolean;
+}
+
+/** Production bake encoder resolved from experimental prefs (v5.3.10). */
+export type OverlayBakeEncoderPreference = 'auto' | 'mediarecorder';
+
+/** v5.3.9 — parallel chunked render unless explicitly disabled. */
+export function resolveParallelBakeEnabled(
+  experimental?: ExperimentalPreferences,
+): boolean {
+  return experimental?.parallelBake !== false;
+}
+
+/**
+ * v5.3.10 — WebCodecs dual-stream encode with probe-gated fallback.
+ * Opt-out only (`webCodecsBake === false`); undefined/true → `'auto'`.
+ */
+export function resolveOverlayBakeEncoder(
+  experimental?: ExperimentalPreferences,
+): OverlayBakeEncoderPreference {
+  return experimental?.webCodecsBake === false ? 'mediarecorder' : 'auto';
 }
 
 export interface UserPreferencesV1 {
@@ -165,7 +188,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   },
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
   transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
-  experimental: { parallelBake: true, webCodecsBake: false },
+  experimental: { parallelBake: true, webCodecsBake: true },
 };
 
 /** Synchronous cache on extension pages — survives design-studio tab close (BUG-019). */
@@ -290,13 +313,40 @@ function mergePreferences(raw: Partial<UserPreferencesV1> | undefined): UserPref
     },
     voiceEffect: normalizeVoiceEffectConfig(raw?.voiceEffect),
     transcriptConfig: normalizeTranscriptConfig(raw?.transcriptConfig),
-    // CHANGED: v5.3.9 — merge experimental flags explicitly (field-by-field merge
-    // WHY: mergePreferences reconstructs the object; unmerged fields are dropped.
-    experimental: {
-      ...DEFAULT_USER_PREFERENCES.experimental,
-      ...raw?.experimental,
-    },
+    experimental: mergeExperimentalPreferences(raw?.experimental),
   };
+}
+
+function mergeExperimentalPreferences(
+  raw: Partial<ExperimentalPreferences> | undefined,
+): ExperimentalPreferences {
+  return {
+    ...DEFAULT_USER_PREFERENCES.experimental,
+    ...raw,
+  };
+}
+
+/** Flip stored rollout-default `webCodecsBake: false` once; preserves future opt-out. */
+async function migrateWebCodecsBakeRolloutIfNeeded(
+  merged: UserPreferencesV1,
+  raw: Partial<UserPreferencesV1> | undefined,
+): Promise<UserPreferencesV1> {
+  const markers = await browser.storage.local.get(WEBCODECS_BAKE_ROLLOUT_MIGRATED_KEY);
+  if (markers[WEBCODECS_BAKE_ROLLOUT_MIGRATED_KEY]) {
+    return merged;
+  }
+  const hadRolloutDefaultFalse = raw?.experimental?.webCodecsBake === false;
+  await browser.storage.local.set({ [WEBCODECS_BAKE_ROLLOUT_MIGRATED_KEY]: true });
+  if (!hadRolloutDefaultFalse) {
+    return merged;
+  }
+  return commitUserPreferences({
+    ...merged,
+    experimental: {
+      ...merged.experimental,
+      webCodecsBake: true,
+    },
+  });
 }
 
 // BUG FIX: profile UI stale while rvnUserPrefs correct (BUG-023)
@@ -343,7 +393,8 @@ async function readUserPreferencesBlob(): Promise<UserPreferencesV1> {
     return commitUserPreferences(migrated);
   }
 
-  const merged = await mergeSubtitlesEnabledIntoPrefs(mergePreferences(raw));
+  let merged = await mergeSubtitlesEnabledIntoPrefs(mergePreferences(raw));
+  merged = await migrateWebCodecsBakeRolloutIfNeeded(merged, raw);
   if (merged.appearance.activeThemeId !== raw.appearance?.activeThemeId) {
     return commitUserPreferences(merged);
   }

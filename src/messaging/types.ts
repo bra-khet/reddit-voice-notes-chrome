@@ -7,6 +7,8 @@ export const MSG_TRANSCODE_OFFSCREEN = 'rvn/transcode-offscreen' as const;
 export const MSG_TRANSCODE_PROGRESS = 'rvn/transcode-progress' as const;
 export const MSG_TRANSCODE_COMPLETE = 'rvn/transcode-complete' as const;
 export const MSG_TRANSCODE_CANCEL = 'rvn/transcode-cancel' as const;
+/** Studio recovery — is any offscreen transcode job still running? */
+export const MSG_QUERY_TRANSCODE_INFLIGHT = 'rvn/query-transcode-inflight' as const;
 export const MSG_OFFSCREEN_PING = 'rvn/offscreen-ping' as const;
 export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 // BUG FIX: BUG-034 cold-start offscreen dispatch race
@@ -73,6 +75,15 @@ export interface TranscodeCancelRequest {
   jobId: string;
   /** Set when background relays to the offscreen worker. */
   target?: 'offscreen';
+}
+
+export interface QueryTranscodeInflightRequest {
+  type: typeof MSG_QUERY_TRANSCODE_INFLIGHT;
+}
+
+export interface QueryTranscodeInflightResponse {
+  ok: boolean;
+  inflight: boolean;
 }
 
 export interface TranscodeProgressMessage {
@@ -272,6 +283,15 @@ export interface BurnInCompleteMessage {
 }
 
 export type BurnInBroadcast = BurnInAckResponse | BurnInProgressMessage | BurnInCompleteMessage;
+
+/**
+ * v5.4.0 Phase 0 — take/session sync has NO message family by design.
+ * The current-take snapshot lives in browser.storage.local (CURRENT_TAKE_KEY
+ * in src/session/take-manager.ts) and broadcasts via storage.onChanged, which
+ * every context (studio page, content script, background, offscreen) already
+ * shares. Blob transport keeps using the existing relays above
+ * (MSG_SAVE_LAST_RECORDING / MSG_SAVE_LAST_BASE_MP4 / baked-mp4 chunk fetch).
+ */
 
 export function parseBurnInSegmentsJson(json: string): TranscriptSegment[] {
   const parsed = JSON.parse(json) as TranscriptSegment[];

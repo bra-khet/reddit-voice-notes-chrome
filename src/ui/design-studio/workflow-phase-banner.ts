@@ -36,7 +36,9 @@ function ctaText(phase: WorkflowPhase, status: WorkflowBannerStatus): string {
   const eff = effectivePhase(phase, status);
   if (eff === 'polish') {
     if (status.bakedForSession) {
-      return 'Captioned MP4 ready — return to Reddit to attach your comment.';
+      // v5.4.0: Download in the Current Take deck is the universal primary;
+      // Reddit attach is the polished secondary.
+      return 'Captioned MP4 ready — download it from the Current Take deck, or attach it on Reddit.';
     }
     if (status.transcriptDelivery === 'pending') {
       return 'Recording ready — subtitles are loading. Edit & bake once they arrive.';
@@ -58,17 +60,19 @@ function ctaText(phase: WorkflowPhase, status: WorkflowBannerStatus): string {
     }
     return 'Recording ready — open the Subtitles panel to add captions, then Bake.';
   }
+  // v5.4.0: the Studio records natively — the deck's Record button is the
+  // primary path; Reddit stays as the quick in-context alternative.
   if (eff === 'capture') {
-    return 'Design saved — switch to your Reddit tab and hit Record.';
+    return 'Design saved — press Record in the Current Take deck, or record on your Reddit tab.';
   }
-  return 'Design your clip style, then switch to Reddit to record your voice comment.';
+  return 'Design your clip style, then record right here in the Studio — live preview included.';
 }
 
 function ctaButtonLabel(phase: WorkflowPhase, status: WorkflowBannerStatus): string | null {
   const eff = effectivePhase(phase, status);
-  if (eff === 'polish' && status.bakedForSession) return 'Switch to Reddit to attach';
+  if (eff === 'polish' && status.bakedForSession) return 'Attach on Reddit';
   if (eff === 'polish') return null; // Primary CTA is the Bake button in Subtitles panel
-  return 'Switch to Reddit';
+  return 'Record on Reddit instead';
 }
 
 function stepperHtml(eff: WorkflowPhase): string {
@@ -122,8 +126,8 @@ function bannerHtml(phase: WorkflowPhase, status: WorkflowBannerStatus, isSwitch
         ${btnHtml}
       </div>
       <details class="wf-why">
-        <summary class="wf-why__summary">Why the tab switch?</summary>
-        <p class="wf-why__body">Recording happens inside Reddit for a native feel — your voice appears directly in your comment. Design and post-production (including subtitle editing and baking) happen here in the Studio, where there's space for full controls and a real-time WYSIWYG preview.</p>
+        <summary class="wf-why__summary">How does Reddit fit in?</summary>
+        <p class="wf-why__body">Everything — recording, design, subtitles, baking, export — lives here in the Studio with a real-time WYSIWYG preview. Reddit is the polished output target: the voice-note button in any comment box attaches your current Studio take in one click, and can still record on the spot when you want a quick native capture.</p>
       </details>
     </div>`;
 }

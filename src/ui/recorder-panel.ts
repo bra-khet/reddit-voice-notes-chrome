@@ -25,8 +25,18 @@ import { populateRecorderClipStyleSelect } from '@/src/ui/clip-style-select';
 import { deriveChromeFromTheme } from '@/src/ui/theme-chrome';
 import { RVN_COLORS } from '@/src/ui/tokens';
 import { fetchBakedMp4FromExtension } from '@/src/storage/baked-mp4-fetch';
-import { BAKED_MP4_READY_KEY } from '@/src/settings/user-preferences';
+import {
+  BAKED_MP4_READY_KEY,
+  LAST_RECORDING_READY_KEY,
+} from '@/src/settings/user-preferences';
 import { openDesignStudioWindow } from '@/src/ui/design-studio/open-design-studio';
+import {
+  getTakeManager,
+  isNewerTakeThan,
+  isTransientTakeStatus,
+  takeFreshnessMs,
+  type CurrentTake,
+} from '@/src/session/take-manager';
 import { showToast } from './toast';
 
 const PANEL_HOST_ATTR = 'data-rvn-recorder-host';
@@ -92,6 +102,24 @@ export class RecorderPanel {
   private bakedMp4Listener: ((changes: Record<string, unknown>, area: string) => void) | null = null;
   private workflowPhase: WorkflowPhase = 'design';
   private unsubWorkflowPhase: (() => void) | null = null;
+  /** v5.4.0: auto-draft when the Reddit tab itself is torn down mid-session. */
+  private pageHideHandler: (() => void) | null = null;
+  /**
+   * v5.4.0 Phase 3: 'attach' when a completed Studio take exists — the panel
+   * opens as an output target (attach primary, record-here secondary).
+   */
+  private mode: 'record' | 'attach' = 'record';
+  private attachableTake: CurrentTake | null = null;
+  private unsubTakeManager: (() => void) | null = null;
+  private takeArtifactListener: ((changes: Record<string, unknown>, area: string) => void) | null =
+    null;
+  /** Latest take snapshot from TakeManager — drives Studio-capture guards. */
+  private lastObservedTake: CurrentTake | null = null;
+  /**
+   * When the local Reddit session reaches 'stopped', bind to the TakeManager
+   * row that produced the in-memory mp4Blob — used to detect a newer Studio take.
+   */
+  private localTakeAnchor: { takeId: string; freshnessMs: number } | null = null;
 
   constructor(composer: Element | null = null) {
     this.composer = composer;
@@ -393,6 +421,43 @@ export class RecorderPanel {
         }
         .how-it-works__step-text { font-size: 12px; color: #c9cdf5; margin: 0; }
         .how-it-works__step-text strong { color: #e0e2f8; }
+        /* ── v5.4.0 Phase 3: Current Studio Take card (attach mode) ──
+           Mirrors the Studio deck's card language: amber signage title,
+           mono chronos chip, indigo inset surface. */
+        .take-card {
+          margin: 0 0 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 213, 79, 0.28);
+          background: linear-gradient(180deg, rgba(29, 31, 110, 0.3), rgba(10, 0, 20, 0.55));
+          box-shadow: inset 0 1px 0 rgba(255, 213, 79, 0.08);
+        }
+        .take-card[hidden] { display: none !important; }
+        .take-card__head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 4px;
+        }
+        .take-card__title {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: ${STUDIO.amber};
+        }
+        .take-card__chip {
+          font: 700 11px/1 ui-monospace, 'Cascadia Mono', 'SFMono-Regular', monospace;
+          font-variant-numeric: tabular-nums;
+          color: ${STUDIO.amber};
+          background: rgba(212, 160, 32, 0.16);
+          border: 1px solid rgba(255, 213, 79, 0.45);
+          border-radius: 999px;
+          padding: 3px 8px;
+        }
+        .take-card__chip[hidden] { display: none !important; }
+        .take-card__state { margin: 0; font-size: 13px; font-weight: 600; color: ${STUDIO.text}; }
       </style>
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="rvn-title" tabindex="-1">
         <div class="header">
@@ -412,6 +477,13 @@ export class RecorderPanel {
             </button>
           </div>
         </div>
+        <div class="take-card" data-take-card hidden>
+          <div class="take-card__head">
+            <span class="take-card__title">Current Studio Take</span>
+            <span class="take-card__chip" data-take-chip hidden></span>
+          </div>
+          <p class="take-card__state" data-take-card-state></p>
+        </div>
         <details class="how-it-works" data-how-it-works hidden>
           <summary class="how-it-works__summary">How this works</summary>
           <div class="how-it-works__body">
@@ -421,11 +493,11 @@ export class RecorderPanel {
             </p>
             <p class="how-it-works__step">
               <span class="how-it-works__num" aria-hidden="true">2</span>
-              <span class="how-it-works__step-text"><strong>Capture</strong> — return here and record your voice comment.</span>
+              <span class="how-it-works__step-text"><strong>Capture</strong> — record in the Studio's live preview, or right here.</span>
             </p>
             <p class="how-it-works__step">
               <span class="how-it-works__num" aria-hidden="true">3</span>
-              <span class="how-it-works__step-text"><strong>Polish &amp; Bake</strong> — go back to Studio to edit subtitles and bake your final MP4.</span>
+              <span class="how-it-works__step-text"><strong>Polish &amp; Bake</strong> — edit subtitles and bake in the Studio, then attach or download.</span>
             </p>
           </div>
         </details>
@@ -516,31 +588,298 @@ export class RecorderPanel {
     this.lastNotifiedPhase = null;
     this.lastNotifiedError = '';
 
-    this.session?.dispose();
-    this.unsubscribe?.();
-    this.session = new VoiceRecorderSession();
-    this.unsubscribe = this.session.subscribe((state) => {
-      this.currentState = state;
-      this.render(state);
-    });
-
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = onUserPreferencesChanged((prefs) => {
       this.syncClipStyleSelect(prefs);
       this.applyThemeChrome(prefs.appearance);
     });
 
+    this.unsubWorkflowPhase?.();
+    this.unsubWorkflowPhase = onWorkflowPhaseChanged((phase) => {
+      this.workflowPhase = phase;
+      if (this.mode === 'record') this.render(this.currentState);
+    });
+
+    // v5.4.0: tab navigation / close mid-session — same auto-draft semantics
+    // as panel close. storage.local writes from pagehide are best-effort but
+    // reliable in practice (same pattern as the Studio's BUG-017 flushes).
+    this.pageHideHandler = () => this.session?.persistTakeOnClose();
+    window.addEventListener('pagehide', this.pageHideHandler);
+
+    // v5.4.0 Phase 3: with a completed Studio take + a live composer, the
+    // panel opens as an OUTPUT TARGET — attach primary, record-here secondary.
+    const attachTake = await this.findAttachableTake();
+    if (attachTake) {
+      this.mode = 'attach';
+      this.attachableTake = attachTake;
+      try {
+        const [prefs, phase] = await Promise.all([loadUserPreferences(), getWorkflowPhase()]);
+        this.workflowPhase = phase;
+        this.syncClipStyleSelect(prefs);
+        this.applyThemeChrome(prefs.appearance);
+      } catch {
+        // Default chrome is fine — attach itself relays through the background.
+      }
+      this.renderAttachMode();
+      this.wireTakeManagerSync();
+      this.wireAttachArtifactSignals();
+      this.panelEl.focus();
+      return;
+    }
+
+    // BUG FIX: Reddit panel stuck on legacy mic UI while Studio captures
+    // Fix: a Studio-sourced transient take means attach-waiting chrome — not a fresh mic session.
+    try {
+      const studioInFlight = await getTakeManager().getCurrentTake();
+      if (
+        studioInFlight &&
+        studioInFlight.source === 'studio' &&
+        isTransientTakeStatus(studioInFlight.status)
+      ) {
+        this.mode = 'attach';
+        this.promoteToAttachFromRecord(studioInFlight, 'busy');
+        this.wireTakeManagerSync();
+        this.wireAttachArtifactSignals();
+        this.panelEl.focus();
+        return;
+      }
+    } catch {
+      // Non-blocking — fall through to the classic record path.
+    }
+
+    await this.startRecordSession();
+    this.wireTakeManagerSync();
+    this.wireAttachArtifactSignals();
+  }
+
+  /** Fingerprint for attach-card refresh — id/artifacts/status, not full object identity. */
+  private takeAttachFingerprint(take: CurrentTake | null): string {
+    if (!take) return '';
+    return [
+      take.id,
+      take.lastUpdated,
+      take.status,
+      take.artifacts.bakedMp4?.savedAt ?? 0,
+      take.artifacts.baseMp4?.savedAt ?? 0,
+      take.meta.durationSeconds ?? 0,
+    ].join('|');
+  }
+
+  /** Completed takes only — a mid-flight or artifact-less snapshot is not attachable. */
+  private resolveAttachableTake(take: CurrentTake | null): CurrentTake | null {
+    if (!this.composer || !document.contains(this.composer)) return null;
+    if (!take || isTransientTakeStatus(take.status)) return null;
+    if (!take.artifacts.bakedMp4 && !take.artifacts.baseMp4) return null;
+    return take;
+  }
+
+  private async findAttachableTake(): Promise<CurrentTake | null> {
+    try {
+      const { resumeDraftTranscodeIfNeeded } = await import(
+        '@/src/ui/design-studio/studio-take-recovery'
+      );
+      await resumeDraftTranscodeIfNeeded();
+      return this.resolveAttachableTake(await getTakeManager().getCurrentTake());
+    } catch {
+      return null;
+    }
+  }
+
+  /** Live sync while the panel stays open — Studio record/rebake updates the attach card. */
+  private wireTakeManagerSync(): void {
+    this.unsubTakeManager?.();
+    this.unsubTakeManager = getTakeManager().subscribe((take) => {
+      this.onTakeManagerChange(take);
+    });
+  }
+
+  /** Artifact stamps can lag status by one relay — refresh when IDB/meta signals land. */
+  private wireAttachArtifactSignals(): void {
+    if (this.takeArtifactListener) {
+      browser.storage.onChanged.removeListener(this.takeArtifactListener);
+    }
+    this.takeArtifactListener = (changes, area) => {
+      if (area !== 'local') return;
+      if (BAKED_MP4_READY_KEY in changes || LAST_RECORDING_READY_KEY in changes) {
+        void this.refreshTakeFromStorage();
+      }
+    };
+    browser.storage.onChanged.addListener(this.takeArtifactListener);
+  }
+
+  private async refreshTakeFromStorage(): Promise<void> {
+    if (this.attaching) return;
+    try {
+      this.onTakeManagerChange(await getTakeManager().getCurrentTake());
+    } catch {
+      // Non-blocking — TakeManager subscription will retry on the next write.
+    }
+  }
+
+  private async captureLocalTakeAnchor(): Promise<void> {
+    try {
+      const take = await getTakeManager().getCurrentTake();
+      if (!take) return;
+      this.localTakeAnchor = { takeId: take.id, freshnessMs: takeFreshnessMs(take) };
+    } catch {
+      // Non-blocking — promotion falls back to authoritative TakeManager reads.
+    }
+  }
+
+  private shouldPreferTakeOverLocalSession(take: CurrentTake): boolean {
+    if (this.currentState.phase !== 'stopped') return false;
+    const anchor = this.localTakeAnchor;
+    if (!anchor) return true;
+    return isNewerTakeThan(take, anchor.freshnessMs) || take.id !== anchor.takeId;
+  }
+
+  /** ready/baked promoted before background stamps baseMp4/bakedMp4 into the snapshot. */
+  private isTakeArtifactPending(take: CurrentTake): boolean {
+    if (take.artifacts.bakedMp4 || take.artifacts.baseMp4) return false;
+    return take.status === 'ready' || take.status === 'baked';
+  }
+
+  private isStudioCaptureBlocking(): boolean {
+    const take = this.lastObservedTake;
+    return Boolean(take && take.source === 'studio' && isTransientTakeStatus(take.status));
+  }
+
+  private onTakeManagerChange(take: CurrentTake | null): void {
+    if (this.attaching) return;
+
+    this.lastObservedTake = take;
+
+    if (this.mode === 'record') {
+      void this.maybePromoteNewerTake(take);
+      return;
+    }
+
+    const next = this.resolveAttachableTake(take);
+    if (!next) {
+      if (take && isTransientTakeStatus(take.status)) {
+        this.renderAttachBusy(take);
+        return;
+      }
+      if (take && this.isTakeArtifactPending(take)) {
+        this.renderAttachWaiting(take);
+        return;
+      }
+      // Snapshot cleared — only then fall back to the legacy mic capture UI.
+      if (!take && this.composer && document.contains(this.composer)) {
+        void this.startRecordSession();
+      }
+      return;
+    }
+
+    const changed = this.takeAttachFingerprint(next) !== this.takeAttachFingerprint(this.attachableTake);
+    this.attachableTake = next;
+    this.renderAttachMode();
+    if (changed) {
+      showToast('Studio take updated — ready to attach.', 'info', 3500);
+    }
+  }
+
+  /**
+   * Record-mode panel finished a local capture — if TakeManager later reports a
+   * newer attachable take (e.g. Studio re-record), morph into attach chrome so
+   * download/attach paths read the same IDB blobs as Design Studio.
+   */
+  private maybePromoteNewerTake(take: CurrentTake | null): void {
+    if (this.isLocalCaptureActive()) return;
+    if (!this.composer || !document.contains(this.composer)) return;
+
+    if (take && isTransientTakeStatus(take.status)) {
+      // BUG FIX: Reddit panel stuck on legacy mic UI while Studio captures
+      // Fix: promote even when the local session is still at mic-ready (not only 'stopped').
+      this.promoteToAttachFromRecord(take, 'busy');
+      return;
+    }
+
+    const localStoppedWithMp4 =
+      this.currentState.phase === 'stopped' && Boolean(this.currentState.mp4Blob);
+
+    if (take && this.isTakeArtifactPending(take)) {
+      if (!localStoppedWithMp4 || this.shouldPreferTakeOverLocalSession(take)) {
+        this.promoteToAttachFromRecord(take, 'waiting');
+      }
+      return;
+    }
+
+    const next = this.resolveAttachableTake(take);
+    if (!next) return;
+
+    if (localStoppedWithMp4 && !this.shouldPreferTakeOverLocalSession(next)) return;
+
+    const changed =
+      this.takeAttachFingerprint(next) !== this.takeAttachFingerprint(this.attachableTake);
+    this.promoteToAttachFromRecord(next, 'ready');
+    if (changed) {
+      showToast('Studio take ready — attach when ready.', 'info', 3500);
+    }
+  }
+
+  private isLocalCaptureActive(): boolean {
+    const phase = this.currentState.phase;
+    return phase === 'recording' || phase === 'processing';
+  }
+
+  private promoteToAttachFromRecord(
+    take: CurrentTake,
+    view: 'busy' | 'waiting' | 'ready',
+  ): void {
+    this.mode = 'attach';
+    this.attachableTake = view === 'ready' ? take : null;
+
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+    if (this.bakedMp4Listener) {
+      browser.storage.onChanged.removeListener(this.bakedMp4Listener);
+      this.bakedMp4Listener = null;
+    }
+    if (this.session) {
+      this.session.dispose();
+      this.session = null;
+    }
+
+    if (!this.takeArtifactListener) {
+      this.wireAttachArtifactSignals();
+    }
+
+    if (view === 'busy') this.renderAttachBusy(take);
+    else if (view === 'waiting') this.renderAttachWaiting(take);
+    else this.renderAttachMode();
+  }
+
+  private async startRecordSession(): Promise<void> {
+    this.mode = 'record';
+    this.attachableTake = null;
+    this.lastObservedTake = null;
+    this.localTakeAnchor = null;
+    if (this.takeArtifactListener) {
+      browser.storage.onChanged.removeListener(this.takeArtifactListener);
+      this.takeArtifactListener = null;
+    }
+    this.setAttachChromeVisible(false);
+
+    this.session?.dispose();
+    this.unsubscribe?.();
+    this.session = new VoiceRecorderSession();
+    this.unsubscribe = this.session.subscribe((state) => {
+      this.currentState = state;
+      this.render(state);
+      if (state.phase === 'stopped') {
+        void this.captureLocalTakeAnchor();
+      }
+    });
+
+    if (this.bakedMp4Listener) {
+      browser.storage.onChanged.removeListener(this.bakedMp4Listener);
+    }
     this.bakedMp4Listener = (changes, area) => {
       if (area !== 'local' || !(BAKED_MP4_READY_KEY in changes)) return;
       void this.tryApplyBakedMp4();
     };
     browser.storage.onChanged.addListener(this.bakedMp4Listener);
-
-    this.unsubWorkflowPhase?.();
-    this.unsubWorkflowPhase = onWorkflowPhaseChanged((phase) => {
-      this.workflowPhase = phase;
-      this.render(this.currentState);
-    });
 
     try {
       const [prefs, phase] = await Promise.all([loadUserPreferences(), getWorkflowPhase()]);
@@ -567,6 +906,149 @@ export class RecorderPanel {
     }
   }
 
+  /** Toggle panel chrome between attach mode (take card) and record mode. */
+  private setAttachChromeVisible(visible: boolean): void {
+    const takeCard = this.shadow.querySelector<HTMLElement>('[data-take-card]')!;
+    const timerWrap = this.shadow.querySelector<HTMLElement>('.timer-wrap')!;
+    takeCard.hidden = !visible;
+    timerWrap.hidden = visible;
+    this.waveformSlot.hidden = visible;
+    this.timeProgressEl.hidden = true;
+  }
+
+  /** Studio is mid-capture — hold attach until the new take lands. */
+  private renderAttachBusy(take: CurrentTake): void {
+    this.setAttachChromeVisible(true);
+
+    const chip = this.shadow.querySelector<HTMLElement>('[data-take-chip]')!;
+    const cardState = this.shadow.querySelector<HTMLElement>('[data-take-card-state]')!;
+    chip.hidden = true;
+    cardState.textContent =
+      take.source === 'studio'
+        ? take.status === 'recording'
+          ? 'Recording in the Studio…'
+          : 'Processing in the Studio…'
+        : take.status === 'recording'
+          ? 'Recording on Reddit…'
+          : 'Processing on Reddit…';
+
+    this.statusEl.textContent = 'A new Studio take is on the way — attach will unlock when it is ready.';
+    this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
+
+    this.primaryBtn.textContent = 'Attach Studio take';
+    this.primaryBtn.disabled = true;
+    this.secondaryBtn.hidden = false;
+    this.secondaryBtn.disabled = true;
+    this.secondaryBtn.textContent = 'Record new here';
+    this.tertiaryBtn.hidden = true;
+  }
+
+  /** Take is complete but MP4 stamps are still syncing from the background relay. */
+  private renderAttachWaiting(take: CurrentTake): void {
+    this.setAttachChromeVisible(true);
+
+    const chip = this.shadow.querySelector<HTMLElement>('[data-take-chip]')!;
+    const cardState = this.shadow.querySelector<HTMLElement>('[data-take-card-state]')!;
+    chip.hidden = true;
+    cardState.textContent =
+      take.status === 'baked' ? 'Finalizing baked take…' : 'Finalizing Studio take…';
+
+    this.statusEl.textContent = 'Almost ready — your attachable MP4 is syncing.';
+    this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
+
+    this.primaryBtn.textContent = 'Attach Studio take';
+    this.primaryBtn.disabled = true;
+    this.secondaryBtn.hidden = false;
+    this.secondaryBtn.disabled = false;
+    this.secondaryBtn.textContent = 'Record new here';
+    this.tertiaryBtn.hidden = true;
+  }
+
+  private renderAttachMode(): void {
+    const take = this.attachableTake;
+    if (!take) return;
+
+    this.setAttachChromeVisible(true);
+
+    const chip = this.shadow.querySelector<HTMLElement>('[data-take-chip]')!;
+    const cardState = this.shadow.querySelector<HTMLElement>('[data-take-card-state]')!;
+    const duration =
+      take.meta.durationSeconds ??
+      take.artifacts.bakedMp4?.durationSeconds ??
+      take.artifacts.baseMp4?.durationSeconds;
+    chip.hidden = typeof duration !== 'number' || duration <= 0;
+    if (!chip.hidden) chip.textContent = formatTime(Math.round(duration!));
+
+    const baked = Boolean(take.artifacts.bakedMp4);
+    cardState.textContent =
+      take.status === 'baked' || baked
+        ? 'Baked & ready — captions burned in.'
+        : take.status === 'ready'
+          ? 'Ready — styled MP4 from your Studio session.'
+          : 'Recovered from an earlier session.';
+
+    this.statusEl.textContent = 'Attach your Studio take, or record a fresh one here.';
+    this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
+
+    const studioHintEl = this.shadow.querySelector<HTMLElement>('.studio-first-hint');
+    if (studioHintEl) {
+      studioHintEl.innerHTML =
+        '<span class="studio-first-hint__caution" aria-hidden="true">★</span>' +
+        '<strong>Made in Studio</strong>';
+    }
+    this.studioCtaBtn.textContent = 'Edit in Design Studio';
+
+    const howItWorks = this.shadow.querySelector<HTMLDetailsElement>('[data-how-it-works]');
+    if (howItWorks) howItWorks.hidden = true;
+
+    this.primaryBtn.textContent = 'Attach Studio take';
+    this.primaryBtn.disabled = false;
+    this.secondaryBtn.hidden = false;
+    this.secondaryBtn.disabled = false;
+    this.secondaryBtn.textContent = 'Record new here';
+    this.tertiaryBtn.hidden = true;
+  }
+
+  private async attachStudioTake(): Promise<void> {
+    const take = this.attachableTake;
+    if (!take || this.attaching) return;
+    if (!this.composer || !document.contains(this.composer)) {
+      showToast('Comment box not found — download the MP4 from the Studio instead.', 'error', 6000);
+      return;
+    }
+
+    this.attaching = true;
+    this.primaryBtn.disabled = true;
+    this.primaryBtn.textContent = 'Fetching take…';
+
+    try {
+      const store = take.artifacts.bakedMp4 ? 'baked' : 'base';
+      const blob = await fetchBakedMp4FromExtension(store);
+      if (!blob) {
+        this.statusEl.textContent =
+          'Could not load the Studio take — open the Design Studio to check it.';
+        this.statusEl.classList.add('status--error');
+        showToast('Studio take not found in storage.', 'error', 6000);
+        return;
+      }
+
+      this.primaryBtn.textContent = 'Attaching…';
+      const result = await attachMp4ToComposer(this.composer, blob);
+      showToast(result.message, result.ok ? 'info' : 'error', 6000);
+      this.statusEl.textContent = result.message;
+      this.statusEl.classList.toggle('status--success', result.ok);
+      this.statusEl.classList.toggle('status--error', !result.ok);
+      if (result.ok) {
+        // Loop closed — Studio is ready to design the next clip.
+        void setWorkflowPhase('design');
+      }
+    } finally {
+      this.attaching = false;
+      this.primaryBtn.disabled = false;
+      this.primaryBtn.textContent = 'Attach Studio take';
+    }
+  }
+
   private async tryApplyBakedMp4(): Promise<void> {
     if (!this.session) return;
     const phase = this.currentState.phase;
@@ -578,14 +1060,27 @@ export class RecorderPanel {
   }
 
   close(): void {
+    // v5.4.0: auto-draft — a panel torn down mid-session must leave a
+    // recoverable take snapshot (or restore the prior one) before dispose.
+    this.session?.persistTakeOnClose();
+    if (this.pageHideHandler) {
+      window.removeEventListener('pagehide', this.pageHideHandler);
+      this.pageHideHandler = null;
+    }
     if (this.bakedMp4Listener) {
       browser.storage.onChanged.removeListener(this.bakedMp4Listener);
       this.bakedMp4Listener = null;
+    }
+    if (this.takeArtifactListener) {
+      browser.storage.onChanged.removeListener(this.takeArtifactListener);
+      this.takeArtifactListener = null;
     }
     this.themeUnsubscribe?.();
     this.themeUnsubscribe = null;
     this.unsubWorkflowPhase?.();
     this.unsubWorkflowPhase = null;
+    this.unsubTakeManager?.();
+    this.unsubTakeManager = null;
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.session?.dispose();
@@ -604,6 +1099,8 @@ export class RecorderPanel {
     if (phase === 'recording' && elapsedSeconds > 0) {
       const discard = window.confirm('Discard this recording?');
       if (!discard) return;
+      // Take reconciliation happens inside session.cancel() — discard restores
+      // the pre-session snapshot (nothing durable was captured yet).
       this.session?.cancel();
       this.close();
       return;
@@ -620,6 +1117,10 @@ export class RecorderPanel {
   }
 
   private onPrimaryClick(): void {
+    if (this.mode === 'attach') {
+      void this.attachStudioTake();
+      return;
+    }
     if (!this.session) return;
 
     switch (this.currentState.phase) {
@@ -647,6 +1148,16 @@ export class RecorderPanel {
   }
 
   private onSecondaryClick(): void {
+    if (this.mode === 'attach') {
+      if (this.isStudioCaptureBlocking()) {
+        showToast('A Studio recording is in progress — wait for it to finish.', 'info', 4500);
+        return;
+      }
+      // "Record new here" — classic capture flow; TakeManager stashes the
+      // prior snapshot, so a discarded recording restores this take intact.
+      void this.startRecordSession();
+      return;
+    }
     if (!this.session) return;
 
     if (this.currentState.phase === 'recording') {
@@ -805,9 +1316,14 @@ export class RecorderPanel {
         this.secondaryBtn.textContent = 'Cancel';
         break;
       case 'ready':
-        this.statusEl.textContent = 'Microphone ready — press Record when you are set.';
+        if (this.isStudioCaptureBlocking()) {
+          this.statusEl.textContent = 'Studio is recording — wait for it to finish before recording here.';
+          this.primaryBtn.disabled = true;
+        } else {
+          this.statusEl.textContent = 'Microphone ready — press Record when you are set.';
+          this.primaryBtn.disabled = false;
+        }
         this.primaryBtn.textContent = 'Record';
-        this.primaryBtn.disabled = false;
         this.secondaryBtn.textContent = 'Cancel';
         this.panelEl.focus();
         break;

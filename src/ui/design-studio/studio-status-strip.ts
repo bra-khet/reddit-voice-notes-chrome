@@ -46,8 +46,9 @@ export type ProfileStatusSnapshot = {
   advisories: Array<{ icon: string; text: string }>;
 };
 
-// DEFERRED: RECORDED? row — in-studio recording is out of scope for v4 UI refresh (docs/design-studio.md §10.1).
-// Future: YES | NO | ERROR from recorder session bridge.
+// v5.4.0: current-take display lives in the hero Current Take deck
+// (current-take-status.ts) — the strip stays focused on profile/subtitle
+// readiness so the same state is never shown twice in one column.
 
 function profileDirty(
   prefs: UserPreferencesV1,
@@ -92,7 +93,8 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
     subtitlesIcon = STUDIO_V4_ASSETS.status.info;
   } else if (!hasSessionRecording) {
     subtitlesState = 'no-recording';
-    subtitlesLabel = 'No recording — record on Reddit first';
+    // v5.4.0: the Studio records natively — point at the deck, not Reddit.
+    subtitlesLabel = 'No recording — press Record in the Current Take deck';
     subtitlesIcon = STUDIO_V4_ASSETS.status.info;
   } else if (transcriptDelivery === 'pending') {
     subtitlesState = 'incoming';
@@ -152,7 +154,7 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
   if (unsavedProfile) blockers.push('Save profile changes');
   if (unsavedStyle) blockers.push('Save custom style');
   if (subtitlesEnabled) {
-    if (!hasSessionRecording) blockers.push('Record a clip on Reddit');
+    if (!hasSessionRecording) blockers.push('Record a take (deck above, or on Reddit)');
     else if (transcriptDelivery === 'pending') blockers.push('Wait for subtitles');
     else if (transcriptDirty) blockers.push('Confirm subtitle edits');
     else if (transcriptDelivery === 'timeout') blockers.push('Type subtitles into the template, then bake');
@@ -166,7 +168,7 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
   const readyYes = blockers.length === 0;
   const readyHint = readyYes
     ? subtitlesEnabled
-      ? 'Subtitles baked — attach from Reddit recorder'
+      ? 'Subtitles baked — download from the deck or attach on Reddit'
       : 'Profile ready — changes apply live to the recorder'
     : blockers[0];
 

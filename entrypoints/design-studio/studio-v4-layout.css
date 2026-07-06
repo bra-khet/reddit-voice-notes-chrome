@@ -51,38 +51,46 @@ body:has(.studio-v4) {
 
 .studio-v4 .studio__hero .studio__preview-wrap {
   flex: 0 0 auto;
-  width: 100%;
+  width: min(100%, 640px);
+  margin-inline: auto;
 }
 
-/* Wide: preview left, profile right — explicit grid placement (not order). */
+/* Wide: live preview left; profile/status column right (Current Take deck nested
+   inside profile cluster — below profile selector, above status strip). */
 @media (min-width: 900px) {
   .studio-v4 .studio__hero {
     display: grid;
     grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
-    align-items: stretch;
+    grid-template-rows: auto;
+    align-items: start;
   }
 
   .studio-v4 .studio__hero .studio__preview-wrap {
     grid-column: 1;
     grid-row: 1;
+    /* CHANGED: center in the left column (horizontal + vertical when profile is taller).
+       WHY: capped-width preview was left/top aligned, leaving uneven padding right/below. */
+    width: min(100%, 720px);
+    justify-self: center;
+    align-self: center;
   }
 
   .studio-v4 .studio__hero .studio__profile-cluster {
     grid-column: 2;
     grid-row: 1;
+    align-self: stretch;
   }
 }
 
-/* CHANGED: hero preview couples canvas + frame in one 628×348 artboard (symmetric 12px bezel).
-   WHY: 640×360 viewBox had 12px dead margin → frame underhung top-left, overhung bottom-right.
-   Logic (shared box + clip-path + mask overlay) is correct — artboard must match drawn frame. */
+/* CHANGED: hero preview artboard is true 16:9 (640×360) — matches canvas bitmap + frame SVG.
+   WHY: 628×348 outer box + grid row-span stretched the draw window vertically in landscape. */
 .studio-v4 .studio__hero .studio__preview-wrap {
-  --studio-v4-preview-w: 628;
-  --studio-v4-preview-h: 348;
+  --studio-v4-preview-w: 640;
+  --studio-v4-preview-h: 360;
   --studio-v4-preview-hole-x: 12;
   --studio-v4-preview-hole-y: 12;
-  --studio-v4-preview-hole-w: 604;
-  --studio-v4-preview-hole-h: 324;
+  --studio-v4-preview-hole-w: 616;
+  --studio-v4-preview-hole-h: 336;
   position: relative;
   margin-bottom: 0;
   border: none;
@@ -90,9 +98,7 @@ body:has(.studio-v4) {
   box-shadow: none;
   background: #0a0014;
   overflow: hidden;
-  width: 100%;
-  max-width: 628px;
-  aspect-ratio: 628 / 348;
+  aspect-ratio: 16 / 9;
 }
 
 /* Bezel ring — locked to same artboard as canvas (top-left, 100% stretch). */
@@ -199,6 +205,299 @@ body:has(.studio-v4) {
   border-image: var(--studio-v4-border-panel);
   background: var(--studio-bg-deep);
   box-sizing: border-box;
+}
+
+/* ── v5.4.0 Current Take deck — headline session state + primary export ── */
+
+.studio-v4 .studio-v4__take-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 12px 10px;
+  border-style: solid;
+  border-width: 10px;
+  border-image: var(--studio-v4-border-panel);
+  background: var(--studio-bg-deep);
+  box-sizing: border-box;
+}
+
+/* Nested in profile cluster — inset section, not a second framed panel. */
+.studio-v4 .studio__profile-cluster .studio-v4__take-deck {
+  margin-top: 10px;
+  padding: 10px 0 4px;
+  border: none;
+  border-image: none;
+  border-top: 1px solid rgba(255, 213, 79, 0.15);
+  background: transparent;
+}
+
+.studio-v4 .studio-v4__take-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 213, 79, 0.15);
+}
+
+.studio-v4 .studio-v4__take-title {
+  margin: 0;
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-label);
+  letter-spacing: var(--studio-letter-label);
+  text-transform: uppercase;
+  color: var(--studio-amber);
+}
+
+.studio-v4 .studio-v4__take-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* Chip family — mono readout face, chronos-amber for time, cyan for "ready". */
+.studio-v4 .studio-v4__take-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-label);
+  letter-spacing: var(--studio-letter-meta);
+  white-space: nowrap;
+}
+
+.studio-v4 .studio-v4__take-badge--amber {
+  color: var(--studio-amber);
+  background: rgba(212, 160, 32, 0.16);
+  border: 1px solid rgba(255, 213, 79, 0.45);
+}
+
+.studio-v4 .studio-v4__take-badge--ready {
+  color: var(--studio-cyan-ready);
+  background: rgba(94, 200, 232, 0.12);
+  border: 1px solid rgba(94, 200, 232, 0.4);
+}
+
+.studio-v4 .studio-v4__take-badge--warning {
+  color: var(--studio-warning);
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 184, 77, 0.5);
+}
+
+.studio-v4 .studio-v4__take-badge--muted {
+  color: var(--studio-text-muted);
+  background: rgba(74, 74, 138, 0.18);
+  border: 1px solid var(--studio-hairline-strong);
+}
+
+.studio-v4 .studio-v4__take-state {
+  margin: 2px 0 0;
+  font-size: var(--studio-font-title);
+  font-weight: var(--studio-font-weight-strong);
+  color: var(--studio-text);
+}
+
+.studio-v4 .studio-v4__take-hint {
+  margin: 0;
+  font-size: var(--studio-font-meta);
+  line-height: 1.4;
+  color: var(--studio-text-muted);
+}
+
+.studio-v4 .studio-v4__take-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.studio-v4 .studio-v4__take-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.studio-v4 .studio-v4__take-clear {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: var(--studio-font-caption);
+  color: var(--studio-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.studio-v4 .studio-v4__take-clear:hover {
+  color: var(--studio-negate-text);
+}
+
+.studio-v4 .studio-v4__take-clear:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Live session elsewhere (recording/processing) — soft amber breath. */
+.studio-v4 .studio-v4__take-deck--live .studio-v4__take-state {
+  color: var(--studio-amber);
+}
+
+/* ── v5.4.0 Phase 2: studio audition transport (deck morphs into recorder) ── */
+
+.studio-v4 .studio-v4__take-deck--audition .studio-v4__take-state,
+.studio-v4 .studio-v4__take-deck--audition .studio-v4__take-hint,
+.studio-v4 .studio-v4__take-deck--audition .studio-v4__take-actions {
+  display: none;
+}
+
+.studio-v4 .studio-v4__audition {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.studio-v4 .studio-v4__audition[hidden] {
+  display: none;
+}
+
+.studio-v4 .studio-v4__audition-status {
+  margin: 0;
+  min-height: 2.6em;
+  font-size: var(--studio-font-meta);
+  line-height: 1.4;
+  color: var(--studio-text-muted);
+}
+
+.studio-v4 .studio-v4__audition-status--warning {
+  color: var(--studio-warning);
+}
+
+.studio-v4 .studio-v4__audition-status--error {
+  color: var(--studio-negate-text);
+}
+
+/* Chronos readout — instrument mono, amber-lit. */
+.studio-v4 .studio-v4__audition-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--studio-font-mono);
+}
+
+.studio-v4 .studio-v4__audition-timer {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--studio-amber);
+  text-shadow: 0 0 12px rgba(255, 213, 79, 0.35);
+}
+
+.studio-v4 .studio-v4__audition-timer--warning {
+  color: var(--studio-warning);
+}
+
+.studio-v4 .studio-v4__audition-timer--critical {
+  color: var(--studio-negate-text);
+}
+
+.studio-v4 .studio-v4__audition-cap {
+  font-size: var(--studio-font-meta);
+  color: var(--studio-text-muted);
+}
+
+.studio-v4 .studio-v4__audition-track,
+.studio-v4 .studio-v4__audition-progress {
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--studio-surface-raised);
+}
+
+.studio-v4 .studio-v4__audition-track[hidden],
+.studio-v4 .studio-v4__audition-progress[hidden] {
+  display: none;
+}
+
+.studio-v4 .studio-v4__audition-track-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--studio-amber);
+  transition: width 0.25s linear, background 0.2s ease;
+}
+
+.studio-v4 .studio-v4__audition-track-bar--warning {
+  background: var(--studio-warning);
+}
+
+.studio-v4 .studio-v4__audition-track-bar--critical {
+  background: var(--studio-negate-text);
+}
+
+.studio-v4 .studio-v4__audition-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--studio-amber-action);
+  transition: width 0.2s ease;
+}
+
+.studio-v4 .studio-v4__audition-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* CHANGED: Stop during live capture uses pointer, not bake wait cursor.
+   WHY: --baking is shared with subtitle bake; audition Stop must look clickable. */
+.studio-v4 .studio-v4__audition-primary.studio-v4__bake-btn--baking {
+  cursor: pointer;
+}
+
+.studio-v4 .studio-v4__audition-primary.studio-v4__bake-btn--baking:hover {
+  filter: brightness(1.06);
+}
+
+.studio-v4 .studio-v4__audition-cancel {
+  align-self: flex-start;
+}
+
+/* Hero monitor goes live: label + bezel pick up capture energy. */
+.studio-v4 .studio__hero .studio__preview-wrap--audition .studio__preview-label {
+  color: #ffe08a;
+  border-color: color-mix(in srgb, var(--studio-amber) 55%, transparent);
+  box-shadow:
+    0 0 18px rgba(255, 213, 79, 0.25),
+    inset 0 0 0 1px rgba(255, 213, 79, 0.14);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-v4 .studio__hero .studio__preview-wrap--audition .studio__preview-label::before {
+    animation: studio-live-breath 0.9s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-v4 .studio-v4__take-deck--live [data-take-icon] {
+    animation: studio-v4-take-live-blink 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes studio-v4-take-live-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .studio-v4 .studio__profile-cluster-head {

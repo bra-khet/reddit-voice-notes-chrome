@@ -3,6 +3,8 @@ import { shouldPreferCanvasOverlay } from '@/src/ffmpeg/subtitle-burnin';
 import {
   BAKED_MP4_READY_KEY,
   loadUserPreferences,
+  resolveOverlayBakeEncoder,
+  resolveParallelBakeEnabled,
 } from '@/src/settings/user-preferences';
 import { saveLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
@@ -15,6 +17,7 @@ import {
   isCanvasRenderPerfExceeded,
 } from '@/src/transcription/canvas-render-perf-guard';
 import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
+import { getTakeManager } from '@/src/session/take-manager';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 export interface SubtitleBakeProgress {
@@ -120,13 +123,11 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
         baseMp4: base.blob,
         signal: options.signal,
         renderPerfBudgetMs: canvasRenderPerfBudgetMs(videoDurationSeconds),
-        // v5.3.9 experimental flag — orchestrator still auto-gates by clip
-        // length/hardware and serial-falls-back on any chunk failure.
-        parallelBake: prefs.experimental?.parallelBake !== false,
-        // v5.3.10 experimental flag — 'auto' probe-gates WebCodecs and falls
-        // back to the MediaRecorder pipeline on any failure. Passed explicitly
-        // at every call site (v5.3.9.1 lesson — no silent defaults in A/B paths).
-        encoder: prefs.experimental?.webCodecsBake === true ? 'auto' : 'mediarecorder',
+        // v5.3.9 / v5.3.10 — same resolver the production prefs use (Lab bypasses
+        // prefs and passes toggles directly). Orchestrators still auto-gate and
+        // fall back on probe/chunk/encode failure.
+        parallelBake: resolveParallelBakeEnabled(prefs.experimental),
+        encoder: resolveOverlayBakeEncoder(prefs.experimental),
         onProgress: (ratio, stage) => {
           const overallRatio = 0.1 + ratio * 0.82;
           report({
@@ -163,7 +164,17 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
   report({ ratio: 0.94, stage: 'saving', message: 'Saving baked MP4…' });
   await saveLastBakedMp4(burned, base.meta.durationSeconds);
   await browser.storage.local.set({ [BAKED_MP4_READY_KEY]: Date.now() });
+  // v5.4.0: promote the bake into the current take — every context (status
+  // panel, Reddit attach) learns about the fresh baked MP4 via the snapshot.
+  void getTakeManager().updateFromBake({
+    durationSeconds: base.meta.durationSeconds,
+    byteLength: burned.size,
+  });
 
-  report({ ratio: 1, stage: 'done', message: 'Subtitles baked — attach from Reddit recorder.' });
+  report({
+    ratio: 1,
+    stage: 'done',
+    message: 'Subtitles baked — download from the Current Take deck or attach on Reddit.',
+  });
   return burned;
 }

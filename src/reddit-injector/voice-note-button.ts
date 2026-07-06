@@ -65,8 +65,10 @@ export function createVoiceNoteButton(options: VoiceNoteButtonOptions): HTMLButt
   button.type = 'button';
   button.className = 'rvn-voice-note-btn';
   button.setAttribute(VOICE_NOTE_BUTTON_ATTR, 'true');
-  button.setAttribute('aria-label', 'Record voice note');
-  button.title = `Record voice note (max ${formatRecordingCapClock()})`;
+  // v5.4.0 Phase 3: the button is an output target first — attach the current
+  // Design Studio take — with record-here as the quick secondary path.
+  button.setAttribute('aria-label', 'Voice note — attach your Studio take or record');
+  button.title = `Voice note — attach your Studio take or record here (max ${formatRecordingCapClock()})`;
   applyInlineStyles(button);
 
   button.appendChild(createMicIconElement(18));

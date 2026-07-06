@@ -16,6 +16,7 @@ import {
   type GetBackgroundBlobRequest,
 } from '@/src/messaging/background-blob';
 import { packBinary, unpackBinary } from '@/src/messaging/binary';
+import { verifyMp4PackedBinary } from '@/src/messaging/binary-verify';
 import {
   clearAllRelayTabs,
   forgetRelayTab,
@@ -25,7 +26,7 @@ import {
 } from '@/src/messaging/relay-registry';
 import { getBackgroundAsset } from '@/src/storage/image-db';
 import { saveLastRecording } from '@/src/storage/last-recording-db';
-import { saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
+import { loadLastBaseMp4, saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { loadLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import {
   BAKED_MP4_CHUNK_BYTES,
@@ -35,12 +36,14 @@ import {
   type BakedMp4MetaPayload,
   type GetBakedMp4ChunkRequest,
   type GetBakedMp4MetaRequest,
+  type TakeMp4Store,
 } from '@/src/messaging/baked-mp4-blob';
 import {
   LAST_RECORDING_READY_KEY,
   SESSION_TRANSCRIPT_READY_KEY,
 } from '@/src/settings/user-preferences';
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
+import { getTakeManager } from '@/src/session/take-manager';
 import type { TranscriptFailureReason, TranscriptResult } from '@/src/transcription/types';
 import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-studio';
 import { BURNIN_PIPELINE_STAMP, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
@@ -56,7 +59,9 @@ import {
   MSG_TRANSCODE_COMPLETE,
   MSG_TRANSCODE_OFFSCREEN,
   MSG_TRANSCODE_PROGRESS,
+  MSG_QUERY_TRANSCODE_INFLIGHT,
   MSG_TRANSCODE_START,
+  type QueryTranscodeInflightResponse,
   MSG_TRANSCRIBE_ACK,
   MSG_TRANSCRIBE_CANCEL,
   MSG_TRANSCRIBE_COMPLETE,
@@ -124,12 +129,16 @@ let creatingOffscreen: Promise<void> | null = null;
 // Fix: Offscreen runtime.sendMessage does not reach content scripts; relay via tabs.sendMessage.
 const transcodeTabByJobId = new Map<string, number>();
 const activeTranscodeJobByTabId = new Map<number, string>();
+/** Offscreen jobs still running — Studio recovery queries this set. */
+const inflightTranscodeJobIds = new Set<string>();
 const transcribeTabByJobId = new Map<string, number>();
 const activeTranscribeJobByTabId = new Map<number, string>();
 const burnInTabByJobId = new Map<string, number>();
 const activeBurnInJobByTabId = new Map<number, string>();
 /** Design Studio uses runtime.onMessage — skip tabs.sendMessage relay (no content script). */
 const burnInSkipTabRelayByJobId = new Map<string, boolean>();
+const transcodeSkipTabRelayByJobId = new Map<string, boolean>();
+const transcribeSkipTabRelayByJobId = new Map<string, boolean>();
 
 let activeRelayJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -184,35 +193,89 @@ async function resolveRelayTabId(
   return undefined;
 }
 
-function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
-  void (async () => {
-    const tabId = await resolveRelayTabId(message.jobId, transcodeTabByJobId, 'transcode');
-    if (tabId === undefined) return;
+/**
+ * Design Studio extension pages listen on runtime.onMessage for offscreen
+ * broadcasts. When the Studio tab is torn down mid-transcode, persist the MP4
+ * and promote the take so reopen shows draft/ready instead of a phantom live
+ * 'processing' state.
+ */
+async function persistOrphanStudioTranscodeResult(
+  message: TranscodeCompleteMessage,
+): Promise<void> {
+  if (!message.ok || !message.mp4Base64 || !message.mp4ByteLength) return;
 
-    void browser.tabs.sendMessage(tabId, message).catch((error) => {
-      const msg = error instanceof Error ? error.message : String(error);
-      // CHANGED: detect dead-tab connection errors and clean up relay mapping
-      // WHY: "Receiving end does not exist" means the content script is gone; stale entry would
-      //      block resolveRelayTabId fallback from finding a valid tab on future sends
-      if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
-        transcodeTabByJobId.delete(message.jobId);
-        if (tabId !== undefined) activeTranscodeJobByTabId.delete(tabId);
-        void forgetRelayTab(message.jobId);
-        console.warn('[Reddit Voice Notes] Transcode relay target gone — cleaned up', { jobId: message.jobId, tabId });
-      } else {
-        console.warn('[Reddit Voice Notes] Tab relay failed:', error);
-      }
+  try {
+    verifyMp4PackedBinary({
+      dataBase64: message.mp4Base64,
+      byteLength: message.mp4ByteLength,
+    });
+    const mp4Bytes = unpackBinary(message.mp4Base64, message.mp4ByteLength);
+    const blob = new Blob([Uint8Array.from(mp4Bytes)], { type: 'video/mp4' });
+
+    const take = await getTakeManager().getCurrentTake();
+    const durationSeconds = take?.meta.durationSeconds ?? take?.artifacts.baseRecording?.durationSeconds;
+    await saveLastBaseMp4(blob, durationSeconds);
+    await getTakeManager().recordArtifact('baseMp4', {
+      savedAt: Date.now(),
+      byteLength: message.mp4ByteLength,
+      durationSeconds,
     });
 
-    if (message.type === MSG_TRANSCODE_COMPLETE) {
-      if (activeTranscodeJobByTabId.get(tabId) === message.jobId) {
+    if (take && (take.status === 'processing' || take.status === 'draft')) {
+      await getTakeManager().updateCurrentTake({ status: 'ready' });
+    }
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Orphan studio transcode persist failed', {
+      jobId: message.jobId,
+      error,
+    });
+  }
+}
+
+function relayTranscodeBroadcast(message: TranscodeProgressMessage | TranscodeCompleteMessage): void {
+  const jobId = message.jobId;
+  const skipTabRelay = transcodeSkipTabRelayByJobId.get(jobId) === true;
+
+  if (!skipTabRelay) {
+    void (async () => {
+      const tabId = await resolveRelayTabId(jobId, transcodeTabByJobId, 'transcode');
+      if (tabId === undefined) return;
+
+      void browser.tabs.sendMessage(tabId, message).catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        // CHANGED: detect dead-tab connection errors and clean up relay mapping
+        // WHY: "Receiving end does not exist" means the content script is gone; stale entry would
+        //      block resolveRelayTabId fallback from finding a valid tab on future sends
+        if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+          transcodeTabByJobId.delete(jobId);
+          if (tabId !== undefined) activeTranscodeJobByTabId.delete(tabId);
+          void forgetRelayTab(jobId);
+          console.warn('[Reddit Voice Notes] Transcode relay target gone — cleaned up', { jobId, tabId });
+        } else {
+          console.warn('[Reddit Voice Notes] Tab relay failed:', error);
+        }
+      });
+    })();
+  }
+
+  if (message.type === MSG_TRANSCODE_COMPLETE) {
+    const completeMsg = message;
+    void (async () => {
+      if (skipTabRelay && completeMsg.ok) {
+        await persistOrphanStudioTranscodeResult(completeMsg);
+      }
+
+      const tabId = transcodeTabByJobId.get(jobId);
+      if (tabId !== undefined && activeTranscodeJobByTabId.get(tabId) === jobId) {
         activeTranscodeJobByTabId.delete(tabId);
       }
-      transcodeTabByJobId.delete(message.jobId);
-      await forgetRelayTab(message.jobId);
+      transcodeTabByJobId.delete(jobId);
+      transcodeSkipTabRelayByJobId.delete(jobId);
+      inflightTranscodeJobIds.delete(jobId);
+      await forgetRelayTab(jobId);
       stopRelayKeepAlive();
-    }
-  })();
+    })();
+  }
 }
 
 function isExtensionPageTabUrl(url: string | undefined): boolean {
@@ -258,33 +321,42 @@ function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMes
 }
 
 function relayTranscribeBroadcast(message: TranscribeProgressMessage | TranscribeCompleteMessage): void {
-  void (async () => {
-    const tabId = await resolveRelayTabId(message.jobId, transcribeTabByJobId, 'transcribe');
-    if (tabId === undefined) return;
+  const jobId = message.jobId;
+  const skipTabRelay = transcribeSkipTabRelayByJobId.get(jobId) === true;
 
-    void browser.tabs.sendMessage(tabId, message).catch((error) => {
-      const msg = error instanceof Error ? error.message : String(error);
-      // CHANGED: detect dead-tab connection errors and clean up relay mapping
-      // WHY: mirrors transcode relay cleanup — stale entry would block resolveRelayTabId fallback
-      if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
-        transcribeTabByJobId.delete(message.jobId);
-        if (tabId !== undefined) activeTranscribeJobByTabId.delete(tabId);
-        void forgetRelayTab(message.jobId);
-        console.warn('[Reddit Voice Notes] Transcribe relay target gone — cleaned up', { jobId: message.jobId, tabId });
-      } else {
-        console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
-      }
-    });
+  if (!skipTabRelay) {
+    void (async () => {
+      const tabId = await resolveRelayTabId(jobId, transcribeTabByJobId, 'transcribe');
+      if (tabId === undefined) return;
 
-    if (message.type === MSG_TRANSCRIBE_COMPLETE) {
-      if (activeTranscribeJobByTabId.get(tabId) === message.jobId) {
+      void browser.tabs.sendMessage(tabId, message).catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        // CHANGED: detect dead-tab connection errors and clean up relay mapping
+        // WHY: mirrors transcode relay cleanup — stale entry would block resolveRelayTabId fallback
+        if (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection')) {
+          transcribeTabByJobId.delete(jobId);
+          if (tabId !== undefined) activeTranscribeJobByTabId.delete(tabId);
+          void forgetRelayTab(jobId);
+          console.warn('[Reddit Voice Notes] Transcribe relay target gone — cleaned up', { jobId, tabId });
+        } else {
+          console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
+        }
+      });
+    })();
+  }
+
+  if (message.type === MSG_TRANSCRIBE_COMPLETE) {
+    void (async () => {
+      const tabId = transcribeTabByJobId.get(jobId);
+      if (tabId !== undefined && activeTranscribeJobByTabId.get(tabId) === jobId) {
         activeTranscribeJobByTabId.delete(tabId);
       }
-      transcribeTabByJobId.delete(message.jobId);
-      await forgetRelayTab(message.jobId);
+      transcribeTabByJobId.delete(jobId);
+      transcribeSkipTabRelayByJobId.delete(jobId);
+      await forgetRelayTab(jobId);
       stopRelayKeepAlive();
-    }
-  })();
+    })();
+  }
 }
 
 async function cancelOffscreenJob(jobId: string): Promise<void> {
@@ -315,7 +387,15 @@ async function cancelOffscreenTranscribeJob(jobId: string): Promise<void> {
   }
 }
 
-async function registerTranscodeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
+async function registerTranscodeTab(
+  jobId: string,
+  sender: Browser.runtime.MessageSender,
+): Promise<void> {
+  const senderTabId = sender.tab?.id;
+  const skipTabRelay =
+    isExtensionPageTabUrl(sender.url) || isExtensionPageTabUrl(sender.tab?.url);
+  transcodeSkipTabRelayByJobId.set(jobId, skipTabRelay);
+
   if (senderTabId !== undefined) {
     const previousJobId = activeTranscodeJobByTabId.get(senderTabId);
     if (previousJobId && previousJobId !== jobId) {
@@ -325,18 +405,21 @@ async function registerTranscodeTab(jobId: string, senderTabId: number | undefin
         jobId,
       });
       transcodeTabByJobId.delete(previousJobId);
+      transcodeSkipTabRelayByJobId.delete(previousJobId);
       void forgetRelayTab(previousJobId);
       void cancelOffscreenJob(previousJobId);
     }
     activeTranscodeJobByTabId.set(senderTabId, jobId);
     transcodeTabByJobId.set(jobId, senderTabId);
-    await rememberRelayTab(jobId, senderTabId);
+    inflightTranscodeJobIds.add(jobId);
+    if (!skipTabRelay) await rememberRelayTab(jobId, senderTabId);
     return;
   }
 
   const tabId = await resolveActiveRedditTabId();
   if (tabId !== undefined) {
     transcodeTabByJobId.set(jobId, tabId);
+    inflightTranscodeJobIds.add(jobId);
     await rememberRelayTab(jobId, tabId);
     return;
   }
@@ -391,7 +474,15 @@ async function registerBurnInTab(
   console.warn('[Reddit Voice Notes] Could not resolve Reddit tab for burn-in relay', jobId);
 }
 
-async function registerTranscribeTab(jobId: string, senderTabId: number | undefined): Promise<void> {
+async function registerTranscribeTab(
+  jobId: string,
+  sender: Browser.runtime.MessageSender,
+): Promise<void> {
+  const senderTabId = sender.tab?.id;
+  const skipTabRelay =
+    isExtensionPageTabUrl(sender.url) || isExtensionPageTabUrl(sender.tab?.url);
+  transcribeSkipTabRelayByJobId.set(jobId, skipTabRelay);
+
   if (senderTabId !== undefined) {
     const previousJobId = activeTranscribeJobByTabId.get(senderTabId);
     if (previousJobId && previousJobId !== jobId) {
@@ -401,12 +492,13 @@ async function registerTranscribeTab(jobId: string, senderTabId: number | undefi
         jobId,
       });
       transcribeTabByJobId.delete(previousJobId);
+      transcribeSkipTabRelayByJobId.delete(previousJobId);
       void forgetRelayTab(previousJobId);
       void cancelOffscreenTranscribeJob(previousJobId);
     }
     activeTranscribeJobByTabId.set(senderTabId, jobId);
     transcribeTabByJobId.set(jobId, senderTabId);
-    await rememberRelayTab(jobId, senderTabId);
+    if (!skipTabRelay) await rememberRelayTab(jobId, senderTabId);
     return;
   }
 
@@ -679,20 +771,30 @@ function backgroundBlobMeta(bytes: Uint8Array, mimeType: string): BackgroundBlob
   };
 }
 
-let cachedBakedMp4Bytes: Uint8Array | null = null;
-let cachedBakedMp4Mime = 'video/mp4';
-let cachedBakedMp4SavedAt = 0;
+// v5.4.0 Phase 3: relay serves 'baked' AND 'base' MP4 stores (per-store cache)
+// so the Reddit panel can attach never-baked Studio takes.
+interface Mp4RelayCacheEntry {
+  bytes: Uint8Array | null;
+  mime: string;
+  savedAt: number;
+}
 
-async function loadBakedMp4Bytes(): Promise<Uint8Array | null> {
-  const snapshot = await loadLastBakedMp4();
+const mp4RelayCache: Record<TakeMp4Store, Mp4RelayCacheEntry> = {
+  baked: { bytes: null, mime: 'video/mp4', savedAt: 0 },
+  base: { bytes: null, mime: 'video/mp4', savedAt: 0 },
+};
+
+async function loadTakeMp4Bytes(store: TakeMp4Store): Promise<Uint8Array | null> {
+  const snapshot = store === 'base' ? await loadLastBaseMp4() : await loadLastBakedMp4();
   if (!snapshot?.blob) return null;
-  if (cachedBakedMp4SavedAt === snapshot.meta.savedAt && cachedBakedMp4Bytes) {
-    return cachedBakedMp4Bytes;
+  const cache = mp4RelayCache[store];
+  if (cache.savedAt === snapshot.meta.savedAt && cache.bytes) {
+    return cache.bytes;
   }
-  cachedBakedMp4Bytes = new Uint8Array(await snapshot.blob.arrayBuffer());
-  cachedBakedMp4Mime = snapshot.meta.mimeType || 'video/mp4';
-  cachedBakedMp4SavedAt = snapshot.meta.savedAt;
-  return cachedBakedMp4Bytes;
+  cache.bytes = new Uint8Array(await snapshot.blob.arrayBuffer());
+  cache.mime = snapshot.meta.mimeType || 'video/mp4';
+  cache.savedAt = snapshot.meta.savedAt;
+  return cache.bytes;
 }
 
 function bakedMp4Meta(bytes: Uint8Array, mimeType: string, savedAt: number): BakedMp4MetaPayload {
@@ -827,6 +929,15 @@ export default defineBackground(() => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
 
+      if (type === MSG_QUERY_TRANSCODE_INFLIGHT) {
+        const response: QueryTranscodeInflightResponse = {
+          ok: true,
+          inflight: inflightTranscodeJobIds.size > 0,
+        };
+        sendResponse(response);
+        return false;
+      }
+
       if (type === MSG_OFFSCREEN_PREWARM) {
         // BUG FIX: BUG-034 cold-start offscreen dispatch race
         // Fix: eagerly create the offscreen doc at record START so it is loaded +
@@ -935,13 +1046,16 @@ export default defineBackground(() => {
         void (async () => {
           const response: BakedMp4MetaPayload = { ok: false };
           try {
-            const bytes = await loadBakedMp4Bytes();
+            const request = message as GetBakedMp4MetaRequest;
+            const store: TakeMp4Store = request.store === 'base' ? 'base' : 'baked';
+            const bytes = await loadTakeMp4Bytes(store);
             if (!bytes) {
-              response.error = 'No baked MP4 available.';
+              response.error = `No ${store} MP4 available.`;
               sendResponse(response);
               return;
             }
-            sendResponse(bakedMp4Meta(bytes, cachedBakedMp4Mime, cachedBakedMp4SavedAt));
+            const cache = mp4RelayCache[store];
+            sendResponse(bakedMp4Meta(bytes, cache.mime, cache.savedAt));
           } catch (error) {
             response.error = error instanceof Error ? error.message : String(error);
             sendResponse(response);
@@ -955,9 +1069,10 @@ export default defineBackground(() => {
           const response: BakedMp4ChunkPayload = { ok: false };
           try {
             const request = message as GetBakedMp4ChunkRequest;
-            const bytes = await loadBakedMp4Bytes();
+            const store: TakeMp4Store = request.store === 'base' ? 'base' : 'baked';
+            const bytes = await loadTakeMp4Bytes(store);
             if (!bytes) {
-              response.error = 'No baked MP4 available.';
+              response.error = `No ${store} MP4 available.`;
               sendResponse(response);
               return;
             }
@@ -983,6 +1098,13 @@ export default defineBackground(() => {
             const bytes = unpackBinary(request.mp4Base64, request.mp4ByteLength);
             const blob = new Blob([Uint8Array.from(bytes)], { type: 'video/mp4' });
             await saveLastBaseMp4(blob, request.durationSeconds);
+            // v5.4.0: stamp the artifact into the current take AFTER the IDB
+            // write succeeds — the snapshot must never claim blobs it lacks.
+            void getTakeManager().recordArtifact('baseMp4', {
+              savedAt: Date.now(),
+              byteLength: request.mp4ByteLength,
+              durationSeconds: request.durationSeconds,
+            });
             response.ok = true;
             sendResponse(response);
           } catch (error) {
@@ -1009,6 +1131,13 @@ export default defineBackground(() => {
             // CHANGED: signal Design Studio to reload voice preview without tab visibility flip.
             // WHY: recording completes on Reddit while studio may stay open (eloquent-2 UX).
             await browser.storage.local.set({ [LAST_RECORDING_READY_KEY]: Date.now() });
+            // v5.4.0: stamp the artifact into the current take AFTER the IDB
+            // write succeeds — the snapshot must never claim blobs it lacks.
+            void getTakeManager().recordArtifact('baseRecording', {
+              savedAt: Date.now(),
+              byteLength: request.webmByteLength,
+              durationSeconds: request.durationSeconds,
+            });
             response.ok = true;
             sendResponse(response);
           } catch (error) {
@@ -1079,7 +1208,7 @@ export default defineBackground(() => {
 
         try {
           validateTranscribeStartRequest(transcribeRequest);
-          await registerTranscribeTab(transcribeRequest.jobId, sender.tab?.id);
+          await registerTranscribeTab(transcribeRequest.jobId, sender);
           startRelayKeepAlive();
 
           const ack: TranscribeAckResponse = {
@@ -1195,7 +1324,7 @@ export default defineBackground(() => {
 
       try {
         validateTranscodeStartRequest(request);
-        await registerTranscodeTab(request.jobId, sender.tab?.id);
+        await registerTranscodeTab(request.jobId, sender);
         startRelayKeepAlive();
 
         const ack: TranscodeAckResponse = {

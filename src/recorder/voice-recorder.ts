@@ -23,6 +23,12 @@ import { clearSessionTranscript, setSessionTranscript } from '@/src/transcriptio
 import { buildScaffoldTranscriptResult } from '@/src/transcription/transcript-editing';
 import { classifyTranscribeFailure } from '@/src/transcription/transcribe-failure';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
+import {
+  getTakeManager,
+  type CurrentTake,
+  type CurrentTakePatch,
+  type TakeSource,
+} from '@/src/session/take-manager';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -127,8 +133,27 @@ export class VoiceRecorderSession {
   private stopInFlight = false;
   private prefsUnsubscribe: (() => void) | null = null;
 
+  // CHANGED: v5.4.0 Phase 0 — take lifecycle tracking (roadmap §3.1).
+  // WHY: this session is the single owner of the capture state machine, so it
+  //      owns begin → processing → ready transitions and discard-restore.
+  /** Where this capture session is hosted — Phase 2 will pass 'studio'. */
+  private readonly takeSource: TakeSource;
+  private currentTakeId: string | null = null;
+  /** Snapshot replaced by beginTake — restored verbatim on discard. */
+  private priorTakeSnapshot: CurrentTake | null = null;
+  private hasPriorTakeSnapshot = false;
+
+  constructor(options?: { takeSource?: TakeSource }) {
+    this.takeSource = options?.takeSource ?? 'reddit';
+  }
+
   get previewCanvas(): HTMLCanvasElement | null {
     return this.waveform?.canvas ?? null;
+  }
+
+  /** Exposed for host teardown — pagehide must not abort mid-transcode dispose. */
+  getPhase(): RecorderPhase {
+    return this.phase;
   }
 
   subscribe(listener: StateListener): () => void {
@@ -187,10 +212,22 @@ export class VoiceRecorderSession {
 
   private setError(error: unknown): void {
     const friendly = friendlyRecorderError(error);
+    const phaseAtError = this.phase;
     this.setPhase('error', {
       errorCode: friendly.code,
       errorMessage: friendly.message,
     });
+
+    // v5.4.0: reconcile the take. A failure while still recording captured
+    // nothing durable (relay only fires at stop) — put the previous take
+    // back. A failure during processing leaves the saved WebM recoverable —
+    // keep the take as a draft with the reason attached.
+    if (!this.currentTakeId) return;
+    if (phaseAtError === 'recording') {
+      this.restorePriorTakeOnDiscard();
+    } else if (phaseAtError === 'processing') {
+      this.trackTakeUpdate({ status: 'draft', meta: { note: friendly.message } });
+    }
   }
 
   // BUG FIX: recorder panel frozen on an invalidated extension context (fresh install / auto-update)
@@ -302,6 +339,9 @@ export class VoiceRecorderSession {
     //      needed for both transcode and STT, so this is unconditional).
     prewarmOffscreen();
 
+    // v5.4.0: register the new take (fire-and-forget — must never block capture).
+    void this.beginTakeTracking();
+
     this.startedAt = Date.now();
     this.elapsedSeconds = 0;
     this.setPhase('recording', {
@@ -349,6 +389,82 @@ export class VoiceRecorderSession {
 
   private isSuperseded(stopEpoch: number): boolean {
     return this.disposed || stopEpoch !== this.sessionEpoch;
+  }
+
+  /**
+   * v5.4.0 Phase 0 — take lifecycle (all writes fire-and-forget; capture must
+   * never block or fail on session-state persistence).
+   */
+  private async beginTakeTracking(): Promise<void> {
+    const epoch = this.sessionEpoch;
+    try {
+      const prefs = await loadUserPreferences();
+      const { take, priorTake } = await getTakeManager().beginTake({
+        source: this.takeSource,
+        meta: {
+          activeProfileId: prefs.appearance.activeProfileId ?? null,
+          subtitlesEnabled: prefs.transcriptConfig?.transcriptionEnabled ?? false,
+        },
+      });
+      // Sub-second stop/cancel race: the session died while we were
+      // registering — undo the phantom 'recording' snapshot immediately.
+      if (this.disposed || epoch !== this.sessionEpoch || this.phase === 'error') {
+        await getTakeManager().restoreTake(priorTake);
+        return;
+      }
+      this.currentTakeId = take.id;
+      this.priorTakeSnapshot = priorTake;
+      this.hasPriorTakeSnapshot = true;
+    } catch (error) {
+      console.warn(`${EXTENSION_LOG_PREFIX} Take tracking begin failed (non-blocking)`, error);
+    }
+  }
+
+  private trackTakeUpdate(patch: CurrentTakePatch): void {
+    if (!this.currentTakeId) return;
+    void getTakeManager()
+      .updateCurrentTake(patch, { expectId: this.currentTakeId })
+      .catch((error: unknown) => {
+        console.warn(`${EXTENSION_LOG_PREFIX} Take update failed (non-blocking)`, error);
+      });
+  }
+
+  /**
+   * Discard path: put back whatever the snapshot was before this session
+   * started. Safe because the IDB blobs are only overwritten at stop —
+   * a discarded recording never touched them.
+   */
+  private restorePriorTakeOnDiscard(): void {
+    if (!this.hasPriorTakeSnapshot) return;
+    const prior = this.priorTakeSnapshot;
+    this.currentTakeId = null;
+    this.priorTakeSnapshot = null;
+    this.hasPriorTakeSnapshot = false;
+    void getTakeManager()
+      .restoreTake(prior)
+      .catch((error: unknown) => {
+        console.warn(`${EXTENSION_LOG_PREFIX} Take restore failed (non-blocking)`, error);
+      });
+  }
+
+  /**
+   * Auto-draft hook — panel close / page teardown while a session is mid-flight.
+   * Mid-recording teardown captured nothing durable (the WebM relay only fires
+   * at stop), so the honest recovery is the pre-session snapshot; mid-processing
+   * teardown keeps the relayed WebM as a resumable draft.
+   */
+  persistTakeOnClose(): void {
+    if (!this.currentTakeId) return;
+    if (this.phase === 'recording') {
+      this.restorePriorTakeOnDiscard();
+      return;
+    }
+    if (this.phase !== 'processing') return;
+    void getTakeManager()
+      .saveDraft({ meta: { note: 'Recorder closed before processing finished.' } })
+      .catch((error: unknown) => {
+        console.warn(`${EXTENSION_LOG_PREFIX} Take draft on close failed (non-blocking)`, error);
+      });
   }
 
   async stopRecording(options?: { stoppedAtCap?: boolean }): Promise<void> {
@@ -410,6 +526,15 @@ export class VoiceRecorderSession {
         // Fix: optional-chain + default false — matches normalizeTranscriptConfig (absent config ⇒ subtitles off).
         const subtitlesEnabled = prefs.transcriptConfig?.transcriptionEnabled ?? false;
 
+        // v5.4.0: the WebM relay has fired — from here the take owns real artifacts,
+        // so the pre-session snapshot must no longer be restored on cancel/error.
+        this.priorTakeSnapshot = null;
+        this.hasPriorTakeSnapshot = false;
+        this.trackTakeUpdate({
+          status: 'processing',
+          meta: { durationSeconds: this.elapsedSeconds, subtitlesEnabled },
+        });
+
         // CHANGED: parallel transcription only — burn-in deferred to Design Studio (eloquent-4).
         // WHY: users review and edit segment JSON before confirming subtitle bake.
         const webmClone = this.webmBlob.slice(0, this.webmBlob.size, this.webmBlob.type);
@@ -432,6 +557,12 @@ export class VoiceRecorderSession {
           subtitleStudioPending: subtitlesEnabled,
         });
         this.processingAbort = null;
+
+        // v5.4.0: base MP4 in hand — the take is complete and recoverable from Studio.
+        this.trackTakeUpdate({
+          status: 'ready',
+          meta: { durationSeconds: this.elapsedSeconds },
+        });
 
         // BUG FIX: recorder stuck at processing 80% (BUG-026)
         // Fix: reach stopped before async base-MP4 relay — large single-message relay must not gate UI.
@@ -614,6 +745,20 @@ export class VoiceRecorderSession {
   }
 
   cancel(): void {
+    const phaseAtCancel = this.phase;
+
+    // v5.4.0: reconcile the take before tearing the pipeline down. Discarding
+    // a live recording never wrote blobs → restore the pre-session snapshot.
+    // Cancelling processing keeps the already-relayed WebM → draft.
+    if (phaseAtCancel === 'recording') {
+      this.restorePriorTakeOnDiscard();
+    } else if (phaseAtCancel === 'processing' && this.currentTakeId) {
+      this.trackTakeUpdate({
+        status: 'draft',
+        meta: { note: 'Processing cancelled — captured audio was kept.' },
+      });
+    }
+
     this.bumpSession();
     this.disposeMediaPipeline();
     this.setPhase('idle', {

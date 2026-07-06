@@ -35,10 +35,105 @@ node scripts/test-ivf.mjs && node scripts/test-overlay-alphamerge-args.mjs
 
 ---
 
-## v5.4.0 — Design Studio First — **NEXT**
+## v5.4.0 — Design Studio First — **MERGED TO `main`** (tag deferred)
 
-**Roadmap:** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`  
-Studio becomes standalone authoring environment; consumes v5.3.10 bake backend as composable layer. Baseline: `main` @ `v5.3.10`.
+**Roadmap:** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md` (Phase 0 as-built section is authoritative)  
+**Branch:** merged `feature/v5.4.0-standalone-design-studio` → `main` (2026-07-06) · **Package:** `5.4.0`  
+**Release notes:** `docs/release-notes-v5.4.0.md` · **Tag:** `v5.4.0` **deferred** (user doc refresh first) · **Push:** deferred (local only)  
+Studio is the standalone authoring environment; consumes v5.3.10 bake backend as composable layer. Baseline: `main` @ `v5.3.10` pre-merge.
+
+### Handoff summary (2026-07-06)
+
+**Shipped (Phases 0–4 + QA hardening):** TakeManager (`rvn.take.current` + artifact stamps), Current Take deck, Studio-native recording (live WYSIWYG canvas), Reddit attach mode, Studio-first copy, production WebCodecs bake defaults (`bd7d60a`), mid-processing tab-close recovery (`studio-take-recovery.ts`), Reddit panel live-sync during Studio capture.
+
+**User QA:** checklist items **1–11** passed per user sign-off (2026-07-06); item **#4** and **#11** required post-Phase-4 hardening (commits `03e33c0`–`0d70478`).
+
+**Restore:** `git checkout main && npm install && npm run dev`
+
+**Verify:** `node scripts/test-take-manager.mjs` (14) · `node scripts/test-take-deck.mjs` (12) · `npm run build` PASS
+
+**Explicitly deferred (not blocking merge/tag):**
+- Demo site (`demo/src/studio/`) standalone capture parity — no pipeline there.
+- Composite-stage perf (~43 s alphamerge wall on WebCodecs bakes) — optional follow-up.
+- `git push origin main` — per repo convention, when ready.
+- Tag `v5.4.0` — after user external doc refresh.
+
+### Phase 0 — TakeManager foundation **COMPLETE** (2026-07-05)
+
+Single source of truth for the current take across all contexts:
+
+- `src/session/take-manager.ts` — snapshot in `browser.storage.local` (`rvn.take.current`), blobs stay in existing IDB stores, `TakeArtifactStamp` freshness stamps, `storage.onChanged` subscription, stale-transient demotion on read (`normalizeStaleTake`, 2 min), same-context write serialization. **No MSG_TAKE_* family** — storage IS the sync channel (placeholders removed from `messaging/types.ts`).
+- `voice-recorder.ts` — owns capture transitions: `beginTake` (stashes prior snapshot) → `processing` → `ready`; discard/error-while-recording restores prior (blobs only written at stop); cancel/error during processing → `draft`. `sessionEpoch` guards sub-second races. `persistTakeOnClose()` = auto-draft hook.
+- `recorder-panel.ts` — auto-draft on `close()` + `pagehide`.
+- `background.ts` — stamps `baseRecording`/`baseMp4` artifacts after relayed IDB writes; adopts orphan artifacts into a draft.
+- `subtitle-bake.ts` — `updateFromBake` → status `baked` (adopts untracked pre-v5.4.0 sessions).
+- `mount-clip-studio.ts` — reactive subscription; status strip shows a compact Take row (`buildTakeStatusLine`).
+- Tests: `node scripts/test-take-manager.mjs` (12 checks). Suite 21/21 PASS, `tsc` HEAD parity, build PASS.
+
+### Phase 1 — Current Take deck **COMPLETE** (2026-07-05)
+
+- `src/ui/design-studio/current-take-status.ts` — hero "Current Take" deck: 9-slice panel frame, status icons, mono duration/badge chips (DRAFT / BAKED / SUBS PENDING), state headline + hint, **Download MP4 primary CTA** (amber bake-btn language; baked preferred over base, resolved from extension-origin IDB at click time), Record/Re-record secondary (Phase 1: routes to Reddit via `activateRedditTab` + workflow 'capture'; Phase 2 swaps to native), Discard tertiary (snapshot only — single-slot blobs overwrite on next take).
+- Hero layout (revised 2026-07-05): Current Take deck nested in profile/status panel (below profile selector, above status strip); hero = profile column then live preview (narrow stack); wide = preview left, profile column right. CSS: `studio-v4-layout.css` § Current Take deck; live states breathe via `prefers-reduced-motion`-guarded blink.
+- Status strip take row removed — deck is the single authoritative take display (`buildTakeStatusLine` deleted).
+- Tests: `node scripts/test-take-deck.mjs` (11 checks — state → CTA/badge matrix).
+
+### Phase 2 — Studio-native recording + live preview **COMPLETE** (2026-07-05)
+
+- `src/recorder/recorder-host.ts` — **headless** `mountRecorder` host (contract revised from the scaffold): owns session lifecycle + auto-draft; hands over the **WaveformRenderer canvas itself** via `onLiveCanvas` (the exact element `captureStream()` feeds MediaRecorder — zero-copy WYSIWYG, no per-frame callbacks). Each surface renders its own transport chrome.
+- `src/ui/design-studio/studio-recorder.ts` — deck-embedded transport (Record ● / Stop ■ / Discard), chronos mono timer + cap track (amber → warning → critical), FFmpeg processing bar; reuses the amber bake-btn family (`--ready` armed, `--baking` pulse while recording). Concurrent-session guard (fresh transient reddit-sourced take → confirm). Workflow phases: 'capture' on record, 'polish' on stop. `pagehide` auto-draft.
+- `mount-clip-studio.ts` — live canvas swaps into the hero monitor (`.studio__preview-canvas--live`, static canvas hidden, label → "LIVE MIC", bezel + label glow, faster breath), theme RAF loop paused while live (`auditionActive` guard in `syncPreviewLoop`). Deck morphs into the transport via `.studio-v4__take-deck--audition`.
+- `VoiceRecorderSession` runs unmodified on the extension page — relays (`MSG_SAVE_LAST_RECORDING`/base-MP4), transcribe fork, and transcode client are all `runtime.sendMessage`-based, so the entire downstream (voice preview, subtitles, bake) lights up identically to a Reddit capture. Studio edits during audition hot-swap the live canvas via the existing prefs listener — **you can restyle the clip while recording it**.
+- Reddit panel path untouched (Phase 0 wiring only); UI unification lands with Phase 3/4 polish.
+
+### Phase 3 — Reddit as output target **COMPLETE** (2026-07-05)
+
+- **Attach mode:** `RecorderPanel.open()` checks the TakeManager first — a completed take (non-transient + MP4 artifact) with a live composer opens the panel as an output target: "Current Studio Take" card (amber signage + mono chronos chip, mirroring the deck), **Attach Studio take** primary, **Record new here** secondary, "Edit in Design Studio" CTA. No mic acquisition until the user chooses to record.
+- **Relay generalized:** `MSG_GET_BAKED_MP4_META/_CHUNK` accept `store: 'baked' | 'base'` (default 'baked' — backward compatible); background keeps a per-store byte cache. Never-baked takes attach their base MP4.
+- Attach flow: fetch (chunked) → `attachMp4ToComposer` → workflow 'design' on success. "Record new here" runs the classic capture path — TakeManager's prior-snapshot stash means a discarded re-record restores the attachable take intact.
+- Voice-note button copy: "attach your Studio take or record here". All shadow-DOM/observer/composer-detection logic untouched.
+
+### Phase 4 — Polish + release prep **COMPLETE** (2026-07-05, QA 2026-07-06)
+
+- Studio-first copy sweep: workflow banner (record-in-Studio primary, "Record on Reddit instead" secondary, "How does Reddit fit in?" explainer), status strip (deck-first hints/blockers), panel 3-phase intro, bake done-message.
+- Progressive disclosure: main screen = workflow banner + hero (take deck / profile / preview) + collapsed v4 section cards — unchanged subpanel pattern, no new top-level controls.
+- Version **5.4.0** (`package.json` + `version.ts`); release notes `docs/release-notes-v5.4.0.md` incl. **manual QA checklist** (studio recording, recovery, attach mode, regression sweep).
+- Verification: take-manager **14/14**, take-deck **12/12**, `npm run build` PASS at merge.
+- Demo (`demo/src/studio/`) parity for the standalone flow = future work (no capture pipeline there); noted in release notes.
+
+### v5.4.0 QA — mid-processing tab-close recovery **PASS** (2026-07-06)
+
+User QA checklist item **#4** (close Studio mid-processing → reopen → draft/ready, no lost session): **PASS**.
+
+**Root causes fixed (commits `03e33c0`, `ea03d8a`):**
+- Studio `pagehide` called `host.close()` → `dispose()` → aborted offscreen transcode; phantom `processing` snapshot + orphaned audition UI (grayed Record).
+- `main.ts` `pagehide` `unmount()` re-ran `closeAudition()` and cancelled transcode again.
+- Draft with preserved WebM had no MP4 → Reddit attach mode unavailable until manual recovery.
+
+**As-built recovery path:**
+- `src/ui/design-studio/studio-take-recovery.ts` — reconcile phantom `processing`, auto-resume WebM→MP4 from IDB, serialized via recovery chain.
+- `entrypoints/background.ts` — `persistOrphanStudioTranscodeResult`, `MSG_QUERY_TRANSCODE_INFLIGHT`.
+- `src/session/take-manager.ts` — `reconcileInterruptedProcessing()`.
+- `studio-recorder.ts` — `detachAuditionOnPageHide()`; `dispose()` skips teardown during `processing`.
+- `recorder-panel.ts` — `resumeDraftTranscodeIfNeeded()` before attach resolution.
+
+### v5.4.0 QA follow-up — Reddit panel live sync during Studio capture (2026-07-06)
+
+**Bug:** Open Reddit composer panel while Studio is recording → legacy mic UI; stays there after Studio take completes until composer close/reopen.
+
+**Fix:** `RecorderPanel.open()` opens attach-waiting chrome when a Studio-sourced transient take exists; `maybePromoteNewerTake()` promotes from mic-ready (not only `stopped`) when TakeManager advances via `storage.onChanged` subscription. **PASS** (user 2026-07-06) · commit `0d70478`.
+
+### v5.4.0 hardening — production WebCodecs bake (2026-07-06)
+
+- **Issue:** Amber "Bake subtitles" button and production builds used legacy MediaRecorder path; Lab toggles worked but prefs default `webCodecsBake: false`.
+- **Fix:** `resolveOverlayBakeEncoder` / `resolveParallelBakeEnabled` in `user-preferences.ts`; one-time rollout migration; `subtitle-bake.ts` wired. Commit `bd7d60a`.
+
+### v5.4.0 QA follow-up — hero preview aspect + layout (2026-07-05)
+
+- **Bug:** landscape hero monitor stretched vertically (~4:3 draw window); bezel SVG misaligned.
+- **Fix:** preview no longer `grid-row: span 2` (was inheriting right-column height); artboard + `preview-window-frame.svg` aligned to canvas **640×360 (16:9)**; `align-self: start` on preview.
+- **Layout (revised):** Current Take deck lives inside the profile/status panel — below profile selector, above status strip (not under live preview). Wide grid: preview left, profile column right. Hero preview centered in its column (`margin-inline: auto`; wide: `justify-self`/`align-self: center`, up to 720px).
+- **Files:** `studio-v4-layout.css`, `mount-clip-studio.ts`, `public/assets/design-studio-v4/panels/preview-window-frame.svg`
+- **Verify:** `npm run build` PASS
 
 ## v5.3.9 — Parallel Chunked Bake (Phase 3) — **MERGED & TAGGED** (`v5.3.9`)
 
