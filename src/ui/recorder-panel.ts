@@ -627,6 +627,26 @@ export class RecorderPanel {
       return;
     }
 
+    // BUG FIX: Reddit panel stuck on legacy mic UI while Studio captures
+    // Fix: a Studio-sourced transient take means attach-waiting chrome — not a fresh mic session.
+    try {
+      const studioInFlight = await getTakeManager().getCurrentTake();
+      if (
+        studioInFlight &&
+        studioInFlight.source === 'studio' &&
+        isTransientTakeStatus(studioInFlight.status)
+      ) {
+        this.mode = 'attach';
+        this.promoteToAttachFromRecord(studioInFlight, 'busy');
+        this.wireTakeManagerSync();
+        this.wireAttachArtifactSignals();
+        this.panelEl.focus();
+        return;
+      }
+    } catch {
+      // Non-blocking — fall through to the classic record path.
+    }
+
     await this.startRecordSession();
     this.wireTakeManagerSync();
     this.wireAttachArtifactSignals();
@@ -769,27 +789,32 @@ export class RecorderPanel {
     if (!this.composer || !document.contains(this.composer)) return;
 
     if (take && isTransientTakeStatus(take.status)) {
-      if (this.currentState.phase === 'stopped') {
-        this.promoteToAttachFromRecord(take, 'busy');
+      // BUG FIX: Reddit panel stuck on legacy mic UI while Studio captures
+      // Fix: promote even when the local session is still at mic-ready (not only 'stopped').
+      this.promoteToAttachFromRecord(take, 'busy');
+      return;
+    }
+
+    const localStoppedWithMp4 =
+      this.currentState.phase === 'stopped' && Boolean(this.currentState.mp4Blob);
+
+    if (take && this.isTakeArtifactPending(take)) {
+      if (!localStoppedWithMp4 || this.shouldPreferTakeOverLocalSession(take)) {
+        this.promoteToAttachFromRecord(take, 'waiting');
       }
       return;
     }
 
-    if (this.currentState.phase !== 'stopped') return;
-
-    if (take && this.isTakeArtifactPending(take) && this.shouldPreferTakeOverLocalSession(take)) {
-      this.promoteToAttachFromRecord(take, 'waiting');
-      return;
-    }
-
     const next = this.resolveAttachableTake(take);
-    if (!next || !this.shouldPreferTakeOverLocalSession(next)) return;
+    if (!next) return;
+
+    if (localStoppedWithMp4 && !this.shouldPreferTakeOverLocalSession(next)) return;
 
     const changed =
       this.takeAttachFingerprint(next) !== this.takeAttachFingerprint(this.attachableTake);
     this.promoteToAttachFromRecord(next, 'ready');
     if (changed) {
-      showToast('A newer take is ready — attach when ready.', 'info', 3500);
+      showToast('Studio take ready — attach when ready.', 'info', 3500);
     }
   }
 
@@ -899,9 +924,13 @@ export class RecorderPanel {
     const cardState = this.shadow.querySelector<HTMLElement>('[data-take-card-state]')!;
     chip.hidden = true;
     cardState.textContent =
-      take.status === 'recording'
-        ? 'Recording in the Studio…'
-        : 'Processing in the Studio…';
+      take.source === 'studio'
+        ? take.status === 'recording'
+          ? 'Recording in the Studio…'
+          : 'Processing in the Studio…'
+        : take.status === 'recording'
+          ? 'Recording on Reddit…'
+          : 'Processing on Reddit…';
 
     this.statusEl.textContent = 'A new Studio take is on the way — attach will unlock when it is ready.';
     this.statusEl.classList.remove('status--error', 'status--success', 'status--warning');
