@@ -45,11 +45,11 @@ node scripts/test-ivf.mjs && node scripts/test-overlay-alphamerge-args.mjs
 
 ---
 
-## v5.4.0 — Design Studio First — **MERGED TO `main`** (tag deferred)
+## v5.4.0 — Design Studio First — **TAGGED** `v5.4.0`
 
 **Roadmap:** `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md` (Phase 0 as-built section is authoritative)  
 **Branch:** merged `feature/v5.4.0-standalone-design-studio` → `main` (2026-07-06) · **Package:** `5.4.0`  
-**Release notes:** `docs/release-notes-v5.4.0.md` · **Tag:** `v5.4.0` **deferred** (user doc refresh first) · **Push:** deferred (local only)  
+**Release notes:** `docs/release-notes-v5.4.0.md` · **Tag:** `v5.4.0` · **Push:** deferred (user will push)  
 Studio is the standalone authoring environment; consumes v5.3.10 bake backend as composable layer. Baseline: `main` @ `v5.3.10` pre-merge.
 
 ### Handoff summary (2026-07-06)
@@ -62,11 +62,10 @@ Studio is the standalone authoring environment; consumes v5.3.10 bake backend as
 
 **Verify:** `node scripts/test-take-manager.mjs` (14) · `node scripts/test-take-deck.mjs` (12) · `npm run build` PASS
 
-**Explicitly deferred (not blocking merge/tag):**
+**Explicitly deferred (not blocking tag):**
 - Demo site (`demo/src/studio/`) standalone capture parity — no pipeline there.
 - Composite-stage perf (~43 s alphamerge wall on WebCodecs bakes) — optional follow-up.
 - `git push origin main` — per repo convention, when ready.
-- Tag `v5.4.0` — after user external doc refresh.
 
 ### Phase 0 — TakeManager foundation **COMPLETE** (2026-07-05)
 

@@ -31,11 +31,13 @@ extension (or paste one back out). It's a self-contained Vite app in
 
 ## Status
 
-**Stable `main` v5.2.0 — Voice QoL** (2026-06-26) — two small quality-of-life additions to the Design Studio voice panel: a **character lock** padlock that guards a tuned custom voice against an accidental preset-chip click, and **clipboard copy/paste** to back up a voice character (and restore it later) as portable versioned JSON. Both build directly on the v5.0.0 Dulcet II voice engine — see `archive/docs/release-notes-v5.0.0.md` for the full voice system. (v5.1.0 added animated GIF backgrounds.)
+**Current `main` v5.4.0 — Design Studio First** (2026-07-06) — the Design Studio is now the standalone recording suite. Record (with live WYSIWYG canvas), edit, caption, bake, and export entirely in one place; your work survives tab closes via the Take lifecycle. Reddit is the convenient one-click publish target (attach mode for finished or never-baked takes). WebCodecs per-chunk overlay bake is production default (sub-real-time rich subtitles). Crash-safe artifact stamps (H6). Full release notes: `docs/release-notes-v5.4.0.md`.
 
-**v5.0.0 — Dulcet II** (2026-06-25) — full DSP rebuild of voice stylization on a graph-native engine: composable `StylizedGraph` fragments (21 effect primitives across 7 categories) replace the legacy flat-field layer, with character voice presets (one-click chips + Incognito), per-primitive Fine-tune intensity dials, and physical analog sliders in the Design Studio voice composer. The graph bake is the single source of truth for preview and export. Release: `archive/docs/release-notes-v5.0.0.md`.
+**v5.3.10** — WebCodecs Per-Chunk Encoding backbone.  
+**v5.2.0 — Voice QoL** — character lock + clipboard (on v5.0.0 Dulcet II).  
+**v5.0.0 — Dulcet II** — graph-native DSP voice engine.
 
-Previous stable: **v4.0.0** (Eloquent I — subtitles), **v3.1.0** (Studio UX polish), **v3.0.0** (voice effects), **v2.0.0** (Design Studio + personalization). History: `archive/progress/pretty-branch.md` (v2), `archive/progress/dulcet-branch.md` (v3), `archive/progress/eloquent-branch.md` (v4 subtitles).
+Previous: **v4.0.0** (Eloquent I — subtitles + v4 Studio), **v3.x** (voice + UX). See `docs/HISTORY.md` + `docs/release-notes-v5.4.0.md`. Architecture: `docs/architecture/`.
 
 ### What's new in v4.0 (Eloquent I)
 

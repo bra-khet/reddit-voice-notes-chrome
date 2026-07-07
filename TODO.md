@@ -1,12 +1,12 @@
 # TODO
 
-## v5.4.0 — Design Studio First — **MERGED TO `main`** (tag deferred)
+## v5.4.0 — Design Studio First — **TAGGED** `v5.4.0`
 
 **Roadmap:** [`docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`](docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md)  
 **Release notes:** [`docs/release-notes-v5.4.0.md`](docs/release-notes-v5.4.0.md)  
 **Merged:** `feature/v5.4.0-standalone-design-studio` → `main` (2026-07-06) · **Package:** `5.4.0` on `main`  
-**Tag `v5.4.0`:** deferred until user completes external doc refresh  
-**Push:** deferred (local only)
+**Tag `v5.4.0`:** 2026-07-06 (after doc refresh)  
+**Push:** deferred (user will push)
 
 | Phase | Scope | Status |
 |-------|-------|--------|
@@ -18,10 +18,9 @@
 
 **Restore:** `git checkout main && npm install && npm run dev`
 
-**Deferred (not blocking tag):**
+**Deferred (not blocking release):**
 - Demo site (`demo/src/studio/`) standalone capture parity
 - Composite-stage perf (~43 s alphamerge wall on WebCodecs bakes)
-- External documentation refresh (user-owned, before tag)
 
 ## v5.3.10 — WebCodecs Per-Chunk Encoding — **MERGED & TAGGED**
 

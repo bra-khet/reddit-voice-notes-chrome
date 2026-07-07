@@ -857,7 +857,7 @@ reddit.com).
 | 3-phase workflow banner | Shell | `workflow-phase-banner.ts` wired; `rvn.workflow.phase` key live |
 | Segment-aware canvas preview | Subtitles | `previewText()` flat today |
 | Rainbow speed / slice fineness | Subtitles | Tunable `RAINBOW_CYCLES_PER_SECOND` + `RAINBOW_BAKE_SLICE_SECONDS`; user slider optional |
-| In-Studio recording (optional) | Shell / Voice | Extension page mic + unified canvas; Reddit tab keeps attach-only — see §13 |
+| In-Studio recording | Shell / Voice | **Shipped v5.4.0** (Design Studio First) — native capture host + live WYSIWYG in hero; Reddit is attach/output target. See claude-progress + architecture map. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -896,7 +896,7 @@ reddit.com).
 
 ---
 
-## 13. Future: temporal effects & optional in-Studio recording
+## 13. Future: temporal effects (in-Studio recording shipped v5.4.0)
 
 ### 13.1 Temporal subtitle effects (tack-ons)
 
@@ -913,15 +913,16 @@ reddit.com).
 
 **Hard limit today:** expressive `fontcolor` in **drawtext** on the **ffmpeg.wasm** burn path. Not a hard limit on the **product** — alternate burn strategies can exist — but any new path must pass BUG-025/028/031-style validation.
 
-### 13.2 Optional recording inside Design Studio
+### 13.2 In-Studio recording (shipped v5.4.0 Design Studio First)
 
-Feasible as a **mode**, not a replacement for Reddit attach:
+**Implemented:** Studio is now the primary capture surface with live WYSIWYG (recorder-host + live canvas handover). Reddit is the polished output/attach target. Full take lifecycle, recovery, and attach mode shipped. See:
 
-- **Studio wins:** extension-origin page — direct ImageDB, no personal-bg relay, same canvas as Live preview, prefs already hydrated, mic via `getUserMedia` (extension pages allow it).
-- **Reddit tab stays:** composer injection, attach MP4/WebM to post, content-script Shadow DOM.
-- **Pipeline unchanged at stop:** `webmBlob` → parallel transcode + transcribe → same IDB/storage signals Studio already polls.
-- **UX win:** record → edit → bake without tab hopping; preview WYSIWYG is literally the capture canvas.
-- **Work:** relocate or duplicate `VoiceRecorder` shell into Studio; keep one transcode queue; Reddit panel becomes optional “quick record” entry.
+- `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md` (Phase 2 as-built)
+- `claude-progress.md` v5.4.0
+- `docs/release-notes-v5.4.0.md`
+- `docs/architecture/architecture-map.md` (take lifecycle + studio capture)
+
+The original "optional" vision is now the default path; Reddit tab remains for quick attach + legacy capture. Pipeline at stop is unchanged and unified.
 
 ---
 

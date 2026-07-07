@@ -118,7 +118,7 @@
 
 - [x] Architecture + release doc refresh (this pass)
 - [x] H6 artifact-stamp hardening shipped and tested
-- [ ] `git tag v5.4.0` on `main` (deferred to a later commit, per plan)
+- [x] `git tag v5.4.0` on `main`
 - [ ] `git push origin main --tags` when ready
 
 ---
