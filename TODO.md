@@ -1,5 +1,18 @@
 # TODO
 
+## v5.5.0 — Browser-side Full Composite — **IN DEVELOPMENT**
+
+**Branch:** `feature/v5.5.0-browser-composite` · **Decision:** ADR-0003 (accepted) · **Plan/as-built:** [`docs/v5.5.0-browser-composite-migration.md`](docs/v5.5.0-browser-composite-migration.md)
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 0+1 (collapsed) | `src/composite/*` + hybrid behind `experimental.browserComposite` + Lab A/B toggle + timing v4 + tests | **done** (2026-07-07, commits `c1a79fe` + `b00f381`) |
+| 0 QA gate | **USER:** Lab bake ON vs OFF side-by-side (R9), take/attach/H6 e2e, 2:00-cap size (R13), second machine (R11) — checklist in roadmap §Phase 0 QA gate | **open — blocks everything below** |
+| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers for constructed path, `transcription-architecture.md` + diagrams catch-up | pending QA |
+| 3 | Fidelity Lab surface (consume `composite-fidelity.ts`), release notes, merge + tag `v5.5.0` | pending |
+
+**Verify now:** `node scripts/test-browser-composite-plan.mjs` (14) · all suites PASS · build PASS · tsc 4 pre-existing only
+
 ## v5.4.0 — Design Studio First — **TAGGED** `v5.4.0`
 
 **Roadmap:** [`docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`](docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md)  

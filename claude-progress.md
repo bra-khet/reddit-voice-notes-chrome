@@ -147,6 +147,35 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 
 ---
 
+## v5.5.0 — Browser-side Full Composite — **IN DEVELOPMENT** (hybrid cut landed 2026-07-07)
+
+**Branch:** `feature/v5.5.0-browser-composite` (2 commits: `c1a79fe` scaffold, `b00f381` hybrid cut)
+**Decision:** `docs/architecture/adr/0003-composite-stage-elimination.md` (accepted) · **Execution plan + as-built:** `docs/v5.5.0-browser-composite-migration.md` (§0 authoritative)
+**Goal:** eliminate the ~43 s FFmpeg alphamerge+x264 wall (88% of WebCodecs bake) — decode base MP4 in-page, blend `createOverlayFramePainter` at each frame's exact output PTS, encode + mux via `mediabunny@1.50.6` (pinned exact).
+
+### What landed
+
+- `src/composite/composite-plan.ts` — pure core: honest progress model (frame+packet counters, zero creep timers), output validation (frame-exact + ≤1-frame duration drift), R13 size guard, fidelity anchor timestamps. Node-tested.
+- `src/composite/browser-composite-support.ts` — probe on the REAL base track: `canDecode()` + first-frame decode round trip + encodable output codec (`avc` → `vp9`), null ⇒ legacy path (R11).
+- `src/composite/browser-composite.ts` — orchestrator: `VideoSampleSink` decode → single source-over `drawImage` blend (NO alphamerge/premul machinery on this path; R1/R2 scoped to fallbacks) → `CanvasSource` encode (awaited add = backpressure) → interleaved audio packet passthrough → `Mp4OutputFormat fastStart:'in-memory'`. Validated output or throw; caller owns fallback.
+- `src/composite/composite-fidelity.ts` — R9 frame extraction at anchor timestamps (Lab A/B surface = follow-up).
+- Wiring: `composite: 'browser' | 'ffmpeg'` on `bakeWithCanvasOverlay` (explicit at both call sites), fall-through chain browser → webcodecs+alphamerge → mediarecorder → drawtext; `experimental.browserComposite` (default **false**) + `resolveOverlayCompositeStrategy`; `canvasStageMessage` copy for the four `browser-composite-*` stages; Lab toggle "Browser composite (v5.5.0)" (OFF = R12 force-legacy sweep); timing schema **v4** (`browserCompositeMs`, never folded into `compositeMs`).
+
+### Verification (2026-07-07)
+
+`node scripts/test-browser-composite-plan.mjs` **14/14** · all 23 suites PASS (timing-summary now 6 checks) · `tsc` 4 pre-existing errors only · `npm run build` PASS (design-studio chunk 707 KB).
+
+### Next (user-owned Phase 0 QA gate — before default flip)
+
+Lab bake with toggle ON on a real take (rich effects, 60 s): timing entry + playable MP4 + A/V sync; side-by-side vs toggle-OFF legacy bake (R9 glow/dual-border edges); Download/attach/H6/re-bake e2e; output size at 2:00 cap (R13); second machine for the R11 capability matrix. Checklist: roadmap §Phase 0 QA gate. Record in `.ignore/sub-QA-5.5.0/`.
+
+```bash
+git checkout feature/v5.5.0-browser-composite && npm install && npm run dev
+node scripts/test-browser-composite-plan.mjs
+```
+
+---
+
 ## Where the rest of the history went
 
 Session history from **v5.3.9 and earlier** (down through the v1.0.0 MVP) lives in [`archive/progress/claude-progress-pre-v5.4.0.md`](archive/progress/claude-progress-pre-v5.4.0.md). See [`docs/HISTORY.md`](docs/HISTORY.md) for the milestone-by-milestone index plus archived release notes and design docs.
