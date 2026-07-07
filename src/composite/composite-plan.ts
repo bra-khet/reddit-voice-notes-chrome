@@ -209,3 +209,35 @@ export function selectCompositeFidelityTimestamps(
   }
   return [...new Set(picked)];
 }
+
+// ---------------------------------------------------------------------------
+// Audio passthrough timestamp rebasing (mediabunny muxer contract)
+// ---------------------------------------------------------------------------
+
+/**
+ * Our transcode AAC track can expose encoder-priming packets with slightly
+ * negative PTS (e.g. −11.4 ms). mediabunny's MP4 muxer rejects negative
+ * timestamps on output; video frames already sit on a non-negative timeline.
+ */
+export function computeAudioPassthroughOffset(firstPacketTimestampSeconds: number): number {
+  return firstPacketTimestampSeconds < 0 ? firstPacketTimestampSeconds : 0;
+}
+
+/** Shift audio PTS onto the muxer's non-negative timeline. */
+export function rebaseAudioPassthroughTimestamp(
+  timestampSeconds: number,
+  offsetSeconds: number,
+): number {
+  return timestampSeconds - offsetSeconds;
+}
+
+/**
+ * Priming-only packets whose entire span is still ≤ 0 after rebasing are not
+ * presented (EncodedPacket contract) — skip them instead of muxing.
+ */
+export function shouldSkipAudioPassthroughPacket(
+  rebasedTimestampSeconds: number,
+  durationSeconds: number,
+): boolean {
+  return rebasedTimestampSeconds + durationSeconds <= 0;
+}

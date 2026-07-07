@@ -60,7 +60,10 @@ import {
   BROWSER_COMPOSITE_STAGES,
   BROWSER_COMPOSITE_VIDEO_BPS,
   compositeOutputMayExceedStoreCap,
+  computeAudioPassthroughOffset,
   computeBrowserCompositeProgress,
+  rebaseAudioPassthroughTimestamp,
+  shouldSkipAudioPassthroughPacket,
   validateCompositeOutput,
   type BrowserCompositeStage,
 } from '@/src/composite/composite-plan';
@@ -164,9 +167,29 @@ async function setupAudioPassthrough(
   let pending: EncodedPacket | null = null;
   let first = true;
   let done = false;
+  let audioTimestampOffset: number | null = null;
+
+  const prepareAudioPacket = (packet: EncodedPacket): EncodedPacket | null => {
+    if (audioTimestampOffset === null) {
+      // BUG FIX: negative AAC priming PTS on browser composite passthrough
+      // Fix: rebase audio onto the non-negative video timeline before muxing
+      audioTimestampOffset = computeAudioPassthroughOffset(packet.timestamp);
+    }
+    const rebasedTimestamp = rebaseAudioPassthroughTimestamp(
+      packet.timestamp,
+      audioTimestampOffset,
+    );
+    if (shouldSkipAudioPassthroughPacket(rebasedTimestamp, packet.duration)) {
+      return null;
+    }
+    if (rebasedTimestamp === packet.timestamp) return packet;
+    return packet.clone({ timestamp: rebasedTimestamp });
+  };
 
   const muxPacket = async (packet: EncodedPacket): Promise<void> => {
-    await source.add(packet, first ? { decoderConfig } : undefined);
+    const ready = prepareAudioPacket(packet);
+    if (!ready) return;
+    await source.add(ready, first ? { decoderConfig } : undefined);
     first = false;
   };
 

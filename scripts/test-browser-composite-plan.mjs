@@ -30,10 +30,13 @@ const {
   BROWSER_COMPOSITE_VIDEO_BPS,
   BAKED_MP4_MAX_BYTES,
   COMPOSITE_FIDELITY_MAX_TIMESTAMPS,
+  computeAudioPassthroughOffset,
   computeBrowserCompositeProgress,
   compositeOutputMayExceedStoreCap,
   estimateCompositeOutputBytes,
+  rebaseAudioPassthroughTimestamp,
   selectCompositeFidelityTimestamps,
+  shouldSkipAudioPassthroughPacket,
   validateCompositeOutput,
 } = await import(pathToFileURL(outfile).href);
 
@@ -181,6 +184,27 @@ check('fidelity selection handles empty cues and degenerate inputs', () => {
   assert.deepEqual(ts, [0, 10 - 1 / 24]);
   assert.deepEqual(selectCompositeFidelityTimestamps([], 0, 24), []);
   assert.deepEqual(selectCompositeFidelityTimestamps([], 10, 0), []);
+});
+
+// ---- audio passthrough timestamp rebasing ---------------------------------
+
+check('audio offset captures AAC priming PTS from the first packet', () => {
+  assert.equal(computeAudioPassthroughOffset(-0.0114375), -0.0114375);
+  assert.equal(computeAudioPassthroughOffset(0), 0);
+  assert.equal(computeAudioPassthroughOffset(0.023), 0);
+});
+
+check('rebased priming PTS lands on the non-negative muxer timeline', () => {
+  const offset = computeAudioPassthroughOffset(-0.0114375);
+  const rebased = rebaseAudioPassthroughTimestamp(-0.0114375, offset);
+  assert.ok(rebased >= 0, `expected non-negative rebased PTS, got ${rebased}`);
+  assert.ok(Math.abs(rebased) < 1e-9);
+});
+
+check('skip only whole priming spans that remain at or before zero', () => {
+  assert.equal(shouldSkipAudioPassthroughPacket(-0.02, 0.01), true);
+  assert.equal(shouldSkipAudioPassthroughPacket(0, 0.023), false);
+  assert.equal(shouldSkipAudioPassthroughPacket(0.01, 0.02), false);
 });
 
 // ---- stage labels (R8: distinct semantic stages) ---------------------------
