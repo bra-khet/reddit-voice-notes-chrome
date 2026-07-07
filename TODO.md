@@ -6,12 +6,15 @@
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| 0+1 (collapsed) | `src/composite/*` + hybrid behind `experimental.browserComposite` + Lab A/B toggle + timing v4 + tests | **done** (2026-07-07, commits `c1a79fe` + `b00f381`) |
-| 0 QA gate | **USER:** Lab bake ON vs OFF side-by-side (R9), take/attach/H6 e2e, 2:00-cap size (R13), second machine (R11) — checklist in roadmap §Phase 0 QA gate | **open — blocks everything below** |
-| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers for constructed path, `transcription-architecture.md` + diagrams catch-up | pending QA |
-| 3 | Fidelity Lab surface (consume `composite-fidelity.ts`), release notes, merge + tag `v5.5.0` | pending |
+| 0+1 (collapsed) | `src/composite/*` + hybrid behind `experimental.browserComposite` + Lab toggle + timing v4 + tests | **done** (`c1a79fe` `b00f381`) |
+| 0 QA fixes | AAC priming PTS · cue-editor OOB/preview · background cap-stop recording | **done** (`5e906be` `6dba1c3` `a133320`) — user **PASS** on composite bake, cue editor, unfocused cap-stop |
+| 0 QA gate (remainder) | R9 side-by-side vs legacy · R12 toggle-OFF sweep · post-bake e2e (Download/attach/H6/re-bake) · R13 @ 2:00 · R11 second machine | **open — blocks merge/tag** |
+| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers, arch doc catch-up | pending gate + explicit decision (not required for tag) |
+| 3 | Fidelity Lab surface, `release-notes-v5.5.0.md`, version bump, merge → `main`, tag `v5.5.0` | pending gate |
 
-**Verify now:** `node scripts/test-browser-composite-plan.mjs` (14) · all suites PASS · build PASS · tsc 4 pre-existing only
+**Verify now:** `node scripts/test-browser-composite-plan.mjs` (17) · `test-take-manager.mjs` (24) · `test-webm-preflight.mjs` (4) · `test-segment-editor-clip-source.mjs` (4) · build PASS
+
+**Restore:** `git checkout feature/v5.5.0-browser-composite && npm install && npm run dev`
 
 ## v5.4.0 — Design Studio First — **TAGGED** `v5.4.0`
 

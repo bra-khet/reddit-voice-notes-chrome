@@ -147,9 +147,9 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 
 ---
 
-## v5.5.0 — Browser-side Full Composite — **IN DEVELOPMENT** (hybrid cut landed 2026-07-07)
+## v5.5.0 — Browser-side Full Composite — **IN DEVELOPMENT** (hybrid cut + QA hardening 2026-07-07)
 
-**Branch:** `feature/v5.5.0-browser-composite` (2 commits: `c1a79fe` scaffold, `b00f381` hybrid cut)
+**Branch:** `feature/v5.5.0-browser-composite` (scaffold `c1a79fe` → hybrid `b00f381` → QA fixes `5e906be` `6dba1c3` `a133320`)
 **Decision:** `docs/architecture/adr/0003-composite-stage-elimination.md` (accepted) · **Execution plan + as-built:** `docs/v5.5.0-browser-composite-migration.md` (§0 authoritative)
 **Goal:** eliminate the ~43 s FFmpeg alphamerge+x264 wall (88% of WebCodecs bake) — decode base MP4 in-page, blend `createOverlayFramePainter` at each frame's exact output PTS, encode + mux via `mediabunny@1.50.6` (pinned exact).
 
@@ -161,23 +161,43 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 - `src/composite/composite-fidelity.ts` — R9 frame extraction at anchor timestamps (Lab A/B surface = follow-up).
 - Wiring: `composite: 'browser' | 'ffmpeg'` on `bakeWithCanvasOverlay` (explicit at both call sites), fall-through chain browser → webcodecs+alphamerge → mediarecorder → drawtext; `experimental.browserComposite` (default **false**) + `resolveOverlayCompositeStrategy`; `canvasStageMessage` copy for the four `browser-composite-*` stages; Lab toggle "Browser composite (v5.5.0)" (OFF = R12 force-legacy sweep); timing schema **v4** (`browserCompositeMs`, never folded into `compositeMs`).
 
-### Verification (2026-07-07)
+### Verification (automated, 2026-07-07)
 
-`node scripts/test-browser-composite-plan.mjs` **14/14** · all 23 suites PASS (timing-summary now 6 checks) · `tsc` 4 pre-existing errors only · `npm run build` PASS (design-studio chunk 707 KB).
+`node scripts/test-browser-composite-plan.mjs` **17/17** · `test-take-manager.mjs` **24/24** · `test-segment-editor-clip-source.mjs` **4/4** · `test-webm-preflight.mjs` **4/4** · `npm run build` PASS · `tsc` 4 pre-existing only.
 
 ### QA hardening (2026-07-07)
 
-- **Browser composite AAC priming PTS** (`5e906be`): negative audio passthrough timestamps rebased before mediabunny mux.
-- **Cue editor OOB/preview stale WebM** (`6dba1c3`): TakeManager duration + H6 stamp-verified baseMp4 for preview; fixes false OOB when single-slot `rvnLastRecording` lagged the real take.
-- **Background cap-stop recording** (this session): unfocused tabs throttle rAF + `<video>` metadata probes. Fixes: `WaveformRenderer` setInterval pump when `document.hidden`; `flushFrameForCapture()` + `requestFrame()` before MediaRecorder stop; structural WebM preflight fallback (`test-webm-preflight.mjs`); `recordArtifact('baseMp4')` promotes `processing`→`ready`; Studio `visibilitychange`→`reconcileStudioTakeAfterTabReturn()`.
+| Issue | Commit | Fix |
+|-------|--------|-----|
+| Browser composite AAC priming PTS (`-0.0114375s` mux reject) | `5e906be` | Audio passthrough timestamp rebasing in `browser-composite.ts` / `composite-plan.ts` |
+| Cue editor false OOB + stale 2s audio preview | `6dba1c3` | TakeManager clip duration + H6 stamp-verified `baseMp4`/`baseRecording` in `segment-editor-clip-source.ts` |
+| Background cap-stop: metadata timeout, Processing deck hang, animation freeze | `a133320` | `WaveformRenderer` hidden-tab `setInterval` pump + `flushFrameForCapture()`; structural WebM preflight; `recordArtifact('baseMp4')` promotes `processing`→`ready`; Studio `visibilitychange` reconcile |
 
-### Next (user-owned Phase 0 QA gate — before default flip)
+### User QA (2026-07-07) — **PARTIAL PASS** (`.ignore/QA-5.5.0/`)
 
-Lab bake with toggle ON on a real take (rich effects, 60 s): timing entry + playable MP4 + A/V sync; side-by-side vs toggle-OFF legacy bake (R9 glow/dual-border edges); Download/attach/H6/re-bake e2e; output size at 2:00 cap (R13); second machine for the R11 capability matrix. Checklist: roadmap §Phase 0 QA gate. Record in `.ignore/sub-QA-5.5.0/`.
+| Scenario | Result | Notes |
+|----------|--------|-------|
+| Lab bake, browser composite ON (~119 s / 40 cues) | **PASS** (after `5e906be`) | Fast bake; honest chronos; no AAC mux fallback |
+| Browser composite faster when tab focused | **observed** | Expected Chrome throttling; future UX idea: stay-on-page mini-game (not built) |
+| Cue editor OOB badges + per-cue preview | **PASS** (after `6dba1c3`) | Bake timing unaffected throughout |
+| Cap-stop recording, tab **unfocused** | **PASS** (after `a133320`) | Animation/movement captured; deck reaches ready; user: "perfect fix" |
+| R9 side-by-side vs toggle-OFF legacy bake | **open** | Fidelity harness ships; Lab A/B surface not built |
+| Toggle-OFF legacy sweep (R12) | **open** | Regression not re-run this session |
+| Post-bake e2e: Download / attach / H6 / re-bake | **open** | Not formally re-checked after QA fixes |
+| R13 output size at 2:00 cap | **open** | |
+| R11 second machine capability matrix | **open** | Blocks Phase-2 default flip per ADR-0003 |
+
+### Next (before merge + tag `v5.5.0`)
+
+1. Close remaining Phase 0 QA gate items (table above) — record in `.ignore/sub-QA-5.5.0/` or extend `.ignore/QA-5.5.0/`.
+2. Phase 3: `docs/release-notes-v5.5.0.md`, version bump, merge `feature/v5.5.0-browser-composite` → `main`, tag `v5.5.0`.
+3. Phase 2 (separate decision): default flip `experimental.browserComposite: true` — **not** required for tag; flag stays OFF at ship unless user opts in.
 
 ```bash
 git checkout feature/v5.5.0-browser-composite && npm install && npm run dev
 node scripts/test-browser-composite-plan.mjs
+node scripts/test-webm-preflight.mjs
+node scripts/test-segment-editor-clip-source.mjs
 ```
 
 ---
