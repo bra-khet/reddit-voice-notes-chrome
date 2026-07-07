@@ -144,6 +144,38 @@ export function isNewerTakeThan(candidate: CurrentTake, anchorFreshnessMs: numbe
 }
 
 /**
+ * Best-known clip length for the current take — recorder timer first, then
+ * artifact stamps. Used by subtitle OOB checks and cue preview clamping so a
+ * stale single-slot WebM meta cannot shrink the session below the real take.
+ */
+export function resolveTakeClipDurationSeconds(
+  take: CurrentTake | null | undefined,
+): number | null {
+  if (!take) return null;
+  if (
+    typeof take.meta.durationSeconds === 'number' &&
+    Number.isFinite(take.meta.durationSeconds) &&
+    take.meta.durationSeconds > 0
+  ) {
+    return take.meta.durationSeconds;
+  }
+  for (const stamp of [
+    take.artifacts.bakedMp4,
+    take.artifacts.baseMp4,
+    take.artifacts.baseRecording,
+  ]) {
+    if (
+      typeof stamp?.durationSeconds === 'number' &&
+      Number.isFinite(stamp.durationSeconds) &&
+      stamp.durationSeconds > 0
+    ) {
+      return stamp.durationSeconds;
+    }
+  }
+  return null;
+}
+
+/**
  * Allowance between an IDB blob write and its stamp landing on the snapshot
  * (the background stamps after the relayed save resolves — ms apart normally;
  * seconds under load). Anything beyond this is a different capture.

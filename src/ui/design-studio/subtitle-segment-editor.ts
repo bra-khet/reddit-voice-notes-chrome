@@ -50,7 +50,16 @@ import { mountSmartAdjustModal } from '@/src/ui/design-studio/smart-adjust-modal
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
 import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 import { LAST_RECORDING_READY_KEY } from '@/src/settings/user-preferences';
-import { loadLastRecording, type LastRecordingSnapshot } from '@/src/storage/last-recording-db';
+import {
+  getTakeManager,
+  resolveTakeClipDurationSeconds,
+  type CurrentTake,
+} from '@/src/session/take-manager';
+import {
+  loadSegmentEditorAudioSource,
+  segmentEditorAudioSourceCacheKey,
+  type SegmentEditorAudioSource,
+} from '@/src/transcription/segment-editor-clip-source';
 
 export interface SegmentEditorState {
   /** Immutable Vosk output — discard restores this. */
@@ -311,8 +320,9 @@ export function mountSubtitleSegmentEditor(
   let modalDraft: TranscriptSegment[] = [];
   /** Snapshot when the modal opens — close/dismiss compares live DOM against this. */
   let modalOpenBaseline: TranscriptSegment[] = [];
-  let lastRecording: LastRecordingSnapshot | null = null;
-  let loadedSavedAt = 0;
+  let currentTake: CurrentTake | null = null;
+  let audioSource: SegmentEditorAudioSource | null = null;
+  let loadedSourceKey = '';
   let deliveryStatus: TranscriptDeliveryStatus = 'idle';
   let playingSegmentIndex: number | null = null;
 
@@ -482,16 +492,23 @@ export function mountSubtitleSegmentEditor(
     showModalUnsavedPrompt();
   }
 
+  function resolvedClipMetaDuration(): number | null {
+    return (
+      resolveTakeClipDurationSeconds(currentTake) ??
+      (audioSource && audioSource.metaDurationSeconds > 0 ? audioSource.metaDurationSeconds : null)
+    );
+  }
+
   function clipDurationForOob(): number | null {
     return resolveClipDurationForOobCheck(
-      lastRecording?.meta.durationSeconds,
+      resolvedClipMetaDuration(),
       cuePlayer.getDecodedDuration(),
     );
   }
 
   function clipDurationForPlayback(): number | null {
     return resolveClipDurationSeconds(
-      lastRecording?.meta.durationSeconds,
+      resolvedClipMetaDuration(),
       cuePlayer.getDecodedDuration(),
     );
   }
@@ -500,14 +517,7 @@ export function mountSubtitleSegmentEditor(
   // transcription succeeded. Replaces the working cues with evenly timed empty
   // slots spanning the clip; the user confirms/saves like any other edit.
   function resolveScaffoldClipDuration(): number | null {
-    return (
-      clipDurationForPlayback() ??
-      clipDurationForOob() ??
-      (typeof lastRecording?.meta.durationSeconds === 'number' &&
-      lastRecording.meta.durationSeconds > 0
-        ? lastRecording.meta.durationSeconds
-        : null)
-    );
+    return clipDurationForPlayback() ?? clipDurationForOob() ?? resolvedClipMetaDuration();
   }
 
   function generateScaffoldFromClip(): void {
@@ -841,9 +851,10 @@ export function mountSubtitleSegmentEditor(
   }
 
   async function loadRecordingSource(): Promise<void> {
-    const snapshot = await loadLastRecording();
-    const savedAt = snapshot?.meta.savedAt ?? 0;
-    if (snapshot && savedAt <= loadedSavedAt && lastRecording) {
+    const take = await getTakeManager().getCurrentTake();
+    const source = await loadSegmentEditorAudioSource(take);
+    const cacheKey = segmentEditorAudioSourceCacheKey(take, source);
+    if (cacheKey === loadedSourceKey) {
       return;
     }
 
@@ -853,17 +864,18 @@ export function mountSubtitleSegmentEditor(
       refreshModalSegmentUi();
     }
 
-    lastRecording = snapshot;
-    loadedSavedAt = savedAt;
+    currentTake = take;
+    audioSource = source;
+    loadedSourceKey = cacheKey;
 
-    if (lastRecording) {
+    if (audioSource) {
       try {
-        await cuePlayer.setSource(lastRecording.blob);
+        await cuePlayer.setSource(audioSource.blob);
       } catch (error) {
         console.warn('[Reddit Voice Notes] Could not load recording for cue preview', error);
+        await cuePlayer.setSource(null);
       }
     } else {
-      loadedSavedAt = 0;
       await cuePlayer.setSource(null);
     }
 
@@ -880,7 +892,7 @@ export function mountSubtitleSegmentEditor(
   function addSegment(): void {
     syncModalDraftFromDom();
     const clipDuration =
-      clipDurationForOob() ?? clipDurationForPlayback() ?? lastRecording?.meta.durationSeconds ?? null;
+      clipDurationForOob() ?? clipDurationForPlayback() ?? resolvedClipMetaDuration();
     modalDraft.push(buildDefaultNewSegment(modalDraft, clipDuration));
     renderModalSegments();
     const textAreas = segmentsEl.querySelectorAll<HTMLTextAreaElement>('[data-segment-text]');
@@ -1218,11 +1230,17 @@ export function mountSubtitleSegmentEditor(
     void loadRecordingSource();
   }, RECORDING_POLL_MS);
 
-  const onRecordingReady = (changes: Record<string, unknown>, area: string): void => {
-    if (area !== 'local' || !(LAST_RECORDING_READY_KEY in changes)) return;
-    void loadRecordingSource();
+  const onStorageRefresh = (changes: Record<string, unknown>, area: string): void => {
+    if (area !== 'local') return;
+    if (LAST_RECORDING_READY_KEY in changes) {
+      void loadRecordingSource();
+    }
   };
-  browser.storage.onChanged.addListener(onRecordingReady);
+  browser.storage.onChanged.addListener(onStorageRefresh);
+
+  const unsubscribeTake = getTakeManager().subscribe(() => {
+    void loadRecordingSource();
+  });
 
   void loadRecordingSource();
 
@@ -1239,7 +1257,8 @@ export function mountSubtitleSegmentEditor(
       smartAdjustModal.dispose();
       document.removeEventListener('keydown', onModalKeydown);
       document.removeEventListener('visibilitychange', onVisibility);
-      browser.storage.onChanged.removeListener(onRecordingReady);
+      browser.storage.onChanged.removeListener(onStorageRefresh);
+      unsubscribeTake();
       window.clearInterval(pollTimer);
       window.clearInterval(playPoll);
       cuePlayer.dispose();

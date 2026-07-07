@@ -40,6 +40,7 @@ const {
   takeArtifactMatchesStore,
   takeFreshnessMs,
   isNewerTakeThan,
+  resolveTakeClipDurationSeconds,
 } = await import(pathToFileURL(outfile).href);
 
 let checks = 0;
@@ -277,6 +278,32 @@ check('custom tolerance is respected', () => {
   const stamp = { savedAt: NOW };
   assert.equal(takeArtifactMatchesStore(stamp, { savedAt: NOW + 900 }, 1_000), true);
   assert.equal(takeArtifactMatchesStore(stamp, { savedAt: NOW + 1_100 }, 1_000), false);
+});
+
+console.log('resolveTakeClipDurationSeconds');
+
+check('prefers take.meta.durationSeconds over artifact stamps', () => {
+  const take = validTake({
+    meta: { durationSeconds: 119 },
+    artifacts: {
+      baseRecording: { savedAt: NOW, durationSeconds: 2 },
+      baseMp4: { savedAt: NOW, durationSeconds: 2 },
+    },
+  });
+  assert.equal(resolveTakeClipDurationSeconds(take), 119);
+});
+
+check('falls back to artifact duration when meta is absent', () => {
+  const take = validTake({
+    meta: {},
+    artifacts: { baseMp4: { savedAt: NOW, durationSeconds: 87 } },
+  });
+  assert.equal(resolveTakeClipDurationSeconds(take), 87);
+});
+
+check('returns null for missing/invalid take', () => {
+  assert.equal(resolveTakeClipDurationSeconds(null), null);
+  assert.equal(resolveTakeClipDurationSeconds(validTake({ meta: {}, artifacts: {} })), null);
 });
 
 rmSync(outdir, { recursive: true, force: true });
