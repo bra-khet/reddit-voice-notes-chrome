@@ -1,13 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.1 · **Updated:** 2026-07-06 · **Reflects:** `main` @ package `5.4.0` (tag deferred)
+**Version:** v2.2 · **Updated:** 2026-07-07 · **Reflects:** `main` @ package `5.4.0` (commit b0db6bd)
 **Status:** Ranked hardening items for the v5.4.x standalone-suite direction. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.1 (2026-07-06) — triage + H6 implemented (user directive): H6 **resolved** (stamp
-verification shipped + tested), H11 **resolved** (user QA — concurrent recordings work; minor
-transient display note), H10 **deferred** (user decision), H8/H12 re-filed as v5.4.x patches,
-H9 stays decision-first (ADR-0003). v2.0 (2026-07-06) — full refresh post-v5.4.0; risk register.
-v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
+**Changelog:** v2.2 (2026-07-07) — H9 decision recorded: browser-side full composite accepted via ADR-0003 (user directive: performance + extensibility over preview pixel fidelity; v5.3.10 primitives leveraged). Summary table + risk register updated; new R9–R12. v2.1 (2026-07-06) — triage + H6 implemented (user directive): H6 **resolved** (stamp verification shipped + tested), H11 **resolved** (user QA — concurrent recordings work; minor transient display note), H10 **deferred** (user decision), H8/H12 re-filed as v5.4.x patches, H9 stays decision-first (ADR-0003). v2.0 (2026-07-06) — full refresh post-v5.4.0; risk register. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -23,7 +19,7 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **v5.4.x patch** |
 | H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **v5.4.x patch** |
 | H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
-| H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **v5.5+ — decision-first via ADR-0003** (stub stays as-is) |
+| H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **Accepted — browser-side full composite via ADR-0003** (2026-07-07) |
 | H5 | Binary transport / 3:00 cap restoration (BUG-001 deferred) | Low | XL | Deferred (carried) |
 | — | Vosk model re-download (~40 MB/session, BUG-013) | Low | L | Accepted tradeoff (carried) |
 
@@ -110,18 +106,22 @@ so resumed base MP4s were saved with duration 0.
   (would require persisting the full graph snapshot per take — not warranted for a
   single-slot session tool); blocking recovery on mismatch.
 
-## H9 — Composite-stage elimination (v5.5+ scale — remains decision-first via ADR-0003)
+## H9 — Composite-stage elimination (Accepted — browser-side full composite via ADR-0003)
 
-- **Item / class it kills:** the last super-linear wall in the bake — ~43 s of a ~46–50 s
-  WebCodecs bake (88%) is the single x264 composite pass in single-threaded WASM.
-- **Evidence:** v5.3.10 QA timing (`.ignore/sub-QA-5.3.10/`, `claude-progress.md` §v5.3.10);
-  ADR-0001 option 4 named this follow-up explicitly.
-- **Decision needed first:** browser-side composite (VideoDecoder on base MP4 + canvas
-  blend + VideoEncoder + MP4 mux) vs WASM x264 tuning vs accept — see ADR-0003 stub.
-  Do NOT start this as a "quick optimization"; it changes where the final MP4 is authored.
-- **Out of scope / Non-goals (now):** anything in the v5.4.0 tag window. The bake is
-  sub-real-time and user-accepted; this is a v5.5+ feature-scale effort with an MP4-demuxer
-  dependency decision inside it.
+**Decision (2026-07-07):** Browser-side full composite chosen (ADR-0001 option 4, full variant — not the hybrid). VideoDecoder on base MP4 + canvas blend via the existing shared `createOverlayFramePainter` (global frame indices) + VideoEncoder + JS mux (Mediabunny). The FFmpeg alphamerge/x264 composite is bypassed for the primary WebCodecs path only.
+
+**Rationale (tied to investment):** Realizes the explicit follow-up in ADR-0001; the v5.3.10 segment/painter/IVF/constructed-stream foundation was built for exactly this. Largest architectural win: composite cost drops from ~43 s single-thread WASM x264 to browser decode/encode throughput. Enables rich future features without FFmpeg as the bottleneck. Per user direction: preview↔bake pixel fidelity is relaxed in favor of performance, rich canvas effects, and extensibility.
+
+**Key constraints preserved:**
+- MediaRecorder + drawtext fallback chain end-to-end (alphamerge tiers and burn-in client remain for fallbacks).
+- Honest chronos (new distinct stages with frame-derived ratios; no fudging — R8 closed by decision + implementation rule).
+- Output lands in `rvnLastBakedMp4` + TakeManager stamps exactly as before (TakeManager / attach / Download / recovery / H6 verification unaffected).
+
+**Dep:** `mediabunny` (tree-shakable, WebCodecs-native, ~5 kB gz core; cost accepted). See ADR-0003 for full consequences, phases (spike → hybrid cut → full), new risks R9–R12, and verification harness strategy (global-frame fidelity checks, alpha edges, A/V, honest telemetry).
+
+**Out of scope / Non-goals:** pixel-identical output with prior alphamerge; removing FFmpeg from the project; workerizing the composite loop in the first cut; user codec knobs. Implementation will live in new module(s) under `src/encoding/` or `src/composite/` (autonomy granted).
+
+**Verification hook:** fidelity harness exercising planner global indices; `node scripts/test-*.mjs` (existing + new); multi-machine visual + timing; end-to-end take/attach after new-path bakes.
 
 ## H10 — Encoder-fallback observability (DEFERRED — user decision 2026-07-06)
 
@@ -205,7 +205,11 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 | R5 | Stale take snapshot adopts overwritten single-slot blobs after crash | ~~Med~~ **Mitigated** | Wrong audio/video attached to Reddit | **H6 shipped 2026-07-06**: `takeArtifactMatchesStore` verification at all three consumption points; mismatch → stamp demoted + honest note | Closed — watch for false-positive demotions near the 5 s tolerance |
 | R6 | Recovery triple-channel coupling (snapshot + inflight query + orphan persistence) drifts under future edits | Med | Phantom processing / doubled transcode returns | Recovery chain serialization; QA #4 pass | Money-path trace B in the map is the review checklist for any edit touching one channel |
 | R7 | Dual-encode + IVF buffers memory pressure on long clips (2:00 cap) at 640×360 | Low | OOM/abort mid-bake | Segment model bounds working set; 360p; cap | Watch `EncodedOverlaySegmentMeta` cost telemetry on long-clip QA |
-| R8 | Composite stage (~43 s) perceived as regression once users compare with render-only timings | Med (UX) | Trust in progress UI | Chronos stage labels are honest per stage | ADR-0003 decision; do not "fix" by fudging the meter |
+| R8 | Composite stage (~43 s) perceived as regression once users compare with render-only timings | Med (UX) | Trust in progress UI | **ADR-0003 accepted (browser full composite)**; implementation must use distinct honest chronos stages with real frame/encoder-derived ratios (no fudging). Legacy fallback paths unchanged. | Closed by decision + strict stage-label rule in ADR-0003. |
+| R9 | Browser canvas blend + VideoEncoder produces visible differences from alphamerge (glow tails, subpixel, premul) | Med | Edge quality regression on rich effects | Shared global-frame painter; deterministic indices for comparison harness; canvas premul discipline matches overlay encoder; fallback preserved | New dedicated fidelity harness (see ADR-0003); document "production-grade, not bit-identical" |
+| R10 | Audio passthrough mux drifts timing or loses channels vs FFmpeg | Low | A/V desync or corrupt baked MP4 | Sample-accurate demux + same PTS math as planner; harness duration + alignment asserts | Duration/container validation in bake tests + harness |
+| R11 | VideoDecoder/Encoder capability or perf varies widely vs FFmpeg path | Med | Slow/failed bakes on some hardware (silent fallback risk) | Extend existing probe to decode+encode roundtrip; full fallback chain; honest surfacing | Capability matrix during spike/QA; consider observability later |
+| R12 | New dep + composite surface increases maintenance / breakage surface | Low | Future Chrome/dep breakage | Small tree-shaken dep (mediabunny); all core logic (painter/segments) in-repo; FFmpeg composite path is permanent fallback | Pin dep; "force legacy composite" Lab toggle for sweeps |
 
 ---
 
@@ -232,12 +236,13 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.1 (2026-07-06), main @ 5.4.0 (tag deferred).
-DONE: H6 stamp verification SHIPPED (takeArtifactMatchesStore + clearArtifact in
-take-manager.ts; wired at studio-take-recovery.ts / recorder-panel.ts attach /
-current-take-status.ts Download; 20/20 tests). H7 doc drift fixed. H11 closed by
-user QA (concurrent recordings work; known transient length-display edge, no code).
+Hardening backlog v2.2 (2026-07-07), main @ 5.4.0 (commit b0db6bd).
+DONE: H6 stamp verification SHIPPED; H7 doc drift fixed; H11 closed by user QA;
+H9 **Accepted** — browser-side full composite via ADR-0003 (user directive:
+perf + extensibility prioritized; preview pixel fidelity relaxed; v5.3.10
+primitives leveraged; honest chronos + fallback chain + IDB output preserved).
+Risks: R8 closed by decision; new R9–R12 (blend fidelity, audio mux, capability,
+dep surface) recorded with mitigations in ADR-0003.
 OPEN: H8 voice-prefs provenance + H12 verify Studio progress relay = v5.4.x patches.
-DEFERRED: H10 fallback observability (user decision). H9 composite wall = v5.5+,
-decision-first via ADR-0003. Risk register: R5 mitigated by H6; R3 accepted residual.
+DEFERRED: H10 fallback observability (user decision).
 ```

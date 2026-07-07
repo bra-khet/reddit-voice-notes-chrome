@@ -6,6 +6,7 @@ subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v2.2` (2026-07-07) — H9 decision: **browser-side full composite accepted via ADR-0003** (user directive: performance + extensibility prioritized over preview↔bake pixel fidelity; v5.3.10 segment/painter/IVF foundation leveraged). Diagram 2.2 + §3.1/§3.2/§3.3 notes updated for primary path (composite executor now browser canvas+VideoEncoder in Studio page; burn-in relay skipped for successful webcodecs bakes). New pointer to ADR-0003.
 - `v2.1` (2026-07-06) — hardening triage applied: **H6 shipped** (`takeArtifactMatchesStore` + `clearArtifact`; I15 now enforced → High), **H11 closed by user QA** (concurrent Studio recordings work; transient length-display edge noted, no code), H10 deferred by user decision, open question 2 resolved. Confidence ledger + carry-forward updated.
 - `v2.0` (2026-07-06) — MAJOR: three architectural shifts since v1.1. (1) **Subtitle bake re-architected**: FFmpeg `drawtext` is now the *last* fallback tier; the primary path is Canvas-2D overlay render (v5.3.4) → per-chunk encode (WebCodecs dual-IVF, v5.3.10; MediaRecorder parallel/serial, v5.3.9 fallback) → FFmpeg composite (`alphamerge`/`overlay`). Invariant I3 reworded. (2) **Take lifecycle** — new cross-context state class: `rvn.take.current` snapshot + `TakeArtifactStamp`s, synced by `storage.onChanged` (deliberately no message family — ADR-0002). (3) **Design Studio is now a capture surface** (`recorder-host.ts` headless mount, live WYSIWYG canvas handover, Reddit demoted to optional output target via attach mode). New diagrams 2.3 (take lifecycle) and updated 2.1/2.2; confidence ledger + self-critique fully refreshed.
 - `v1.1` (2026-07-04) — additive: v5.3.9 parallel chunked bake (N concurrent MediaRecorder capture loops in the Studio page; workers/offscreen deliberately rejected — pacing-bound). Detail: `docs/transcription-architecture.md` § Parallel chunked bake; `docs/5.3.9-worker-and-chunked-parallelization-design.md` §0.
@@ -95,7 +96,7 @@ flowchart TD
   BAKE -- "primary (default on)" --> WC["paint (shared painter)<br/>dual VP8 VideoEncoder → IVF<br/>pure-TS concat"]
   BAKE -- "fallback 1/2" --> MR["MediaRecorder capture<br/>(parallel → serial)<br/>concat + normalize"]
   BAKE -- "last resort" --> DT["FFmpeg drawtext"]
-  WC --> COMP["FFmpeg composite<br/>alphamerge + unpremultiply + overlay"]
+  WC --> COMP["browser composite (v5.5+ per ADR-0003)<br/>VideoDecoder + canvas blend (painter)<br/>+ VideoEncoder + mux (audio passthru)"]
   MR --> COMP2["FFmpeg composite<br/>WebM overlay"]
   COMP --> BAKED[(rvnLastBakedMp4)]
   COMP2 --> BAKED
@@ -105,7 +106,7 @@ flowchart TD
   SIG --> ATTACH["Reddit attach mode:<br/>chunked fetch (store: baked|base)<br/>→ attachMp4ToComposer"]
 ```
 
-**Invariants encoded:** Transcribe always consumes the raw clone (STT timing independent of voice effect). Every capture surface funnels into the same stop path — blobs are written **only at stop** (discard/error-while-recording restores the prior take snapshot without touching stores). The bake fallback order is `webcodecs → mediarecorder-parallel → serial → drawtext`; only *constructed* (WebCodecs) streams skip normalize (ADR-0001).
+**Invariants encoded:** Transcribe always consumes the raw clone (STT timing independent of voice effect). Every capture surface funnels into the same stop path — blobs are written **only at stop** (discard/error-while-recording restores the prior take snapshot without touching stores). The bake fallback order is `webcodecs → mediarecorder-parallel → serial → drawtext`; only *constructed* (WebCodecs) streams skip normalize (ADR-0001). **Primary webcodecs path composite moved to browser (ADR-0003):** for successful rich bakes the alphamerge/x264 step (and its offscreen burn-in relay) is replaced by in-page VideoDecoder + shared painter blend + VideoEncoder + mux; output still lands in rvnLastBakedMp4 with identical stamps. Fallback paths retain the FFmpeg composite contract.
 
 ### 2.3 State machine — take lifecycle (NEW, the v5.4.0 spine)
 
@@ -188,14 +189,16 @@ The single canvas in `waveform.ts` (`canvas.captureStream`) is the video-track s
 
 **Invariant:** *Anything visible in Live preview must be reproducible by the transcode or bake export path.* — `docs/design-studio.md` §3.3; `docs/engineering-principles.md` § Pipeline-native solutions.
 
-**The subtitle preview↔bake story changed shape (v5.3.4 → v5.3.10):**
-- Preview and bake now share **one painter**: `createOverlayFramePainter` (`subtitle-overlay-renderer.ts`) paints the overlay's global frame at `(startFrame + i) / fps` for *every* encoder strategy — the paint pixels are identical regardless of encoder; the encode/composite leg is the per-strategy QA surface (ADR-0001, extension-points § Overlay encoding backbone).
+**The subtitle preview↔bake story changed shape (v5.3.4 → v5.3.10 → ADR-0003):**
+- Preview and bake continue to share **one painter**: `createOverlayFramePainter` (`subtitle-overlay-renderer.ts`) paints the overlay's global frame at `(startFrame + i) / fps` for *every* encoder strategy — the paint pixels are identical regardless of encoder; the encode/composite leg is the per-strategy QA surface (ADR-0001, ADR-0003, extension-points § Overlay encoding backbone).
 - Rich effects (halo, dual border, gradients, Oklch rainbow) are canvas-native in both preview and bake — the old drawtext quantization gaps (0.25 s rainbow slices, static `fontcolor`) now apply **only** on the last-resort drawtext tier.
-- Remaining accepted gaps: FontFace (preview) vs FreeType-in-WASM (drawtext tier only) kerning; premultiplied-alpha round-trip precision at very low alpha on the WebCodecs composite (glow tails — QA-passed 2026-07-05, machine-dependent, calibration-gated).
+- v5.5+ (ADR-0003): primary WebCodecs path moves the *blend* itself into the browser (VideoDecoder + canvas composite using the painter + VideoEncoder). Per explicit user direction, preview↔bake *pixel* fidelity is relaxed in favor of performance and extensibility; the new fidelity surface (decode + canvas blend semantics + encoder) is gated by a global-frame-index harness (see ADR-0003 § Verification). Remaining accepted gaps include those from v5.3.10 plus possible small visual deltas vs prior alphamerge (documented, not a blocker).
 
 **Animated GIF backgrounds — no gap (canvas-native case):** decoded once, advanced by elapsed time in the RAF, captured straight into `base.mp4`. See `docs/gif-animation-design-implementation.md`.
 
 **Where it could silently drift:** a preview-only canvas effect with no bake path, or an encoder strategy that paints at chunk-local rather than global timestamps (breaks animation-phase invariance).
+
+**ADR-0003 pointer:** See `docs/architecture/adr/0003-composite-stage-elimination.md` for the full decision (browser full composite accepted), consequences, new risks, phases, and the verification strategy (global-frame fidelity harness for the new blend surface). The map diagrams and invariants above reflect the post-decision shape for the primary path.
 
 ### 3.2 Effect composition
 
@@ -207,7 +210,7 @@ Compositing order (bottom → top) in the final MP4 — unchanged:
 
 **Voice effect** applies to the audio track via `-af`/`-filter_complex` in the transcode pass (graph-native, `resolveVoiceGraph` → `buildStylizedGraph`) — not a visual layer.
 
-**Invariant (reworded in v2.0):** *Subtitles are always a post-`base.mp4` FFmpeg pass on the export; they never enter the live capture stream. The overlay's pixels, however, are canvas-painted — the "no canvas subtitles" rule from v1 applies to the capture RAF, not to the offline overlay render.* — `src/ffmpeg/subtitle-burnin.ts`; `docs/transcription-architecture.md` § canvas overlay.
+**Invariant (reworded in v2.0, refined ADR-0003):** *Subtitles are always a post-`base.mp4` composite pass on the export; they never enter the live capture stream.* For the **primary WebCodecs + browser-composite path (ADR-0003)** the executor is now browser-side (VideoDecoder + shared painter blend + VideoEncoder + mux) rather than an FFmpeg offscreen hop; the MediaRecorder and drawtext fallback paths retain the FFmpeg composite. The overlay's pixels remain canvas-painted. The "no canvas subtitles" rule from v1 applies to the capture RAF, not to the offline overlay render. — `src/ffmpeg/subtitle-burnin.ts`; `src/ui/design-studio/subtitle-canvas-bake.ts`; ADR-0003.
 
 Adding a fourth visual layer still changes compositing order → explicit ADR required.
 
@@ -221,7 +224,7 @@ Adding a fourth visual layer still changes compositing order → explicit ADR re
 |----------|--------------|--------|-----------|-------|
 | Transcode | `MSG_TRANSCODE_START` | FFmpeg (offscreen) | Content script **or Studio** (v5.4.0) | Optional voice graph; `voiceEffectFallback` on fail |
 | Transcribe | `MSG_TRANSCRIBE_START` | Vosk (sandbox via offscreen) | Content script or Studio | Raw WebM clone; parallel fork |
-| Burn-in | `MSG_BURNIN_START` | FFmpeg (offscreen) | Design Studio | Composite/drawtext; skip tab relay |
+| Burn-in | `MSG_BURNIN_START` | FFmpeg (offscreen) | Design Studio | Composite/drawtext; skip tab relay. **Primary webcodecs path (ADR-0003) bypasses this entirely** (in-page browser composite); fallbacks continue to use it. |
 
 **Non-pipeline message kinds (v5.4.0):** `MSG_QUERY_TRANSCODE_INFLIGHT` is a simple query/response (no ACK/PROGRESS lifecycle) used by Studio recovery. This is a *second message shape* — keep queries idempotent and side-effect-free so they stay safe to call from recovery chains (extension-points § Message pipelines v2).
 
