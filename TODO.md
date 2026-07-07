@@ -8,9 +8,9 @@
 |-------|-------|--------|
 | 0+1 (collapsed) | `src/composite/*` + hybrid behind `experimental.browserComposite` + Lab toggle + timing v4 + tests | **done** (`c1a79fe` `b00f381`) |
 | 0 QA fixes | AAC priming PTS · cue-editor OOB/preview · background cap-stop recording | **done** (`5e906be` `6dba1c3` `a133320`) — user **PASS** on composite bake, cue editor, unfocused cap-stop |
-| 0 QA gate (remainder) | R9 side-by-side vs legacy · R12 toggle-OFF sweep · post-bake e2e (Download/attach/H6/re-bake) · R13 @ 2:00 · R11 second machine | **open — blocks merge/tag** |
-| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers, arch doc catch-up | pending gate + explicit decision (not required for tag) |
-| 3 | Fidelity Lab surface, `release-notes-v5.5.0.md`, version bump, merge → `main`, tag `v5.5.0` | pending gate |
+| 0 QA gate | R9 · R12 · post-bake e2e · R13 · R11 (this machine) | **PASS** (user 2026-07-07) |
+| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers, arch doc catch-up | pending R11 second machine + explicit decision (**not** required for tag) |
+| 3 | `release-notes-v5.5.0.md`, version bump, merge → `main`, tag `v5.5.0` | **ready to execute** (Phase 0 gate closed) |
 
 **Verify now:** `node scripts/test-browser-composite-plan.mjs` (17) · `test-take-manager.mjs` (24) · `test-webm-preflight.mjs` (4) · `test-segment-editor-clip-source.mjs` (4) · build PASS
 
