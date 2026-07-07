@@ -188,8 +188,12 @@ export class WaveformRenderer {
   /** Monotonic token — stale async loads must not overwrite newer background state. */
   private backgroundLoadGeneration = 0;
   private rafId = 0;
+  private backgroundPumpId = 0;
   private lastFrameAt = 0;
   private running = false;
+  private readonly onVisibilityChange = (): void => {
+    this.syncFramePump();
+  };
 
   // CHANGED: analyser tuning + alignment support added for spectrum re-weighting and future settings.
   // WHY: defaults gave poor high-frequency visibility; alignment will be user-selectable.
@@ -264,13 +268,61 @@ export class WaveformRenderer {
     if (this.running) return;
     this.running = true;
     this.lastFrameAt = 0;
-    this.rafId = requestAnimationFrame(this.tick);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+    this.syncFramePump();
   }
 
   stop(): void {
     this.running = false;
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    this.stopFramePump();
+  }
+
+  /**
+   * Force one canvas paint before MediaRecorder stop. Background tabs throttle
+   * requestAnimationFrame, so captureStream can miss the final video frame.
+   */
+  flushFrameForCapture(): void {
+    if (!this.running) return;
+    this.drawFrame();
+    this.lastFrameAt = performance.now();
+  }
+
+  private stopFramePump(): void {
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = 0;
+    if (this.backgroundPumpId) window.clearInterval(this.backgroundPumpId);
+    this.backgroundPumpId = 0;
+  }
+
+  /** rAF when focused; setInterval when hidden so captureStream keeps receiving frames. */
+  private syncFramePump(): void {
+    if (!this.running) return;
+
+    const hidden = document.hidden;
+    if (hidden) {
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = 0;
+      }
+      if (!this.backgroundPumpId) {
+        this.backgroundPumpId = window.setInterval(() => {
+          if (!this.running) return;
+          this.drawFrame();
+          this.lastFrameAt = performance.now();
+        }, FRAME_INTERVAL_MS);
+      }
+      return;
+    }
+
+    if (this.backgroundPumpId) {
+      window.clearInterval(this.backgroundPumpId);
+      this.backgroundPumpId = 0;
+    }
+    if (!this.rafId) {
+      this.lastFrameAt = 0;
+      this.rafId = requestAnimationFrame(this.tick);
+    }
   }
 
   private async loadBackgroundIfNeeded(): Promise<void> {

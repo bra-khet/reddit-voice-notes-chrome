@@ -165,6 +165,12 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 
 `node scripts/test-browser-composite-plan.mjs` **14/14** · all 23 suites PASS (timing-summary now 6 checks) · `tsc` 4 pre-existing errors only · `npm run build` PASS (design-studio chunk 707 KB).
 
+### QA hardening (2026-07-07)
+
+- **Browser composite AAC priming PTS** (`5e906be`): negative audio passthrough timestamps rebased before mediabunny mux.
+- **Cue editor OOB/preview stale WebM** (`6dba1c3`): TakeManager duration + H6 stamp-verified baseMp4 for preview; fixes false OOB when single-slot `rvnLastRecording` lagged the real take.
+- **Background cap-stop recording** (this session): unfocused tabs throttle rAF + `<video>` metadata probes. Fixes: `WaveformRenderer` setInterval pump when `document.hidden`; `flushFrameForCapture()` + `requestFrame()` before MediaRecorder stop; structural WebM preflight fallback (`test-webm-preflight.mjs`); `recordArtifact('baseMp4')` promotes `processing`→`ready`; Studio `visibilitychange`→`reconcileStudioTakeAfterTabReturn()`.
+
 ### Next (user-owned Phase 0 QA gate — before default flip)
 
 Lab bake with toggle ON on a real take (rich effects, 60 s): timing entry + playable MP4 + A/V sync; side-by-side vs toggle-OFF legacy bake (R9 glow/dual-border edges); Download/attach/H6/re-bake e2e; output size at 2:00 cap (R13); second machine for the R11 capability matrix. Checklist: roadmap §Phase 0 QA gate. Record in `.ignore/sub-QA-5.5.0/`.

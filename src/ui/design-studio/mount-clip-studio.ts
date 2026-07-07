@@ -892,6 +892,15 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     takeDeck?.setAuditionActive(false);
   });
 
+  // BUG FIX: background cap-stop transcode left deck on Processing until interaction
+  // Fix: when the tab wakes, reconcile inflight/offscreen queue + promote ready takes.
+  const onStudioVisibility = (): void => {
+    if (document.visibilityState === 'visible') {
+      void reconcileStudioTakeAfterTabReturn();
+    }
+  };
+  document.addEventListener('visibilitychange', onStudioVisibility);
+
   subpanelShell = mountStudioV4SubpanelShell(studioShell, {
     isPanelDirty: (panelId) => {
       if (panelId === 'bar-style') return hasPendingColorEdit();
@@ -1175,6 +1184,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     subtitleControls.dispose();
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('pagehide', pageHideHandler);
+    document.removeEventListener('visibilitychange', onStudioVisibility);
     unsubscribe();
   };
 }

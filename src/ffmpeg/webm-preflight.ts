@@ -2,11 +2,41 @@ import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 const WEBM_EBML_MAGIC = [0x1a, 0x45, 0xdf, 0xa3] as const;
 const PREFLIGHT_METADATA_TIMEOUT_MS = 10_000;
+/** Background tabs throttle <video> metadata probes — allow more time before fallback. */
+const PREFLIGHT_METADATA_TIMEOUT_HIDDEN_MS = 30_000;
 /** Brief wait for durationchange when Chrome initially reports NaN on fresh MediaRecorder blobs. */
 const DURATION_SETTLE_MS = 400;
+/** ~50 KiB/s floor — a 2:00 cap-stop clip should be several MB. */
+const STRUCTURAL_BYTES_PER_SECOND = 50_000;
+
+export function hasWebmEbmlMagic(bytes: Uint8Array): boolean {
+  return WEBM_EBML_MAGIC.every((value, index) => bytes[index] === value);
+}
+
+/**
+ * Structural fallback when the <video> metadata probe is throttled (background
+ * tab). FFmpeg transcode remains the real validator; this only avoids a false
+ * reject on otherwise healthy MediaRecorder blobs.
+ */
+export function webmStructuralPreflightPasses(
+  byteLength: number,
+  expectedDurationSeconds?: number,
+): boolean {
+  if (byteLength < 256) return false;
+  if (
+    typeof expectedDurationSeconds === 'number' &&
+    Number.isFinite(expectedDurationSeconds) &&
+    expectedDurationSeconds > 0
+  ) {
+    const minBytes = Math.max(256, Math.floor(expectedDurationSeconds * STRUCTURAL_BYTES_PER_SECOND * 0.35));
+    return byteLength >= minBytes;
+  }
+  // Long recordings without a duration hint — require at least ~1s of payload.
+  return byteLength >= STRUCTURAL_BYTES_PER_SECOND;
+}
 
 function hasWebmMagic(bytes: Uint8Array): boolean {
-  return WEBM_EBML_MAGIC.every((value, index) => bytes[index] === value);
+  return hasWebmEbmlMagic(bytes);
 }
 
 function seekableEndSeconds(video: HTMLVideoElement): number | null {
@@ -70,11 +100,45 @@ function waitForDurationSettle(video: HTMLVideoElement): Promise<void> {
   });
 }
 
+export interface ValidateWebmRecordingOptions {
+  /** Recorder timer — enables structural fallback when metadata is slow. */
+  expectedDurationSeconds?: number;
+}
+
+function resolveMetadataTimeoutMs(): number {
+  return typeof document !== 'undefined' && document.hidden
+    ? PREFLIGHT_METADATA_TIMEOUT_HIDDEN_MS
+    : PREFLIGHT_METADATA_TIMEOUT_MS;
+}
+
+function tryStructuralPreflightFallback(
+  blob: Blob,
+  reason: string,
+  expectedDurationSeconds?: number,
+): void {
+  if (!webmStructuralPreflightPasses(blob.size, expectedDurationSeconds)) {
+    throw new Error(
+      'Recording could not be verified before transcoding (metadata timeout). Try recording again.',
+    );
+  }
+  console.warn(
+    `${EXTENSION_LOG_PREFIX} WebM preflight: ${reason} — accepting structural checks only`,
+    {
+      bytes: blob.size,
+      expectedDurationSeconds,
+      hidden: typeof document !== 'undefined' ? document.hidden : undefined,
+    },
+  );
+}
+
 /**
  * Browser-side decode check before paying the FFmpeg relay cost.
  * Catches corrupt/truncated WebM from cap-stop races early with a clear error.
  */
-export async function validateWebmRecording(blob: Blob): Promise<void> {
+export async function validateWebmRecording(
+  blob: Blob,
+  options?: ValidateWebmRecordingOptions,
+): Promise<void> {
   if (blob.size < 256) {
     throw new Error('Recording is too small to transcode. Try recording for at least one second.');
   }
@@ -93,12 +157,17 @@ export async function validateWebmRecording(blob: Blob): Promise<void> {
 
       const timer = window.setTimeout(() => {
         cleanup();
-        reject(
-          new Error(
-            'Recording could not be verified before transcoding (metadata timeout). Try recording again.',
-          ),
-        );
-      }, PREFLIGHT_METADATA_TIMEOUT_MS);
+        try {
+          tryStructuralPreflightFallback(
+            blob,
+            'metadata timeout',
+            options?.expectedDurationSeconds,
+          );
+          resolve();
+        } catch (error: unknown) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      }, resolveMetadataTimeoutMs());
 
       const cleanup = () => {
         window.clearTimeout(timer);
@@ -131,11 +200,16 @@ export async function validateWebmRecording(blob: Blob): Promise<void> {
 
       video.onerror = () => {
         cleanup();
-        reject(
-          new Error(
-            'Recording could not be decoded by the browser. Try recording again before transcoding.',
-          ),
-        );
+        try {
+          tryStructuralPreflightFallback(
+            blob,
+            'metadata decode error',
+            options?.expectedDurationSeconds,
+          );
+          resolve();
+        } catch (error: unknown) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
       };
 
       video.src = url;

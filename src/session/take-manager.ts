@@ -489,7 +489,14 @@ function createStorageTakeManager(): TakeManager {
       return enqueueWrite(async () => {
         const current = await readTakeRaw();
         if (current) {
-          await writeTakeRaw(mergeTakePatch(current, { artifacts: { [kind]: stamp } }));
+          const patch: CurrentTakePatch = { artifacts: { [kind]: stamp } };
+          // BUG FIX: processing deck stuck after background cap-stop transcode
+          // Fix: base MP4 relay can land on the snapshot before the recorder
+          //      session's ready promotion — promote as soon as the stamp is real.
+          if (kind === 'baseMp4' && current.status === 'processing') {
+            patch.status = 'ready';
+          }
+          await writeTakeRaw(mergeTakePatch(current, patch));
           return;
         }
         // Orphan artifact (blob saved without a live take) — adopt into a

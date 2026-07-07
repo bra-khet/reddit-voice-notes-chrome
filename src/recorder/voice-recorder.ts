@@ -103,6 +103,8 @@ export class VoiceRecorderSession {
   private micStream: MediaStream | null = null;
 
   private combinedStream: MediaStream | null = null;
+  /** Canvas capture track — requestFrame() seals the final video sample at stop. */
+  private canvasCaptureTrack: MediaStreamTrack | null = null;
   private mediaRecorder: MediaRecorder | null = null;
   private waveform: WaveformRenderer | null = null;
   private chunks: Blob[] = [];
@@ -315,6 +317,7 @@ export class VoiceRecorderSession {
 
     const mimeType = pickMimeType();
     const videoStream = this.waveform.canvas.captureStream(WAVEFORM_TARGET_FPS);
+    this.canvasCaptureTrack = videoStream.getVideoTracks()[0] ?? null;
     this.combinedStream = new MediaStream([
       ...videoStream.getVideoTracks(),
       ...this.micStream.getAudioTracks(),
@@ -487,10 +490,8 @@ export class VoiceRecorderSession {
     this.mediaRecorder = null;
 
     try {
+      await this.sealCanvasBeforeRecorderStop();
       const chunks = await this.finalizeMediaRecorder(recorder);
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, POST_STOP_SETTLE_MS);
-      });
 
       // BUG FIX: Transcode stalls when mic/canvas keep running after Stop
       // Fix: Cut mic, canvas capture, and AudioContext before building the WebM blob / FFmpeg.
@@ -518,7 +519,9 @@ export class VoiceRecorderSession {
       this.setPhase('processing', { processingProgress: 0 });
 
       try {
-        await validateWebmRecording(this.webmBlob);
+        await validateWebmRecording(this.webmBlob, {
+          expectedDurationSeconds: this.elapsedSeconds,
+        });
         if (this.isSuperseded(stopEpoch)) return;
 
         const prefs = await loadUserPreferences();
@@ -785,6 +788,32 @@ export class VoiceRecorderSession {
   }
 
   /**
+   * Paint a final canvas frame (and optional requestFrame) so background-tab
+   * cap-stops do not end on a truncated video track.
+   */
+  private async sealCanvasBeforeRecorderStop(): Promise<void> {
+    this.waveform?.flushFrameForCapture();
+
+    const track = this.canvasCaptureTrack;
+    const requestFrame = track && 'requestFrame' in track
+      ? (track as MediaStreamTrack & { requestFrame: () => Promise<void> }).requestFrame
+      : null;
+    if (requestFrame) {
+      try {
+        await requestFrame.call(track);
+      } catch {
+        // Best-effort — flushFrameForCapture already painted once.
+      }
+    }
+
+    const settleMs =
+      typeof document !== 'undefined' && document.hidden ? 200 : POST_STOP_SETTLE_MS;
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, settleMs);
+    });
+  }
+
+  /**
    * Drain MediaRecorder chunks — handlers must be attached immediately before stop().
    * BUG FIX: Cap auto-stop hung FFmpeg at ~20% transcoding
    * Fix: Cap stop uses the same immediate requestData+stop path as manual stop (no wait-while-recording flush).
@@ -823,6 +852,7 @@ export class VoiceRecorderSession {
       track.stop();
     }
     this.combinedStream = null;
+    this.canvasCaptureTrack = null;
 
     for (const track of this.micStream?.getTracks() ?? []) {
       track.stop();

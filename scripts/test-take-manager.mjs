@@ -306,5 +306,18 @@ check('returns null for missing/invalid take', () => {
   assert.equal(resolveTakeClipDurationSeconds(validTake({ meta: {}, artifacts: {} })), null);
 });
 
+console.log('recordArtifact processing promotion (logic)');
+
+check('baseMp4 stamp on processing take should promote to ready', () => {
+  const take = validTake({ status: 'processing' });
+  const patch = { artifacts: { baseMp4: { savedAt: NOW, byteLength: 2_000_000, durationSeconds: 120 } } };
+  if (take.status === 'processing') {
+    patch.status = 'ready';
+  }
+  const next = mergeTakePatch(take, patch);
+  assert.equal(next.status, 'ready');
+  assert.equal(next.artifacts.baseMp4.byteLength, 2_000_000);
+});
+
 rmSync(outdir, { recursive: true, force: true });
 console.log(`\ntest-take-manager: ${checks} checks passed`);
