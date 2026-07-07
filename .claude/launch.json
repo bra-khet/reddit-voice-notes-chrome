@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "demo", "run", "preview", "--", "--port", "6174", "--strictPort"],
       "port": 6174
+    },
+    {
+      "name": "tutorial-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8099"],
+      "port": 8099
     }
   ]
 }

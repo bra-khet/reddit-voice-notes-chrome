@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>The Reddit Voice Notes Field Guide</title>
-<meta name="description" content="From install to your first posted voice note — and the deep end after. A hands-on field guide to Reddit Voice Notes, built around its 3-Phase Creative Workflow." />
+<meta name="description" content="From install to your first finished voice note — recorded, previewed, and exported right in the Design Studio. A hands-on field guide to the Reddit Voice Notes standalone Voice Notes Suite." />
 <!-- Progressive enhancement gate: the reveal animation's hidden state only applies when JS is present.
      Without this, a JS error or a no-JS browser would leave reveal sections at opacity:0 (blank page). -->
 <script>document.documentElement.classList.add("js");</script>
@@ -440,12 +440,13 @@
 
 <!-- ── Hero ── -->
 <div class="hero wrap reveal">
-  <p class=”eyebrow”>A hands-on field guide · v5.3.3 “Dulcet II”</p>
-  <h1>Post an <span class="accent">expressive, private</span> voice note on Reddit.</h1>
+  <p class="eyebrow">A hands-on field guide · v5.4.0 · Design Studio First</p>
+  <h1>Record an <span class="accent">expressive, private</span> voice note — right in the Studio.</h1>
   <p class="lede">
-    Reddit Voice Notes records short voice comments right inside Reddit’s comment box and exports
-    them as MP4 videos with an animated waveform. This guide takes you from a cold install to your
-    first posted clip — then opens the deep end: character voices, baked subtitles, and reusable profiles.
+    Reddit Voice Notes is a standalone voice studio: it records, styles, captions, and exports short
+    voice clips as MP4 videos with an animated waveform — all locally in your browser. This guide takes
+    you from a cold install to your first finished clip (download it, or post it to Reddit in one click),
+    then opens the deep end: character voices, baked subtitles, and reusable profiles.
   </p>
   <div class="wave" aria-hidden="true">
     <span style="height:30%;animation-delay:0s"></span><span style="height:70%;animation-delay:.1s"></span>
@@ -462,11 +463,11 @@
     </div>
     <div class="contract__cell" role="listitem">
       <p class="contract__k">By the end</p>
-      <p class="contract__v">You’ll have <strong>designed, recorded, and posted</strong> a voice note — and know where the deep features live.</p>
+      <p class="contract__v">You’ll have <strong>designed, recorded, and exported</strong> a voice note — downloaded or posted to Reddit — and know where the deep features live.</p>
     </div>
     <div class="contract__cell" role="listitem">
       <p class="contract__k">Time</p>
-      <p class="contract__v">About <strong>15 minutes</strong> to your first post. Advanced sections are come-back-anytime.</p>
+      <p class="contract__v">About <strong>10 minutes</strong> to your first exported clip. Advanced sections are come-back-anytime.</p>
     </div>
     <div class="contract__cell" role="listitem">
       <p class="contract__k">Assumed</p>
@@ -476,9 +477,10 @@
 
   <div class="note note--privacy" style="margin-top:22px">
     <p class="note__h">◆ Privacy-first, by architecture</p>
-    <p>Recording, the live waveform, voice processing, transcription, and video transcoding all happen
-    <strong>locally in your browser</strong>. The only thing that ever leaves your machine is the final
-    MP4 you choose to upload to Reddit. That isn’t a setting — it’s how the extension is built.</p>
+    <p>Recording, the live preview, voice processing, transcription, and video transcoding all happen
+    <strong>locally in your browser</strong>. The only thing that can ever leave your machine is a finished
+    MP4 — and only if you choose to upload it to Reddit. Download it instead and it never leaves at all.
+    That isn’t a setting — it’s how the extension is built.</p>
   </div>
 </div>
 
@@ -491,19 +493,22 @@
       <h2>One creative loop, two windows</h2>
       <p class="muted" style="max-width:64ch">
         Before any steps, internalize the shape of the thing. Reddit Voice Notes isn’t “just another
-        recorder.” It’s a deliberate <strong>3-Phase Creative Workflow</strong> that moves you fluidly
-        between two windows: the <strong>Design Studio</strong> — your persistent creative control center —
-        and a <strong>Reddit comment box</strong> — the capture surface. Tap a phase to jump to it.
+        recorder.” It’s a deliberate <strong>3-Phase Creative Workflow</strong> that — as of v5.4.0 — now
+        lives almost entirely in one window: the <strong>Design Studio</strong>, your standalone Voice Notes
+        Suite where you design, <em>record</em>, preview, caption, bake, and export. The second window, a
+        <strong>Reddit comment box</strong>, has become an optional, one-click <strong>publish target</strong>.
+        Tap a phase to jump to it.
       </p>
 
       <div class="map">
         <div class="map__grid">
           <div class="room room--studio">
             <span class="room__tag">🎛 Design Studio</span>
-            <p class="room__title">The control center</p>
-            <p class="room__role">An extension page. Persists. Holds every creative decision.</p>
+            <p class="room__title">The standalone suite</p>
+            <p class="room__role">An extension page. Persists. Records, holds, and exports every take.</p>
             <ul class="room__list">
-              <li>Hero <em>Live preview</em> — what you see is what exports</li>
+              <li><span class="ui">Current Take</span> deck — always-saved status + <span class="ui">Download MP4</span></li>
+              <li>Hero <em>Live preview</em> — records live, and what you see is what exports</li>
               <li>Status cards: Bar style · Background · Voice · Subtitles</li>
               <li>Character voices &amp; the StylizedGraph composer</li>
               <li>Subtitle segment editor &amp; <span class="ui">Bake</span></li>
@@ -514,23 +519,23 @@
           <div class="map__mid" aria-hidden="true">
             <div class="map__arrow map__arrow--to-reddit">
               <span class="glyph">→</span>
-              <span>design<br/>syncs live</span>
+              <span>attach /<br/>publish</span>
             </div>
             <div class="map__arrow map__arrow--to-studio">
               <span class="glyph">←</span>
-              <span>results<br/>flow back</span>
+              <span>quick takes<br/>sync back</span>
             </div>
           </div>
 
           <div class="room room--reddit">
             <span class="room__tag">💬 Reddit comment box</span>
-            <p class="room__title">The capture surface</p>
-            <p class="room__role">A content script. Where your voice is actually recorded &amp; posted.</p>
+            <p class="room__title">The publish target <span class="muted">(optional)</span></p>
+            <p class="room__role">A content script. Where a finished take gets posted — or quickly re-recorded.</p>
             <ul class="room__list">
               <li>Injected mic button next to the video icon</li>
-              <li>Floating recorder with live waveform</li>
-              <li>2-minute recording cap</li>
-              <li><span class="ui">Download MP4</span> / <span class="ui">Attach to Reddit</span></li>
+              <li><span class="ui">Attach Studio take</span> — your finished take, one click</li>
+              <li><span class="ui">Record new here</span> — quick native capture, syncs back</li>
+              <li><span class="ui">Edit in Design Studio</span> jumps you home</li>
               <li>Your comment, posted</li>
             </ul>
           </div>
@@ -543,11 +548,11 @@
             <span class="phasecard__c">in Design Studio</span>
             <p class="phasecard__d">Choose clip style, voice, background, subtitle style.</p>
           </button>
-          <button class="phasecard" data-jump="#phase2" data-ctx="reddit" role="listitem">
+          <button class="phasecard" data-jump="#phase2" data-ctx="studio" role="listitem">
             <span class="phasecard__n">Phase 2</span>
             <p class="phasecard__t">Capture</p>
-            <span class="phasecard__c">on Reddit</span>
-            <p class="phasecard__d">Record your voice inside the comment composer.</p>
+            <span class="phasecard__c">in Design Studio</span>
+            <p class="phasecard__d">Record your voice with live preview — right in the Studio.</p>
           </button>
           <button class="phasecard" data-jump="#phase3" data-ctx="studio" role="listitem">
             <span class="phasecard__n">Phase 3</span>
@@ -559,26 +564,29 @@
       </div>
 
       <details class="disc">
-        <summary>Why two windows? (the one idea that makes everything click)</summary>
+        <summary>How does Reddit fit in? (the one idea that makes everything click)</summary>
         <div class="disc__body">
-          <p>This is the product’s own answer, verbatim from the Studio’s workflow banner:</p>
+          <p>This is the product’s own answer, verbatim from the Studio’s workflow banner (its
+          <span class="ui">How does Reddit fit in?</span> note):</p>
           <div class="note note--why">
-            <p class="note__h">▸ Why the tab switch?</p>
-            <p>“Recording happens inside Reddit for a native feel — your voice appears directly in your
-            comment. Design and post-production (including subtitle editing and baking) happen here in the
-            Studio, where there’s space for full controls and a real-time WYSIWYG preview.”</p>
+            <p class="note__h">▸ How does Reddit fit in?</p>
+            <p>“Everything — recording, design, subtitles, baking, export — lives here in the Studio with a
+            real-time WYSIWYG preview. Reddit is the polished output target: the voice-note button in any
+            comment box attaches your current Studio take in one click, and can still record on the spot when
+            you want a quick native capture.”</p>
           </div>
           <p>Two consequences worth holding onto:</p>
           <ul>
             <li><b>Live sync, no “Apply.”</b> Anything you change in the Studio is written to
-            <code>chrome.storage.local</code> and is already in effect for your <em>next</em> recording.
-            There is no separate apply step to forget.</li>
-            <li><b>Results come home.</b> When you stop a recording, the clip — plus its transcript and any
-            baked, captioned MP4 — flows back into the Studio automatically. You never shuttle files by hand.</li>
+            <code>chrome.storage.local</code> and is already in effect for your <em>next</em> take — whether you
+            record it in the Studio or on Reddit. There is no separate apply step to forget.</li>
+            <li><b>Your take is always here.</b> Every recording, transcript, and baked MP4 is tracked as the
+            <span class="ui">Current Take</span>. Close the tab, come back, even survive a crash — it’s right
+            where you left it, downloadable and editable. You never shuttle files by hand.</li>
           </ul>
           <p class="muted" style="margin-bottom:0">Under both windows sits an invisible machine room — a background
           service worker, an offscreen document running FFmpeg, and a sandboxed Vosk transcriber. You’ll never
-          manage it directly; it just surfaces results back to the Studio.</p>
+          manage it directly; it just surfaces results back to the Current Take.</p>
         </div>
       </details>
     </div>
@@ -602,7 +610,7 @@
           <span class="step__n">1</span>
           <div class="step__body">
             <h4>Unzip the build</h4>
-            <p>Unzip <span class="ui">reddit-voice-notes-5.3.3-chrome.zip</span> to a folder you’ll keep
+            <p>Unzip <span class="ui">reddit-voice-notes-5.4.0-chrome.zip</span> to a folder you’ll keep
             (the extension loads from this folder, so don’t delete it afterward). The zip is roughly
             <strong>57 MB</strong> — it bundles the Vosk speech model, fonts, and the FFmpeg WASM core.</p>
           </div>
@@ -647,22 +655,26 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       <div class="step">
         <span class="step__n">3</span>
         <div class="step__body">
-          <h4>Open Reddit with video comments</h4>
-          <p>Go to a post on <span class="ui">reddit.com</span> and open a comment box in a community that
-          allows <strong>video comments</strong>. The extension only injects on Reddit, and only where Reddit’s
-          own video-upload control exists — that’s the anchor it attaches next to.</p>
+          <h4>Open the Design Studio</h4>
+          <p>Click the extension icon, then <span class="ui--btn ui">Open Design Studio…</span>. This is your
+          home base — you can design, record, preview, caption, and export here without ever visiting Reddit.
+          <em>Optional:</em> when you want to publish to Reddit, open a comment box in a community that allows
+          <strong>video comments</strong> — the extension injects its mic button next to Reddit’s own
+          video-upload control.</p>
         </div>
       </div>
 
       <div class="note note--check">
         <p class="note__h">✓ How do you know it worked?</p>
-        <p>Two signs, no guesswork:</p>
+        <p>The one sign that matters — plus one for the Reddit path:</p>
         <ul style="margin:0">
-          <li>Click the extension icon. The popup reads <span class="ui">Reddit Voice Notes</span> with a
-          version line, a <span class="ui">Clip appearance</span> summary, an <span class="ui--btn ui">Open Design Studio…</span>
-          button, and <span class="ui">Reload extension</span> at the bottom.</li>
-          <li>In the comment box, a <strong>microphone button labeled “Voice Note”</strong> now sits next to the
-          video icon (its tooltip reads <span class="ui">Record voice note (max 2:00)</span>).</li>
+          <li><strong>Primary:</strong> Click the extension icon. The popup reads <span class="ui">Reddit Voice Notes</span>
+          with a version line, a <span class="ui">Clip appearance</span> summary, an
+          <span class="ui--btn ui">Open Design Studio…</span> button, and <span class="ui">Reload extension</span> at the
+          bottom. That button opens your standalone Studio — everything starts there.</li>
+          <li><strong>For publishing:</strong> In a Reddit comment box, a <strong>microphone button labeled “Voice Note”</strong>
+          now sits next to the video icon (its tooltip reads
+          <span class="ui">Voice note — attach your Studio take or record here (max 2:00)</span>).</li>
         </ul>
       </div>
 
@@ -678,7 +690,7 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
 
       <div class="done-row">
         <input type="checkbox" id="chk-setup" class="step-check" />
-        <label for="chk-setup"><b>Done:</b> extension loaded, popup opens, and the “Voice Note” mic button appears in a Reddit comment box.</label>
+        <label for="chk-setup"><b>Done:</b> extension loaded, the popup opens, and <span class="ui--btn ui">Open Design Studio…</span> launches the Studio. (The “Voice Note” button also appears in Reddit comment boxes.)</label>
       </div>
     </div>
   </section>
@@ -690,16 +702,20 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       <span class="phase-tag">Phase 1 · <b>Design</b></span>
       <h2>Set the look and feel — once, up front</h2>
       <p class="muted" style="max-width:64ch">
-        Open the Studio from the popup’s <span class="ui--btn ui">Open Design Studio…</span> button (or the
-        recorder’s <span class="ui--btn ui">Open Design Studio</span> — note its <span class="ui--amber ui">⚠ Go here first</span>
-        nudge). The Studio is the home base for the whole loop. For your first run, you can accept the defaults and
-        breeze through — this phase is about <em>recognizing the room</em>, not perfecting it.</p>
+        Open the Studio from the popup’s <span class="ui--btn ui">Open Design Studio…</span> button. (If you ever
+        land on Reddit first, the recorder still points you home with an <span class="ui--btn ui">Open Design Studio</span>
+        button and a <span class="ui--amber ui">→ Go here first</span> nudge.) The Studio is the home base for the whole
+        loop. For your first run, you can accept the defaults and breeze through — this phase is about
+        <em>recognizing the room</em>, not perfecting it.</p>
 
       <h3>What you’re looking at</h3>
       <p>A workflow banner sits up top with a three-step stepper — <span class="ui">Design</span> ·
       <span class="ui">Capture</span> · <span class="ui">Polish &amp; Bake</span> — so you always know where you
-      are. Below it, the layout is a <strong>hero preview</strong> plus a <strong>profile + status strip</strong>,
-      over a single row of four <strong>status cards</strong>:</p>
+      are. Its guidance now reads <span class="ui--status ui">Design your clip style, then record right here in the
+      Studio — live preview included.</span>, with a quieter <span class="ui--btn ui">Record on Reddit instead →</span>
+      for when you’d rather. Below it, the layout is a <strong>hero preview</strong> beside a
+      <strong>profile + status column</strong> — and nested in that column, the new <strong>Current Take</strong>
+      deck (its own section, just below) — over a single row of four <strong>status cards</strong>:</p>
 
       <div class="cat-grid">
         <div class="cat" style="border-top-color:var(--acc-bars)"><p class="cat__h">Bar style</p><p class="cat__kinds">Waveform colors, glow, alignment, background flair. Summary shows a swatch + S/V + alignment badge.</p></div>
@@ -720,6 +736,53 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
         the preview, the export can reproduce it. You design by <em>looking</em>, not by guessing and re-rendering.</p>
       </div>
 
+      <h3>Your anchor: the Current Take deck</h3>
+      <p>New in v5.4.0, and the single most important thing to recognize. The <span class="ui">Current Take</span>
+      deck is an always-visible card that answers one question at a glance: <em>what state is my take in, and what
+      can I do right now?</em> A status icon, a headline, duration and status chips, and a big amber
+      <span class="ui--amber ui">Download MP4</span> button. It is the same card in every state — so once you know it,
+      you always know where you stand.</p>
+
+      <div class="mock" role="img" aria-label="Mockup of the Current Take deck: title Current Take with a 0:47 duration chip and a BAKED badge, state line Take baked and ready, a primary Download MP4 · captioned button, and secondary Re-record take and Discard take buttons.">
+        <p class="mock__title">Current Take
+          <span class="ui ui--amber" style="margin-left:7px">0:47</span>
+          <span class="ui ui--status" style="border-color:var(--cyan)">BAKED</span>
+        </p>
+        <p class="mock__status">Take baked &amp; ready</p>
+        <div class="mock__row" style="margin-bottom:8px">
+          <span class="mock__btn mock__btn--primary">Download MP4 · captioned</span>
+        </div>
+        <div class="mock__row">
+          <span class="mock__btn mock__btn--secondary">Re-record take</span>
+          <span class="mock__btn mock__btn--secondary">Discard take</span>
+        </div>
+      </div>
+
+      <p>The headline and chips change with the take; the moves stay predictable:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>The deck says</th><th>What it means</th><th>Your move</th></tr></thead>
+          <tbody>
+            <tr><td><span class="ui--status ui">No take yet</span></td><td>Nothing recorded in this browser yet.</td><td><span class="ui ui--btn">Record new take</span> — see Phase 2.</td></tr>
+            <tr><td><span class="ui--status ui">Recording in progress…</span></td><td>A live capture is running — in the Studio or on Reddit.</td><td>It lands here the moment you stop.</td></tr>
+            <tr><td><span class="ui--status ui">Processing your take…</span></td><td>Converting to MP4 locally.</td><td>Wait — it appears here when ready.</td></tr>
+            <tr><td><span class="ui--status ui">Take ready</span> <span class="ui--amber ui">SUBS PENDING</span></td><td>Base MP4 is ready; captions may still be transcribing.</td><td><span class="ui--amber ui">Download MP4</span>, or open Subtitles to caption &amp; bake.</td></tr>
+            <tr><td><span class="ui--status ui">Take baked &amp; ready</span> <span class="ui--status ui">BAKED</span></td><td>A captioned MP4 is ready.</td><td><span class="ui--amber ui">Download MP4 · captioned</span>, or attach on Reddit.</td></tr>
+            <tr><td><span class="ui--status ui">Incomplete take</span> <span class="ui--amber ui">DRAFT</span></td><td>A session didn’t finish — usually you closed the tab mid-work.</td><td>Reopening the Studio finishes the conversion; then re-record or <span class="ui">Discard take</span>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note note--why">
+        <p class="note__h">▸ Why this matters — your work can’t get lost</p>
+        <p style="margin-bottom:0">Behind the deck is a <strong>Take lifecycle</strong>: a single authoritative session
+        (<code>rvn.take.current</code>) shared across every context via <code>chrome.storage.local</code>. Close the tab,
+        switch away, even crash mid-processing — reopen the Studio and your take is right where you left it, downloadable
+        and editable. <span class="ui--amber ui">Download MP4</span> always resolves the best available file at click time
+        (a captioned bake when there is one, the base MP4 otherwise). This is the end of the old “I closed the recorder and
+        lost my clip” problem.</p>
+      </div>
+
       <h3>The shortest path: pick a clip style, leave the rest</h3>
       <p>Open the <span class="ui">Bar style</span> card and choose a bundled clip style — watch the hero preview
       update instantly. That’s genuinely enough for a great first post. Voice effects and subtitles are
@@ -732,10 +795,11 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
         because your design is already synced for the next take.</p>
       </div>
 
-      <h3>Hand off to Reddit</h3>
-      <p>When the look is set, use the banner’s <span class="ui--btn ui">Switch to Reddit →</span> button. The banner’s
-      guidance reads <span class="ui--status ui">Design saved — switch to your Reddit tab and hit Record.</span> and the
-      workflow advances to Phase 2.</p>
+      <h3>Next: record your take — right here</h3>
+      <p>When the look is set, you don’t switch anywhere. Press <span class="ui ui--btn">Record new take</span> in the
+      Current Take deck and recording begins <em>in the Studio</em>, with live preview in the hero monitor (that’s Phase 2).
+      Prefer Reddit? The banner keeps a <span class="ui--btn ui">Record on Reddit instead →</span> button — it sets the
+      workflow to Capture and activates your Reddit tab. Either way, the take comes home to the deck.</p>
 
       <details class="disc">
         <summary>◆ Also available: no-install Voice Studio demo</summary>
@@ -762,120 +826,194 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
     </div>
   </section>
 
-  <!-- ── PHASE 2 — CAPTURE ── -->
-  <section id="phase2" class="band" data-context="reddit">
+  <!-- ── PHASE 2 — CAPTURE (Studio-native) ── -->
+  <section id="phase2" class="band" data-context="studio">
     <div class="wrap reveal">
-      <div class="kicker"><span class="kicker__ctx" data-ctx="reddit">💬 Reddit</span></div>
+      <div class="kicker"><span class="kicker__ctx" data-ctx="studio">🎛 Design Studio</span></div>
       <span class="phase-tag">Phase 2 · <b>Capture</b></span>
-      <h2>Record your voice, right in the comment box</h2>
-      <p class="muted" style="max-width:64ch">Back on your Reddit tab, this is where your voice actually gets captured.
-      Everything here is local to your browser.</p>
+      <h2>Record your take — live, right in the Studio</h2>
+      <p class="muted" style="max-width:64ch">As of v5.4.0 you record <em>here</em>, watching the exact pixels that will be
+      encoded. No tab switch, nothing to shuttle. The Current Take deck morphs into a recording transport, and the hero monitor
+      becomes your live mic preview. Everything stays local to your browser.</p>
 
       <div class="step">
         <span class="step__n">1</span>
         <div class="step__body">
-          <h4>Click the “Voice Note” mic button</h4>
-          <p>It sits next to Reddit’s native video icon. (The injector is Shadow-DOM-aware, so it finds the right
-          anchor even inside Reddit’s nested components.) A <strong>floating recorder</strong> appears, docked at the
-          bottom — a small dark instrument titled <span class="ui">Voice Note</span>.</p>
+          <h4>Press <span class="ui ui--btn">Record new take</span> — grant the mic once</h4>
+          <p>In the Current Take deck, press <span class="ui ui--btn">Record new take</span> (or
+          <span class="ui ui--btn">Re-record take</span> if you already have one). The transport shows
+          <span class="ui--status ui">Initializing microphone…</span> and your browser asks for mic permission on the Studio’s
+          own origin — <strong>allow it once</strong>. It settles to
+          <span class="ui--status ui">Mic live — the preview shows exactly what you will record.</span></p>
+          <div class="note note--warn">
+            <p class="note__h">⚠ The Studio has its own mic permission</p>
+            <p style="margin-bottom:0">The Design Studio is a different origin from <span class="ui">reddit.com</span>, so the
+            browser prompts for the microphone <strong>once</strong> here, separately from Reddit. If you dismissed it, click the
+            address-bar lock icon, allow the mic, and press Record again.</p>
+          </div>
         </div>
       </div>
 
       <div class="step">
         <span class="step__n">2</span>
         <div class="step__body">
-          <h4>Grant the microphone (first time only)</h4>
-          <p>The recorder shows <span class="ui--status ui">Initializing microphone…</span>, then your browser asks
-          for mic permission. Allow it. The status settles to
-          <span class="ui--status ui">Microphone ready — press Record when you are set.</span></p>
+          <h4>Press <span class="ui--amber ui">● Record</span> and watch the live preview</h4>
+          <p>Hit <span class="ui--amber ui">● Record</span>. The hero monitor swaps to your live capture — its label flips to
+          <span class="ui--status ui">LIVE MIC</span> and it shows the <em>actual canvas being encoded</em>, not a stand-in. The
+          status reads <span class="ui--status ui">Recording… speak clearly into your microphone.</span> while a mono timer and
+          cap track climb.</p>
+
+          <div class="mock" role="img" aria-label="Mockup of the Studio recording transport mid-take: title Current Take, label LIVE MIC, status Recording, timer 0:43 of 2:00, buttons Stop and Discard.">
+            <p class="mock__title">Current Take · <span style="color:var(--cyan)">LIVE MIC</span></p>
+            <p class="mock__status">Recording… speak clearly into your microphone.</p>
+            <p class="mock__timer">0:43 <span>/ 2:00</span></p>
+            <div class="wave" aria-hidden="true" style="margin:6px 0 12px">
+              <span style="height:40%"></span><span style="height:80%"></span><span style="height:55%"></span><span style="height:95%"></span><span style="height:65%"></span><span style="height:85%"></span><span style="height:45%"></span><span style="height:70%"></span><span style="height:60%"></span><span style="height:50%"></span>
+            </div>
+            <div class="mock__row">
+              <span class="mock__btn mock__btn--primary">■ Stop</span>
+              <span class="mock__btn mock__btn--secondary">Discard</span>
+            </div>
+          </div>
+
+          <div class="note note--why">
+            <p class="note__h">▸ Why this matters — restyle while you record</p>
+            <p style="margin-bottom:0">Because the live preview <em>is</em> the capture canvas, any change you make in the Studio
+            while recording — bar color, background, alignment — hot-swaps into the take in real time. <strong>PREVIEW = OUTPUT</strong>
+            stops being a promise and becomes literal: tweak the look mid-take and it’s in the clip.</p>
+          </div>
+
+          <div class="note note--warn">
+            <p class="note__h">⚠ The 2-minute hard cap is real</p>
+            <p style="margin-bottom:0">Recordings stop at <strong>2:00</strong>. As you approach, the mono timer turns amber then
+            critical, a status line counts down the final seconds (<span class="ui--status ui">… left — wrapping up soon.</span>),
+            and it auto-stops at the line. It’s a deliberate pipeline limit, not a glitch.</p>
+          </div>
         </div>
       </div>
 
       <div class="step">
         <span class="step__n">3</span>
         <div class="step__body">
-          <h4>Press Record and speak</h4>
-          <p>Hit <span class="ui--amber ui">Record</span>. A live waveform animates as you talk and the timer climbs
-          toward the cap. The status reads <span class="ui--status ui">Recording… speak clearly into your microphone.</span></p>
-
-          <div class="mock" role="img" aria-label="Mockup of the floating recorder mid-recording: title Voice Note, timer 0:43 of 2:00 max, status Recording, buttons Stop and Discard.">
-            <p class="mock__title">Voice Note</p>
-            <p class="mock__timer">0:43 <span>/ 2:00 max</span></p>
-            <div class="wave" aria-hidden="true" style="margin:6px 0 12px">
-              <span style="height:40%"></span><span style="height:80%"></span><span style="height:55%"></span><span style="height:95%"></span><span style="height:65%"></span><span style="height:85%"></span><span style="height:45%"></span><span style="height:70%"></span><span style="height:60%"></span><span style="height:50%"></span>
-            </div>
-            <div class="mock__row">
-              <span class="mock__btn mock__btn--primary">Stop</span>
-              <span class="mock__btn mock__btn--secondary">Discard</span>
-            </div>
-          </div>
-
-          <div class="note note--warn">
-            <p class="note__h">⚠ The 2-minute hard cap is real</p>
-            <p style="margin-bottom:0">Recordings stop at <strong>2:00</strong> — the timer reads <span class="ui">/ 2:00 max</span>,
-            warns as you approach, and auto-stops at the line. It’s a deliberate pipeline limit, not a glitch. Also: if
-            you switch away to a background tab, the <em>canvas animation</em> pauses to save power — but your
-            <strong>audio keeps recording</strong>. The waveform just catches up when you return.</p>
-          </div>
+          <h4>Press <span class="ui--amber ui">■ Stop</span> and let it process</h4>
+          <p>Press <span class="ui--amber ui">■ Stop</span>. The take transcodes to MP4 locally — a progress bar shows
+          <span class="ui--status ui">Loading FFmpeg WASM… %</span> on the first run, then
+          <span class="ui--status ui">Converting to MP4… %</span>. The transport hands back to the deck, which flips to
+          <span class="ui--status ui">Take ready</span> — your take, saved and exportable.</p>
+          <p class="muted" style="margin-bottom:0">Mid-recording you can <span class="ui">Discard</span> (you’ll confirm first —
+          and a discarded re-record restores the take you had before). Mid-processing you can <span class="ui">Cancel</span>.
+          Nothing is thrown away silently.</p>
         </div>
       </div>
 
       <div class="step">
         <span class="step__n">4</span>
         <div class="step__body">
-          <h4>Stop, and let it process</h4>
-          <p>Press <span class="ui--amber ui">Stop</span>. The recorder transcodes your clip to MP4 locally — you’ll
-          see <span class="ui--status ui">Loading FFmpeg WASM… %</span> on the first run, then
-          <span class="ui--status ui">Converting to MP4… %</span>. When it lands, the status turns to a confident
-          <span class="ui--status ui">MP4 ready — download or attach your clip.</span></p>
-          <p class="muted" style="margin-bottom:0">Mid-recording you can <span class="ui">Discard</span>; mid-processing
-          you can <span class="ui">Cancel</span>. Either way you’re asked to confirm before anything is thrown away.</p>
+          <h4>Get it out: <span class="ui--amber ui">Download MP4</span></h4>
+          <p>The fastest, most reliable route — and often quicker than uploading — is right there on the deck:
+          <span class="ui--amber ui">Download MP4</span>. It saves the finished clip (a captioned bake if you’ve made one, the
+          base MP4 otherwise). That’s a complete voice note, no Reddit required.</p>
+          <p style="margin-bottom:0">Want it as a Reddit comment instead? That’s the next (optional) section — your take is
+          already waiting to attach.</p>
         </div>
       </div>
 
-      <div class="step">
-        <span class="step__n">5</span>
-        <div class="step__body">
-          <h4>Get it into your comment</h4>
-          <p>Two buttons, and they’re not equal:</p>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Button</th><th>What it does</th><th>When</th></tr></thead>
-              <tbody>
-                <tr><td><span class="ui--amber ui">Download MP4</span></td><td>Saves the MP4. You then upload it via Reddit’s normal video control.</td><td><b>Always reliable.</b> The primary path.</td></tr>
-                <tr><td><span class="ui ui--btn">Attach to Reddit</span></td><td>Best-effort: drops the MP4 straight into the composer’s file input for you.</td><td>Convenient when it works.</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p>Then post your comment as usual. <strong>That’s a posted voice note.</strong></p>
+      <details class="disc">
+        <summary>Prefer to record on Reddit? The quick native path (still here)</summary>
+        <div class="disc__body">
+          <p>Recording on Reddit still works exactly as before — handy for a fast, in-context capture. Press
+          <span class="ui--btn ui">Record on Reddit instead →</span> in the Studio banner, or click the
+          <span class="ui">Voice Note</span> mic button next to Reddit’s video icon. A <strong>floating recorder</strong> docks at
+          the bottom, titled <span class="ui">Voice Note</span>.</p>
+          <ol style="margin:0 0 12px; padding-left:22px; color:#d2cfe4">
+            <li style="margin-bottom:6px">It shows <span class="ui--status ui">Initializing microphone…</span> → allow the mic →
+            <span class="ui--status ui">Microphone ready — press Record when you are set.</span></li>
+            <li style="margin-bottom:6px">Hit <span class="ui--amber ui">Record</span>; a live waveform animates and the timer climbs
+            toward the same <strong>2:00</strong> cap. (Switch to a background tab and the canvas animation pauses to save power —
+            your <strong>audio keeps recording</strong>.)</li>
+            <li style="margin-bottom:0">Press <span class="ui--amber ui">Stop</span> → local transcode →
+            <span class="ui--status ui">MP4 ready — download or attach your clip.</span></li>
+          </ol>
+          <p style="margin-bottom:0">The result <strong>syncs straight back</strong> into the Studio’s Current Take deck — so
+          whether you record here or there, you land in the same place, with the same
+          <span class="ui--amber ui">Download MP4</span> and attach options.</p>
         </div>
-      </div>
-
-      <div class="note note--warn">
-        <p class="note__h">⚠ If “Attach to Reddit” doesn’t take</p>
-        <p style="margin-bottom:0">Reddit changes its uploader UI from time to time, and auto-attach is best-effort by
-        design. If it can’t find the composer you’ll see <span class="ui--status ui">Comment box not found — download
-        the MP4 and upload manually.</span> That’s not a failure of your clip — it’s the documented fallback. Click
-        <span class="ui--amber ui">Download MP4</span> and upload it yourself. The download path never breaks.</p>
-      </div>
+      </details>
 
       <div class="note note--check">
         <p class="note__h">✓ How do you know it worked?</p>
-        <p style="margin-bottom:0">After <span class="ui">Stop</span>, the status reads <span class="ui--status ui">MP4 ready…</span>
-        and <span class="ui--amber ui">Download MP4</span> is enabled. After a successful attach, the recorder confirms it
-        in-line and the workflow quietly resets to Phase 1, ready for your next clip.</p>
+        <p style="margin-bottom:0">After <span class="ui">■ Stop</span> and processing, the Current Take deck reads
+        <span class="ui--status ui">Take ready</span> with a duration chip, and <span class="ui--amber ui">Download MP4</span> is
+        enabled. Close the tab and reopen the Studio — the take is still right there.</p>
       </div>
 
       <div class="done-row">
         <input type="checkbox" id="chk-p2" class="step-check" />
-        <label for="chk-p2"><b>Done:</b> I recorded, saw “MP4 ready,” and downloaded or attached my voice note.</label>
+        <label for="chk-p2"><b>Done:</b> I recorded a take in the Studio (or on Reddit), saw <span class="ui--status ui">Take ready</span>, and downloaded my MP4.</label>
       </div>
 
       <div class="note" style="border-color:var(--cyan); background:rgba(94,200,232,0.08); margin-top:22px">
         <p class="note__h" style="color:var(--cyan)">★ You can stop here</p>
         <p style="margin-bottom:0">If all you wanted was a clean, private voice note — <strong>you’re done</strong>, and you
-        understand the core loop: <em>Design in the Studio → Capture on Reddit → post</em>. Everything below is optional
-        depth. Come back when you want a robot voice, burned-in captions, or saved presets.</p>
+        understand the core loop: <em>Design → Record → Download MP4</em>, all in the Studio. Everything below is optional depth:
+        publishing to Reddit, a robot voice, burned-in captions, saved presets.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SEND IT TO REDDIT (optional output target) ── -->
+  <section id="publish" class="band" data-context="reddit">
+    <div class="wrap reveal">
+      <div class="kicker"><span class="kicker__ctx" data-ctx="reddit">💬 Reddit · optional</span></div>
+      <span class="phase-tag">Output target · <b>Reddit</b></span>
+      <h2>Send it to Reddit — one click, when you want to</h2>
+      <p class="muted" style="max-width:64ch">Reddit is no longer where you <em>have</em> to record — it’s where you
+      <em>publish</em>, if you choose. Once a Current Take exists, the <span class="ui">Voice Note</span> button becomes an
+      <strong>attach</strong> button that carries your finished take straight into the comment box.</p>
+
+      <div class="step">
+        <span class="step__n">1</span>
+        <div class="step__body">
+          <h4>Open a Reddit comment box with your take ready</h4>
+          <p>With a finished take in the Studio, click the <span class="ui">Voice Note</span> mic button in any video-comment
+          composer. Instead of asking for your mic, the panel opens in <strong>attach mode</strong>: a
+          <span class="ui">Current Studio Take</span> card (with a duration chip mirroring the deck), and no recording until you
+          ask for it.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="step__n">2</span>
+        <div class="step__body">
+          <h4>Choose your path</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Button</th><th>What it does</th></tr></thead>
+              <tbody>
+                <tr><td><span class="ui--amber ui">Attach Studio take</span></td><td><b>Primary.</b> Drops your finished take — a captioned bake if there is one, the base MP4 otherwise — straight into the composer. Then post as usual.</td></tr>
+                <tr><td><span class="ui ui--btn">Record new here</span></td><td>The classic quick capture. Because blobs are only written at stop, a discarded re-record restores your attachable take intact.</td></tr>
+                <tr><td><span class="ui ui--btn">Edit in Design Studio</span></td><td>Jumps you back to the Studio to keep polishing.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-bottom:0">Post your comment. <strong>That’s a published voice note</strong> — and it’s the very same take
+          you built in the Studio.</p>
+        </div>
+      </div>
+
+      <div class="note note--why">
+        <p class="note__h">▸ Live sync, even across the two windows</p>
+        <p style="margin-bottom:0">Open the Reddit composer <em>while</em> the Studio is still recording and the panel shows
+        attach-waiting chrome, then morphs to <span class="ui--amber ui">Attach Studio take</span> the moment the take lands — no
+        close-and-reopen. Both windows are watching the same Current Take.</p>
+      </div>
+
+      <div class="note note--warn">
+        <p class="note__h">⚠ If auto-attach doesn’t take</p>
+        <p style="margin-bottom:0">Reddit changes its uploader UI from time to time, and attach is best-effort. If it can’t find the
+        composer you’ll see <span class="ui--status ui">Comment box not found — download the MP4 and upload manually.</span> That’s
+        the documented fallback, not a broken clip: use <span class="ui--amber ui">Download MP4</span> from the deck and upload it
+        via Reddit’s own video control. The download path never breaks.</p>
       </div>
     </div>
   </section>
@@ -887,14 +1025,15 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       <span class="phase-tag">Phase 3 · <b>Polish &amp; Bake</b></span>
       <h2>Bring it home for post-production</h2>
       <p class="muted" style="max-width:64ch">
-        The moment you stop a recording, the clip flows back into the Studio and the workflow banner promotes itself to
-        Phase 3 on its own — even the recorder swaps its hint to <span class="ui--amber ui">★ Phase 3</span> with an
-        <span class="ui--btn ui">Edit &amp; Bake in Design Studio</span> button. Phase 3 is where the deeper craft lives.
-        It’s entirely opt-in: <strong>subtitles</strong> are the headline feature here, and they’re off until you ask for them.</p>
+        The moment you stop a take — in the Studio or on Reddit — it lands in the Current Take deck and the workflow banner
+        promotes itself to Phase 3 on its own. (On Reddit, the take card even signs itself
+        <span class="ui--amber ui">★ Made in Studio</span> and offers <span class="ui--btn ui">Edit in Design Studio</span> to jump
+        you back.) Phase 3 is where the deeper craft lives. It’s entirely opt-in: <strong>subtitles</strong> are the headline
+        feature here, and they’re off until you ask for them.</p>
 
       <p>The three doors below open the advanced surfaces. They share one rule worth stating once: <strong>your design
-      changes sync live</strong> to the next recording, and <strong>results sync back</strong> to the Studio — so you’re
-      always editing against the real thing.</p>
+      changes sync live</strong> to your next take — wherever you record it — and <strong>results sync back</strong> into the
+      Current Take, so you’re always editing against the real thing.</p>
 
       <div class="phaserail" style="margin-top:6px">
         <button class="phasecard" data-jump="#voice" data-ctx="studio"><span class="phasecard__n">Door A</span><p class="phasecard__t">Character voices</p><span class="phasecard__c">the StylizedGraph</span><p class="phasecard__d">Robot, oracle, titan — or build your own from 21 effect fragments.</p></button>
@@ -937,21 +1076,21 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       scales them.</p>
 
       <h3>Hear it: two audition buttons, one source of truth</h3>
-      <p>The Voice panel has two audition buttons that share a single <span class=”ui”>Stop</span> button and a single
+      <p>The Voice panel has two audition buttons that share a single <span class="ui">Stop</span> button and a single
       rendering path. Both feed the <em>same</em> <code>resolveVoiceGraph</code> → FFmpeg chain as the final export —
       what you hear is what bakes:</p>
 
-      <div class=”table-wrap”>
+      <div class="table-wrap">
         <table>
           <thead><tr><th>Button</th><th>Input source</th><th>Stored?</th></tr></thead>
           <tbody>
             <tr>
-              <td><span class=”ui--btn ui”>Last Voice Note</span></td>
-              <td>Your last Reddit recording (<code>rvnLastRecording</code>)</td>
+              <td><span class="ui--btn ui">Last Voice Note</span></td>
+              <td>Your last recorded take — Studio or Reddit (<code>rvnLastRecording</code>)</td>
               <td>No — reads IDB only</td>
             </tr>
             <tr>
-              <td><span class=”ui--btn ui”>One-Time Test</span></td>
+              <td><span class="ui--btn ui">One-Time Test</span></td>
               <td>A fresh live-mic capture (~10 s) — captured right now in the Studio</td>
               <td><strong>Never.</strong> Transient, in-memory only. Cannot overwrite your last recording.</td>
             </tr>
@@ -960,21 +1099,21 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       </div>
 
       <p>While capturing (One-Time Test), a live level meter shows mic input and the shared button reads
-      <span class=”ui”>Stop &amp; render</span>. While rendering, the initiating button reads
-      <span class=”ui”>Rendering…</span>. The single <span class=”ui”>Stop</span> governs both.</p>
+      <span class="ui">Stop &amp; render</span>. While rendering, the initiating button reads
+      <span class="ui">Rendering…</span>. The single <span class="ui">Stop</span> governs both.</p>
 
-      <div class=”note note--why”>
-        <p class=”note__h”>▸ Why this matters — WYSIWYG, for audio</p>
-        <p style=”margin-bottom:0”>Both buttons and the final export route through the <em>same</em>
+      <div class="note note--why">
+        <p class="note__h">▸ Why this matters — WYSIWYG, for audio</p>
+        <p style="margin-bottom:0">Both buttons and the final export route through the <em>same</em>
         <code>processAudioWithGraph</code> (ffmpeg.wasm) renderer. <strong>What you hear is what bakes.</strong>
         There’s no separate “preview-quality” approximation. The first render spins up FFmpeg (~32 MB) once per session;
         subsequent tests are fast.</p>
       </div>
 
-      <div class=”note note--warn”>
-        <p class=”note__h”>⚠ No recording yet?</p>
-        <p style=”margin-bottom:0”>With no saved recording, <span class=”ui--btn ui”>Last Voice Note</span> is
-        de-emphasized — use <span class=”ui--btn ui”>One-Time Test</span> instead. It captures a fresh mic sample
+      <div class="note note--warn">
+        <p class="note__h">⚠ No recording yet?</p>
+        <p style="margin-bottom:0">With no saved recording, <span class="ui--btn ui">Last Voice Note</span> is
+        de-emphasized — use <span class="ui--btn ui">One-Time Test</span> instead. It captures a fresh mic sample
         right here in the Studio (never stored), so you can audition character voices before ever going to Reddit.
         The Studio prompts once for mic permission on its own origin.</p>
       </div>
@@ -1006,13 +1145,13 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
           press-and-hold steppers. It multiplies that one stage’s strength at every intensity level — so you can ease a
           single effect back without touching the rest.</p>
 
-          <div class=”flow” aria-label=”The voice pipeline: both audition buttons and the final export route through the same resolveVoiceGraph → processAudioWithGraph path via ffmpeg.wasm.”>Voice draft <span class=”arr”>(StylizedGraph)</span>
-  <span class=”arr”>→</span> resolveVoiceGraph
-  <span class=”arr”>→</span> buildStylizedGraph(graph, renderer)
-  <span class=”arr”>→</span> processAudioWithGraph <b>(ffmpeg.wasm — one path for all)</b>
-       <span class=”arr”>├─</span> <b>Last Voice Note</b>  → auditions last Reddit recording
-       <span class=”arr”>├─</span> <b>One-Time Test</b>   → auditions live mic capture (transient)
-       <span class=”arr”>└─</span> <b>Final export</b>    → audio track in the baked MP4</div>
+          <div class="flow" aria-label="The voice pipeline: both audition buttons and the final export route through the same resolveVoiceGraph → processAudioWithGraph path via ffmpeg.wasm.">Voice draft <span class="arr">(StylizedGraph)</span>
+  <span class="arr">→</span> resolveVoiceGraph
+  <span class="arr">→</span> buildStylizedGraph(graph, renderer)
+  <span class="arr">→</span> processAudioWithGraph <b>(ffmpeg.wasm — one path for all)</b>
+       <span class="arr">├─</span> <b>Last Voice Note</b>  → auditions your last recorded take
+       <span class="arr">├─</span> <b>One-Time Test</b>   → auditions live mic capture (transient)
+       <span class="arr">└─</span> <b>Final export</b>    → audio track in the baked MP4</div>
 
           <p class="muted" style="margin-bottom:0">One source of truth feeds both the Test and the export, which is why
           they can’t disagree. Try this: start from <span class="ui">Cyber Oracle</span>, push the ring-mod, swap the
@@ -1040,9 +1179,10 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
         <span class="step__n">1</span>
         <div class="step__body">
           <h4>Enable transcription, then record</h4>
-          <p>Open the <span class="ui">Subtitles</span> card and turn transcription on. Record on Reddit as usual.
-          Transcription runs in parallel and doesn’t hold up your MP4 — the recorder reaches “ready” after the video
-          transcode; captions arrive a moment later.</p>
+          <p>Open the <span class="ui">Subtitles</span> card and turn transcription on. Record your take as usual — in the
+          Studio or on Reddit. Transcription runs in parallel and doesn’t hold up your MP4 — the take reaches
+          <span class="ui--status ui">Take ready</span> after the video transcode; captions arrive a moment later (the deck shows
+          a <span class="ui--amber ui">SUBS PENDING</span> chip until they do).</p>
         </div>
       </div>
 
@@ -1079,28 +1219,32 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
         <span class="step__n">4</span>
         <div class="step__body">
           <h4>Bake the captions in</h4>
-          <p>Click <span class="ui--amber ui">Bake</span>. FFmpeg burns your edited cues into a fresh MP4 (hard subs).
-          Baking is <strong>repeatable</strong> — re-edit and re-bake as many times as you like. If you bake with unsaved
-          cue edits, you’ll be asked first: <span class="ui">Save &amp; bake</span> / <span class="ui">Edit transcript</span>
-          / <span class="ui">Cancel</span>.</p>
+          <p>Click <span class="ui--amber ui">Bake</span>. Your edited cues are burned into a fresh MP4 (hard subs). As of
+          v5.4.0 the default bake path is <strong>WebCodecs + canvas overlay</strong> — rich, animated captions bake
+          <strong>sub-real-time</strong> (roughly the length of the clip), with FFmpeg <code>drawtext</code> kept as an
+          always-works fallback if your device can’t take the fast path. Baking is <strong>repeatable</strong> — re-edit and
+          re-bake as many times as you like. If you bake with unsaved cue edits, you’ll be asked first:
+          <span class="ui">Save &amp; bake</span> / <span class="ui">Edit transcript</span> / <span class="ui">Cancel</span>.</p>
         </div>
       </div>
 
       <div class="step">
         <span class="step__n">5</span>
         <div class="step__body">
-          <h4>Return to Reddit and attach</h4>
-          <p>The baked, captioned MP4 flows back to the recorder, which toasts
-          <span class="ui--status ui">Captioned MP4 ready — attach or download.</span> Switch to your Reddit tab and
-          attach (or download) it. The Studio banner even hands you a <span class="ui--btn ui">Switch to Reddit to attach →</span> button.</p>
+          <h4>Download it — or attach on Reddit</h4>
+          <p>The baked, captioned MP4 becomes your Current Take (a <span class="ui--status ui">BAKED</span> badge appears and the
+          deck’s button reads <span class="ui--amber ui">Download MP4 · captioned</span>). The workflow banner confirms:
+          <span class="ui--status ui">Captioned MP4 ready — download it from the Current Take deck, or attach it on Reddit.</span>
+          Download it straight away, or use the banner’s <span class="ui--btn ui">Attach on Reddit →</span> to publish it as a
+          comment.</p>
         </div>
       </div>
 
       <div class="note note--check">
         <p class="note__h">✓ How do you know it worked?</p>
         <p style="margin-bottom:0">The transcript badge reads <span class="ui--status ui">Ready</span>, the
-        <span class="ui">Bake</span> button becomes available, and after baking you get the captioned-MP4 toast on the
-        Reddit side. Open the MP4 in any player — the captions are burned in, not a separate track.</p>
+        <span class="ui">Bake</span> button becomes available, and after baking the Current Take deck shows a
+        <span class="ui--status ui">BAKED</span> badge. Open the MP4 in any player — the captions are burned in, not a separate track.</p>
       </div>
 
       <div class="note note--warn">
@@ -1113,23 +1257,23 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
         re-record somewhere quieter for a clean Vosk pass.</p>
       </div>
 
-      <details class=”disc”>
+      <details class="disc">
         <summary>Subtitle styling options (advanced)</summary>
-        <div class=”disc__body”>
+        <div class="disc__body">
           <p>Subtitle styling lives in the same panel — position (ordered <strong>top → center → bottom</strong>, matching
           on-screen order), font size, backdrop opacity, glow mode, and text color. All bake faithfully via FFmpeg
           drawtext.</p>
           <p><strong>Glow modes:</strong> <em>Halo</em> renders a soft outer glow (with an opacity slider and spread
           control); <em>Border</em> gives a solid 1 px ring. Both bake via stacked offset drawtext layers. The budget
           system means longer clips with halo now bake reliably where they used to drop to no-glow.</p>
-          <p style=”margin-bottom:0”><strong>Text colors:</strong> theme · white · black · special (a custom static
+          <p style="margin-bottom:0"><strong>Text colors:</strong> theme · white · black · special (a custom static
           hue). All colors are static per cue — the preview and bake match exactly.</p>
         </div>
       </details>
 
       <div class="done-row">
         <input type="checkbox" id="chk-subs" class="step-check" />
-        <label for="chk-subs"><b>Done:</b> I transcribed, edited cues, hit Confirm &amp; save, baked, and attached a captioned MP4.</label>
+        <label for="chk-subs"><b>Done:</b> I transcribed, edited cues, hit Confirm &amp; save, baked, and downloaded (or attached) a captioned MP4.</label>
       </div>
     </div>
   </section>
@@ -1182,29 +1326,37 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       <p style="max-width:64ch">You didn’t just “use a recorder extension.” You learned a deliberate creative system —
       and you can feel the difference:</p>
       <ul style="max-width:64ch">
-        <li>You internalized the <strong>3-Phase Creative Workflow</strong> and the two-window model: the
-        <strong>Design Studio</strong> as your persistent control center, <strong>Reddit</strong> as the capture surface,
-        with state syncing live between them.</li>
-        <li>You <strong>designed, recorded, and posted</strong> a private voice note — entirely client-side.</li>
-        <li>You met the <strong>WYSIWYG guarantee</strong> for both picture (the hero preview) and sound (Test = bake).</li>
-        <li>You opened the deep end: <strong>character voices</strong> on a real DSP graph, <strong>baked subtitles</strong>,
-        and reusable <strong>profiles</strong>.</li>
+        <li>You internalized the <strong>3-Phase Creative Workflow</strong> and the v5.4.0 model: the
+        <strong>Design Studio</strong> as a standalone suite where you design, record, preview, caption, bake, and export —
+        with <strong>Reddit</strong> as an optional one-click publish target.</li>
+        <li>You met the <strong>Current Take</strong> — a single, always-recoverable session that survives tab closes and
+        crashes, downloadable and editable from one deck.</li>
+        <li>You <strong>designed, recorded, and exported</strong> a private voice note — entirely client-side — and know that
+        <strong>Download MP4</strong> is the fast, universal route.</li>
+        <li>You met the <strong>WYSIWYG guarantee</strong> for both picture (the hero preview <em>is</em> the capture canvas)
+        and sound (Test = bake).</li>
+        <li>You opened the deep end: <strong>character voices</strong> on a real DSP graph, <strong>baked subtitles</strong>
+        (now sub-real-time by default), and reusable <strong>profiles</strong>.</li>
       </ul>
 
       <h3>Power-user next steps</h3>
-      <div class=”cat-grid”>
-        <div class=”cat” style=”border-top-color:var(--acc-voice)”><p class=”cat__h”>Compose, don’t just pick</p><p class=”cat__kinds”>Start from a chip, then reorder fragments and try the same effect in two positions. Place the limiter last; move reverb before vs. after saturation. Order is the instrument.</p></div>
-        <div class=”cat” style=”border-top-color:var(--acc-voice)”><p class=”cat__h”>Fine-tune + One-Time Test</p><p class=”cat__kinds”>Ease one fragment’s gain back under Fine-tune to tame a harsh preset. Use <span class=”ui--btn ui”>One-Time Test</span> to audition any change on your live mic right in the Studio — no prior recording needed, nothing stored.</p></div>
-        <div class=”cat” style=”border-top-color:var(--acc-subs)”><p class=”cat__h”>Style subtitles with intent</p><p class=”cat__kinds”>Experiment with position, backdrop, and glow modes (halo vs. border). Use Smart Split on any cue that shows the <span class=”ui--amber ui”>⚠ LONG</span> overflow badge. All styling bakes faithfully.</p></div>
-        <div class=”cat” style=”border-top-color:var(--acc-bars)”><p class=”cat__h”>Profile strategy</p><p class=”cat__kinds”>Build a small library: a clean “Incognito” profile, a signature character, a captioned look. Use Clone to branch safely and keep each one consistent.</p></div>
-        <div class=”cat” style=”border-top-color:var(--acc-voice)”><p class=”cat__h”>Voice Studio demo</p><p class=”cat__kinds”>Explore voices without the extension at <a href="https://bra-khet.github.io/reddit-voice-notes-chrome/studio/" target="_blank" rel="noopener noreferrer">the Voice Studio demo ↗</a>. Copy a voice (<span class=”ui”>rvn-voice-character-v1</span>), paste it into the extension — or the reverse. Same DSP, byte-identical output.</p></div>
+      <div class="cat-grid">
+        <div class="cat" style="border-top-color:var(--acc-bars)"><p class="cat__h">Record + restyle live</p><p class="cat__kinds">Start an audition in the Studio, then change bar color, background, or alignment <em>while recording</em> — the live canvas is the capture, so edits land in the take. Design by doing, not by re-rolling.</p></div>
+        <div class="cat" style="border-top-color:var(--acc-bars)"><p class="cat__h">Download-first, always recoverable</p><p class="cat__kinds">Make <span class="ui--amber ui">Download MP4</span> your default finish — it’s fast and needs no Reddit. Closed the tab mid-work? The Current Take deck shows a <span class="ui--amber ui">DRAFT</span>; reopen and it resumes.</p></div>
+        <div class="cat" style="border-top-color:var(--acc-voice)"><p class="cat__h">Compose, don’t just pick</p><p class="cat__kinds">Start from a chip, then reorder fragments and try the same effect in two positions. Place the limiter last; move reverb before vs. after saturation. Order is the instrument.</p></div>
+        <div class="cat" style="border-top-color:var(--acc-voice)"><p class="cat__h">Fine-tune + One-Time Test</p><p class="cat__kinds">Ease one fragment’s gain back under Fine-tune to tame a harsh preset. Use <span class="ui--btn ui">One-Time Test</span> to audition any change on your live mic right in the Studio — no prior recording needed, nothing stored.</p></div>
+        <div class="cat" style="border-top-color:var(--acc-subs)"><p class="cat__h">Style subtitles with intent</p><p class="cat__kinds">Experiment with position, backdrop, and glow modes (halo vs. border). Use Smart Split on any cue that shows the <span class="ui--amber ui">⚠ LONG</span> overflow badge. All styling bakes faithfully.</p></div>
+        <div class="cat" style="border-top-color:var(--acc-bars)"><p class="cat__h">Profile strategy</p><p class="cat__kinds">Build a small library: a clean “Incognito” profile, a signature character, a captioned look. Use Clone to branch safely and keep each one consistent.</p></div>
+        <div class="cat" style="border-top-color:var(--acc-voice)"><p class="cat__h">Voice Studio demo</p><p class="cat__kinds">Explore voices without the extension at <a href="https://bra-khet.github.io/reddit-voice-notes-chrome/studio/" target="_blank" rel="noopener noreferrer">the Voice Studio demo ↗</a>. Copy a voice (<span class="ui">rvn-voice-character-v1</span>), paste it into the extension — or the reverse. Same DSP, byte-identical output.</p></div>
       </div>
 
       <h3>Where to find deeper reference</h3>
       <p style="margin-bottom:0">The popup’s <span class="ui">Stuck? Read the guide here.</span> link goes to the project
-      README. For the canonical Studio semantics — the four sections, dirty-state taxonomy, and storage map — see
-      <code>docs/design-studio.md</code>. The voice engine’s design lives in <code>docs/dsp-foundation-design.md</code>.
-      You won’t need them to create; they’re there when you’re curious how it works.</p>
+      README. For the v5.4.0 shift — the Take lifecycle, Studio-native capture, and Reddit-as-output — see
+      <code>docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md</code> and
+      <code>docs/release-notes-v5.4.0.md</code>. For the canonical Studio semantics — the four sections, dirty-state
+      taxonomy, and storage map — see <code>docs/design-studio.md</code>; the voice engine’s design lives in
+      <code>docs/dsp-foundation-design.md</code>. You won’t need them to create; they’re there when you’re curious how it works.</p>
     </div>
   </section>
 
@@ -1228,7 +1380,11 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
             <tr><td>Transcript shows <span class="ui--status ui">Timed out</span>, <span class="ui--status ui">No speech</span>, or enters Scaffolding mode</td><td>Vosk classified the audio as unusable. A scaffold of empty timed cue slots was auto-created.</td><td>Open the segment editor (it will be in "Scaffolding mode"). Type your captions into the empty slots and <span class="ui--btn ui">Confirm &amp; save</span> — empty slots bake to nothing. Or re-record in a quieter environment.</td></tr>
             <tr><td>Recorder shows <span class="ui--status ui">Extension was reloaded. Refresh this Reddit tab, then try again.</span></td><td>The extension was updated or reloaded while the Reddit tab was open. The content script is orphaned and can’t reach the background.</td><td>Click the one-click <span class="ui--btn ui">Refresh page</span> button. A fresh content script injects and the recorder works again immediately.</td></tr>
             <tr><td>Toast: <span class="ui--status ui">Voice effect could not be applied — your clip used the original audio.</span></td><td>A voice filter failed; the pipeline fell back to raw audio rather than fail the export.</td><td>Your clip is fine (un-effected). Re-check the voice graph and re-record if you want the effect.</td></tr>
-            <tr><td>Changes don’t seem to “take”</td><td>You’re expecting an Apply button.</td><td>There isn’t one — design syncs live to the <em>next</em> recording. Record again to hear/see changes.</td></tr>
+            <tr><td><span class="ui--status ui">Take superseded</span> on the deck (or after <span class="ui">Attach Studio take</span>)</td><td>A newer recording overwrote the single-slot MP4 store; the Studio refuses to hand you the wrong clip (H6 crash-safety).</td><td>The stale reference is cleared for you — just <span class="ui ui--btn">Re-record take</span>. The underlying message is <span class="ui--status ui">Recording superseded — re-record.</span></td></tr>
+            <tr><td>Deck stuck on <span class="ui--status ui">Initializing microphone…</span>, or nothing records</td><td>The microphone isn’t granted on the Studio’s own origin (separate from reddit.com).</td><td>Click the address-bar lock icon, allow the mic, and press <span class="ui ui--btn">Record new take</span> again.</td></tr>
+            <tr><td>Deck shows <span class="ui--status ui">Incomplete take</span> with a <span class="ui--amber ui">DRAFT</span> badge</td><td>A session didn’t finish — usually you closed the tab or Studio mid-record or mid-processing.</td><td>Nothing lost: reopening the Studio finishes the MP4 conversion automatically. Then <span class="ui ui--btn">Re-record take</span> or <span class="ui">Discard take</span>.</td></tr>
+            <tr><td>Deck briefly shows the wrong duration during two overlapping recordings</td><td>Cosmetic handoff window when a second take finishes right after the first.</td><td>Ignore it — it self-corrects, and <span class="ui--amber ui">Download MP4</span> always resolves the correct file.</td></tr>
+            <tr><td>Changes don’t seem to “take”</td><td>You’re expecting an Apply button.</td><td>There isn’t one — design syncs live to your <em>next</em> take. Record again to hear/see changes.</td></tr>
           </tbody>
         </table>
       </div>
@@ -1242,8 +1398,8 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
     <div class="footer-grid">
       <div>
         <p style="color:var(--text); font-family:var(--font-display); font-weight:600; margin-bottom:8px">You’re oriented now.</p>
-        <p style="margin-bottom:0">Design in the Studio, capture on Reddit, polish and bake when you want more — and
-        everything stays on your machine until you choose to post. Re-open this guide anytime; your progress is saved in
+        <p style="margin-bottom:0">Design, record, and polish in the Studio; publish to Reddit when you want to — and
+        everything stays on your machine until you choose to. Re-open this guide anytime; your progress is saved in
         this browser.</p>
       </div>
       <div>
@@ -1254,7 +1410,7 @@ npm run dev<button class="copy-btn" type="button" aria-label="Copy commands">Cop
       </div>
     </div>
     <p class="muted" style="font-size:0.8rem; border-top:1px solid var(--hairline); padding-top:18px; margin:0">
-      Reddit Voice Notes · v5.3.3 “Dulcet II” · A privacy-first Chrome MV3 extension. This guide reflects the shipped UI and
+      Reddit Voice Notes · v5.4.0 · Design Studio First · A privacy-first Chrome MV3 extension. This guide reflects the shipped UI and
       uses the product’s own labels throughout.</p>
   </div>
 </footer>
