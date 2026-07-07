@@ -4,6 +4,7 @@ import {
   BAKED_MP4_READY_KEY,
   loadUserPreferences,
   resolveOverlayBakeEncoder,
+  resolveOverlayCompositeStrategy,
   resolveParallelBakeEnabled,
 } from '@/src/settings/user-preferences';
 import { saveLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
@@ -40,6 +41,20 @@ export interface SubtitleBakeOptions {
 
 function canvasStageMessage(stage: string, ratio: number): string {
   const pct = Math.round(ratio * 100);
+  // v5.5.0 browser composite stages (ADR-0003) — checked before the generic
+  // 'composite' needle below so each distinct stage keeps its own honest copy.
+  if (stage === 'browser-composite-decode') {
+    return `Reading base video… ${pct}%`;
+  }
+  if (stage === 'browser-composite-paint') {
+    return `Compositing subtitles… ${pct}%`;
+  }
+  if (stage === 'browser-composite-encode') {
+    return `Encoding video… ${pct}%`;
+  }
+  if (stage === 'browser-composite-mux') {
+    return `Finalizing MP4… ${pct}%`;
+  }
   if (stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')) {
     return `Rendering subtitles… ${pct}%`;
   }
@@ -128,6 +143,10 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
         // fall back on probe/chunk/encode failure.
         parallelBake: resolveParallelBakeEnabled(prefs.experimental),
         encoder: resolveOverlayBakeEncoder(prefs.experimental),
+        // v5.5.0 — browser composite is opt-in until the Phase 0 QA gate
+        // passes (ADR-0003); resolver returns 'ffmpeg' unless the user (or
+        // Lab) enabled experimental.browserComposite.
+        composite: resolveOverlayCompositeStrategy(prefs.experimental),
         onProgress: (ratio, stage) => {
           const overallRatio = 0.1 + ratio * 0.82;
           report({

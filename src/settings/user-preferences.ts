@@ -136,10 +136,35 @@ export interface ExperimentalPreferences {
    *       subtitle-overlay-webcodecs.ts
    */
   webCodecsBake?: boolean;
+  /**
+   * v5.5.0 browser-side full composite (ADR-0003). Default FALSE for the
+   * hybrid cut — opt-in until the Phase 0 QA gate passes
+   * (docs/v5.5.0-browser-composite-migration.md). When true and the composite
+   * probe passes, the bake decodes the base MP4 in-page, blends the shared
+   * painter per frame, and muxes via mediabunny — no FFmpeg on the primary
+   * path. Any failure falls back to the legacy FFmpeg composite chain.
+   * Sync: subtitle-bake.ts, subtitle-canvas-bake.ts composite,
+   *       src/composite/browser-composite.ts
+   */
+  browserComposite?: boolean;
 }
 
 /** Production bake encoder resolved from experimental prefs (v5.3.10). */
 export type OverlayBakeEncoderPreference = 'auto' | 'mediarecorder';
+
+/** v5.5.0 — composite executor for the WebCodecs bake path (ADR-0003). */
+export type OverlayCompositeStrategyPreference = 'browser' | 'ffmpeg';
+
+/**
+ * v5.5.0 — browser composite is OPT-IN (`browserComposite === true`) during
+ * the hybrid rollout; everything else stays on the proven FFmpeg composite.
+ * Flip the default only after the Phase 0 QA gate (ADR-0003 verification).
+ */
+export function resolveOverlayCompositeStrategy(
+  experimental?: ExperimentalPreferences,
+): OverlayCompositeStrategyPreference {
+  return experimental?.browserComposite === true ? 'browser' : 'ffmpeg';
+}
 
 /** v5.3.9 — parallel chunked render unless explicitly disabled. */
 export function resolveParallelBakeEnabled(
@@ -188,7 +213,8 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   },
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
   transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
-  experimental: { parallelBake: true, webCodecsBake: true },
+  // browserComposite: false until the v5.5.0 Phase 0 QA gate passes (ADR-0003).
+  experimental: { parallelBake: true, webCodecsBake: true, browserComposite: false },
 };
 
 /** Synchronous cache on extension pages — survives design-studio tab close (BUG-019). */

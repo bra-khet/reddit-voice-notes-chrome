@@ -22,6 +22,11 @@ import {
   renderSubtitleOverlayWebCodecs,
   WEBCODECS_STITCH_STAGE,
 } from '@/src/transcription/subtitle-overlay-webcodecs';
+import {
+  renderBrowserComposite,
+  type BrowserCompositeTiming,
+} from '@/src/composite/browser-composite';
+import type { OverlayCompositeStrategyPreference } from '@/src/settings/user-preferences';
 import { CANVAS_HEIGHT, CANVAS_WIDTH, EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 
 const NORMALIZE_RATIO_START = 0.32;
@@ -108,6 +113,17 @@ export interface CanvasOverlayBakeOptions {
    * default at one Lab call site made A/B toggle QA runs meaningless).
    */
   encoder?: OverlayBakeEncoderPreference;
+  /**
+   * v5.5.0 — composite executor (prefs experimental.browserComposite, ADR-0003).
+   * 'browser': decode base MP4 in-page, blend the shared painter per frame,
+   *   encode + mux via mediabunny — no FFmpeg, no overlay IVF streams. Falls
+   *   through to the 'ffmpeg' chain below on probe failure or any error.
+   * 'ffmpeg' (DEFAULT when omitted): the proven v5.3.10 composite.
+   * Same explicit-at-every-call-site rule as `encoder` (v5.3.9.1 lesson).
+   */
+  composite?: OverlayCompositeStrategyPreference;
+  /** v5.5.0 — browser composite timing for Overlay Lab timing JSON. */
+  onCompositeTiming?: (timing: BrowserCompositeTiming) => void;
 }
 
 export type OverlayBakeEncoderPreference = 'auto' | 'webcodecs' | 'mediarecorder';
@@ -216,6 +232,46 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
     report(1, 'canvas-overlay-done');
     return new Blob([burnedBytes.slice()], { type: 'video/mp4' });
   };
+
+  // ---- v5.5.0 browser composite path (ADR-0003) -------------------------
+  // Decode base MP4 in-page → blend the shared painter at each frame's exact
+  // output PTS → encode + mux via mediabunny. No FFmpeg, no overlay IVF
+  // streams, no alphamerge/premultiply machinery on this path. Probe
+  // rejection resolves null; any other non-abort failure falls through to the
+  // proven FFmpeg composite chain below — the full fallback ladder is
+  // browser-composite → webcodecs+alphamerge → mediarecorder → drawtext.
+  // Deliberately NOT armed with the render perf guard: a perf-guard trip is
+  // treated as a deliberate abort upstream and would downgrade rich effects
+  // straight to drawtext, whereas a slow composite (R11) should fall back to
+  // the legacy composite instead.
+  if (options.composite === 'browser') {
+    throwIfAborted(options.signal);
+    try {
+      const composited = await renderBrowserComposite({
+        baseMp4: baseBlob,
+        segments,
+        style: options.style,
+        durationSeconds: options.durationSeconds,
+        themeBarColor: options.themeBarColor,
+        signal: options.signal,
+        onTiming: options.onCompositeTiming,
+        onProgress: (ratio, stage) => {
+          report(0.05 + ratio * 0.95, stage);
+        },
+      });
+      if (composited) {
+        report(1, 'canvas-overlay-done');
+        return composited;
+      }
+      // null → probe rejected the path on this machine; legacy chain below.
+    } catch (error: unknown) {
+      if (isDeliberateBakeAbort(error, options.signal)) throw error;
+      console.warn(
+        `${EXTENSION_LOG_PREFIX} Browser composite failed — falling back to FFmpeg composite`,
+        error,
+      );
+    }
+  }
 
   // ---- v5.3.10 WebCodecs path -------------------------------------------
   // Dual color+alpha IVF streams, composite-ready by construction: no

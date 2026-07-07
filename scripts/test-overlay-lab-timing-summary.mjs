@@ -46,8 +46,35 @@ function check(name, fn) {
 
 console.log('overlay lab timing summary\n');
 
-check('schema version is 3 (v5.3.10 adds encoderType + encode aggregates)', () => {
-  assert.equal(OVERLAY_LAB_TIMING_LOG_VERSION, 3);
+check('schema version is 4 (v5.5.0 adds browserCompositeMs attribution)', () => {
+  assert.equal(OVERLAY_LAB_TIMING_LOG_VERSION, 4);
+});
+
+check('v5.5.0 browser composite owns its own bracket, never folded into compositeMs', () => {
+  const entries = [
+    { stage: 'bake-start', elapsedMs: 0 },
+    { stage: 'browser-composite-decode', elapsedMs: 50 },
+    { stage: 'browser-composite-paint', elapsedMs: 400 },
+    { stage: 'browser-composite-encode', elapsedMs: 3200 },
+    { stage: 'browser-composite-mux', elapsedMs: 4100 },
+    { stage: 'canvas-overlay-done', elapsedMs: 4150 },
+    { stage: 'bake-complete', elapsedMs: 4200 },
+  ];
+  const stages = computeOverlayLabStageDurations(entries);
+  assert.equal(stages.browserCompositeMs, 4100 - 50);
+  // FFmpeg-composite attribution stays null — distinct work, distinct field.
+  assert.equal(stages.compositeMs, null);
+  assert.equal(stages.normalizeMs, null);
+});
+
+check('legacy bakes report null browserCompositeMs', () => {
+  const stages = computeOverlayLabStageDurations([
+    { stage: 'canvas-overlay-render', elapsedMs: 10 },
+    { stage: 'canvas-overlay-composite', elapsedMs: 9000 },
+    { stage: 'burnin-done', elapsedMs: 39000 },
+  ]);
+  assert.equal(stages.browserCompositeMs, null);
+  assert.equal(stages.compositeMs, 30000);
 });
 
 check('stage breakdown extracts render and normalize', () => {

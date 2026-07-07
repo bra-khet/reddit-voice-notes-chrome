@@ -12,7 +12,15 @@ import {
   type OverlayEncoderType,
 } from '@/src/encoding/encoded-segment';
 
-export const OVERLAY_LAB_TIMING_LOG_VERSION = 3;
+export const OVERLAY_LAB_TIMING_LOG_VERSION = 4;
+
+/**
+ * v5.5.0 — every stage the browser composite emits starts with this prefix
+ * (browser-composite-decode/-paint/-encode/-mux + the -result detail entry).
+ * Distinct field from compositeMs: that one measures the FFmpeg composite,
+ * and the two must never share attribution (v5.3.9.1 rule / ADR-0003 R8).
+ */
+export const BROWSER_COMPOSITE_STAGE_PREFIX = 'browser-composite';
 
 export interface OverlayLabTimingEntryLike {
   stage: string;
@@ -30,6 +38,8 @@ export interface OverlayLabStageDurations {
   normalizeMs: number | null;
   bufferMs: number | null;
   compositeMs: number | null;
+  /** v5.5.0 — in-page browser composite (ADR-0003); null on FFmpeg-composite bakes. */
+  browserCompositeMs: number | null;
   postRenderMs: number | null;
 }
 
@@ -39,6 +49,7 @@ export interface OverlayLabStageShare {
   normalize: number | null;
   buffer: number | null;
   composite: number | null;
+  browserComposite: number | null;
   postRender: number | null;
 }
 
@@ -127,6 +138,19 @@ export function computeOverlayLabStageDurations(
   const compStart = first['canvas-overlay-composite'] ?? first['burnin-start'];
   const compEnd = last['burnin-done'] ?? last['canvas-overlay-done'] ?? last['bake-complete'];
 
+  // v5.5.0 — browser composite owns its own bracket; never folded into
+  // compositeMs (that field means "FFmpeg composite").
+  let browserCompStart: number | null = null;
+  let browserCompEnd: number | null = null;
+  for (const [stage, elapsed] of Object.entries(first)) {
+    if (!stage.startsWith(BROWSER_COMPOSITE_STAGE_PREFIX)) continue;
+    if (browserCompStart == null || elapsed < browserCompStart) browserCompStart = elapsed;
+  }
+  for (const [stage, elapsed] of Object.entries(last)) {
+    if (!stage.startsWith(BROWSER_COMPOSITE_STAGE_PREFIX)) continue;
+    if (browserCompEnd == null || elapsed > browserCompEnd) browserCompEnd = elapsed;
+  }
+
   const concatMs =
     concatStart != null && concatEnd != null ? Math.max(0, concatEnd - concatStart) : null;
   const normalizeMs =
@@ -135,6 +159,10 @@ export function computeOverlayLabStageDurations(
     bufStart != null && bufEnd != null ? Math.max(0, bufEnd - bufStart) : null;
   const compositeMs =
     compStart != null && compEnd != null ? Math.max(0, compEnd - compStart) : null;
+  const browserCompositeMs =
+    browserCompStart != null && browserCompEnd != null
+      ? Math.max(0, browserCompEnd - browserCompStart)
+      : null;
 
   // v5.3.10: WebCodecs bakes have no normalize stage (composite-ready by
   // construction) — the stitch marker tick anchors post-render instead.
@@ -148,6 +176,7 @@ export function computeOverlayLabStageDurations(
     normalizeMs,
     bufferMs,
     compositeMs,
+    browserCompositeMs,
     postRenderMs,
   };
 }
@@ -209,6 +238,7 @@ export function buildOverlayLabTimingSummary(input: {
       normalize: share(stages.normalizeMs, input.totalMs),
       buffer: share(stages.bufferMs, input.totalMs),
       composite: share(stages.compositeMs, input.totalMs),
+      browserComposite: share(stages.browserCompositeMs, input.totalMs),
       postRender: share(stages.postRenderMs, input.totalMs),
     },
     cueCache: renderMetrics?.cueCache ?? null,

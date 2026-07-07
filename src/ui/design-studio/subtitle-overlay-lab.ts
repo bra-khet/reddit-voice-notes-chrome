@@ -155,6 +155,7 @@ function readLabControls(panel: HTMLElement): {
   singleFrameDebug: boolean;
   parallelRender: boolean;
   webCodecsRender: boolean;
+  browserComposite: boolean;
 } {
   const segmentSet =
     (panel.querySelector<HTMLSelectElement>('[data-overlay-lab-segment-set]')?.value as
@@ -187,6 +188,8 @@ function readLabControls(panel: HTMLElement): {
       panel.querySelector<HTMLInputElement>('[data-overlay-lab-parallel-render]')?.checked === true,
     webCodecsRender:
       panel.querySelector<HTMLInputElement>('[data-overlay-lab-webcodecs]')?.checked === true,
+    browserComposite:
+      panel.querySelector<HTMLInputElement>('[data-overlay-lab-browser-composite]')?.checked === true,
   };
 }
 
@@ -320,6 +323,22 @@ export function renderSubtitleOverlayLabHtml(): string {
           type="checkbox"
           data-overlay-lab-webcodecs
           aria-label="WebCodecs encode for canvas overlay"
+        />
+      </label>
+      <label class="popup__toggle-row studio__subtitles-toggle">
+        <span class="popup__toggle-copy">
+          <span class="popup__toggle-label">Browser composite (v5.5.0)</span>
+          <p class="popup__field-desc">
+            Full in-page composite: decode base MP4 + painter blend + mediabunny mux — no FFmpeg
+            (ADR-0003, probe-gated). OFF = force-legacy composite for regression sweeps (R12).
+            Bake action only.
+          </p>
+        </span>
+        <input
+          class="popup__toggle-input"
+          type="checkbox"
+          data-overlay-lab-browser-composite
+          aria-label="Browser composite for full bake"
         />
       </label>
       <div class="popup__profile-actions studio__inline-actions studio__subtitle-overlay-lab-actions">
@@ -1057,6 +1076,18 @@ export function mountSubtitleOverlayLab(
           // v5.3.10 — explicit at every call site (v5.3.9.1 lesson: silent
           // encoder defaults make Lab A/B toggle runs meaningless).
           encoder: controls.webCodecsRender ? 'webcodecs' : 'mediarecorder',
+          // v5.5.0 — same rule for the composite executor (ADR-0003). OFF is
+          // the R12 force-legacy sweep.
+          composite: controls.browserComposite ? 'browser' : 'ffmpeg',
+          onCompositeTiming: (timing) => {
+            appendTimingEntry(
+              log,
+              startedAtMs,
+              'browser-composite-result',
+              undefined,
+              JSON.stringify(timing),
+            );
+          },
           onRenderMetrics: (metrics) => {
             bakeRenderMetrics = metrics;
             appendTimingEntry(
@@ -1072,8 +1103,9 @@ export function mountSubtitleOverlayLab(
             if (overlayPreviewStatus) {
               const chronos = snapshotBakeChronos(startedAtMs, ratio);
               const chronosLine = formatBakeChronosLine(chronos);
-              const stageLabel =
-                stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')
+              const stageLabel = stage.startsWith('browser-composite')
+                ? 'Compositing (browser)'
+                : stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')
                   ? 'Rendering'
                   : stage.includes('alpha-normalize')
                     ? 'Preparing overlay'
