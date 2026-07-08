@@ -10,11 +10,18 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
-## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **CODE COMPLETE, QA PENDING**
+## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **NEXT**
 
-**Branch:** `feature/5.6.0-audio-decoupling` (baseline `main` @ `v5.5.1`) · **Package:** stays `5.5.1` until release prep
+**Branch:** `feature/5.7.0-partial-rebake-splice` (from `main` @ `v5.6.0`)
+**Scope:** `coordinateRebake` packet splice execution + fidelity-harness extension. Planner/telemetry land in v5.6.0.
+
+---
+
+## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **TAGGED** `v5.6.0`
+
+**Branch:** merged `feature/5.6.0-audio-decoupling` → `main` (2026-07-08) · **Package:** `5.6.0` · **Push:** deferred
 **Contract doc (authoritative, §12 as-built):** `docs/v5.6.0-audio-decoupling.md` · **Decision:** `docs/architecture/adr/0004-audio-decoupling-voice-reapply.md` · **Seam:** extension-points v1.5
-**Commits:** `9147a19` (Phase 1: decoupling + re-apply) · `3474828` (Phase 2/3: editing/timeline backend) · docs commit
+**Commits:** `9147a19` (Phase 1: decoupling + re-apply) · `3474828` (Phase 2/3: editing/timeline backend) · `ca10ad4` (docs)
 
 ### What shipped (2026-07-07)
 
@@ -28,9 +35,24 @@ The full prior content is intact in the archive so this file stays small and act
 
 `test-take-manager` **31/31** · `test-voice-reapply-plan` **12/12** · `test-timeline` **10/10** · `test-segment-dirty-tracker` **11/11** · `test-partial-rebake-plan` **9/9** · full regression sweep PASS (take-deck 12, composite-plan 17, clip-source 4, webm-preflight 4, encoded-segment 5, chunk-planner 13, bake-chronos 7) · `tsc` clean (4 documented pre-existing) · `npm run build` PASS.
 
-### User QA gate (before tag)
+### User QA — Phase 1 (voice re-apply) — **PASS** (2026-07-08)
 
-Real-browser e2e: capture with voice A → "Apply voice to current take" with voice B → audio changes, visuals bit-identical (incl. baked subtitles), chronos honest, Reddit attach picks up new bytes; voice-off apply (clean extract); legacy-take degradation copy; DSP-failure abort leaves take unchanged.
+| Scenario | Result | Notes |
+|----------|--------|-------|
+| Capture voice A → Apply voice B | **PASS** | Audio changes; visuals bit-identical in every case |
+| Reddit attach after re-apply | **PASS** | Both original and reapplied voices attach correctly |
+| Voice-off (zero effects) re-apply | **PASS** | Clean extract works |
+| All intended Phase 1 flows | **PASS** | User: "operating exactly as expected in all cases" |
+
+**Not in scope for v5.6.0 tag (follow-up branches):** Phase 2b partial-splice *execution*; Phase 3 trim UI + artifact/cue integration. See § "Phase 2b / Phase 3 — what QA means" below.
+
+### Phase 2b / Phase 3 — what QA means (not blocking v5.6.0)
+
+**Phase 2b (partial re-bake splice execution):** NOT shipped. Every bake still runs a **full** composite; `coordinateRebake` always reports `executed: 'full'`. What *is* shipped: a pure planner + console telemetry (`partial-rebake-plan`) on re-bakes within the same Studio session (edit cues → bake again → DevTools console shows strategy/spans/coverage). **No user-facing feature to QA for release.** Optional dev check: confirm console log after a cue-edit re-bake. Real Phase 2b QA (when built): A/B partial vs full composite on identical edits, fidelity harness, chronos must not claim `partial` while doing full work.
+
+**Phase 3 (trim apply integration):** NOT shipped as a product feature. Backend only: `planTrim`, `storeTrimIntent`, `applyTrimToMp4`, `take.edits.trim` field — **no Studio UI**, no artifact overwrite, no subtitle cue shift. **Nothing expected of you in dev or production.** Future QA gate: set trim → apply → duration shrinks, cues shift, attach/download reflect trimmed bytes.
+
+**Tagged `v5.6.0` (2026-07-08).** Release notes: `docs/release-notes-v5.6.0.md`. Next: Phase 2b on `feature/5.7.0-partial-rebake-splice`.
 
 ```bash
 git checkout feature/5.6.0-audio-decoupling && npm install && npm run dev

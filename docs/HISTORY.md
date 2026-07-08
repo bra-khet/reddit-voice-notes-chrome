@@ -1,6 +1,6 @@
 # Project History — Reddit Voice Notes
 
-**Living milestone index.** Updated **2026-07-07** · Current milestone: **v5.5.1 — Browser composite default-on**.
+**Living milestone index.** Updated **2026-07-08** · Current milestone: **v5.7.0 — Partial re-bake splice (Phase 2b)** · Stable: **v5.6.0**.
 
 This is the go-to orientation doc: it indexes every major milestone and points to both the **living** documents (current work) and their **archived** history. Read this first when you need to know "what happened before the current feature branch?" — then follow a pointer into [`archive/`](../archive/) only if you need the full detail.
 
@@ -16,6 +16,7 @@ Newest first. **Tag** = git tag on `main`. Docs marked *(archived)* live under [
 
 | Version | Date | Focus / outcome | Notes |
 |---------|------|-----------------|-------|
+| **v5.6.0** | 2026-07-08 | **Audio decoupling & voice re-apply** — `TakeVoiceStamp`, Dulcet II re-render, stream-copy remux (visuals bit-exact); editing backend scaffolds (timeline, dirty tracker, partial-rebake planner, trim backend). **Tagged `v5.6.0`**. | [`release-notes-v5.6.0.md`](release-notes-v5.6.0.md), [`v5.6.0-audio-decoupling.md`](v5.6.0-audio-decoupling.md), [ADR-0004](architecture/adr/0004-audio-decoupling-voice-reapply.md) |
 | **v5.5.1** | 2026-07-07 | **Browser composite default-on** — `experimental.browserComposite` true by default + rollout migration (Overlay Lab dev-only made v5.5.0 opt-in unreachable in production). **Tagged `v5.5.1`**. | [`release-notes-v5.5.1.md`](release-notes-v5.5.1.md) |
 | **v5.5.0** | 2026-07-07 | **Browser-side Full Composite** — mediabunny in-page decode/blend/encode/mux eliminates FFmpeg alphamerge wall; QA hardening (AAC PTS, cue editor, unfocused cap-stop). **Tagged `v5.5.0`**. | [`release-notes-v5.5.0.md`](release-notes-v5.5.0.md), [`v5.5.0-browser-composite-migration.md`](v5.5.0-browser-composite-migration.md), [ADR-0003](architecture/adr/0003-composite-stage-elimination.md) |
 | **v5.4.0** | 2026-07-06 | **Design Studio First** — Studio becomes the standalone recording suite; Take lifecycle (`rvn.take.current`), live WYSIWYG capture, Reddit attach mode, WebCodecs bake default-on, H6 crash-safety. **Tagged `v5.4.0`**. | Living: [`release-notes-v5.4.0.md`](release-notes-v5.4.0.md), [`5.4.0-…-roadmap.md`](5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md), [ADR-0002](architecture/adr/0002-take-lifecycle-storage-sync.md) |
