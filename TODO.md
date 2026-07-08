@@ -1,14 +1,22 @@
 # TODO
 
-## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **NEXT**
+## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **IN PROGRESS**
 
 **Branch:** `feature/5.7.0-partial-rebake-splice` (from `main` @ `v5.6.0`) · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) §4.2 + §12 follow-ups
 
-Packet-level splice execution behind `coordinateRebake` — re-composite only dirty keyframe-aligned spans and splice back into the MP4. Requires fidelity-harness extension first (v5.3.9.1 lesson). Planner + telemetry already ship in v5.6.0.
+Packet-level splice execution behind `coordinateRebake` — re-composite only dirty keyframe-aligned spans and splice back into the MP4. Requires fidelity-harness extension (v5.3.9.1 lesson). Planner + telemetry shipped in v5.6.0.
+
+| Sprint | Scope | Status |
+|--------|-------|--------|
+| 1 | `src/editing/splice-plan.ts` — keyframe alignment + region model + plan/output validation gates + splice chronos (pure, Node-tested) | **done** — `test-splice-plan.mjs` 23/23 |
+| 2 | `src/composite/composite-splice.ts` — browser executor (decode/repaint/re-encode dirty GOPs, copy kept packets, interleave, validate) | next |
+| 3 | wire `coordinateRebake` conditional partial/full (`executed: 'partial'`) + splice chronos in bake path | pending |
+| 4 | fidelity-harness extension — spliced vs full A/B on dirty regions, bit-exact kept regions | pending |
+| 5 | design doc §4.2 as-built + user QA gate | pending |
 
 **Then (Phase 3):** trim UI + atomic artifact/cue/raw-WebM integration — own branch after 2b or parallel.
 
-**Verify (baseline):** `node scripts/test-partial-rebake-plan.mjs` (9) · `test-browser-composite-plan.mjs` (17) · `npm run build` PASS
+**Verify (baseline):** `node scripts/test-splice-plan.mjs` (23) · `test-partial-rebake-plan.mjs` (9) · `test-browser-composite-plan.mjs` (17) · `npm run build` PASS
 
 ## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **TAGGED** `v5.6.0`
 

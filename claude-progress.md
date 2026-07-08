@@ -10,10 +10,34 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
-## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **NEXT**
+## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **IN PROGRESS**
 
 **Branch:** `feature/5.7.0-partial-rebake-splice` (from `main` @ `v5.6.0`)
-**Scope:** `coordinateRebake` packet splice execution + fidelity-harness extension. Planner/telemetry land in v5.6.0.
+**Scope:** `coordinateRebake` packet splice execution + fidelity-harness extension. Planner/telemetry landed in v5.6.0.
+**Contract:** `docs/v5.6.0-audio-decoupling.md` §4.2 (+ §12 follow-ups). Invariants I1–I9 + chronos honesty + H6 hold throughout.
+
+### Sprint 1 — pure splice-plan layer (2026-07-08) — **DONE (automated)**
+
+The construction-level guarantee layer that must exist *before* any browser encode can claim a partial success (v5.3.9.1 lesson). New pure module `src/editing/splice-plan.ts`:
+
+- **Keyframe alignment:** `alignFrameToKeyframeStart/End` expand the planner's *assumed-2s-grid* spans onto the artifact's **real** keyframe (GOP) boundaries — the crux: an encoder's actual keyframes need not sit on the 2s grid, and a splice may only replace whole GOPs.
+- **Region model:** `planSplice()` → contiguous alternating `keep`/`reencode` regions covering `[0, frameCount)` exactly once; adjacent aligned GOP islands merge; honest `full` fallback when aligned coverage > `PARTIAL_REBAKE_MAX_COVERAGE` (0.6) or the keyframe layout is unreadable / doesn't start at frame 0.
+- **Two gates:** `validateSplicePlan` (contiguity, alternation, every cut on a real keyframe, reencode ends on keyframe/EOS) and `validateSpliceOutput` ("partial never lies" — `kept + reencoded === output === expected` packet count, ≤1-frame duration drift).
+- **Chronos:** distinct stages `partial-splice-{scan,reencode,assemble}` (never reuse `partial-rebake-plan` or `browser-composite-*`); banded progress from real counters (`computeSpliceReencodeRatio`/`computeSpliceAssembleRatio`).
+- Frame-native, leaf module, zero behavior change: `coordinateRebake` still executes full and reports `executed: 'full'`.
+
+**Verify:** `node scripts/test-splice-plan.mjs` **23/23** (incl. off-grid keyframe alignment + planner→splice integration) · regression: partial-rebake-plan 9, segment-dirty-tracker 11, timeline 10, browser-composite-plan 17 · `tsc` clean (4 documented pre-existing only) · `npm run build` PASS.
+
+### Remaining Phase 2b sprints
+
+2. **Browser executor** `src/composite/composite-splice.ts` — read existing baked-MP4 packets (keyframe frames via `EncodedPacket.type`), decode/repaint(new cues)/re-encode only `reencode` regions (force keyframe at each region start), copy `keep` packets bit-exact, interleave into one `EncodedVideoPacketSource` in decode order, audio passthrough, `validateSpliceOutput` → throw-or-adopt.
+3. **Wire `coordinateRebake`** conditional partial/full with honest `executed: 'partial'`; splice chronos into the bake path.
+4. **Fidelity harness** extension: spliced vs full A/B on dirty regions + bit-exact assertion on kept regions (extend `composite-fidelity.ts`).
+5. Docs (design doc §4.2 as-built, ADR note), then user QA gate (A/B parity, chronos honesty).
+
+```bash
+node scripts/test-splice-plan.mjs && node scripts/test-partial-rebake-plan.mjs
+```
 
 ---
 
