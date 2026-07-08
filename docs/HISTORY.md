@@ -1,6 +1,6 @@
 # Project History — Reddit Voice Notes
 
-**Living milestone index.** Updated **2026-07-07** · Current milestone: **v5.5.0 — Browser-side Full Composite**.
+**Living milestone index.** Updated **2026-07-07** · Current milestone: **v5.5.1 — Browser composite default-on**.
 
 This is the go-to orientation doc: it indexes every major milestone and points to both the **living** documents (current work) and their **archived** history. Read this first when you need to know "what happened before the current feature branch?" — then follow a pointer into [`archive/`](../archive/) only if you need the full detail.
 
@@ -16,7 +16,8 @@ Newest first. **Tag** = git tag on `main`. Docs marked *(archived)* live under [
 
 | Version | Date | Focus / outcome | Notes |
 |---------|------|-----------------|-------|
-| **v5.5.0** | 2026-07-07 | **Browser-side Full Composite** — mediabunny in-page decode/blend/encode/mux eliminates FFmpeg alphamerge wall; opt-in via `experimental.browserComposite` + Overlay Lab toggle; QA hardening (AAC PTS, cue editor, unfocused cap-stop). **Tagged `v5.5.0`**. | Living: [`release-notes-v5.5.0.md`](release-notes-v5.5.0.md), [`v5.5.0-browser-composite-migration.md`](v5.5.0-browser-composite-migration.md), [ADR-0003](architecture/adr/0003-composite-stage-elimination.md) |
+| **v5.5.1** | 2026-07-07 | **Browser composite default-on** — `experimental.browserComposite` true by default + rollout migration (Overlay Lab dev-only made v5.5.0 opt-in unreachable in production). **Tagged `v5.5.1`**. | [`release-notes-v5.5.1.md`](release-notes-v5.5.1.md) |
+| **v5.5.0** | 2026-07-07 | **Browser-side Full Composite** — mediabunny in-page decode/blend/encode/mux eliminates FFmpeg alphamerge wall; QA hardening (AAC PTS, cue editor, unfocused cap-stop). **Tagged `v5.5.0`**. | [`release-notes-v5.5.0.md`](release-notes-v5.5.0.md), [`v5.5.0-browser-composite-migration.md`](v5.5.0-browser-composite-migration.md), [ADR-0003](architecture/adr/0003-composite-stage-elimination.md) |
 | **v5.4.0** | 2026-07-06 | **Design Studio First** — Studio becomes the standalone recording suite; Take lifecycle (`rvn.take.current`), live WYSIWYG capture, Reddit attach mode, WebCodecs bake default-on, H6 crash-safety. **Tagged `v5.4.0`**. | Living: [`release-notes-v5.4.0.md`](release-notes-v5.4.0.md), [`5.4.0-…-roadmap.md`](5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md), [ADR-0002](architecture/adr/0002-take-lifecycle-storage-sync.md) |
 | **v5.3.10** | 2026-07-05 | **WebCodecs Per-Chunk Encoding** — dual color+alpha VP8 streams; normalize stage eliminated by construction. | Living: [`release-notes-v5.3.10.md`](release-notes-v5.3.10.md), [`5.3.10-webcodecs-per-chunk-encoding.md`](5.3.10-webcodecs-per-chunk-encoding.md), [ADR-0001](architecture/adr/0001-webcodecs-encoding-backbone.md) |
 | **v5.3.9** | 2026-07-04 | **Parallel Chunked Bake (Phase 3)** — N concurrent MediaRecorder capture loops; perf regression found + fixed same day (5.3.9.1). | Living: [`release-notes-v5.3.9.md`](release-notes-v5.3.9.md), [`5.3.9-worker-and-chunked-parallelization-design.md`](5.3.9-worker-and-chunked-parallelization-design.md) |

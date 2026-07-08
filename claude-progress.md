@@ -147,10 +147,15 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 
 ---
 
+## v5.5.1 — Browser composite default-on — **TAGGED** `v5.5.1`
+
+**Package:** `5.5.1` · **Release notes:** `docs/release-notes-v5.5.1.md` · **Push:** deferred
+**Change:** `experimental.browserComposite` default **true** + `rvnBrowserCompositeRolloutMigrated` one-time migration. Overlay Lab is dev-only — v5.5.0 opt-in was unreachable in production; R11 two-machine QA justified default flip.
+
 ## v5.5.0 — Browser-side Full Composite — **TAGGED** `v5.5.0`
 
-**Branch:** merged `feature/v5.5.0-browser-composite` → `main` (2026-07-07) · **Package:** `5.5.0`
-**Release notes:** `docs/release-notes-v5.5.0.md` · **Tag:** `v5.5.0` · **Push:** deferred (user will push)
+**Branch:** merged `feature/v5.5.0-browser-composite` → `main` (2026-07-07)
+**Release notes:** `docs/release-notes-v5.5.0.md`
 **Commits:** scaffold `c1a79fe` → hybrid `b00f381` → QA fixes `5e906be` `6dba1c3` `a133320` → gate `8e04c46` → release prep
 **Decision:** `docs/architecture/adr/0003-composite-stage-elimination.md` (accepted) · **Execution plan + as-built:** `docs/v5.5.0-browser-composite-migration.md` (§0 authoritative)
 **Goal:** eliminate the ~43 s FFmpeg alphamerge+x264 wall (88% of WebCodecs bake) — decode base MP4 in-page, blend `createOverlayFramePainter` at each frame's exact output PTS, encode + mux via `mediabunny@1.50.6` (pinned exact).

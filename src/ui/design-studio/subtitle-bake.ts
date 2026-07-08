@@ -143,9 +143,8 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
         // fall back on probe/chunk/encode failure.
         parallelBake: resolveParallelBakeEnabled(prefs.experimental),
         encoder: resolveOverlayBakeEncoder(prefs.experimental),
-        // v5.5.0 — browser composite is opt-in until the Phase 0 QA gate
-        // passes (ADR-0003); resolver returns 'ffmpeg' unless the user (or
-        // Lab) enabled experimental.browserComposite.
+        // v5.5.1 — browser composite default-on via prefs; Lab bypasses prefs
+        // with its own toggle. Set experimental.browserComposite: false to opt out.
         composite: resolveOverlayCompositeStrategy(prefs.experimental),
         onProgress: (ratio, stage) => {
           const overallRatio = 0.1 + ratio * 0.82;

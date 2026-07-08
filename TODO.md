@@ -1,17 +1,14 @@
 # TODO
 
+## v5.5.1 — Browser composite default-on — **TAGGED** `v5.5.1`
+
+**Release notes:** [`docs/release-notes-v5.5.1.md`](docs/release-notes-v5.5.1.md) · **Package:** `5.5.1` on `main` · **Push:** deferred
+
+Flipped `experimental.browserComposite` default **true** + one-time rollout migration (Overlay Lab is dev-only; v5.5.0 opt-in was unreachable in production builds).
+
 ## v5.5.0 — Browser-side Full Composite — **TAGGED** `v5.5.0`
 
-**Branch:** merged `feature/v5.5.0-browser-composite` → `main` (2026-07-07) · **Decision:** ADR-0003 (accepted)
 **Release notes:** [`docs/release-notes-v5.5.0.md`](docs/release-notes-v5.5.0.md) · **Plan/as-built:** [`docs/v5.5.0-browser-composite-migration.md`](docs/v5.5.0-browser-composite-migration.md)
-**Package:** `5.5.0` on `main` · **Tag `v5.5.0`:** 2026-07-07 · **Push:** deferred (user will push)
-
-| Phase | Scope | Status |
-|-------|-------|--------|
-| 0+1 (collapsed) | `src/composite/*` + hybrid behind `experimental.browserComposite` + Lab toggle + timing v4 + tests | **done** |
-| 0 QA | fixes + gate (R9/R11/R12/R13/e2e, two machines) | **PASS** (user 2026-07-07) |
-| 3 | release notes, version bump, merge, tag | **done** |
-| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers, arch doc catch-up | deferred — explicit product decision |
 
 **Restore:** `git checkout main && npm install && npm run dev`
 

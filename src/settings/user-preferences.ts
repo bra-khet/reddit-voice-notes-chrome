@@ -58,6 +58,8 @@ export const USER_PREFS_STORAGE_KEY = 'rvnUserPrefs' as const;
 export const USER_PREFS_VERSION = 1 as const;
 /** One-time marker — flips stored v5.3.10 rollout `webCodecsBake: false` to true. */
 export const WEBCODECS_BAKE_ROLLOUT_MIGRATED_KEY = 'rvnWebCodecsBakeRolloutMigrated' as const;
+/** One-time marker — flips stored v5.5.0 rollout `browserComposite: false` to true. */
+export const BROWSER_COMPOSITE_ROLLOUT_MIGRATED_KEY = 'rvnBrowserCompositeRolloutMigrated' as const;
 
 /** Atomic subtitle on/off — immune to rvnUserPrefs read-modify-write races (BUG-019). */
 export const SUBTITLES_ENABLED_STORAGE_KEY = 'rvnSubtitlesEnabled' as const;
@@ -137,12 +139,10 @@ export interface ExperimentalPreferences {
    */
   webCodecsBake?: boolean;
   /**
-   * v5.5.0 browser-side full composite (ADR-0003). Default FALSE for the
-   * hybrid cut — opt-in until the Phase 0 QA gate passes
-   * (docs/v5.5.0-browser-composite-migration.md). When true and the composite
-   * probe passes, the bake decodes the base MP4 in-page, blends the shared
-   * painter per frame, and muxes via mediabunny — no FFmpeg on the primary
-   * path. Any failure falls back to the legacy FFmpeg composite chain.
+   * v5.5.0 browser-side full composite (ADR-0003). Default true since v5.5.1 —
+   * probe-gated in-page decode/blend/encode/mux; set false to force the legacy
+   * FFmpeg composite chain. Overlay Lab is dev-only, so production bakes read
+   * this flag (not the Lab toggle).
    * Sync: subtitle-bake.ts, subtitle-canvas-bake.ts composite,
    *       src/composite/browser-composite.ts
    */
@@ -156,14 +156,13 @@ export type OverlayBakeEncoderPreference = 'auto' | 'mediarecorder';
 export type OverlayCompositeStrategyPreference = 'browser' | 'ffmpeg';
 
 /**
- * v5.5.0 — browser composite is OPT-IN (`browserComposite === true`) during
- * the hybrid rollout; everything else stays on the proven FFmpeg composite.
- * Flip the default only after the Phase 0 QA gate (ADR-0003 verification).
+ * v5.5.1 — browser composite default-on; opt-out only (`browserComposite === false`).
+ * Probe failure still falls through to legacy FFmpeg composite in the bake orchestrator.
  */
 export function resolveOverlayCompositeStrategy(
   experimental?: ExperimentalPreferences,
 ): OverlayCompositeStrategyPreference {
-  return experimental?.browserComposite === true ? 'browser' : 'ffmpeg';
+  return experimental?.browserComposite === false ? 'ffmpeg' : 'browser';
 }
 
 /** v5.3.9 — parallel chunked render unless explicitly disabled. */
@@ -213,8 +212,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   },
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
   transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
-  // browserComposite: false until the v5.5.0 Phase 0 QA gate passes (ADR-0003).
-  experimental: { parallelBake: true, webCodecsBake: true, browserComposite: false },
+  experimental: { parallelBake: true, webCodecsBake: true, browserComposite: true },
 };
 
 /** Synchronous cache on extension pages — survives design-studio tab close (BUG-019). */
@@ -375,6 +373,29 @@ async function migrateWebCodecsBakeRolloutIfNeeded(
   });
 }
 
+/** Flip stored v5.5.0 rollout-default `browserComposite: false` once; preserves future opt-out. */
+async function migrateBrowserCompositeRolloutIfNeeded(
+  merged: UserPreferencesV1,
+  raw: Partial<UserPreferencesV1> | undefined,
+): Promise<UserPreferencesV1> {
+  const markers = await browser.storage.local.get(BROWSER_COMPOSITE_ROLLOUT_MIGRATED_KEY);
+  if (markers[BROWSER_COMPOSITE_ROLLOUT_MIGRATED_KEY]) {
+    return merged;
+  }
+  const hadRolloutDefaultFalse = raw?.experimental?.browserComposite === false;
+  await browser.storage.local.set({ [BROWSER_COMPOSITE_ROLLOUT_MIGRATED_KEY]: true });
+  if (!hadRolloutDefaultFalse) {
+    return merged;
+  }
+  return commitUserPreferences({
+    ...merged,
+    experimental: {
+      ...merged.experimental,
+      browserComposite: true,
+    },
+  });
+}
+
 // BUG FIX: profile UI stale while rvnUserPrefs correct (BUG-023)
 // Fix: serialize read-modify-write so subtitle saves cannot overwrite profile applies.
 let prefsOpChain: Promise<unknown> = Promise.resolve();
@@ -421,6 +442,7 @@ async function readUserPreferencesBlob(): Promise<UserPreferencesV1> {
 
   let merged = await mergeSubtitlesEnabledIntoPrefs(mergePreferences(raw));
   merged = await migrateWebCodecsBakeRolloutIfNeeded(merged, raw);
+  merged = await migrateBrowserCompositeRolloutIfNeeded(merged, raw);
   if (merged.appearance.activeThemeId !== raw.appearance?.activeThemeId) {
     return commitUserPreferences(merged);
   }
