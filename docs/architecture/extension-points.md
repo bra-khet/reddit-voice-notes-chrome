@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.4 · **Updated:** 2026-07-06 · **Reflects:** `main` @ package `5.4.0` (tag deferred)  
+**Version:** v1.5 · **Updated:** 2026-07-07 · **Reflects:** `feature/5.6.0-audio-decoupling` (baseline `main` @ `v5.5.1`)  
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -241,6 +241,60 @@ can adopt the host when its UI is unified.
   - Pause any theme RAF loops while the live canvas is mounted
     (`auditionActive` guard) — two RAF writers on one preview surface flicker.
 
+## Audio editing & voice re-apply — v1 (v5.6.0)
+
+Audio is decoupled from capture: the raw mic WebM (`baseRecording`) is the
+invariant source; the voice a take's MP4 audio carries is recorded as
+provenance (`TakeVoiceStamp` on the snapshot: intentKey + normalized config +
+origin capture/reapply + revision); re-applying a voice is a Dulcet II render
+plus a **pure stream-copy remux** — video packets bit-exact, so visuals
+(including burned-in subtitles) never re-composite for an audio change.
+Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
+
+- **Read the take's raw audio:** ONLY through `loadCleanAudioForTake(take)`
+  (`src/audio/clean-audio-source.ts`) — it enforces H6 and demotes dead stamps.
+  Never load `rvnLastRecording` directly for editing purposes.
+- **Replace an MP4's audio track:** `replaceAudioTrack({ video, audio })`
+  (`src/audio/audio-remux.ts`) — audio must already be AAC-in-MP4
+  (`processAudioWithGraph` output; pass `forceRender: true` to render a
+  clean track from a no-op graph). Output is validated (exact video packet
+  count, A/V duration drift bounds) or throws; callers write stores only
+  after validation (I7).
+- **Re-apply a voice end-to-end:** `reapplyVoiceToCurrentTake({ config })`
+  (`src/audio/voice-reapply.ts`) — Studio page only; updates baseMp4 AND
+  bakedMp4 when stamped, stamps provenance via `createTakeVoiceStamp`,
+  fires `BAKED_MP4_READY_KEY` when baked bytes changed. Studio surface:
+  "Apply voice to current take" in `voice-controls.ts`.
+- **Editing primitives:** `src/timeline/timeline.ts` (frame math = the
+  painter's global-PTS expression; `TrimRange` + `clampTrimRange`),
+  `src/editing/segment-dirty-tracker.ts` (cue diff → dirty windows →
+  segments), `src/editing/partial-rebake-coordinator.ts` (keyframe-grid
+  splice PLANNER — execution is Phase 2b behind `coordinateRebake`),
+  `src/editing/trim.ts` (`planTrim` gate; intent in `take.edits.trim`;
+  mediabunny `Conversion` apply — artifact integration deferred).
+- **Preview=bake?** YES for voice — re-apply resolves through the same
+  `resolveVoiceGraph` + renderer as the audition. N/A for the remux
+  (bit-copy by definition).
+- **Chronos stages:** `voice-reapply-{dsp,remux-base,remux-baked,save}`
+  (`voice-reapply-plan.ts`); `partial-rebake-plan` is telemetry-only and must
+  never label execution work.
+- **Sync points:** `take-manager.ts` (`voice`/`edits` parse + merge,
+  `createTakeVoiceStamp` revision semantics), `voice-recorder.ts` capture
+  stamp (rides the ready promotion patch), tests
+  `test-voice-reapply-plan.mjs` / `test-timeline.mjs` /
+  `test-segment-dirty-tracker.mjs` / `test-partial-rebake-plan.mjs` /
+  `test-take-manager.mjs` (v5.6.0 block).
+- **Gotchas:**
+  - A DSP fallback ABORTS the re-apply (never silently ship raw audio under
+    a claimed voice); the take stays untouched.
+  - Audio tails are bounded at video end + 1 s (`AUDIO_TAIL_ALLOWANCE_SECONDS`)
+    — long convolution rings are cut by design.
+  - Re-check take identity before the commit writes — a concurrent capture
+    owns the single-slot stores (`superseded` error path).
+  - `partial-rebake-coordinator` currently executes FULL composites; do not
+    surface its plan as an execution stage until Phase 2b lands with the
+    fidelity-harness extension.
+
 ---
 
 ## How to extend this registry
@@ -254,14 +308,18 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.4 (2026-07-06), main @ 5.4.0 (tag deferred).
+Extension points v1.5 (2026-07-07), feature/5.6.0-audio-decoupling (base v5.5.1).
 Seams: voice effects v5 (graph-native) · subtitle effects v1 · font pipeline v1 ·
 message pipelines v2 (pipeline + query kinds; store: baked|base relay param) ·
 storage v1 · theme/canvas v1 · Studio surfaces v1 · voice live-mic preview v1 ·
 overlay encoding backbone v1 (painter seam; webcodecs→mediarecorder→serial→drawtext;
 flags default TRUE since v5.4.0) · take lifecycle v1 (storage sync, ADR-0002;
-takeArtifactMatchesStore MANDATORY before adopting blobs — H6) ·
-Studio capture host v1 (onLiveCanvas zero-copy contract).
+takeArtifactMatchesStore MANDATORY before adopting blobs — H6; v5.6.0 adds
+additive voice/edits snapshot fields) · Studio capture host v1 (onLiveCanvas
+zero-copy contract) · audio editing & voice re-apply v1 (ADR-0004: raw WebM is
+the invariant source; TakeVoiceStamp provenance; stream-copy remux — visuals
+never re-composite for audio; timeline/trim/dirty-tracking primitives;
+partial-rebake is PLAN-only until Phase 2b).
 Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
 one-shot question → query message.
 ```

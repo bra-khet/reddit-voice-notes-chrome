@@ -1,5 +1,18 @@
 # TODO
 
+## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **CODE COMPLETE, QA PENDING**
+
+**Branch:** `feature/5.6.0-audio-decoupling` · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) (§12 as-built) · **ADR:** [`0004`](docs/architecture/adr/0004-audio-decoupling-voice-reapply.md)
+
+"Change Voice" without re-recording: `TakeVoiceStamp` provenance + Dulcet II re-render + stream-copy remux (visuals bit-exact). Editing backend: timeline primitives, dirty tracking, partial-rebake **planner** (execution = Phase 2b), trim backend (artifact integration deferred).
+
+**Urgent / next:**
+- [ ] User QA: e2e re-apply on a fresh take (voice A → B; audio differs, visuals identical, attach works; voice-off apply; legacy degradation).
+- [ ] On QA pass: version bump + release notes + merge/tag per repo convention.
+- [ ] Follow-up branches: Phase 2b splice execution (behind `coordinateRebake`), trim artifact integration + cue shift.
+
+**Verify:** `node scripts/test-voice-reapply-plan.mjs` (12) · `test-timeline.mjs` (10) · `test-segment-dirty-tracker.mjs` (11) · `test-partial-rebake-plan.mjs` (9) · `test-take-manager.mjs` (31) · `npm run build` PASS
+
 ## v5.5.1 — Browser composite default-on — **TAGGED** `v5.5.1`
 
 **Release notes:** [`docs/release-notes-v5.5.1.md`](docs/release-notes-v5.5.1.md) · **Package:** `5.5.1` on `main` · **Push:** deferred

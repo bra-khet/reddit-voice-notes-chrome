@@ -10,6 +10,35 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
+## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **CODE COMPLETE, QA PENDING**
+
+**Branch:** `feature/5.6.0-audio-decoupling` (baseline `main` @ `v5.5.1`) · **Package:** stays `5.5.1` until release prep
+**Contract doc (authoritative, §12 as-built):** `docs/v5.6.0-audio-decoupling.md` · **Decision:** `docs/architecture/adr/0004-audio-decoupling-voice-reapply.md` · **Seam:** extension-points v1.5
+**Commits:** `9147a19` (Phase 1: decoupling + re-apply) · `3474828` (Phase 2/3: editing/timeline backend) · docs commit
+
+### What shipped (2026-07-07)
+
+- **Ground-truth correction:** clean audio already existed — the raw-mic `baseRecording` WebM (voice is applied at offscreen *transcode*, not capture). Phase 1 therefore costs zero storage.
+- **Voice provenance:** `TakeVoiceStamp` (`intentKey` + normalized config + `origin` capture/reapply + `revision`) + non-destructive `edits.trim` on the take snapshot; capture stamps ride the `ready` promotion.
+- **Re-apply pipeline (`src/audio/*`):** H6-gated clean-audio door → Dulcet II re-render (AAC M4A; `forceRender` for voice-off) → **pure stream-copy remux** of `baseMp4` AND `bakedMp4` (mediabunny packet sources; visuals bit-exact — voice changes never re-composite) → atomic re-stamp. Studio page only; NO new message family. Studio surface: "Apply voice to current take" in the voice panel.
+- **Editing/timeline backend:** `src/timeline/timeline.ts` (global-PTS frame math, `TrimRange`), `src/editing/segment-dirty-tracker.ts` (cue diff → dirty windows → segments), `partial-rebake-coordinator.ts` (keyframe-grid splice **planner**; execution = Phase 2b; bake path emits plan telemetry per bake), `trim.ts` (`planTrim` + intent + mediabunny `Conversion` apply; artifact integration deferred).
+- **Chronos:** `voice-reapply-{dsp,remux-base,remux-baked,save}`, real counters only; `partial-rebake-plan` is telemetry-only.
+
+### Verification (automated, 2026-07-07)
+
+`test-take-manager` **31/31** · `test-voice-reapply-plan` **12/12** · `test-timeline` **10/10** · `test-segment-dirty-tracker` **11/11** · `test-partial-rebake-plan` **9/9** · full regression sweep PASS (take-deck 12, composite-plan 17, clip-source 4, webm-preflight 4, encoded-segment 5, chunk-planner 13, bake-chronos 7) · `tsc` clean (4 documented pre-existing) · `npm run build` PASS.
+
+### User QA gate (before tag)
+
+Real-browser e2e: capture with voice A → "Apply voice to current take" with voice B → audio changes, visuals bit-identical (incl. baked subtitles), chronos honest, Reddit attach picks up new bytes; voice-off apply (clean extract); legacy-take degradation copy; DSP-failure abort leaves take unchanged.
+
+```bash
+git checkout feature/5.6.0-audio-decoupling && npm install && npm run dev
+node scripts/test-voice-reapply-plan.mjs && node scripts/test-timeline.mjs
+```
+
+---
+
 ## v5.3.10 — WebCodecs Per-Chunk Encoding — **MERGED & TAGGED** (`v5.3.10`)
 
 **Branch:** merged `feature/v5.3.10-webcodecs-encoding` → `main` (2026-07-05) · **Package:** `5.3.10`  
