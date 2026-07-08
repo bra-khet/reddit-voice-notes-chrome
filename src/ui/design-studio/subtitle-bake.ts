@@ -11,7 +11,10 @@ import { saveLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
-import type { SubtitleStyleConfig, TranscriptResult } from '@/src/transcription/types';
+import type {
+  SubtitleStyleConfig,
+  TranscriptResult,
+} from '@/src/transcription/types';
 import { snapshotBakeChronos } from '@/src/ui/design-studio/bake-chronos';
 import {
   canvasRenderPerfBudgetMs,
@@ -19,7 +22,19 @@ import {
 } from '@/src/transcription/canvas-render-perf-guard';
 import { bakeWithCanvasOverlay } from '@/src/ui/design-studio/subtitle-canvas-bake';
 import { getTakeManager } from '@/src/session/take-manager';
-import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
+import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
+// CHANGED: v5.6.0 — partial re-bake PLAN telemetry (audio decoupling §4.2).
+// WHY: validates dirty-window/span selection on real edits before Phase 2b
+//      turns splice execution on. Zero behavior change — the bake still runs
+//      the full pipeline; only the plan is computed and logged.
+import { computeDirtySegments } from '@/src/editing/segment-dirty-tracker';
+import {
+  PARTIAL_REBAKE_PLAN_STAGE,
+  planPartialRebake,
+} from '@/src/editing/partial-rebake-coordinator';
+import { createTimeline, uniformSegments } from '@/src/timeline/timeline';
+import { BROWSER_COMPOSITE_KEYFRAME_INTERVAL_SECONDS } from '@/src/composite/composite-plan';
+import type { TranscriptSegment } from '@/src/transcription/types';
 
 export interface SubtitleBakeProgress {
   ratio: number;
@@ -71,6 +86,57 @@ function canvasStageMessage(stage: string, ratio: number): string {
   return `Burning subtitles… ${pct}%`;
 }
 
+/**
+ * v5.6.0 — previous bake's inputs, kept only to diff against the next bake for
+ * partial-rebake PLAN telemetry. Session-local by design: a cold Studio has no
+ * prior bake to splice against anyway.
+ */
+let lastBakeInputs: {
+  segments: TranscriptSegment[];
+  styleKey: string;
+  durationSeconds: number;
+} | null = null;
+
+function emitPartialRebakePlanTelemetry(
+  segments: TranscriptSegment[],
+  style: SubtitleStyleConfig,
+  durationSeconds: number,
+): void {
+  const styleKey = JSON.stringify(style);
+  const previous = lastBakeInputs;
+  lastBakeInputs = { segments: segments.map((s) => ({ ...s })), styleKey, durationSeconds };
+  if (!previous || previous.durationSeconds !== durationSeconds) return;
+
+  try {
+    const timeline = createTimeline(durationSeconds, WAVEFORM_TARGET_FPS);
+    const dirty = computeDirtySegments(
+      {
+        before: previous.segments,
+        after: segments,
+        styleChanged: previous.styleKey !== styleKey,
+      },
+      uniformSegments(timeline, BROWSER_COMPOSITE_KEYFRAME_INTERVAL_SECONDS),
+      durationSeconds,
+    );
+    const plan = planPartialRebake({
+      windows: dirty.windows,
+      durationSeconds,
+      fps: WAVEFORM_TARGET_FPS,
+    });
+    console.log(`${EXTENSION_LOG_PREFIX} ${PARTIAL_REBAKE_PLAN_STAGE}:`, {
+      strategy: plan.strategy,
+      spans: plan.spans.length,
+      coverageRatio: Number(plan.coverageRatio.toFixed(3)),
+      dirtySegments: dirty.dirtySegmentIndices.length,
+      allDirty: dirty.allDirty,
+      reason: plan.reason,
+    });
+  } catch (error) {
+    // Telemetry must never gate the bake.
+    console.warn(`${EXTENSION_LOG_PREFIX} Partial-rebake plan telemetry failed`, error);
+  }
+}
+
 export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promise<Blob> {
   const startedAt = performance.now();
   const report = (progress: Omit<SubtitleBakeProgress, 'elapsedMs' | 'estimatedRemainingMs'>): void => {
@@ -93,6 +159,9 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
   if (segments.length === 0) {
     throw new Error('Transcript has no subtitle cues to burn in.');
   }
+
+  // v5.6.0 §4.2 — plan-only telemetry; the bake below is unaffected.
+  emitPartialRebakePlanTelemetry(segments, options.style, videoDurationSeconds);
 
   const prefs = await loadUserPreferences();
   const themeBarColor = resolveAppearanceTheme(prefs.appearance).colors.bar;
