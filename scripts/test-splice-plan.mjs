@@ -41,6 +41,8 @@ const {
   alignFrameToKeyframeStart,
   alignFrameToKeyframeEnd,
   planSplice,
+  scanKeyframes,
+  selectSpliceFidelityAnchors,
   validateSplicePlan,
   validateSpliceOutput,
   computeSpliceProgress,
@@ -347,6 +349,110 @@ check('on-grid keyframes reproduce the planner spans exactly', () => {
   assert.equal(reencode.startFrame, 96);
   assert.equal(reencode.endFrame, 144);
   assertWellFormed(plan, frameCount, keyframeFrames);
+});
+
+console.log('scanKeyframes — splice-friendly gate');
+
+/** Build synthetic decode-ordered packet metas at a fixed fps with given keyframe indices. */
+function packetsAt(fps, count, keyIndices) {
+  const keys = new Set(keyIndices);
+  return Array.from({ length: count }, (_, i) => ({
+    timestamp: i / fps,
+    type: keys.has(i) ? 'key' : 'delta',
+  }));
+}
+
+check('extracts keyframe frame indices from a well-formed stream', () => {
+  const scan = scanKeyframes(packetsAt(24, 20, [0, 5, 10, 15]));
+  assert.deepEqual(scan.keyframeFrames, [0, 5, 10, 15]);
+  assert.equal(scan.frameCount, 20);
+});
+
+check('feeds planSplice end-to-end from scanned keyframes', () => {
+  const scan = scanKeyframes(packetsAt(24, 20, [0, 5, 10, 15]));
+  const plan = planSplice({
+    spans: [{ startFrame: 6, frameCount: 2 }],
+    keyframeFrames: scan.keyframeFrames,
+    frameCount: scan.frameCount,
+  });
+  assert.equal(plan.strategy, 'partial');
+  assert.equal(validateSplicePlan(plan.regions, scan.frameCount, scan.keyframeFrames), null);
+});
+
+check('rejects an empty track', () => {
+  assert.equal(scanKeyframes([]), null);
+});
+
+check('rejects a stream whose first packet is not a keyframe', () => {
+  const packets = packetsAt(24, 5, [2]); // no key at index 0
+  assert.equal(scanKeyframes(packets), null);
+});
+
+check('rejects reordered (B-frame) decode order — non-increasing PTS', () => {
+  const packets = [
+    { timestamp: 0, type: 'key' },
+    { timestamp: 2 / 24, type: 'delta' }, // P before B (decode order)
+    { timestamp: 1 / 24, type: 'delta' }, // B out of order → reject
+    { timestamp: 3 / 24, type: 'delta' },
+  ];
+  assert.equal(scanKeyframes(packets), null);
+});
+
+check('rejects duplicate timestamps (breaks 1:1 index mapping)', () => {
+  const packets = [
+    { timestamp: 0, type: 'key' },
+    { timestamp: 1 / 24, type: 'delta' },
+    { timestamp: 1 / 24, type: 'delta' },
+  ];
+  assert.equal(scanKeyframes(packets), null);
+});
+
+console.log('selectSpliceFidelityAnchors — the decode-back gate probes');
+
+// frames at 24fps for a 20-frame clip; a splice keep/reencode/keep layout.
+const FT = Array.from({ length: 20 }, (_, i) => i / 24);
+const REGIONS = [
+  { kind: 'keep', startFrame: 0, endFrame: 5 },
+  { kind: 'reencode', startFrame: 5, endFrame: 10 },
+  { kind: 'keep', startFrame: 10, endFrame: 20 },
+];
+
+check('keep anchors come only from keep regions', () => {
+  const sel = selectSpliceFidelityAnchors(REGIONS, FT, { maxKeepAnchorsPerRegion: 3 });
+  // No keep anchor may fall inside the reencode region [5,10) (frames 5..9).
+  for (const t of sel.keepAnchors) {
+    const frame = Math.round(t * 24);
+    assert.ok(frame < 5 || frame >= 10, `keep anchor at frame ${frame} is inside a dirty region`);
+  }
+  assert.ok(sel.keepAnchors.length > 0);
+});
+
+check('boundary anchors straddle the internal cut (frames 4,5 and 9,10)', () => {
+  const sel = selectSpliceFidelityAnchors(REGIONS, FT);
+  const frames = sel.boundaryAnchors.map((t) => Math.round(t * 24));
+  for (const f of [4, 5, 9, 10]) assert.ok(frames.includes(f), `missing boundary frame ${f}`);
+  // clip start + end always present.
+  assert.ok(frames.includes(0));
+  assert.ok(frames.includes(19));
+});
+
+check('allAnchors is the sorted unique union', () => {
+  const sel = selectSpliceFidelityAnchors(REGIONS, FT);
+  const union = [...new Set([...sel.keepAnchors, ...sel.boundaryAnchors])].sort((a, b) => a - b);
+  assert.deepEqual(sel.allAnchors, union);
+  for (let i = 1; i < sel.allAnchors.length; i += 1) {
+    assert.ok(sel.allAnchors[i] > sel.allAnchors[i - 1]); // strictly ascending, deduped
+  }
+});
+
+check('single all-keep region still probes (degenerate splice)', () => {
+  const sel = selectSpliceFidelityAnchors(
+    [{ kind: 'keep', startFrame: 0, endFrame: 20 }],
+    FT,
+    { maxKeepAnchorsPerRegion: 4 },
+  );
+  assert.ok(sel.keepAnchors.length >= 2);
+  assert.deepEqual(sel.boundaryAnchors, [FT[0], FT[19]]); // no internal boundary
 });
 
 rmSync(outdir, { recursive: true, force: true });

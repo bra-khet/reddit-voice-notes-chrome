@@ -111,6 +111,50 @@ interface FrameInterval {
   end: number;
 }
 
+// ---------------------------------------------------------------------------
+// Splice-friendly gate: turn an artifact's decode-ordered packets into the
+// keyframe layout planSplice needs, and reject anything that can't be spliced.
+// ---------------------------------------------------------------------------
+
+/** The minimum an EncodedPacket exposes for keyframe scanning (decode order). */
+export interface ScanPacketLike {
+  timestamp: number;
+  type: 'key' | 'delta';
+}
+
+export interface KeyframeScan {
+  /** Frame indices (== decode-order packet indices) that begin a GOP. */
+  keyframeFrames: number[];
+  /** Total frames == packet count (1 packet per frame on our pipeline). */
+  frameCount: number;
+}
+
+/**
+ * Validate that a track is splice-friendly and extract its keyframe layout.
+ * A partial splice copies whole packets in decode order and relies on decode
+ * order equalling presentation order (no B-frame reordering) and one packet per
+ * frame — so packet index IS the global frame index. Returns null (→ caller
+ * falls back to full) when: no packets, the first packet isn't a keyframe, or
+ * presentation timestamps aren't strictly increasing in decode order (B-frames
+ * / VFR reordering — a packet-index splice would corrupt such a stream).
+ */
+export function scanKeyframes(packets: readonly ScanPacketLike[]): KeyframeScan | null {
+  if (packets.length === 0) return null;
+  if (packets[0].type !== 'key') return null;
+
+  const keyframeFrames: number[] = [];
+  let previousTimestamp = -Infinity;
+  for (let i = 0; i < packets.length; i += 1) {
+    const packet = packets[i];
+    // Strictly increasing PTS in decode order ⇒ no reordering ⇒ packet i is
+    // presentation frame i. (Equality would also break the 1:1 index mapping.)
+    if (!(packet.timestamp > previousTimestamp)) return null;
+    previousTimestamp = packet.timestamp;
+    if (packet.type === 'key') keyframeFrames.push(i);
+  }
+  return { keyframeFrames, frameCount: packets.length };
+}
+
 function fullPlan(reason: string, coverageRatio = 1): SplicePlan {
   return {
     strategy: 'full',
@@ -368,6 +412,79 @@ export function computeSpliceAssembleRatio(
 ): number {
   if (!(totalOutputPackets > 0)) return 0;
   return Math.min(1, Math.max(0, packetsMuxed) / totalOutputPackets);
+}
+
+// ---------------------------------------------------------------------------
+// Fidelity anchor selection (the decode-back gate for the avcC hazard)
+// ---------------------------------------------------------------------------
+
+export interface SpliceFidelitySelection {
+  /**
+   * Kept-region frame timestamps that MUST decode pixel-identical between the
+   * spliced output and the original artifact — the packets were copied
+   * byte-exact, so any difference proves the spliced track's sample description
+   * corrupted them (the avcC hazard). This is the load-bearing safety probe.
+   */
+  keepAnchors: number[];
+  /**
+   * Frames straddling every splice boundary (last frame of each region + first
+   * of the next) plus clip start/end — must at least decode in the spliced
+   * output (a hard decoder failure at a cut point ⇒ broken splice).
+   */
+  boundaryAnchors: number[];
+  /** keepAnchors ∪ boundaryAnchors, sorted ascending — the extraction set. */
+  allAnchors: number[];
+}
+
+const DEFAULT_KEEP_ANCHORS_PER_REGION = 4;
+
+/**
+ * Select frame-aligned timestamps for the splice fidelity gate. Pure: takes the
+ * per-frame presentation timestamps (frame index → seconds) so it stays
+ * Node-testable; the executor passes the buffered packets' own timestamps.
+ */
+export function selectSpliceFidelityAnchors(
+  regions: readonly SpliceRegion[],
+  frameTimestamps: readonly number[],
+  options: { maxKeepAnchorsPerRegion?: number } = {},
+): SpliceFidelitySelection {
+  const frameCount = frameTimestamps.length;
+  const at = (frame: number): number | null =>
+    frame >= 0 && frame < frameCount ? frameTimestamps[frame] : null;
+
+  const keep = new Set<number>();
+  const boundary = new Set<number>();
+  if (frameCount > 0) {
+    boundary.add(frameTimestamps[0]);
+    boundary.add(frameTimestamps[frameCount - 1]);
+  }
+  const maxKeep = Math.max(2, options.maxKeepAnchorsPerRegion ?? DEFAULT_KEEP_ANCHORS_PER_REGION);
+
+  for (let i = 0; i < regions.length; i += 1) {
+    const region = regions[i];
+    if (i < regions.length - 1) {
+      const lastOfThis = at(region.endFrame - 1);
+      const firstOfNext = at(regions[i + 1].startFrame);
+      if (lastOfThis !== null) boundary.add(lastOfThis);
+      if (firstOfNext !== null) boundary.add(firstOfNext);
+    }
+    if (region.kind !== 'keep') continue;
+    const span = region.endFrame - region.startFrame;
+    const count = Math.min(maxKeep, span);
+    for (let k = 0; k < count; k += 1) {
+      const frac = count <= 1 ? 0 : k / (count - 1);
+      const frame = region.startFrame + Math.round(frac * (span - 1));
+      const timestamp = at(frame);
+      if (timestamp !== null) keep.add(timestamp);
+    }
+  }
+
+  const ascending = (a: number, b: number): number => a - b;
+  return {
+    keepAnchors: [...keep].sort(ascending),
+    boundaryAnchors: [...boundary].sort(ascending),
+    allAnchors: [...new Set([...keep, ...boundary])].sort(ascending),
+  };
 }
 
 // ---------------------------------------------------------------------------

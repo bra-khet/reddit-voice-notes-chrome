@@ -28,12 +28,34 @@ The construction-level guarantee layer that must exist *before* any browser enco
 
 **Verify:** `node scripts/test-splice-plan.mjs` **23/23** (incl. off-grid keyframe alignment + planner→splice integration) · regression: partial-rebake-plan 9, segment-dirty-tracker 11, timeline 10, browser-composite-plan 17 · `tsc` clean (4 documented pre-existing only) · `npm run build` PASS.
 
+### Sprint 2 — browser splice executor (2026-07-08) — **DONE (automated); UNVERIFIED in-browser**
+
+New module `src/composite/composite-splice.ts` — `renderCompositeSplice()`:
+
+- **scan** — buffer the existing baked MP4's video packets (`EncodedPacketSink.packets({verifyKeyPackets:true})`), gate via pure `scanKeyframes` (rejects reordered/VFR/no-leading-keyframe → null → full). Packet index == global frame index by construction.
+- **plan** — map dirty spans (seconds → whole-packet frame windows from the packets' OWN timestamps, fps-independent) → `planSplice` → `validateSplicePlan`; non-partial or invalid → null (full fallback).
+- **reencode** — per `reencode` region: `VideoSampleSink.samples(startSec,endSec)` decode → draw base + `createOverlayFramePainter`(new cues) → raw `VideoEncoder` (artifact's OWN codec string for max SPS/PPS compat, `avc:{format:'avc'}`), **forced keyframe on the region's first frame**; asserts frame/packet counts + leading keyframe.
+- **assemble** — one `EncodedVideoPacketSource` anchored to the ORIGINAL decoder config; walk regions adding `keep` packets bit-exact + re-encoded packets in decode order; audio passthrough unchanged (AAC priming rebase reused); `validateSpliceOutput` (kept+reencoded==output==expected, ≤1-frame drift) → throw-or-adopt.
+- **honest fallbacks** — probe fail / no codec string / not splice-friendly / plan=full / plan invalid all return null; mid-run error throws; never adopts a broken result. Chronos `partial-splice-{scan,reencode,assemble}` from real counters. `CompositeSpliceTiming` for the harness.
+
+**KNOWN HAZARD (documented in-file):** an MP4 video track has ONE sample description (avcC). Kept AVC packets use the original config; re-encoded GOPs use a fresh encoder (same codec string, but not proven byte-compatible here). Structural output is validated; **pixel correctness across the splice boundary is only guaranteed by the decode-back fidelity check (sprint 4) + user QA.** VP9 keyframes are self-contained and splice cleanly; AVC needs that proof. ⇒ **ships flag-off; not wired into `coordinateRebake` yet.**
+
+Leaf module (unused until sprint 3). **Verify:** `test-splice-plan` **29/29** (incl. `scanKeyframes` gate) · `tsc` clean (4 pre-existing) · `npm run build` PASS.
+
+### Sprint 3 — splice fidelity gate (2026-07-08) — **DONE (automated); the load-bearing avcC check**
+
+Reordered ahead of wiring (user call) so nothing can invoke the splice without the safety net.
+
+- **Pure** `selectSpliceFidelityAnchors` (splice-plan.ts) — frame-aligned probe timestamps: kept-region samples (pixel-equality probes) + every splice-boundary straddle + clip start/end. Node-tested.
+- **Browser** `verifySpliceKeptFrames` (composite-fidelity.ts) — decodes the spliced output at all anchors + the original at kept anchors; **kept-region frames must decode pixel-identical** (mean Δ ≤ 1.5, peak ≤ 24 / 255) between spliced & original — since those packets were copied byte-exact, any difference proves the spliced track's sample description corrupted them (the avcC hazard, caught directly); boundary frames must at least decode. Returns ok/reason (never throws for a miss).
+- **Wired** as a mandatory final step in `renderCompositeSplice`: fidelity miss → throw → caller runs the full composite. Log line reports kept/boundary checks + worst mean Δ.
+
+**Verify:** `test-splice-plan` **33/33** (+4 anchor-selection) · regression: partial-rebake-plan 9, browser-composite-plan 17, segment-dirty-tracker 11, timeline 10, take-manager 31 · `tsc` clean (4 pre-existing) · `npm run build` PASS.
+
 ### Remaining Phase 2b sprints
 
-2. **Browser executor** `src/composite/composite-splice.ts` — read existing baked-MP4 packets (keyframe frames via `EncodedPacket.type`), decode/repaint(new cues)/re-encode only `reencode` regions (force keyframe at each region start), copy `keep` packets bit-exact, interleave into one `EncodedVideoPacketSource` in decode order, audio passthrough, `validateSpliceOutput` → throw-or-adopt.
-3. **Wire `coordinateRebake`** conditional partial/full with honest `executed: 'partial'`; splice chronos into the bake path.
-4. **Fidelity harness** extension: spliced vs full A/B on dirty regions + bit-exact assertion on kept regions (extend `composite-fidelity.ts`).
-5. Docs (design doc §4.2 as-built, ADR note), then user QA gate (A/B parity, chronos honesty).
+4. **Wire `coordinateRebake`** conditional partial/full with honest `executed: 'partial'`; behind `experimental.partialRebakeSplice` (default off); splice chronos into the bake path. (Executor is now self-verifying via sprint 3 — safe to wire.)
+5. Docs (design doc §4.2 as-built, ADR note), then user QA gate (real-browser splice on AVC + VP9 artifacts; confirm fidelity gate rejects→full-fallback on an incompatible case; chronos honesty).
 
 ```bash
 node scripts/test-splice-plan.mjs && node scripts/test-partial-rebake-plan.mjs
