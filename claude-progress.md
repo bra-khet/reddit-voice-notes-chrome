@@ -147,9 +147,11 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 
 ---
 
-## v5.5.0 — Browser-side Full Composite — **IN DEVELOPMENT** (hybrid cut + QA hardening 2026-07-07)
+## v5.5.0 — Browser-side Full Composite — **TAGGED** `v5.5.0`
 
-**Branch:** `feature/v5.5.0-browser-composite` (scaffold `c1a79fe` → hybrid `b00f381` → QA fixes `5e906be` `6dba1c3` `a133320`)
+**Branch:** merged `feature/v5.5.0-browser-composite` → `main` (2026-07-07) · **Package:** `5.5.0`
+**Release notes:** `docs/release-notes-v5.5.0.md` · **Tag:** `v5.5.0` · **Push:** deferred (user will push)
+**Commits:** scaffold `c1a79fe` → hybrid `b00f381` → QA fixes `5e906be` `6dba1c3` `a133320` → gate `8e04c46` → release prep
 **Decision:** `docs/architecture/adr/0003-composite-stage-elimination.md` (accepted) · **Execution plan + as-built:** `docs/v5.5.0-browser-composite-migration.md` (§0 authoritative)
 **Goal:** eliminate the ~43 s FFmpeg alphamerge+x264 wall (88% of WebCodecs bake) — decode base MP4 in-page, blend `createOverlayFramePainter` at each frame's exact output PTS, encode + mux via `mediabunny@1.50.6` (pinned exact).
 
@@ -173,7 +175,7 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 | Cue editor false OOB + stale 2s audio preview | `6dba1c3` | TakeManager clip duration + H6 stamp-verified `baseMp4`/`baseRecording` in `segment-editor-clip-source.ts` |
 | Background cap-stop: metadata timeout, Processing deck hang, animation freeze | `a133320` | `WaveformRenderer` hidden-tab `setInterval` pump + `flushFrameForCapture()`; structural WebM preflight; `recordArtifact('baseMp4')` promotes `processing`→`ready`; Studio `visibilitychange` reconcile |
 
-### User QA (2026-07-07) — **Phase 0 gate PASS** (single machine; `.ignore/QA-5.5.0/`)
+### User QA (2026-07-07) — **PASS** (two machines; `.ignore/QA-5.5.0/`)
 
 | Scenario | Result | Notes |
 |----------|--------|-------|
@@ -181,20 +183,20 @@ User QA checklist item **#4** (close Studio mid-processing → reopen → draft/
 | Browser composite faster when tab focused | **observed** | Expected Chrome throttling; future UX idea: stay-on-page mini-game (not built) |
 | Cue editor OOB badges + per-cue preview | **PASS** (after `6dba1c3`) | Bake timing unaffected throughout |
 | Cap-stop recording, tab **unfocused** | **PASS** (after `a133320`) | Animation/movement captured; deck reaches ready; user: "perfect fix" |
-| R9 side-by-side vs toggle-OFF legacy bake | **PASS** (2026-07-07) | User: visuals identical; production-grade parity |
-| Toggle-OFF legacy sweep (R12) | **PASS** (2026-07-07) | Legacy paths still work; long-clip timeouts triggered expected fallbacks |
-| Post-bake e2e: bake → attach → re-bake | **PASS** (2026-07-07) | Bake creates MP4; Reddit panel attach; re-bake updates attached video |
-| R13 output size at 2:00 cap | **PASS** (2026-07-07) | Browser composite ~22 MB; legacy same take ~15 MB (30 MB cap comfortable) |
-| R11 capability / throughput (this machine) | **PASS** (2026-07-07) | No progress hangs or throughput cliffs; fallbacks honest on long clips |
-| R11 second machine matrix | **deferred** | Required only for Phase-2 **default flip**, not for opt-in v5.5.0 tag |
+| R9 side-by-side vs toggle-OFF legacy bake | **PASS** | User: visuals identical; production-grade parity |
+| Toggle-OFF legacy sweep (R12) | **PASS** | Legacy paths still work; long-clip timeouts triggered expected fallbacks |
+| Post-bake e2e: bake → attach → re-bake | **PASS** | Bake creates MP4; Reddit panel attach; re-bake updates attached video |
+| R13 output size at 2:00 cap | **PASS** | Browser composite ~22 MB; legacy same take ~15 MB (30 MB cap comfortable) |
+| R11 capability matrix (machine 1) | **PASS** | No throughput cliffs; fallbacks honest on long clips |
+| R11 capability matrix (machine 2) | **PASS** | Browser composite + all other strategies work |
 
-### Next (before merge + tag `v5.5.0`)
+### Deferred (not blocking tag)
 
-1. **Release prep:** `docs/release-notes-v5.5.0.md`, version bump (`5.4.0` → `5.5.0`), merge `feature/v5.5.0-browser-composite` → `main`, tag `v5.5.0`.
-2. **Phase 2 (separate decision):** default flip `experimental.browserComposite: true` — blocked on R11 second-machine matrix; flag stays **OFF** at ship unless user opts in via Overlay Lab.
+- **Phase 2 default flip:** `experimental.browserComposite: true` — explicit product decision; R11 matrix now PASS on two machines.
+- **Fidelity Lab A/B surface** consuming `composite-fidelity.ts`.
 
 ```bash
-git checkout feature/v5.5.0-browser-composite && npm install && npm run dev
+git checkout main && npm install && npm run dev
 node scripts/test-browser-composite-plan.mjs
 node scripts/test-webm-preflight.mjs
 node scripts/test-segment-editor-clip-source.mjs

@@ -1,20 +1,19 @@
 # TODO
 
-## v5.5.0 — Browser-side Full Composite — **IN DEVELOPMENT**
+## v5.5.0 — Browser-side Full Composite — **TAGGED** `v5.5.0`
 
-**Branch:** `feature/v5.5.0-browser-composite` · **Decision:** ADR-0003 (accepted) · **Plan/as-built:** [`docs/v5.5.0-browser-composite-migration.md`](docs/v5.5.0-browser-composite-migration.md)
+**Branch:** merged `feature/v5.5.0-browser-composite` → `main` (2026-07-07) · **Decision:** ADR-0003 (accepted)
+**Release notes:** [`docs/release-notes-v5.5.0.md`](docs/release-notes-v5.5.0.md) · **Plan/as-built:** [`docs/v5.5.0-browser-composite-migration.md`](docs/v5.5.0-browser-composite-migration.md)
+**Package:** `5.5.0` on `main` · **Tag `v5.5.0`:** 2026-07-07 · **Push:** deferred (user will push)
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| 0+1 (collapsed) | `src/composite/*` + hybrid behind `experimental.browserComposite` + Lab toggle + timing v4 + tests | **done** (`c1a79fe` `b00f381`) |
-| 0 QA fixes | AAC priming PTS · cue-editor OOB/preview · background cap-stop recording | **done** (`5e906be` `6dba1c3` `a133320`) — user **PASS** on composite bake, cue editor, unfocused cap-stop |
-| 0 QA gate | R9 · R12 · post-bake e2e · R13 · R11 (this machine) | **PASS** (user 2026-07-07) |
-| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers, arch doc catch-up | pending R11 second machine + explicit decision (**not** required for tag) |
-| 3 | `release-notes-v5.5.0.md`, version bump, merge → `main`, tag `v5.5.0` | **ready to execute** (Phase 0 gate closed) |
+| 0+1 (collapsed) | `src/composite/*` + hybrid behind `experimental.browserComposite` + Lab toggle + timing v4 + tests | **done** |
+| 0 QA | fixes + gate (R9/R11/R12/R13/e2e, two machines) | **PASS** (user 2026-07-07) |
+| 3 | release notes, version bump, merge, tag | **done** |
+| 2 | Default flip (`browserComposite: true` + rollout migration), retire alphamerge tiers, arch doc catch-up | deferred — explicit product decision |
 
-**Verify now:** `node scripts/test-browser-composite-plan.mjs` (17) · `test-take-manager.mjs` (24) · `test-webm-preflight.mjs` (4) · `test-segment-editor-clip-source.mjs` (4) · build PASS
-
-**Restore:** `git checkout feature/v5.5.0-browser-composite && npm install && npm run dev`
+**Restore:** `git checkout main && npm install && npm run dev`
 
 ## v5.4.0 — Design Studio First — **TAGGED** `v5.4.0`
 
