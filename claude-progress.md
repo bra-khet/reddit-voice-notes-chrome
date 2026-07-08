@@ -52,10 +52,18 @@ Reordered ahead of wiring (user call) so nothing can invoke the splice without t
 
 **Verify:** `test-splice-plan` **33/33** (+4 anchor-selection) · regression: partial-rebake-plan 9, browser-composite-plan 17, segment-dirty-tracker 11, timeline 10, take-manager 31 · `tsc` clean (4 pre-existing) · `npm run build` PASS.
 
-### Remaining Phase 2b sprints
+### Sprint 4 — wire coordinateRebake + flag + bake-path integration (2026-07-08) — **DONE (automated); flag-off**
 
-4. **Wire `coordinateRebake`** conditional partial/full with honest `executed: 'partial'`; behind `experimental.partialRebakeSplice` (default off); splice chronos into the bake path. (Executor is now self-verifying via sprint 3 — safe to wire.)
-5. Docs (design doc §4.2 as-built, ADR note), then user QA gate (real-browser splice on AVC + VP9 artifacts; confirm fidelity gate rejects→full-fallback on an incompatible case; chronos honesty).
+- **`coordinateRebake`** now conditional: injected `executePartialSplice` (keeps the module pure); reports `executed:'partial'` ONLY when the splice returns bytes; null / non-abort throw / fidelity reject → full fallback (`'full'`); **AbortError propagates** (no silent full re-render). `test-partial-rebake-plan` **13/13** (+partial-success / null-fallback / throw-fallback / abort-passthrough).
+- **Flag** `experimental.partialRebakeSplice` + `resolvePartialRebakeSpliceEnabled` (opt-IN; **default off** — absent from prefs defaults). 
+- **Bake-path integration** (`subtitle-bake.ts`): `computePartialRebakePlan` (was telemetry-only) now returns the plan; `bakeWithOptionalSplice` runs the splice when flag-on + plan `'partial'` + a previous baked MP4 exists, else the full composite (`runFullComposite` wraps the I1 fallback chain). Splice chronos (`partial-splice-*`) mapped to user copy in `canvasStageMessage`.
+- **Executor correctness fix found during integration:** the splice must re-composite dirty regions from the **CLEAN base** MP4 (the baked frames still carry the OLD burned-in subtitle there); Sprint 2 wrongly decoded from the baked MP4. `renderCompositeSplice` now takes both `bakedMp4` (kept packets) + `baseMp4` (dirty-region source), stamping re-encoded frames with the baked PTS for a seamless splice. Also fixed the pre-existing `subtitle-bake` `base`-null tsc error in passing (now **3** pre-existing, was 4).
+
+**Verify:** `test-splice-plan` 33/33 · `test-partial-rebake-plan` **13/13** · regression (browser-composite-plan 17, dirty-tracker 11, timeline 10, take-manager 31, take-deck 12) · `tsc` clean (3 pre-existing) · `npm run build` PASS (composite-splice now bundled/reachable).
+
+### Remaining Phase 2b sprint
+
+5. **Docs + user QA gate** (the release gate). Design doc §4.2 as-built + ADR note. Then real-browser QA with `experimental.partialRebakeSplice: true`: (a) small cue edit on a prior bake → splice applies, edited region shows ONLY the new cue, kept regions bit-identical, chronos honest (`executed:'partial'`); (b) confirm an incompatible case is REJECTED by the fidelity gate → falls back to full (`executed:'full'`); (c) AVC + VP9 artifacts; (d) attach/download reflect spliced bytes. Only after QA: consider default-on (its own decision).
 
 ```bash
 node scripts/test-splice-plan.mjs && node scripts/test-partial-rebake-plan.mjs

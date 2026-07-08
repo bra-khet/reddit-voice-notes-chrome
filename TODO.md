@@ -11,8 +11,8 @@ Packet-level splice execution behind `coordinateRebake` — re-composite only di
 | 1 | `src/editing/splice-plan.ts` — keyframe alignment + region model + plan/output validation gates + splice chronos + `scanKeyframes` gate (pure, Node-tested) | **done** — `test-splice-plan.mjs` 29/29 |
 | 2 | `src/composite/composite-splice.ts` — browser executor (scan→plan→re-encode dirty GOPs→copy kept packets→interleave→validate; honest null-fallbacks) | **done (automated)** — flag-off, in-browser UNVERIFIED (avcC hazard) |
 | 3 | **fidelity gate (the load-bearing avcC check):** `selectSpliceFidelityAnchors` (pure) + `verifySpliceKeptFrames` (kept frames pixel-identical vs original + boundary decodability); wired into `renderCompositeSplice` → miss throws → full fallback | **done (automated)** — `test-splice-plan` 33/33 |
-| 4 | wire `coordinateRebake` conditional partial/full (`executed: 'partial'`), `experimental.partialRebakeSplice` flag (default off), splice chronos in bake path | next |
-| 5 | design doc §4.2 as-built + user QA gate (real-browser AVC + VP9; confirm fidelity gate rejects→full on incompatible case) | pending |
+| 4 | wire `coordinateRebake` conditional (`executed:'partial'` honest, AbortError passthrough) + `experimental.partialRebakeSplice` flag (default off) + `bakeWithOptionalSplice` in bake path + splice chronos copy; fixed executor to re-composite dirty regions from CLEAN base | **done (automated)** — `test-partial-rebake-plan` 13/13; flag-off |
+| 5 | design doc §4.2 as-built + user QA gate (real-browser AVC + VP9; splice applies + edited region shows only new cue + kept bit-identical; incompatible case rejects→full) | **next** |
 
 **Then (Phase 3):** trim UI + atomic artifact/cue/raw-WebM integration — own branch after 2b or parallel.
 

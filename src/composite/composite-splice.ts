@@ -7,16 +7,23 @@
  * the whole clip. For a small cue edit this replaces ~coverage of the frames and
  * copies the rest bit-exact.
  *
+ * TWO INPUTS: the previous BAKED MP4 (kept regions are copied from it bit-exact —
+ * their cues are unchanged so their burned-in subtitles are already correct) and
+ * the CLEAN BASE MP4 (dirty regions are re-composited from its frames + the new
+ * cues — the baked frames still carry the OLD burned-in subtitle there and must
+ * not be reused). Both share the pipeline's 1:1 frame grid, so a dirty region's
+ * baked PTS also indexes the matching clean base frames.
+ *
  * PIPELINE (all in the Design Studio page; reuses browser-composite.ts patterns):
- *   Input(BlobSource(bakedMp4))
- *     ├─ scan:     EncodedPacketSink.packets({verifyKeyPackets}) → buffer packets
- *     │            + real keyframe frame indices (scanKeyframes gate)
+ *   Input(bakedMp4) ─ scan: EncodedPacketSink.packets({verifyKeyPackets}) → buffer
+ *     │                     packets + real keyframe frame indices (scanKeyframes gate)
  *     ├─ plan:     planSplice(dirty spans → keyframe-bounded regions) + validate
- *     ├─ reencode: for each 'reencode' region → VideoSampleSink.samples(range)
- *     │            → draw base + painter(new cues) → VideoEncoder → EncodedPackets
- *     └─ assemble: EncodedVideoPacketSource ← kept packets (bit-exact) interleaved
- *                  with re-encoded packets in decode order; audio passthrough
- *                  (unchanged); Output(Mp4{fastStart:'in-memory'}) → validated Blob
+ *     ├─ reencode: for each 'reencode' region → VideoSampleSink(BASE).samples(range)
+ *     │            → draw clean base + painter(new cues) → VideoEncoder → EncodedPackets
+ *     │            (stamped with the baked region's PTS for a seamless splice)
+ *     └─ assemble: EncodedVideoPacketSource ← kept baked packets (bit-exact)
+ *                  interleaved with re-encoded packets in decode order; audio
+ *                  passthrough (unchanged); Output(Mp4{fastStart:'in-memory'}) → Blob
  *
  * FRAME MODEL: our pipeline MP4s are 1 packet per frame with strictly increasing
  * PTS in decode order (no B-frames) — scanKeyframes rejects anything else, so
@@ -110,8 +117,17 @@ export interface CompositeSpliceTiming {
 }
 
 export interface CompositeSpliceOptions {
-  /** The EXISTING baked MP4 to splice into (the previous bake's output). */
+  /**
+   * The EXISTING baked MP4 to splice into — kept regions come from here bit-exact
+   * (their cues are unchanged, so their burned-in subtitles are already correct).
+   */
   bakedMp4: Blob;
+  /**
+   * The CLEAN base MP4 (no burned subtitles). Dirty regions are re-composited
+   * from THESE frames + the new cues — never from the baked frames, which still
+   * carry the OLD burned-in subtitle in the edited region.
+   */
+  baseMp4: Blob;
   /** New prepared cues (post-edit) painted over the dirty regions. */
   segments: TranscriptSegment[];
   style: SubtitleStyleConfig;
@@ -188,15 +204,19 @@ function regionBoundsSeconds(
 }
 
 /**
- * Decode a reencode region's frames, repaint them with the new cues, and encode
- * them into fresh EncodedPackets with a FORCED keyframe on the region's first
- * frame (so the region is self-contained and the kept GOP that follows — which
- * begins on a real keyframe by construction — stays independent).
+ * Re-composite a reencode region from the CLEAN BASE frames + the new cues, and
+ * encode it into fresh EncodedPackets with a FORCED keyframe on the region's
+ * first frame (so the region is self-contained and the kept GOP that follows —
+ * which begins on a real keyframe by construction — stays independent). Each
+ * encoded frame is stamped with the BAKED region's PTS/duration so it splices
+ * seamlessly against the kept baked packets on either side.
  */
 async function encodeRegion(
   region: SpliceRegion,
-  bounds: { startSeconds: number; endSeconds: number },
-  videoTrack: InputVideoTrack,
+  baseBounds: { startSeconds: number; endSeconds: number },
+  targetTimestamps: number[],
+  targetDurations: number[],
+  baseVideoTrack: InputVideoTrack,
   painter: Awaited<ReturnType<typeof createOverlayFramePainter>>,
   ctx: OffscreenCanvasRenderingContext2D,
   canvas: OffscreenCanvas,
@@ -205,6 +225,7 @@ async function encodeRegion(
   signal: AbortSignal | undefined,
   onFrame: () => void,
 ): Promise<EncodedPacket[]> {
+  const expectedFrames = region.endFrame - region.startFrame;
   const packets: EncodedPacket[] = [];
   let encodeError: unknown = null;
   const encoder = new VideoEncoder({
@@ -226,18 +247,28 @@ async function encodeRegion(
     ...(support.outputCodec === 'avc' ? { avc: { format: 'avc' as const } } : {}),
   });
 
-  const sink = new VideoSampleSink(videoTrack);
+  const sink = new VideoSampleSink(baseVideoTrack);
   let localFrame = 0;
-  for await (const sample of sink.samples(bounds.startSeconds, bounds.endSeconds)) {
+  for await (const sample of sink.samples(baseBounds.startSeconds, baseBounds.endSeconds)) {
     try {
       throwIfAborted(signal);
       if (encodeError) throw encodeError;
+      if (localFrame >= expectedFrames) {
+        // Base yielded more frames than the baked region — bail (caller → full).
+        throw new Error(
+          `Splice reencode: base track yielded > ${expectedFrames} frames for region ` +
+            `[${region.startFrame},${region.endFrame}).`,
+        );
+      }
+      // Paint at the canonical (baked) global time so the overlay animation phase
+      // matches what a full composite would draw.
+      const targetTimestamp = targetTimestamps[localFrame];
       sample.draw(ctx, 0, 0);
-      painter.paintFrameAt(sample.timestamp);
+      painter.paintFrameAt(targetTimestamp);
       ctx.drawImage(painter.canvas, 0, 0);
       const frame = new VideoFrame(canvas, {
-        timestamp: Math.round(sample.timestamp * 1_000_000),
-        duration: Math.round(sample.duration * 1_000_000),
+        timestamp: Math.round(targetTimestamp * 1_000_000),
+        duration: Math.round(targetDurations[localFrame] * 1_000_000),
       });
       try {
         encoder.encode(frame, { keyFrame: localFrame === 0 });
@@ -256,10 +287,10 @@ async function encodeRegion(
   encoder.close();
   if (encodeError) throw encodeError;
 
-  if (localFrame !== region.endFrame - region.startFrame) {
+  if (localFrame !== expectedFrames) {
     throw new Error(
-      `Splice reencode decoded ${localFrame} frames for region ` +
-        `[${region.startFrame},${region.endFrame}) — expected ${region.endFrame - region.startFrame}.`,
+      `Splice reencode composited ${localFrame} base frames for region ` +
+        `[${region.startFrame},${region.endFrame}) — expected ${expectedFrames}.`,
     );
   }
   if (packets.length !== localFrame) {
@@ -289,6 +320,7 @@ export async function renderCompositeSplice(
   report(0, PARTIAL_SPLICE_STAGES.scan);
 
   const input = new Input({ source: new BlobSource(options.bakedMp4), formats: ALL_FORMATS });
+  const baseInput = new Input({ source: new BlobSource(options.baseMp4), formats: ALL_FORMATS });
   let output: Output<Mp4OutputFormat, BufferTarget> | null = null;
   let painter: Awaited<ReturnType<typeof createOverlayFramePainter>> | null = null;
 
@@ -303,6 +335,13 @@ export async function renderCompositeSplice(
     const decoderConfig = await videoTrack.getDecoderConfig();
     if (!decoderConfig?.codec) return null; // no codec string → cannot re-encode compatibly
     const baseDurationSeconds = await videoTrack.computeDuration();
+
+    // Dirty regions re-composite from the CLEAN base — it must exist and decode.
+    const baseVideoTrack = await baseInput.getPrimaryVideoTrack();
+    if (!baseVideoTrack || !(await baseVideoTrack.canDecode())) {
+      console.warn(`${EXTENSION_LOG_PREFIX} Composite splice: clean base not decodable — full composite.`);
+      return null;
+    }
 
     // ---- scan ----
     const scanStartedAt = performance.now();
@@ -356,11 +395,21 @@ export async function renderCompositeSplice(
     let framesReencoded = 0;
     for (const region of plan.regions) {
       if (region.kind !== 'reencode') continue;
+      // Base decode range + the baked PTS/durations to stamp onto the re-encoded
+      // frames (base shares the 1:1 grid, so its frames in this range match).
       const bounds = regionBoundsSeconds(region, videoPackets, frameCount);
+      const targetTimestamps: number[] = [];
+      const targetDurations: number[] = [];
+      for (let i = region.startFrame; i < region.endFrame; i += 1) {
+        targetTimestamps.push(videoPackets[i].timestamp);
+        targetDurations.push(videoPackets[i].duration);
+      }
       const regionPackets = await encodeRegion(
         region,
         bounds,
-        videoTrack,
+        targetTimestamps,
+        targetDurations,
+        baseVideoTrack,
         painter,
         ctx,
         canvas,
@@ -515,6 +564,7 @@ export async function renderCompositeSplice(
   } finally {
     painter?.dispose();
     input.dispose();
+    baseInput.dispose();
   }
 }
 

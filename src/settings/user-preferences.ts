@@ -147,6 +147,16 @@ export interface ExperimentalPreferences {
    *       src/composite/browser-composite.ts
    */
   browserComposite?: boolean;
+  /**
+   * v5.7.0 Phase 2b — partial re-bake splice. Default OFF (opt-in) until the
+   * fidelity gate is proven in real-browser QA on AVC + VP9 artifacts. When on,
+   * a re-bake whose cue edit dirties only a few keyframe-aligned regions splices
+   * the freshly-composited regions into the previous baked MP4 instead of a full
+   * composite; the executor self-verifies (kept-region pixel equality) and any
+   * miss falls back to the full composite. Sync: subtitle-bake.ts,
+   *       src/editing/partial-rebake-coordinator.ts, src/composite/composite-splice.ts
+   */
+  partialRebakeSplice?: boolean;
 }
 
 /** Production bake encoder resolved from experimental prefs (v5.3.10). */
@@ -163,6 +173,16 @@ export function resolveOverlayCompositeStrategy(
   experimental?: ExperimentalPreferences,
 ): OverlayCompositeStrategyPreference {
   return experimental?.browserComposite === false ? 'ffmpeg' : 'browser';
+}
+
+/**
+ * v5.7.0 Phase 2b — partial re-bake splice. Opt-IN only (`partialRebakeSplice
+ * === true`); undefined/false → disabled. Default off until real-browser QA.
+ */
+export function resolvePartialRebakeSpliceEnabled(
+  experimental?: ExperimentalPreferences,
+): boolean {
+  return experimental?.partialRebakeSplice === true;
 }
 
 /** v5.3.9 — parallel chunked render unless explicitly disabled. */

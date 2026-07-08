@@ -154,34 +154,53 @@ export function planPartialRebake(input: PartialRebakePlanInput): PartialRebakeP
 // ---------------------------------------------------------------------------
 
 export interface PartialRebakeExecution {
-  /** What actually ran — 'full' until splice execution exists (honesty). */
-  executed: 'full' | 'none';
+  /** What ACTUALLY ran — 'partial' only when a real splice produced bytes (honesty). */
+  executed: 'full' | 'partial' | 'none';
   plan: PartialRebakePlan;
-  /** The composite output when work ran (null when strategy was 'none'). */
+  /** The output when work ran (null when strategy was 'none'). */
   blob: Blob | null;
 }
 
 /**
- * Execute a re-bake according to a plan. CURRENT BEHAVIOR (scaffold): 'none'
- * short-circuits; everything else delegates to the caller-supplied full
- * composite, with the partial plan attached as telemetry so the Overlay Lab
- * can validate span selection on real edits before Phase 2b turns it on.
+ * Execute a re-bake according to a plan. The splice executor is INJECTED so this
+ * module stays pure (Node-testable); the browser-only splice lives in
+ * composite-splice.ts. Honesty (invariant I2): report 'partial' ONLY when the
+ * splice returned bytes. A partial plan with no executor, a splice that resolves
+ * null (path not splice-friendly / plan chose full internally), or a splice that
+ * throws a non-abort failure (incl. the fidelity gate rejecting the output) all
+ * fall back to the full composite and report 'full'. AbortError propagates — a
+ * deliberate cancel must not silently trigger a full re-render.
  */
 export async function coordinateRebake(
   plan: PartialRebakePlan,
   executeFullComposite: () => Promise<Blob>,
+  executePartialSplice?: () => Promise<Blob | null>,
 ): Promise<PartialRebakeExecution> {
   if (plan.strategy === 'none') {
     return { executed: 'none', plan, blob: null };
   }
-  // Phase 2b: when plan.strategy === 'partial', decode/paint/encode only
-  // plan.spans and splice packets at keyframe boundaries. Until then: full.
   console.log(`[Reddit Voice Notes] ${PARTIAL_REBAKE_PLAN_STAGE}:`, {
     strategy: plan.strategy,
     spans: plan.spans.length,
     coverageRatio: Number(plan.coverageRatio.toFixed(3)),
     reason: plan.reason,
   });
+
+  if (plan.strategy === 'partial' && executePartialSplice) {
+    try {
+      const spliced = await executePartialSplice();
+      if (spliced) {
+        return { executed: 'partial', plan, blob: spliced };
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') throw error;
+      console.warn(
+        '[Reddit Voice Notes] Partial splice failed — falling back to full composite.',
+        error,
+      );
+    }
+  }
+
   const blob = await executeFullComposite();
   return { executed: 'full', plan, blob };
 }
