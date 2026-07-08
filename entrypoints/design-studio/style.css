@@ -817,6 +817,28 @@ body {
   margin-bottom: 6px;
 }
 
+/* v5.6.0 — "Apply voice to current take" (audio decoupling §3.5): its own
+   bordered row below the audition pair, in the same amber signage family so
+   it reads as the committing sibling of the two tests. */
+.studio__voice-apply {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin: 4px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--studio-amber-dim, rgba(255, 213, 79, 0.18));
+}
+
+.studio__voice-apply-btn {
+  min-width: 220px;
+}
+
+.studio__voice-apply-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .studio__voice-meter-fill {
     transition: none;

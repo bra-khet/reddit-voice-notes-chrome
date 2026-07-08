@@ -51,6 +51,15 @@ import {
 } from '@/src/voice/mic-test-capture';
 import { acquireMicStream } from '@/src/recorder/mic-constraints';
 import type { AudioPreferences } from '@/src/settings/user-preferences';
+// CHANGED: v5.6.0 — voice re-apply action (audio decoupling §3.5).
+// WHY: the panel needs take state to gate "Apply voice to current take";
+//      the heavy pipeline itself stays a lazy import like process-audio.
+import {
+  getTakeManager,
+  isTransientTakeStatus,
+  type CurrentTake,
+} from '@/src/session/take-manager';
+import { voiceEffectUserIntentKey } from '@/src/voice/resolve-config';
 
 export interface VoiceControlsHandle {
   dispose(): void;
@@ -225,6 +234,23 @@ export function renderVoiceControlFields(): string {
           Stop
         </button>
       </div>
+      <!-- v5.6.0 audio decoupling: swap the CURRENT TAKE's voice without
+           re-recording. Backend: src/audio/voice-reapply.ts (raw WebM → Dulcet II
+           → stream-copy remux; visuals bit-exact). -->
+      <div class="studio__voice-apply" data-voice-apply-row>
+        <button
+          type="button"
+          class="popup__profile-btn popup__profile-btn--save studio__voice-apply-btn"
+          data-voice-apply
+          disabled
+          aria-label="Re-render the current take's audio with the voice above"
+        >
+          Apply voice to current take
+        </button>
+        <p class="studio__voice-test-cap" data-voice-apply-hint>
+          Record a take first — then you can swap its voice without re-recording.
+        </p>
+      </div>
       <p class="studio__voice-status popup__field-desc" data-voice-status aria-live="polite"></p>
     </div>
   `;
@@ -283,6 +309,8 @@ export function mountVoiceControls(
   const meterFill = panel.querySelector<HTMLElement>('[data-voice-meter-fill]')!;
   const stopBtn = panel.querySelector<HTMLButtonElement>('[data-voice-stop]')!;
   const statusEl = panel.querySelector<HTMLElement>('[data-voice-status]')!;
+  const applyBtn = panel.querySelector<HTMLButtonElement>('[data-voice-apply]')!;
+  const applyHintEl = panel.querySelector<HTMLElement>('[data-voice-apply-hint]')!;
 
   let draftConfig: VoiceEffectConfig = normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG);
   let currentProfileName: string | undefined;
@@ -300,6 +328,9 @@ export function mountVoiceControls(
   // real recorder — keeps the audition faithful to the eventual bake. Null until prefs load.
   let audioPrefs: AudioPreferences | null = null;
   let saveTimer = 0;
+  // v5.6.0 — re-apply gating state (take snapshot arrives via storage sync).
+  let currentTake: CurrentTake | null = null;
+  let applying = false;
 
   const preview = createVoicePreviewPlayer();
 
@@ -406,6 +437,9 @@ export function mountVoiceControls(
 
   function notifyDraftChange(): void {
     onDraftChange?.();
+    // v5.6.0 — the apply gate compares the take's voice against the DRAFT
+    // intent, so any edit can flip its enabled state / hint copy.
+    refreshApplyAvailability();
   }
 
   function schedulePersist(): void {
@@ -528,9 +562,45 @@ export function mountVoiceControls(
 
   /** Both test buttons are unavailable whenever a capture or a render is in flight. */
   function refreshActionAvailability(): void {
-    const busy = rendering || capturing;
+    const busy = rendering || capturing || applying;
     testBtn.disabled = busy;
     micTestBtn.disabled = busy;
+    refreshApplyAvailability();
+  }
+
+  /**
+   * v5.6.0 — "Apply voice to current take" gate. Needs BOTH stamps: the raw
+   * WebM (the clean audio source) and the base MP4 (the video to remux under).
+   * H6 store verification happens inside the pipeline itself — this gate is
+   * about honest affordance copy, not adoption safety.
+   */
+  function refreshApplyAvailability(): void {
+    const busy = rendering || capturing;
+    const take = currentTake;
+
+    if (applying) {
+      applyBtn.disabled = true;
+      return;
+    }
+
+    if (!take || !take.artifacts.baseRecording || !take.artifacts.baseMp4) {
+      applyBtn.disabled = true;
+      applyHintEl.textContent =
+        'Record a take first — then you can swap its voice without re-recording.';
+      return;
+    }
+    if (isTransientTakeStatus(take.status)) {
+      applyBtn.disabled = true;
+      applyHintEl.textContent = 'Take is still processing — try again in a moment.';
+      return;
+    }
+
+    const draftIntent = voiceEffectUserIntentKey(mergeLiveToggles(draftConfig));
+    const sameVoice = take.voice?.intentKey === draftIntent && take.voice?.fallback !== true;
+    applyBtn.disabled = busy || sameVoice;
+    applyHintEl.textContent = sameVoice
+      ? `This take already carries this voice${take.voice && take.voice.revision > 0 ? ` (rev ${take.voice.revision})` : ''}.`
+      : 'Re-renders this take’s audio with the voice above — visuals stay untouched.';
   }
 
   function setRendering(active: boolean, source: 'last-note' | 'mic' = 'last-note'): void {
@@ -847,6 +917,50 @@ export function mountVoiceControls(
     );
   });
 
+  // v5.6.0 — "Change Voice" without re-recording: the take's RAW capture audio
+  // re-renders through the panel's current voice, then stream-copies under the
+  // existing video track(s). Lazy import keeps ffmpeg.wasm + mediabunny out of
+  // the Studio's initial load (same pattern as the audition renders).
+  applyBtn.addEventListener('click', () => {
+    if (applying || rendering || capturing) return;
+    void (async () => {
+      const config = mergeLiveToggles(draftConfig);
+      applying = true;
+      applyBtn.textContent = 'Applying…';
+      refreshActionAvailability();
+      const reapplyModule = await import('@/src/audio/voice-reapply');
+      try {
+        const outcome = await reapplyModule.reapplyVoiceToCurrentTake({
+          config,
+          onProgress: (progress) => {
+            applyBtn.textContent = `Applying… ${Math.round(progress.ratio * 100)}%`;
+            setStatus(progress.message);
+          },
+        });
+        const scope = outcome.bakedUpdated ? 'base + baked videos' : 'base video';
+        setStatus(
+          `Voice applied to the current take (${scope}, rev ${outcome.revision}) — visuals untouched.`,
+        );
+        showToast('Voice applied to the current take.', 'info');
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          setStatus('Voice apply cancelled — take unchanged.');
+        } else if (error instanceof reapplyModule.VoiceReapplyError) {
+          setStatus(error.message);
+          showToast(error.message, 'info');
+        } else {
+          const detail = error instanceof Error ? error.message : String(error);
+          setStatus(`Voice apply failed — take unchanged. (${detail})`);
+          showToast('Voice apply failed — the take was left unchanged.', 'error');
+        }
+      } finally {
+        applying = false;
+        applyBtn.textContent = 'Apply voice to current take';
+        refreshActionAvailability();
+      }
+    })();
+  });
+
   // One shared Stop button for both modes (only one runs at a time): while capturing it
   // flushes the mic clip (→ render); otherwise it halts the rendered playback.
   stopBtn.addEventListener('click', () => {
@@ -878,6 +992,13 @@ export function mountVoiceControls(
     void loadRecordingSource();
   };
   browser.storage.onChanged.addListener(onRecordingReady);
+
+  // v5.6.0 — reactive take snapshot (emits current value + every cross-context
+  // change) gates the apply-to-take action.
+  const unsubscribeTake = getTakeManager().subscribe((take) => {
+    currentTake = take;
+    refreshApplyAvailability();
+  });
 
   void loadUserPreferences().then((prefs) => {
     draftConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
@@ -913,6 +1034,7 @@ export function mountVoiceControls(
       window.clearInterval(pollTimer);
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onRecordingReady);
+      unsubscribeTake();
       if (saveTimer) window.clearTimeout(saveTimer);
       unwireIntensitySlider();
       persistNow();

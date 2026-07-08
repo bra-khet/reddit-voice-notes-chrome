@@ -33,7 +33,9 @@ const {
   CURRENT_TAKE_KEY,
   STALE_TRANSIENT_MS,
   createTakeId,
+  createTakeVoiceStamp,
   isTransientTakeStatus,
+  mergeTakeEdits,
   mergeTakePatch,
   normalizeStaleTake,
   parseCurrentTake,
@@ -317,6 +319,128 @@ check('baseMp4 stamp on processing take should promote to ready', () => {
   const next = mergeTakePatch(take, patch);
   assert.equal(next.status, 'ready');
   assert.equal(next.artifacts.baseMp4.byteLength, 2_000_000);
+});
+
+// ─── v5.6.0 — voice stamp + edits (audio decoupling) ─────────────────────────
+
+console.log('v5.6.0 voice stamp + edits');
+
+const VOICE_STAMP = {
+  intentKey: '{"kind":"character","characterPresetId":"gremlin"}',
+  config: { enabled: true, characterPresetId: 'gremlin', intensity: 10, turbo: false },
+  appliedAt: NOW - 20_000,
+  origin: 'capture',
+  revision: 0,
+};
+
+check('voice stamp round-trips; fallback flag preserved', () => {
+  const parsed = parseCurrentTake(validTake({ voice: { ...VOICE_STAMP, fallback: true } }));
+  assert.equal(parsed.voice.intentKey, VOICE_STAMP.intentKey);
+  assert.equal(parsed.voice.origin, 'capture');
+  assert.equal(parsed.voice.revision, 0);
+  assert.equal(parsed.voice.fallback, true);
+  assert.equal(parsed.voice.config.characterPresetId, 'gremlin');
+});
+
+check('malformed voice stamp drops silently, never the snapshot', () => {
+  for (const bad of [
+    { ...VOICE_STAMP, intentKey: '' },
+    { ...VOICE_STAMP, origin: 'timetravel' },
+    { ...VOICE_STAMP, revision: -1 },
+    { ...VOICE_STAMP, config: 'gremlin' },
+    'gremlin',
+  ]) {
+    const parsed = parseCurrentTake(validTake({ voice: bad }));
+    assert.notEqual(parsed, null);
+    assert.equal(parsed.voice, undefined);
+  }
+});
+
+check('edits.trim round-trips; invalid trim drops', () => {
+  const parsed = parseCurrentTake(validTake({ edits: { trim: { inSeconds: 2, outSeconds: 30 } } }));
+  assert.deepEqual(parsed.edits, { trim: { inSeconds: 2, outSeconds: 30 } });
+  for (const bad of [
+    { trim: { inSeconds: 30, outSeconds: 2 } },
+    { trim: { inSeconds: -1, outSeconds: 2 } },
+    { trim: { inSeconds: 'start', outSeconds: 2 } },
+    { trim: 7 },
+  ]) {
+    const dropped = parseCurrentTake(validTake({ edits: bad }));
+    assert.notEqual(dropped, null);
+    assert.equal(dropped.edits, undefined);
+  }
+});
+
+check('mergeTakePatch: voice replaces atomically; absent patch keeps prior', () => {
+  const take = parseCurrentTake(validTake({ voice: VOICE_STAMP }));
+  const reapplied = { ...VOICE_STAMP, origin: 'reapply', revision: 1, appliedAt: NOW };
+  const next = mergeTakePatch(take, { voice: reapplied }, NOW);
+  assert.equal(next.voice.revision, 1);
+  assert.equal(next.voice.origin, 'reapply');
+  const kept = mergeTakePatch(take, { status: 'baked' }, NOW);
+  assert.equal(kept.voice.revision, 0);
+});
+
+check('mergeTakePatch: edits merge per-field; null clears trim', () => {
+  const take = parseCurrentTake(validTake({ edits: { trim: { inSeconds: 1, outSeconds: 10 } } }));
+  const moved = mergeTakePatch(take, { edits: { trim: { inSeconds: 3, outSeconds: 9 } } }, NOW);
+  assert.deepEqual(moved.edits.trim, { inSeconds: 3, outSeconds: 9 });
+  const cleared = mergeTakePatch(take, { edits: { trim: null } }, NOW);
+  assert.equal(cleared.edits, undefined);
+});
+
+check('mergeTakeEdits standalone semantics', () => {
+  assert.equal(mergeTakeEdits(undefined, undefined), undefined);
+  assert.deepEqual(mergeTakeEdits(undefined, { trim: { inSeconds: 0, outSeconds: 5 } }), {
+    trim: { inSeconds: 0, outSeconds: 5 },
+  });
+  assert.equal(mergeTakeEdits({ trim: { inSeconds: 0, outSeconds: 5 } }, { trim: null }), undefined);
+});
+
+check('createTakeVoiceStamp: capture resets provenance, reapply increments', () => {
+  const captureStamp = createTakeVoiceStamp({
+    intentKey: 'k1',
+    config: { enabled: true },
+    origin: 'capture',
+    now: NOW,
+  });
+  assert.equal(captureStamp.revision, 0);
+  assert.equal(captureStamp.fallback, undefined);
+
+  const first = createTakeVoiceStamp({
+    intentKey: 'k2',
+    config: { enabled: true },
+    origin: 'reapply',
+    previous: captureStamp,
+    now: NOW,
+  });
+  assert.equal(first.revision, 1);
+  const second = createTakeVoiceStamp({
+    intentKey: 'k3',
+    config: { enabled: true },
+    origin: 'reapply',
+    previous: first,
+    now: NOW,
+  });
+  assert.equal(second.revision, 2);
+  // Legacy takes (no prior stamp) still get a monotonic start.
+  const orphan = createTakeVoiceStamp({
+    intentKey: 'k4',
+    config: { enabled: true },
+    origin: 'reapply',
+    previous: null,
+    now: NOW,
+  });
+  assert.equal(orphan.revision, 1);
+
+  const fallbackStamp = createTakeVoiceStamp({
+    intentKey: 'k5',
+    config: { enabled: true },
+    origin: 'capture',
+    fallback: true,
+    now: NOW,
+  });
+  assert.equal(fallbackStamp.fallback, true);
 });
 
 rmSync(outdir, { recursive: true, force: true });

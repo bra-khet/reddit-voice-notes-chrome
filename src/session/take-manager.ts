@@ -64,6 +64,45 @@ export interface CurrentTakeMeta {
   note?: string;
 }
 
+// CHANGED: v5.6.0 — voice-intent provenance stamp (audio decoupling §3.1).
+// WHY: prefs.voiceEffect is global and mutable; nothing recorded which voice a
+//      take's baseMp4 audio actually carries, so re-apply had no ground truth.
+/**
+ * Records the voice that a take's baked audio actually carries. The `config`
+ * is kept structurally opaque here (validated as a JSON object only) so this
+ * module stays dependency-free for Node tests; consumers normalize it through
+ * `normalizeVoiceEffectConfig` before use.
+ */
+export interface TakeVoiceStamp {
+  /** voiceEffectUserIntentKey(config) — stable, id-free dirty-check key. */
+  intentKey: string;
+  /** Normalized VoiceEffectConfig that was rendered (opaque JSON object). */
+  config: Record<string, unknown>;
+  appliedAt: number;
+  /** 'capture' = stamped by the recorder transcode; 'reapply' = by voice re-apply. */
+  origin: 'capture' | 'reapply';
+  /** 0 at capture; +1 per successful re-apply — single-slot provenance (§5). */
+  revision: number;
+  /** True when the FFmpeg voice pass fell back — audio is raw despite the intent. */
+  fallback?: boolean;
+}
+
+/** v5.6.0 — non-destructive trim intent (seconds on the take's timeline). */
+export interface TakeTrimEdit {
+  inSeconds: number;
+  outSeconds: number;
+}
+
+/** v5.6.0 — non-destructive edit intents; stored until an explicit apply. */
+export interface TakeEdits {
+  trim?: TakeTrimEdit;
+}
+
+/** Patch form: `null` clears an edit intent, an object replaces it. */
+export type TakeEditsPatch = {
+  trim?: TakeTrimEdit | null;
+};
+
 export interface CurrentTake {
   id: string;
   status: TakeStatus;
@@ -72,12 +111,20 @@ export interface CurrentTake {
   lastUpdated: number;
   meta: CurrentTakeMeta;
   artifacts: Partial<Record<TakeArtifactKind, TakeArtifactStamp>>;
+  /** v5.6.0 — voice provenance (absent on pre-v5.6.0 snapshots). */
+  voice?: TakeVoiceStamp;
+  /** v5.6.0 — pending non-destructive edits (absent when none). */
+  edits?: TakeEdits;
 }
 
 export type CurrentTakePatch = {
   status?: TakeStatus;
   meta?: Partial<CurrentTakeMeta>;
   artifacts?: Partial<Record<TakeArtifactKind, TakeArtifactStamp>>;
+  /** Replaces the voice stamp wholesale (voice provenance is atomic). */
+  voice?: TakeVoiceStamp;
+  /** Per-field edit-intent merge; `null` clears a field. */
+  edits?: TakeEditsPatch;
 };
 
 export interface BeginTakeInit {
@@ -223,6 +270,34 @@ export function createTakeId(now = Date.now()): string {
   return `take-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// CHANGED: v5.6.0 — pure voice-stamp constructor (audio decoupling §3.1/§5).
+// WHY: both writers (recorder capture path, re-apply orchestrator) must agree
+//      on revision semantics; centralizing keeps provenance monotonic.
+/**
+ * Build the next voice stamp for a take. Capture stamps reset provenance
+ * (revision 0 — a fresh recording); re-apply stamps increment the previous
+ * revision so single-slot overwrites stay auditable.
+ */
+export function createTakeVoiceStamp(input: {
+  intentKey: string;
+  config: Record<string, unknown>;
+  origin: TakeVoiceStamp['origin'];
+  previous?: TakeVoiceStamp | null;
+  fallback?: boolean;
+  now?: number;
+}): TakeVoiceStamp {
+  const stamp: TakeVoiceStamp = {
+    intentKey: input.intentKey,
+    config: input.config,
+    appliedAt: input.now ?? Date.now(),
+    origin: input.origin,
+    revision:
+      input.origin === 'capture' ? 0 : (input.previous?.revision ?? 0) + 1,
+  };
+  if (input.fallback) stamp.fallback = true;
+  return stamp;
+}
+
 const TAKE_STATUSES: readonly TakeStatus[] = [
   'draft',
   'recording',
@@ -231,6 +306,58 @@ const TAKE_STATUSES: readonly TakeStatus[] = [
   'baked',
   'error',
 ];
+
+// CHANGED: v5.6.0 — defensive parsers for the additive voice/edits fields.
+// WHY: parseCurrentTake drops anything malformed (ADR-0002 contract); new
+//      fields must be optional and individually rejectable, never take down
+//      the whole snapshot.
+function parseVoiceStamp(raw: unknown): TakeVoiceStamp | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const stamp = raw as Record<string, unknown>;
+  if (typeof stamp.intentKey !== 'string' || stamp.intentKey.length === 0) return undefined;
+  if (typeof stamp.config !== 'object' || stamp.config === null) return undefined;
+  if (typeof stamp.appliedAt !== 'number') return undefined;
+  if (stamp.origin !== 'capture' && stamp.origin !== 'reapply') return undefined;
+  if (typeof stamp.revision !== 'number' || stamp.revision < 0) return undefined;
+  return {
+    intentKey: stamp.intentKey,
+    config: stamp.config as Record<string, unknown>,
+    appliedAt: stamp.appliedAt,
+    origin: stamp.origin,
+    revision: Math.floor(stamp.revision),
+    fallback: stamp.fallback === true ? true : undefined,
+  };
+}
+
+function parseTrimEdit(raw: unknown): TakeTrimEdit | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const trim = raw as Record<string, unknown>;
+  if (typeof trim.inSeconds !== 'number' || typeof trim.outSeconds !== 'number') return undefined;
+  if (!Number.isFinite(trim.inSeconds) || !Number.isFinite(trim.outSeconds)) return undefined;
+  if (trim.inSeconds < 0 || trim.outSeconds <= trim.inSeconds) return undefined;
+  return { inSeconds: trim.inSeconds, outSeconds: trim.outSeconds };
+}
+
+function parseTakeEdits(raw: unknown): TakeEdits | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const edits = raw as Record<string, unknown>;
+  const trim = parseTrimEdit(edits.trim);
+  if (!trim) return undefined;
+  return { trim };
+}
+
+/**
+ * Merge an edits patch: object fields replace, `null` clears, absent fields
+ * survive. Returns undefined when nothing remains (snapshot stays clean).
+ */
+export function mergeTakeEdits(
+  current: TakeEdits | undefined,
+  patch: TakeEditsPatch | undefined,
+): TakeEdits | undefined {
+  if (!patch) return current;
+  const trim = patch.trim === null ? undefined : (patch.trim ?? current?.trim);
+  return trim ? { trim } : undefined;
+}
 
 function parseArtifactStamp(raw: unknown): TakeArtifactStamp | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
@@ -280,7 +407,7 @@ export function parseCurrentTake(raw: unknown): CurrentTake | null {
   const createdAt = typeof take.createdAt === 'number' ? take.createdAt : 0;
   const lastUpdated = typeof take.lastUpdated === 'number' ? take.lastUpdated : createdAt;
 
-  return {
+  const parsed: CurrentTake = {
     id: take.id,
     status: take.status as TakeStatus,
     source,
@@ -289,6 +416,12 @@ export function parseCurrentTake(raw: unknown): CurrentTake | null {
     meta,
     artifacts,
   };
+  // v5.6.0 additive fields — malformed values drop silently, never the snapshot.
+  const voice = parseVoiceStamp(take.voice);
+  if (voice) parsed.voice = voice;
+  const edits = parseTakeEdits(take.edits);
+  if (edits) parsed.edits = edits;
+  return parsed;
 }
 
 /**
@@ -319,13 +452,19 @@ export function mergeTakePatch(
   patch: CurrentTakePatch,
   now = Date.now(),
 ): CurrentTake {
-  return {
+  const next: CurrentTake = {
     ...take,
     status: patch.status ?? take.status,
     lastUpdated: now,
     meta: { ...take.meta, ...patch.meta },
     artifacts: { ...take.artifacts, ...patch.artifacts },
   };
+  // v5.6.0 — voice stamp is atomic (replace); edits merge per-field.
+  if (patch.voice) next.voice = patch.voice;
+  const edits = mergeTakeEdits(take.edits, patch.edits);
+  if (edits) next.edits = edits;
+  else delete next.edits;
+  return next;
 }
 
 // ─── Manager (storage-backed) ────────────────────────────────────────────────

@@ -151,6 +151,12 @@ function buildGraphProcessArgs(
 export interface GraphProcessOptions {
   /** Cap the rendered output duration (seconds). Used by the one-shot Studio preview. */
   maxDurationSeconds?: number;
+  // CHANGED: v5.6.0 — audio decoupling §3.3.
+  // WHY: a voice-OFF re-apply must still produce a clean AAC track to remux
+  //      (today an empty graph early-returns the WebM input unchanged). Opt-in
+  //      only; the audition/export callers keep the historical no-op behavior.
+  /** Render even when the graph is a no-op (extract clean AAC audio). */
+  forceRender?: boolean;
 }
 
 /**
@@ -168,7 +174,7 @@ export async function processAudioBytesWithGraph(
   const inputCopy = inputBytes.slice();
   const result = buildStylizedGraph(normalized);
 
-  if (result.mode === 'none') {
+  if (result.mode === 'none' && !options?.forceRender) {
     return {
       bytes: inputCopy,
       mimeType: 'video/webm',
@@ -191,7 +197,12 @@ export async function processAudioBytesWithGraph(
     };
   }
 
-  const stage = result.stages[result.stages.length - 1] ?? 'voice-graph';
+  // v5.6.0: a forced no-op render is clean-audio extraction, not graph work —
+  // distinct stage per the chronos honesty rule.
+  const stage =
+    result.mode === 'none'
+      ? 'voice-clean-extract'
+      : result.stages[result.stages.length - 1] ?? 'voice-graph';
   const auxPaths = result.auxInputs.map((_, index) => AUX_PATH(index));
   const timeout = result.mode === 'complex' ? GRAPH_COMPLEX_TIMEOUT_MS : VOICE_PROCESS_TIMEOUT_MS;
 

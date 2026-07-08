@@ -24,11 +24,18 @@ import { buildScaffoldTranscriptResult } from '@/src/transcription/transcript-ed
 import { classifyTranscribeFailure } from '@/src/transcription/transcribe-failure';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import {
+  createTakeVoiceStamp,
   getTakeManager,
   type CurrentTake,
   type CurrentTakePatch,
   type TakeSource,
+  type TakeVoiceStamp,
 } from '@/src/session/take-manager';
+// CHANGED: v5.6.0 — capture-time voice provenance (audio decoupling §3.1).
+// WHY: the take must record which voice its baseMp4 audio carries; these are
+//      pure leaf imports (no WASM) safe for the content-script context.
+import { voiceEffectUserIntentKey } from '@/src/voice/resolve-config';
+import { normalizeVoiceEffectConfig } from '@/src/voice/types';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -562,9 +569,12 @@ export class VoiceRecorderSession {
         this.processingAbort = null;
 
         // v5.4.0: base MP4 in hand — the take is complete and recoverable from Studio.
+        // v5.6.0: the voice stamp rides the same patch — provenance lands atomically
+        // with the ready promotion (audio decoupling §3.1).
         this.trackTakeUpdate({
           status: 'ready',
           meta: { durationSeconds: this.elapsedSeconds },
+          ...(transcodeOutcome.voiceStamp ? { voice: transcodeOutcome.voiceStamp } : {}),
         });
 
         // BUG FIX: recorder stuck at processing 80% (BUG-026)
@@ -683,7 +693,9 @@ export class VoiceRecorderSession {
     });
   }
 
-  private async transcodeToMp4(stopEpoch: number): Promise<{ voiceEffectFallback?: boolean }> {
+  private async transcodeToMp4(
+    stopEpoch: number,
+  ): Promise<{ voiceEffectFallback?: boolean; voiceStamp?: TakeVoiceStamp }> {
     if (!this.webmBlob || this.isSuperseded(stopEpoch)) {
       return {};
     }
@@ -715,7 +727,17 @@ export class VoiceRecorderSession {
       }
 
       this.mp4Blob = transcodeResult.mp4;
-      return { voiceEffectFallback: transcodeResult.voiceEffectFallback };
+      // CHANGED: v5.6.0 — record the voice actually rendered into this base MP4.
+      // WHY: re-apply needs ground truth (§3.1); a fallback means the audio is
+      //      raw despite the intent, and the stamp says so honestly.
+      const voiceConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+      const voiceStamp = createTakeVoiceStamp({
+        intentKey: voiceEffectUserIntentKey(voiceConfig),
+        config: voiceConfig as unknown as Record<string, unknown>,
+        origin: 'capture',
+        fallback: transcodeResult.voiceEffectFallback === true,
+      });
+      return { voiceEffectFallback: transcodeResult.voiceEffectFallback, voiceStamp };
     } catch (error) {
       if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) {
         return {};
