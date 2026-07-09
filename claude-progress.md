@@ -43,7 +43,11 @@ Decisions confirmed by user: resize policy = **clamp to nearest neighbor edge** 
 
 **Verify:** `test-timeline-geometry` **23** · regression (timeline 10, dirty 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` PASS · `tsc` clean (3 pre-existing). Commit `e24eb96`.
 
-**Next — Sprint 4 (semiotic parity):** port the remaining list affordances onto bars — LONG/overflow ⚠ + live fit-status (canvas), ✂ Split gesture, per-cue ▶ audio fully wired, scaffold banner, add-at-playhead + delete on bar, unsaved-guard already shared, and keyboard (rove ←/→, nudge ↑/↓). Then 5 (smart integration) · 6 (trim hooks + polish) · 7 (wire + verify + release).
+### Refinement design pass — the "Stage" direction (2026-07-09) — **DONE (docs)**
+
+Sprint-3 user QA verdict: modal cramped, short cues un-grabbable, snap fight-y, no zoom, no waveform, bar-label overflow glitch (defect **R1**). Folded the full refinement brief into the authoritative design doc as **§16** (+ scope card + revised ladder): **16.1** stage-mode landscape modal (animated expand, inspector docks right) · **16.2** log-zoom view window (fit/selection/Ctrl-wheel/pan + minimap lens; px-derived snap tolerances now scale with zoom) · **16.3** short-cue outboard "ears" + hit slop · **16.4** hysteresis snapping + snap guides + Esc-cancel · **16.5** waveform lane (additive `getDecodedBuffer()` on cuePlayer + pure `waveform-peaks.ts` Node-tested + one canvas backdrop, repaint only on window change) · **16.6** materials/type/micro-interaction spec (grab-lift/spring, tabular mono, label fade-mask = R1 fix) · **16.7** undo/redo + multi-select. No implementation code this sprint.
+
+**Next — Sprint 4 (stage & zoom, §16.1–16.2):** stage-mode modal expansion + `TimelineWindow` in `timeline-geometry.ts` (pure, tested) + zoom cluster / Ctrl-wheel anchored zoom / pan + minimap + R1 label mask fix. Then 5 (feel pass) · 6 (waveform lane) · 7 (semiotic parity + keyboard/undo/multi-select) · 8 (smart integration) · 9 (trim hooks + polish) · 10 (wire + verify + release).
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
