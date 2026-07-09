@@ -11,14 +11,14 @@ Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: D
 |--------|-------|--------|
 | 1 | docs redraft + committed architecture | **done** (`04e803d`, `be1c7be`) |
 | 2 | foundation: `timeline-geometry` (pure) + read-only ruler/bars/playhead + List toggle | **done** (`f1f3d16`) |
-| 3 | drag/resize + magnetism + bar↔inspector two-way sync + dirty write-back | next (snap-detail checkpoint first) |
-| 4 | semiotic parity (all badges/states, per-cue play, split, scaffold, add/delete, unsaved guard, keyboard) | pending |
+| 3 | drag/resize (clamp-to-neighbor) + magnetism + bar↔inspector two-way sync + dirty | **done** (`e24eb96`) |
+| 4 | semiotic parity (LONG/fit-status, split gesture, per-cue play, scaffold, add/delete, keyboard) | next |
 | 5 | smart integration: on-bar overflow/OOB/re-splice highlight + one-click apply | pending |
 | 6 | trim hooks (in/out markers + cue-shift preview + intent) + polish/a11y/perf | pending |
 | 7 | wire + verify + release (notes, version bump, QA sign-off) | pending |
 
-**Verify:** `node scripts/test-timeline-geometry.mjs` (18) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13) · `npm run build` · `npx tsc --noEmit`
-**QA pending (user):** real-browser — open cue editor → Timeline view renders ruler/bars/playhead; select a bar; ▶ sweeps playhead; List toggle is lossless.
+**Verify:** `node scripts/test-timeline-geometry.mjs` (23) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
+**QA pending (user):** real-browser — Timeline renders ruler/bars/playhead; select a bar; ▶ sweeps; List toggle lossless; **drag a bar to move + drag edges to resize (clamp at neighbors, min 0.5s); Shift = fine control; edit Start/End/text in the inspector (two-way sync); dirty cue shows amber chip; Apply to preview keeps the timeline edits (not stale list values).**
 
 **Restore:** `git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev`
 

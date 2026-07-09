@@ -32,7 +32,18 @@ Redrafted both v5.8.0 docs to project standard; folded the user's authoritative 
 
 **Verify (automated):** `test-timeline-geometry` **18/18** · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13) · `npm run build` PASS · `tsc` clean (3 documented pre-existing only). Commits `be1c7be` + `f1f3d16`.
 
-**Next — Sprint 3 (drag/resize + inspector sync):** a quick decision checkpoint on snap implementation details (tolerances/feel), then body-drag move + edge-resize with the §6.2 magnetism, live neighbor validation, two-way bar↔inspector sync, and dirty write-back. Sprints 4 (semiotic parity) · 5 (smart integration) · 6 (trim hooks + polish) · 7 (wire + verify + release) follow.
+### Sprint 3 — drag/resize + magnetism + inspector sync (2026-07-09) — **DONE (automated); real-browser QA pending**
+
+Decisions confirmed by user: resize policy = **clamp to nearest neighbor edge** (bars touch, never overlap); magnetism neighbor 12px > playhead/tick 8px (QA-tune later); implement recommended defaults elsewhere. Sprint 2 dev-QA'd by user (renders, palette "exactly what I wanted").
+
+- **`timeline-geometry.ts`** (+5 tests → **23**) — `constrainResizeStart`/`constrainResizeEnd`/`constrainMove`: the clamp-to-neighbor policy (touch-not-overlap), `MIN_CUE_DURATION_SECONDS` 0.5, degenerate bars pin to floor.
+- **`subtitle-timeline-editor.ts`** — body-drag move (duration preserved) + edge-handle resize; pointer-capture + click-slop (drag vs select) + vertical-tolerance suspend/re-acquire ([[project_slider_vertical_dropoff]] pattern); magnetism (neighbor 12 / soft 8, Shift disables, `snapTimeToFrame` always last). **Editable inspector** (Start/End inputs + text + ▶) with live **two-way sync** (drag→fields, type→bar); targeted DOM updates during interaction (no full re-render); dirty cue = amber number-chip.
+- **`subtitle-segment-editor.ts`** — the load-bearing **two-view source-of-truth fix**: `captureActiveDraft()` reads the list DOM only when List is active; Timeline keeps `modalDraft` current (edits write straight to it). Without it, a timeline edit + Apply would read stale list values and be lost. New deps: `getFps`, `onCommitTiming`, `onCommitText` (mirrors blank→soft-hyphen), `isDirtyIndex`.
+- **`style.css`** — `--dirty` amber chip, editable-inspector inputs, grab cursor, `touch-action:none`.
+
+**Verify:** `test-timeline-geometry` **23** · regression (timeline 10, dirty 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` PASS · `tsc` clean (3 pre-existing). Commit `e24eb96`.
+
+**Next — Sprint 4 (semiotic parity):** port the remaining list affordances onto bars — LONG/overflow ⚠ + live fit-status (canvas), ✂ Split gesture, per-cue ▶ audio fully wired, scaffold banner, add-at-playhead + delete on bar, unsaved-guard already shared, and keyboard (rove ←/→, nudge ↑/↓). Then 5 (smart integration) · 6 (trim hooks + polish) · 7 (wire + verify + release).
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
