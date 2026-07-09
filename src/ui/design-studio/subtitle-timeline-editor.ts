@@ -1,37 +1,59 @@
 /**
- * v5.8.0 — Timeline visual subtitle editor (Sprint 3: drag / resize / inspector).
+ * v5.8.0 — Timeline visual subtitle editor (Sprint 4: stage layout + zoom).
  *
  * The spatial view of the cue draft: a time ruler, cue bars positioned by
  * start / sized by duration, a playhead, click-to-select, body-drag to move,
- * edge-handle resize, and a live two-way inspector. Timing is frame-snapped
- * with magnetism (neighbor edge > playhead > tick) and clamped so cues touch
- * but never overlap (clamp-to-neighbor policy). The host still owns the draft:
- * the component reads it via deps and writes edits back through deps — it never
- * mutates the array itself, so the list view and the bake pipeline stay in sync.
+ * edge-handle resize, and a live two-way inspector (docked in the stage-mode
+ * right rail). Timing is frame-snapped with magnetism (neighbor edge >
+ * playhead > tick) and clamped so cues touch but never overlap. The host still
+ * owns the draft: the component reads it via deps and writes edits back through
+ * deps — it never mutates the array itself.
+ *
+ * Sprint 4 (design §16.1–16.2): ALL sec↔px mapping goes through a view window
+ * (TimelineWindow) — log zoom 1×→minWindow cap, anchored Ctrl+wheel zoom,
+ * wheel pan, Fit / zoom-to-selection / ± / slider cluster in a transport bar,
+ * and a minimap lens (drag = pan, edge-drag = zoom). Because magnetism radii
+ * are px-derived and converted through the window, snap precision scales with
+ * zoom automatically.
  *
  * Substrate: DOM + CSS transforms (design §3B). Geometry/constraints are the
  * pure timeline-geometry.ts; frame math is timeline.ts (preview=bake, I11).
  *
  * Sync: subtitle-segment-editor.ts (host: mounts, owns draft + selection),
- *       timeline-geometry.ts (layout/hit/snap/constrain), style.css
+ *       timeline-geometry.ts (layout/hit/snap/constrain/window), style.css
  */
 
 import type { TranscriptSegment } from '@/src/transcription/types';
 import { cueTextIsBlank, formatCueTimestamp, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import { segmentHasOutOfBoundsEnd } from '@/src/transcription/segment-timing';
 import {
+  MIN_BAR_WIDTH_PX,
+  clampWindow,
   constrainMove,
   constrainResizeEnd,
   constrainResizeStart,
-  generateRulerTicks,
-  layoutBar,
-  layoutBars,
-  pxDeltaToSeconds,
-  pxToSeconds,
+  fitWindow,
+  generateRulerTicksInWindow,
+  layoutBarInWindow,
+  layoutBarsInWindow,
+  minWindowSeconds,
+  minimapLens,
+  minimapPxToSeconds,
+  panWindow,
   resolveSnap,
-  secondsToPx,
+  sliderToZoomFactor,
+  windowDurationSeconds,
+  windowForSpan,
+  windowFromZoomFactor,
+  windowPxDeltaToSeconds,
+  windowPxToSeconds,
+  windowSecondsToPx,
+  windowZoomFactor,
+  zoomFactorToSlider,
+  zoomWindowAt,
   type CueEditContext,
-  type TimelineViewport,
+  type TimelineWindow,
+  type WindowViewport,
 } from '@/src/ui/design-studio/timeline-geometry';
 
 /** Fallback compositing fps (matches the overlay backbone). */
@@ -85,6 +107,8 @@ export interface TimelineEditorHandle {
   setPlayheadSeconds(seconds: number | null): void;
   beginPlaybackSweep(startSeconds: number, endSeconds: number): void;
   endPlaybackSweep(): void;
+  /** Reset zoom/pan to fit + clear the playhead (host calls on modal open). */
+  resetView(): void;
   dispose(): void;
 }
 
@@ -103,17 +127,86 @@ function round2(value: number): number {
 export function renderSubtitleTimelineEditorShell(): string {
   return `
     <div class="studio__cue-timeline" data-transcript-timeline hidden>
-      <div class="studio__cue-timeline-ruler" data-timeline-ruler aria-hidden="true"></div>
-      <div
-        class="studio__cue-timeline-track"
-        data-timeline-track
-        role="listbox"
-        aria-label="Subtitle cue timeline"
-        tabindex="0"
-      >
-        <div class="studio__cue-timeline-playhead" data-timeline-playhead hidden></div>
+      <div class="studio__cue-timeline-main">
+        <div class="studio__cue-timeline-lanes" data-timeline-lanes>
+          <div class="studio__cue-timeline-ruler" data-timeline-ruler aria-hidden="true"></div>
+          <div
+            class="studio__cue-timeline-track"
+            data-timeline-track
+            role="listbox"
+            aria-label="Subtitle cue timeline"
+            tabindex="0"
+          >
+            <div class="studio__cue-timeline-playhead" data-timeline-playhead hidden></div>
+          </div>
+          <div class="studio__cue-timeline-minimap" data-timeline-minimap aria-hidden="true" hidden>
+            <div class="studio__cue-timeline-minimap-heat" data-timeline-minimap-heat></div>
+            <div class="studio__cue-timeline-minimap-lens" data-timeline-lens></div>
+          </div>
+        </div>
+        <div class="studio__cue-timeline-transport">
+          <button
+            type="button"
+            class="studio__transcript-cue-play studio__cue-timeline-transport-play"
+            data-timeline-transport-play
+            aria-label="Play selected cue"
+            disabled
+          >▶</button>
+          <span class="studio__cue-timeline-timecode" data-timeline-timecode>0:00.000</span>
+          <span class="studio__cue-timeline-timecode-total" data-timeline-timecode-total></span>
+          <span class="studio__cue-timeline-transport-spacer"></span>
+          <button
+            type="button"
+            class="studio__cue-timeline-zoom-btn studio__cue-timeline-zoom-btn--wide"
+            data-timeline-zoom-fit
+            title="Fit the whole clip"
+            aria-label="Fit the whole clip"
+            disabled
+          >Fit</button>
+          <button
+            type="button"
+            class="studio__cue-timeline-zoom-btn studio__cue-timeline-zoom-btn--wide"
+            data-timeline-zoom-selection
+            title="Zoom to the selected cue"
+            aria-label="Zoom to the selected cue"
+            disabled
+          >Sel</button>
+          <button
+            type="button"
+            class="studio__cue-timeline-zoom-btn"
+            data-timeline-zoom-out
+            title="Zoom out"
+            aria-label="Zoom out"
+            disabled
+          >−</button>
+          <input
+            type="range"
+            class="studio__cue-timeline-zoom-slider"
+            data-timeline-zoom-slider
+            min="0"
+            max="1000"
+            step="1"
+            value="0"
+            aria-label="Zoom level"
+            disabled
+          />
+          <button
+            type="button"
+            class="studio__cue-timeline-zoom-btn"
+            data-timeline-zoom-in
+            title="Zoom in"
+            aria-label="Zoom in"
+            disabled
+          >+</button>
+          <span class="studio__cue-timeline-zoom-readout" data-timeline-zoom-readout>1.0×</span>
+        </div>
       </div>
-      <div class="studio__cue-timeline-inspector" data-timeline-inspector hidden></div>
+      <div class="studio__cue-timeline-rail">
+        <p class="studio__cue-timeline-rail-hint popup__field-desc" data-timeline-rail-hint>
+          Select a cue to edit its timing and text.
+        </p>
+        <div class="studio__cue-timeline-inspector" data-timeline-inspector hidden></div>
+      </div>
       <p class="studio__cue-timeline-empty popup__field-desc" data-timeline-empty hidden>
         No cues yet — add one, or switch to List view.
       </p>
@@ -126,18 +219,46 @@ export function mountSubtitleTimelineEditor(
   deps: TimelineEditorDeps,
 ): TimelineEditorHandle {
   const container = root.querySelector<HTMLElement>('[data-transcript-timeline]')!;
+  const lanesEl = container.querySelector<HTMLElement>('[data-timeline-lanes]')!;
   const rulerEl = container.querySelector<HTMLElement>('[data-timeline-ruler]')!;
   const trackEl = container.querySelector<HTMLElement>('[data-timeline-track]')!;
   const playheadEl = container.querySelector<HTMLElement>('[data-timeline-playhead]')!;
+  const minimapEl = container.querySelector<HTMLElement>('[data-timeline-minimap]')!;
+  const minimapHeatEl = container.querySelector<HTMLElement>('[data-timeline-minimap-heat]')!;
+  const lensEl = container.querySelector<HTMLElement>('[data-timeline-lens]')!;
   const inspectorEl = container.querySelector<HTMLElement>('[data-timeline-inspector]')!;
+  const railHintEl = container.querySelector<HTMLElement>('[data-timeline-rail-hint]')!;
   const emptyEl = container.querySelector<HTMLElement>('[data-timeline-empty]')!;
+  const transportPlayBtn = container.querySelector<HTMLButtonElement>('[data-timeline-transport-play]')!;
+  const timecodeEl = container.querySelector<HTMLElement>('[data-timeline-timecode]')!;
+  const timecodeTotalEl = container.querySelector<HTMLElement>('[data-timeline-timecode-total]')!;
+  const zoomFitBtn = container.querySelector<HTMLButtonElement>('[data-timeline-zoom-fit]')!;
+  const zoomSelBtn = container.querySelector<HTMLButtonElement>('[data-timeline-zoom-selection]')!;
+  const zoomOutBtn = container.querySelector<HTMLButtonElement>('[data-timeline-zoom-out]')!;
+  const zoomInBtn = container.querySelector<HTMLButtonElement>('[data-timeline-zoom-in]')!;
+  const zoomSliderEl = container.querySelector<HTMLInputElement>('[data-timeline-zoom-slider]')!;
+  const zoomReadoutEl = container.querySelector<HTMLElement>('[data-timeline-zoom-readout]')!;
 
-  let viewport: TimelineViewport = { durationSeconds: 0, trackWidthPx: 0 };
+  /** Window-relative viewport — ALL sec↔px mapping goes through this (§16.2). */
+  let wv: WindowViewport = {
+    window: { viewStartSeconds: 0, viewEndSeconds: 0 },
+    trackWidthPx: 0,
+  };
+  /** Full timeline duration (clip ∨ max cue end) — the 1×/fit extent. */
+  let fullDurationSeconds = 0;
+  /** User zoom/pan state; null = fit (window follows the clip duration). */
+  let userWindow: TimelineWindow | null = null;
   let clipCache: number | null = null;
   let tickSecondsCache: number[] = [];
   let playheadSeconds: number | null = null;
   let sweepRaf = 0;
   let drag: DragState | null = null;
+  let lensDrag: {
+    mode: 'pan' | 'start' | 'end';
+    pointerId: number;
+    startClientX: number;
+    orig: TimelineWindow;
+  } | null = null;
 
   function resolveDuration(segments: TranscriptSegment[], clip: number | null): number {
     let maxEnd = 0;
@@ -152,7 +273,8 @@ export function mountSubtitleTimelineEditor(
     const start = segments[index].start;
     let prevEndSeconds = 0;
     let bestPrevStart = -Infinity;
-    let nextStartSeconds = viewport.durationSeconds;
+    // Bounds are FULL-timeline, never window-relative — zoom must not change clamps.
+    let nextStartSeconds = fullDurationSeconds;
     let bestNextStart = Infinity;
     segments.forEach((other, j) => {
       if (j === index) return;
@@ -179,7 +301,7 @@ export function mountSubtitleTimelineEditor(
   }
 
   function renderRuler(): void {
-    const ticks = generateRulerTicks(viewport);
+    const ticks = generateRulerTicksInWindow(wv);
     tickSecondsCache = ticks.filter((tick) => tick.major).map((tick) => tick.seconds);
     rulerEl.innerHTML = ticks
       .map((tick) => {
@@ -196,12 +318,14 @@ export function mountSubtitleTimelineEditor(
 
   function renderClipEndMarker(clip: number | null): void {
     trackEl.querySelector('[data-timeline-clip-end]')?.remove();
-    if (clip === null || clip >= viewport.durationSeconds - 1e-6) return;
+    if (clip === null || clip >= fullDurationSeconds - 1e-6) return;
+    const px = windowSecondsToPx(clip, wv);
+    if (px < 0 || px > wv.trackWidthPx) return; // off-window at this zoom
     const marker = document.createElement('div');
     marker.className = 'studio__cue-timeline-clip-end';
     marker.dataset.timelineClipEnd = '';
     marker.title = 'Recording length';
-    marker.style.transform = `translateX(${secondsToPx(clip, viewport).toFixed(2)}px)`;
+    marker.style.transform = `translateX(${px.toFixed(2)}px)`;
     trackEl.append(marker);
   }
 
@@ -219,23 +343,27 @@ export function mountSubtitleTimelineEditor(
 
   function renderBars(segments: TranscriptSegment[], clip: number | null): void {
     trackEl.querySelectorAll('[data-cue-index]').forEach((node) => node.remove());
-    const bars = layoutBars(
+    // Window-relative layout with off-window culling — bar.index is the ORIGINAL
+    // segment index (culling means positions ≠ array positions from here on).
+    const bars = layoutBarsInWindow(
       segments.map((segment) => ({ start: segment.start, end: segment.end })),
-      viewport,
+      wv,
     );
     const html = bars
-      .map((bar, index) => {
-        const segment = segments[index];
-        const selected = index === deps.getSelectedIndex();
+      .map((bar) => {
+        const segment = segments[bar.index];
+        const selected = bar.index === deps.getSelectedIndex();
+        // R1: a floored-width bar has no honest room for label/text — hide them.
+        const tiny = bar.rawWidthPx < MIN_BAR_WIDTH_PX ? ' studio__cue-bar--tiny' : '';
         return `
           <div
-            class="${barStateClasses(segment, index, clip)}"
-            data-cue-index="${index}"
+            class="${barStateClasses(segment, bar.index, clip)}${tiny}"
+            data-cue-index="${bar.index}"
             role="option"
             aria-selected="${selected ? 'true' : 'false'}"
             style="transform:translateX(${bar.leftPx.toFixed(2)}px);width:${bar.widthPx.toFixed(2)}px"
-            title="Cue ${index + 1}: ${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}"
-          >${barInnerHtml(segment, index)}</div>
+            title="Cue ${bar.index + 1}: ${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}"
+          >${barInnerHtml(segment, bar.index)}</div>
         `;
       })
       .join('');
@@ -247,6 +375,7 @@ export function mountSubtitleTimelineEditor(
     if (index === null || index < 0 || index >= segments.length) {
       inspectorEl.hidden = true;
       inspectorEl.innerHTML = '';
+      railHintEl.hidden = false;
       return;
     }
     const segment = segments[index];
@@ -254,6 +383,7 @@ export function mountSubtitleTimelineEditor(
     const canPlay = deps.hasAudio();
     const text = escapeHtml(stripScaffoldPlaceholder(segment.text));
     inspectorEl.hidden = false;
+    railHintEl.hidden = true;
     inspectorEl.innerHTML = `
       <div class="studio__cue-timeline-inspector-row">
         <span class="studio__cue-timeline-inspector-label">Cue ${index + 1}</span>
@@ -283,36 +413,133 @@ export function mountSubtitleTimelineEditor(
     `;
   }
 
+  function formatTimecode(seconds: number): string {
+    const safe = Math.max(0, seconds);
+    const whole = Math.floor(safe);
+    const minutes = Math.floor(whole / 60);
+    const secs = whole % 60;
+    const millis = Math.floor((safe - whole) * 1000);
+    return `${minutes}:${String(secs).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
+  }
+
+  function updateTimecode(): void {
+    timecodeEl.textContent = formatTimecode(playheadSeconds ?? 0);
+    timecodeTotalEl.textContent = `/ ${formatTimecode(fullDurationSeconds)}`;
+  }
+
+  function updateTransport(): void {
+    const index = deps.getSelectedIndex();
+    const playing = index !== null && deps.isPlayingIndex(index);
+    transportPlayBtn.disabled = index === null || !deps.hasAudio();
+    transportPlayBtn.textContent = playing ? '■' : '▶';
+    transportPlayBtn.setAttribute('aria-pressed', playing ? 'true' : 'false');
+    transportPlayBtn.setAttribute('aria-label', playing ? 'Stop cue preview' : 'Play selected cue');
+  }
+
   function applyPlayhead(): void {
-    if (playheadSeconds === null || viewport.durationSeconds <= 0) {
+    updateTimecode();
+    if (playheadSeconds === null || fullDurationSeconds <= 0) {
       playheadEl.hidden = true;
       return;
     }
+    const px = windowSecondsToPx(playheadSeconds, wv);
+    if (px < -1 || px > wv.trackWidthPx + 1) {
+      playheadEl.hidden = true; // playhead is outside the zoomed window
+      return;
+    }
     playheadEl.hidden = false;
-    playheadEl.style.transform = `translateX(${secondsToPx(playheadSeconds, viewport).toFixed(2)}px)`;
+    playheadEl.style.transform = `translateX(${px.toFixed(2)}px)`;
+  }
+
+  // ── Zoom state (window resolution + control cluster) ───────────────────────
+
+  function minWin(): number {
+    return minWindowSeconds(deps.getFps());
+  }
+
+  function maxZoom(): number {
+    const floor = minWin();
+    return fullDurationSeconds > floor ? fullDurationSeconds / floor : 1;
+  }
+
+  function currentZoom(): number {
+    return windowZoomFactor(wv.window, fullDurationSeconds);
+  }
+
+  /** Adopt a window (clamped); ≈fit collapses back to null so fit tracks the clip. */
+  function setWindow(next: TimelineWindow | null): void {
+    if (next) {
+      const clamped = clampWindow(next, fullDurationSeconds, minWin());
+      userWindow = windowZoomFactor(clamped, fullDurationSeconds) <= 1.001 ? null : clamped;
+    } else {
+      userWindow = null;
+    }
+    render();
+  }
+
+  function updateZoomUi(): void {
+    const zMax = maxZoom();
+    const z = currentZoom();
+    const zoomable = zMax > 1.001;
+    zoomFitBtn.disabled = !zoomable;
+    zoomSelBtn.disabled = !zoomable || deps.getSelectedIndex() === null;
+    zoomOutBtn.disabled = !zoomable || z <= 1.001;
+    zoomInBtn.disabled = !zoomable || z >= zMax - 1e-6;
+    zoomSliderEl.disabled = !zoomable;
+    zoomSliderEl.value = String(Math.round(zoomFactorToSlider(z, zMax) * 1000));
+    zoomReadoutEl.textContent = `${z >= 10 ? z.toFixed(0) : z.toFixed(1)}×`;
+  }
+
+  function renderMinimap(segments: TranscriptSegment[]): void {
+    const show = fullDurationSeconds > 0 && currentZoom() > 1.02;
+    minimapEl.hidden = !show;
+    if (!show) return;
+    minimapHeatEl.innerHTML = segments
+      .map((segment) => {
+        const startSec = Math.max(0, Math.min(segment.start, segment.end));
+        const left = (startSec / fullDurationSeconds) * 100;
+        const width = (Math.abs(segment.end - segment.start) / fullDurationSeconds) * 100;
+        return `<span style="left:${left.toFixed(2)}%;width:${Math.max(0.4, width).toFixed(2)}%"></span>`;
+      })
+      .join('');
+    const lens = minimapLens(wv.window, fullDurationSeconds, minimapEl.clientWidth);
+    lensEl.style.transform = `translateX(${lens.leftPx.toFixed(2)}px)`;
+    lensEl.style.width = `${Math.max(8, lens.widthPx).toFixed(2)}px`;
   }
 
   function render(): void {
     const segments = deps.getSegments();
     clipCache = deps.getClipDurationSeconds();
-    const durationSeconds = resolveDuration(segments, clipCache);
+    fullDurationSeconds = resolveDuration(segments, clipCache);
     const trackWidthPx = trackEl.clientWidth;
 
     if (segments.length === 0) {
       emptyEl.hidden = false;
       rulerEl.innerHTML = '';
       trackEl.querySelectorAll('[data-cue-index]').forEach((node) => node.remove());
+      minimapEl.hidden = true;
       renderInspector(segments);
+      updateTransport();
       return;
     }
     emptyEl.hidden = true;
-    if (durationSeconds <= 0 || trackWidthPx <= 0) return; // ResizeObserver re-fires when shown
+    if (fullDurationSeconds <= 0 || trackWidthPx <= 0) return; // ResizeObserver re-fires when shown
 
-    viewport = { durationSeconds, trackWidthPx };
+    // Resolve the view window: user zoom/pan clamped to the (possibly changed)
+    // duration, or fit. Keeping the normalized value avoids re-clamp drift.
+    const effective = userWindow
+      ? clampWindow(userWindow, fullDurationSeconds, minWin())
+      : fitWindow(fullDurationSeconds);
+    if (userWindow) userWindow = effective;
+    wv = { window: effective, trackWidthPx };
+
     renderRuler();
     renderBars(segments, clipCache);
     renderClipEndMarker(clipCache);
     renderInspector(segments);
+    renderMinimap(segments);
+    updateZoomUi();
+    updateTransport();
     applyPlayhead();
   }
 
@@ -326,10 +553,11 @@ export function mountSubtitleTimelineEditor(
     const barEl = barElAt(index);
     const segment = deps.getSegments()[index];
     if (!barEl || !segment) return;
-    const bar = layoutBar({ start: segment.start, end: segment.end }, index, viewport);
+    const bar = layoutBarInWindow({ start: segment.start, end: segment.end }, index, wv);
     barEl.style.transform = `translateX(${bar.leftPx.toFixed(2)}px)`;
     barEl.style.width = `${bar.widthPx.toFixed(2)}px`;
     barEl.className = barStateClasses(segment, index, clipCache);
+    barEl.classList.toggle('studio__cue-bar--tiny', bar.rawWidthPx < MIN_BAR_WIDTH_PX);
     barEl.setAttribute('aria-selected', index === deps.getSelectedIndex() ? 'true' : 'false');
     barEl.title = `Cue ${index + 1}: ${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}`;
     const textEl = barEl.querySelector<HTMLElement>('.studio__cue-bar-text');
@@ -349,8 +577,10 @@ export function mountSubtitleTimelineEditor(
   // ── Snap helper (neighbor 12px, playhead/tick 8px, Shift disables magnetism) ─
 
   function snapValue(raw: number, neighborSeconds: number[], shift: boolean): number {
-    const neighborTol = pxDeltaToSeconds(NEIGHBOR_MAGNET_PX, viewport);
-    const softTol = pxDeltaToSeconds(SOFT_MAGNET_PX, viewport);
+    // Window-relative px→s: at 4× zoom the same 12 px covers 4× less time, so
+    // magnetism precision scales with zoom automatically (§16.4).
+    const neighborTol = windowPxDeltaToSeconds(NEIGHBOR_MAGNET_PX, wv);
+    const softTol = windowPxDeltaToSeconds(SOFT_MAGNET_PX, wv);
     const softTicks = tickSecondsCache.filter((t) => Math.abs(t - raw) <= softTol);
     const playhead =
       playheadSeconds !== null && Math.abs(playheadSeconds - raw) <= softTol ? playheadSeconds : null;
@@ -415,7 +645,7 @@ export function mountSubtitleTimelineEditor(
     if (!drag.moved && Math.abs(dx) < CLICK_SLOP_PX) return;
     drag.moved = true;
 
-    const deltaSeconds = pxDeltaToSeconds(dx, viewport);
+    const deltaSeconds = windowPxDeltaToSeconds(dx, wv);
     let start = drag.origStart;
     let end = drag.origEnd;
 
@@ -503,9 +733,9 @@ export function mountSubtitleTimelineEditor(
 
   let scrubbing = false;
   function scrubToClientX(clientX: number): void {
-    if (viewport.trackWidthPx <= 0) return;
+    if (wv.trackWidthPx <= 0) return;
     const rect = rulerEl.getBoundingClientRect();
-    setPlayheadSeconds(pxToSeconds(clientX - rect.left, viewport));
+    setPlayheadSeconds(windowPxToSeconds(clientX - rect.left, wv));
   }
   function onRulerPointerDown(event: PointerEvent): void {
     scrubbing = true;
@@ -549,6 +779,139 @@ export function mountSubtitleTimelineEditor(
     setPlayheadSeconds(null);
   }
 
+  // ── Zoom cluster + Ctrl-wheel anchored zoom + wheel pan (§16.2) ─────────────
+
+  function windowCenterSeconds(): number {
+    return wv.window.viewStartSeconds + windowDurationSeconds(wv.window) / 2;
+  }
+
+  function zoomAt(factor: number, anchorSeconds: number): void {
+    setWindow(zoomWindowAt(wv.window, factor, anchorSeconds, fullDurationSeconds, minWin()));
+  }
+
+  function onZoomFit(): void {
+    setWindow(null);
+  }
+
+  function onZoomSelection(): void {
+    const index = deps.getSelectedIndex();
+    const segment = index !== null ? deps.getSegments()[index] : undefined;
+    if (!segment) return;
+    setWindow(windowForSpan(segment.start, segment.end, fullDurationSeconds, minWin()));
+  }
+
+  function onZoomOut(): void {
+    zoomAt(1 / 1.5, windowCenterSeconds());
+  }
+
+  function onZoomIn(): void {
+    zoomAt(1.5, windowCenterSeconds());
+  }
+
+  function onZoomSlider(): void {
+    const t = Number(zoomSliderEl.value) / 1000;
+    const z = sliderToZoomFactor(t, maxZoom());
+    if (z <= 1.001) {
+      setWindow(null);
+      return;
+    }
+    setWindow(windowFromZoomFactor(z, windowCenterSeconds(), fullDurationSeconds, minWin()));
+  }
+
+  /** Ctrl(/Cmd)+wheel = anchored zoom at the cursor; plain wheel = pan when zoomed. */
+  function onLanesWheel(event: WheelEvent): void {
+    if (fullDurationSeconds <= 0 || wv.trackWidthPx <= 0) return;
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault(); // also swallows browser page-zoom / pinch
+      const rect = trackEl.getBoundingClientRect();
+      const anchor = windowPxToSeconds(event.clientX - rect.left, wv);
+      zoomAt(Math.exp(-event.deltaY * 0.0022), anchor);
+      return;
+    }
+    if (currentZoom() <= 1.001) return; // at fit, let the modal scroll normally
+    const raw = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (raw === 0) return;
+    event.preventDefault();
+    setWindow(panWindow(wv.window, windowPxDeltaToSeconds(raw, wv), fullDurationSeconds, minWin()));
+  }
+
+  // ── Minimap lens (drag = pan; edge-drag = zoom; strip click = jump) ─────────
+
+  const LENS_EDGE_PX = 6;
+
+  function onMinimapPointerDown(event: PointerEvent): void {
+    if (fullDurationSeconds <= 0) return;
+    const stripRect = minimapEl.getBoundingClientRect();
+    if (stripRect.width <= 0) return;
+    const lensRect = lensEl.getBoundingClientRect();
+    let mode: 'pan' | 'start' | 'end' = 'pan';
+    if (event.clientX >= lensRect.left && event.clientX <= lensRect.right) {
+      if (event.clientX - lensRect.left <= LENS_EDGE_PX) mode = 'start';
+      else if (lensRect.right - event.clientX <= LENS_EDGE_PX) mode = 'end';
+    } else {
+      // Jump: center the window on the clicked time, then pan from there.
+      const t = minimapPxToSeconds(
+        event.clientX - stripRect.left,
+        fullDurationSeconds,
+        stripRect.width,
+      );
+      const dur = windowDurationSeconds(wv.window);
+      setWindow({ viewStartSeconds: t - dur / 2, viewEndSeconds: t + dur / 2 });
+    }
+    lensDrag = {
+      mode,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      orig: { ...wv.window },
+    };
+    try {
+      minimapEl.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+
+  function onMinimapPointerMove(event: PointerEvent): void {
+    if (!lensDrag || event.pointerId !== lensDrag.pointerId) return;
+    const stripRect = minimapEl.getBoundingClientRect();
+    if (stripRect.width <= 0) return;
+    const deltaSeconds =
+      ((event.clientX - lensDrag.startClientX) / stripRect.width) * fullDurationSeconds;
+    const { orig, mode } = lensDrag;
+    if (mode === 'pan') {
+      setWindow(panWindow(orig, deltaSeconds, fullDurationSeconds, minWin()));
+    } else if (mode === 'start') {
+      const start = Math.min(orig.viewStartSeconds + deltaSeconds, orig.viewEndSeconds - minWin());
+      setWindow({ viewStartSeconds: Math.max(0, start), viewEndSeconds: orig.viewEndSeconds });
+    } else {
+      const end = Math.max(orig.viewEndSeconds + deltaSeconds, orig.viewStartSeconds + minWin());
+      setWindow({
+        viewStartSeconds: orig.viewStartSeconds,
+        viewEndSeconds: Math.min(fullDurationSeconds, end),
+      });
+    }
+  }
+
+  function onMinimapPointerUp(event: PointerEvent): void {
+    if (!lensDrag || event.pointerId !== lensDrag.pointerId) return;
+    lensDrag = null;
+    try {
+      minimapEl.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+
+  // ── Transport (▶/■ the selected cue — same contract as the inspector button) ─
+
+  function onTransportPlayClick(): void {
+    if (transportPlayBtn.disabled) return;
+    const index = deps.getSelectedIndex();
+    if (index === null) return;
+    if (deps.isPlayingIndex(index)) deps.onRequestStop();
+    else deps.onRequestPlay(index);
+  }
+
   trackEl.addEventListener('pointerdown', onTrackPointerDown);
   trackEl.addEventListener('pointermove', onTrackPointerMove);
   trackEl.addEventListener('pointerup', onTrackPointerUp);
@@ -560,6 +923,17 @@ export function mountSubtitleTimelineEditor(
   rulerEl.addEventListener('pointermove', onRulerPointerMove);
   rulerEl.addEventListener('pointerup', onRulerPointerUp);
   rulerEl.addEventListener('pointercancel', onRulerPointerUp);
+  lanesEl.addEventListener('wheel', onLanesWheel, { passive: false });
+  minimapEl.addEventListener('pointerdown', onMinimapPointerDown);
+  minimapEl.addEventListener('pointermove', onMinimapPointerMove);
+  minimapEl.addEventListener('pointerup', onMinimapPointerUp);
+  minimapEl.addEventListener('pointercancel', onMinimapPointerUp);
+  transportPlayBtn.addEventListener('click', onTransportPlayClick);
+  zoomFitBtn.addEventListener('click', onZoomFit);
+  zoomSelBtn.addEventListener('click', onZoomSelection);
+  zoomOutBtn.addEventListener('click', onZoomOut);
+  zoomInBtn.addEventListener('click', onZoomIn);
+  zoomSliderEl.addEventListener('input', onZoomSlider);
 
   const resizeObserver = new ResizeObserver(() => render());
   resizeObserver.observe(trackEl);
@@ -569,6 +943,11 @@ export function mountSubtitleTimelineEditor(
     setPlayheadSeconds,
     beginPlaybackSweep,
     endPlaybackSweep,
+    resetView(): void {
+      userWindow = null;
+      lensDrag = null;
+      setPlayheadSeconds(null);
+    },
     dispose(): void {
       endPlaybackSweep();
       resizeObserver.disconnect();
@@ -583,6 +962,17 @@ export function mountSubtitleTimelineEditor(
       rulerEl.removeEventListener('pointermove', onRulerPointerMove);
       rulerEl.removeEventListener('pointerup', onRulerPointerUp);
       rulerEl.removeEventListener('pointercancel', onRulerPointerUp);
+      lanesEl.removeEventListener('wheel', onLanesWheel);
+      minimapEl.removeEventListener('pointerdown', onMinimapPointerDown);
+      minimapEl.removeEventListener('pointermove', onMinimapPointerMove);
+      minimapEl.removeEventListener('pointerup', onMinimapPointerUp);
+      minimapEl.removeEventListener('pointercancel', onMinimapPointerUp);
+      transportPlayBtn.removeEventListener('click', onTransportPlayClick);
+      zoomFitBtn.removeEventListener('click', onZoomFit);
+      zoomSelBtn.removeEventListener('click', onZoomSelection);
+      zoomOutBtn.removeEventListener('click', onZoomOut);
+      zoomInBtn.removeEventListener('click', onZoomIn);
+      zoomSliderEl.removeEventListener('input', onZoomSlider);
     },
   };
 }

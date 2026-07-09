@@ -2746,3 +2746,227 @@ details[open] .wf-why__summary::before {
   outline-offset: 1px;
 }
 
+/* ── v5.8.0 Sprint 4 — stage mode + view window (zoom/pan/minimap), design §16.1–16.2 ── */
+
+/* Stage expansion: Timeline view widens the dialog into a landscape stage with a
+   settle curve (no bounce); List view returns it to the compact width. */
+.studio__transcript-dialog {
+  transition:
+    max-width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.studio__transcript-modal--stage .studio__transcript-dialog {
+  max-width: min(1240px, calc(100vw - 48px));
+  max-height: min(88vh, 820px);
+}
+
+/* Stage grid: timeline stack + transport on the left, inspector rail docked right. */
+.studio__cue-timeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: 12px;
+  align-items: start;
+}
+
+.studio__cue-timeline-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.studio__cue-timeline-empty {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .studio__cue-timeline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Lanes: ruler → track → minimap as one contiguous machined block. */
+.studio__cue-timeline-lanes {
+  background: var(--studio-bg-deep);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.studio__cue-timeline-lanes .studio__cue-timeline-ruler {
+  margin: 0 0 0;
+}
+
+.studio__cue-timeline-lanes .studio__cue-timeline-track {
+  border: none;
+  border-radius: 0;
+}
+
+.studio__cue-timeline-lanes .studio__cue-timeline-track:focus-visible {
+  outline-offset: -2px; /* lanes clip overflow — keep the ring inside */
+}
+
+/* Minimap — full-clip overview strip; visible only when zoomed in. */
+.studio__cue-timeline-minimap {
+  position: relative;
+  height: 18px;
+  background: rgba(10, 0, 20, 0.65);
+  border-top: 1px solid var(--studio-hairline);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-minimap[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-minimap-heat {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.studio__cue-timeline-minimap-heat span {
+  position: absolute;
+  top: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(143, 147, 230, 0.5);
+}
+
+.studio__cue-timeline-minimap-lens {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  border: 1px solid var(--studio-amber);
+  border-radius: 4px;
+  background: rgba(255, 213, 79, 0.08);
+  cursor: grab;
+}
+
+/* Transport bar — play + amber mono timecode left, zoom cluster right. */
+.studio__cue-timeline-transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio__cue-timeline-timecode {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--studio-amber);
+  text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
+}
+
+.studio__cue-timeline-timecode-total {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-transport-spacer {
+  flex: 1;
+}
+
+.studio__cue-timeline-zoom-btn {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--studio-text-muted);
+  font-family: var(--studio-font-mono);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-zoom-btn--wide {
+  padding: 0 8px;
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-meta);
+  letter-spacing: var(--studio-letter-meta);
+}
+
+.studio__cue-timeline-zoom-btn:hover:not(:disabled) {
+  color: var(--studio-text);
+  border-color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.studio__cue-timeline-zoom-btn:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+.studio__cue-timeline-zoom-slider {
+  width: 110px;
+  accent-color: var(--studio-amber);
+}
+
+.studio__cue-timeline-zoom-slider:disabled {
+  opacity: 0.35;
+}
+
+.studio__cue-timeline-zoom-readout {
+  min-width: 34px;
+  text-align: right;
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--studio-text-muted);
+}
+
+/* Inspector rail — persistent dock; hint shown until a cue is selected. */
+.studio__cue-timeline-rail {
+  background: rgba(18, 0, 31, 0.35);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 132px;
+}
+
+.studio__cue-timeline-rail .studio__cue-timeline-inspector {
+  padding: 0;
+}
+
+.studio__cue-timeline-rail-hint {
+  margin: 4px 0;
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-rail-hint[hidden] {
+  display: none;
+}
+
+/* BUG FIX: R1 — cue-bar text overflow glitch (repeated/clipped label text)
+   Fix: labels end in a gradient fade mask instead of mid-glyph clipping, and a
+   floored-width bar (--tiny, rawWidth < 12px) hides its label/text entirely —
+   there is no honest room to render them.
+   Sync: subtitle-timeline-editor.ts renderBars/updateBarDom (--tiny toggle) */
+.studio__cue-bar-text {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent);
+}
+
+.studio__cue-bar--tiny .studio__cue-bar-body {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__transcript-dialog {
+    transition: none;
+  }
+}
+

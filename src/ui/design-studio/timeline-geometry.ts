@@ -343,3 +343,273 @@ export function constrainMove(
   const start = hi < lo ? lo : clampValue(rawStart, lo, hi);
   return { start, end: start + durationSeconds };
 }
+
+// ── View window (zoom + pan), design §16.2 ──────────────────────────────────
+// The visible slice of the clip. All Sprint-4+ sec↔px mapping goes through a
+// WindowViewport so cue positions, ruler ticks, and snap tolerances stay
+// window-relative — px-derived magnetism therefore scales with zoom for free.
+
+/** The visible time slice [viewStart, viewEnd] of the full clip. */
+export interface TimelineWindow {
+  viewStartSeconds: number;
+  viewEndSeconds: number;
+}
+
+/** Absolute floor on the visible window (seconds). */
+export const MIN_WINDOW_SECONDS = 0.5;
+/** Frame-count floor on the visible window (whichever is larger wins). */
+export const MIN_WINDOW_FRAMES = 4;
+
+/** Narrowest legal window: max(0.5 s, 4 frames) — the zoom cap (design §16.2). */
+export function minWindowSeconds(fps: number): number {
+  const frameFloor = isPositive(fps) ? MIN_WINDOW_FRAMES / fps : 0;
+  return Math.max(MIN_WINDOW_SECONDS, frameFloor);
+}
+
+/** The 1× window: the whole clip. */
+export function fitWindow(clipDurationSeconds: number): TimelineWindow {
+  return { viewStartSeconds: 0, viewEndSeconds: Math.max(0, clipDurationSeconds) };
+}
+
+export function windowDurationSeconds(w: TimelineWindow): number {
+  return Math.max(0, w.viewEndSeconds - w.viewStartSeconds);
+}
+
+/** Zoom factor z = clip / window (1 = fit; capped by minWindowSeconds upstream). */
+export function windowZoomFactor(w: TimelineWindow, clipDurationSeconds: number): number {
+  const dur = windowDurationSeconds(w);
+  if (!isPositive(dur) || !isPositive(clipDurationSeconds)) return 1;
+  return clipDurationSeconds / dur;
+}
+
+/** Normalize a window: duration into [minWindow, clip], position into [0, clip]. */
+export function clampWindow(
+  w: TimelineWindow,
+  clipDurationSeconds: number,
+  minWindow: number,
+): TimelineWindow {
+  const clip = Math.max(0, clipDurationSeconds);
+  if (clip <= 0) return { viewStartSeconds: 0, viewEndSeconds: 0 };
+  const minDur = Math.min(clip, Math.max(0, minWindow));
+  let dur = windowDurationSeconds(w);
+  if (!Number.isFinite(dur) || dur <= 0) dur = clip;
+  dur = Math.max(minDur, Math.min(clip, dur));
+  const rawStart = Number.isFinite(w.viewStartSeconds) ? w.viewStartSeconds : 0;
+  const start = Math.max(0, Math.min(clip - dur, rawStart));
+  return { viewStartSeconds: start, viewEndSeconds: start + dur };
+}
+
+/**
+ * Zoom by `factor` (>1 = in) keeping `anchorSeconds` at the same relative x —
+ * the time under the cursor stays under the cursor (anchored Ctrl+wheel zoom).
+ */
+export function zoomWindowAt(
+  w: TimelineWindow,
+  factor: number,
+  anchorSeconds: number,
+  clipDurationSeconds: number,
+  minWindow: number,
+): TimelineWindow {
+  const dur = windowDurationSeconds(w);
+  if (!isPositive(dur) || !isPositive(factor)) return clampWindow(w, clipDurationSeconds, minWindow);
+  const newDur = dur / factor;
+  const rel = (anchorSeconds - w.viewStartSeconds) / dur;
+  const start = anchorSeconds - rel * newDur;
+  return clampWindow(
+    { viewStartSeconds: start, viewEndSeconds: start + newDur },
+    clipDurationSeconds,
+    minWindow,
+  );
+}
+
+/** Shift the window by a time delta (duration preserved, clamped to the clip). */
+export function panWindow(
+  w: TimelineWindow,
+  deltaSeconds: number,
+  clipDurationSeconds: number,
+  minWindow: number,
+): TimelineWindow {
+  return clampWindow(
+    {
+      viewStartSeconds: w.viewStartSeconds + deltaSeconds,
+      viewEndSeconds: w.viewEndSeconds + deltaSeconds,
+    },
+    clipDurationSeconds,
+    minWindow,
+  );
+}
+
+/** Window framing [start, end] with padding each side ("zoom to selection"). */
+export function windowForSpan(
+  startSeconds: number,
+  endSeconds: number,
+  clipDurationSeconds: number,
+  minWindow: number,
+  paddingFraction = 0.15,
+): TimelineWindow {
+  const lo = Math.min(startSeconds, endSeconds);
+  const hi = Math.max(startSeconds, endSeconds);
+  const pad = Math.max(0, hi - lo) * Math.max(0, paddingFraction);
+  return clampWindow(
+    { viewStartSeconds: lo - pad, viewEndSeconds: hi + pad },
+    clipDurationSeconds,
+    minWindow,
+  );
+}
+
+/** Rebuild a window from a zoom factor around a center time (slider input). */
+export function windowFromZoomFactor(
+  zoomFactor: number,
+  centerSeconds: number,
+  clipDurationSeconds: number,
+  minWindow: number,
+): TimelineWindow {
+  const clip = Math.max(0, clipDurationSeconds);
+  const dur = clip / Math.max(1, zoomFactor);
+  const start = centerSeconds - dur / 2;
+  return clampWindow(
+    { viewStartSeconds: start, viewEndSeconds: start + dur },
+    clip,
+    minWindow,
+  );
+}
+
+/** Log-scale zoom-slider mapping: t ∈ [0,1] ↔ z ∈ [1, maxZoom]. */
+export function sliderToZoomFactor(t: number, maxZoom: number): number {
+  if (!isPositive(maxZoom) || maxZoom <= 1) return 1;
+  const clamped = Math.max(0, Math.min(1, t));
+  return Math.exp(clamped * Math.log(maxZoom));
+}
+
+export function zoomFactorToSlider(zoomFactor: number, maxZoom: number): number {
+  if (!isPositive(maxZoom) || maxZoom <= 1) return 0;
+  const z = Math.max(1, Math.min(maxZoom, zoomFactor));
+  return Math.log(z) / Math.log(maxZoom);
+}
+
+// ── Window-relative pixel mapping ───────────────────────────────────────────
+
+/** The track's pixel viewport over a view window (replaces TimelineViewport at z>1). */
+export interface WindowViewport {
+  window: TimelineWindow;
+  trackWidthPx: number;
+}
+
+/** Seconds → track x-px, window-relative. NOT clamped — callers cull/hide off-window. */
+export function windowSecondsToPx(seconds: number, wv: WindowViewport): number {
+  const dur = windowDurationSeconds(wv.window);
+  if (!isPositive(dur) || !isPositive(wv.trackWidthPx)) return 0;
+  return ((seconds - wv.window.viewStartSeconds) / dur) * wv.trackWidthPx;
+}
+
+/** Track x-px → absolute clip seconds, clamped to the window (pointer input). */
+export function windowPxToSeconds(px: number, wv: WindowViewport): number {
+  const dur = windowDurationSeconds(wv.window);
+  if (!isPositive(dur) || !isPositive(wv.trackWidthPx)) {
+    return Math.max(0, wv.window.viewStartSeconds);
+  }
+  const clamped = Math.max(0, Math.min(wv.trackWidthPx, px));
+  return wv.window.viewStartSeconds + (clamped / wv.trackWidthPx) * dur;
+}
+
+/** A pixel delta → a seconds delta at the current zoom (tolerances/drag/pan). */
+export function windowPxDeltaToSeconds(px: number, wv: WindowViewport): number {
+  const dur = windowDurationSeconds(wv.window);
+  if (!isPositive(dur) || !isPositive(wv.trackWidthPx)) return 0;
+  return (px / wv.trackWidthPx) * dur;
+}
+
+/** Lay out one cue span window-relative (leftPx may be negative / past the track). */
+export function layoutBarInWindow(
+  cue: CueSpanLike,
+  index: number,
+  wv: WindowViewport,
+): BarLayout {
+  const startSeconds = Math.max(0, Math.min(cue.start, cue.end));
+  const endSeconds = Math.max(cue.start, cue.end);
+  const leftPx = windowSecondsToPx(startSeconds, wv);
+  const rightPx = windowSecondsToPx(endSeconds, wv);
+  const rawWidthPx = Math.max(0, rightPx - leftPx);
+  const widthPx = Math.max(MIN_BAR_WIDTH_PX, rawWidthPx);
+  return { index, startSeconds, endSeconds, leftPx, widthPx, rawWidthPx };
+}
+
+/**
+ * Lay out all cues, culling bars fully outside the window (+bufferPx) — original
+ * indices are preserved on the surviving layouts (B.1 windowing, now window-driven).
+ */
+export function layoutBarsInWindow(
+  cues: readonly CueSpanLike[],
+  wv: WindowViewport,
+  bufferPx = 200,
+): BarLayout[] {
+  const out: BarLayout[] = [];
+  cues.forEach((cue, index) => {
+    const bar = layoutBarInWindow(cue, index, wv);
+    if (bar.leftPx + bar.widthPx < -bufferPx) return;
+    if (bar.leftPx > wv.trackWidthPx + bufferPx) return;
+    out.push(bar);
+  });
+  return out;
+}
+
+/** Ruler ticks across the visible window; labels stay absolute clip time. */
+export function generateRulerTicksInWindow(
+  wv: WindowViewport,
+  options?: { targetMajorSpacingPx?: number },
+): RulerTick[] {
+  const dur = windowDurationSeconds(wv.window);
+  if (!isPositive(dur) || !isPositive(wv.trackWidthPx)) return [];
+  const major = chooseTickInterval(dur, wv.trackWidthPx, options?.targetMajorSpacingPx);
+  const subdiv = minorSubdivisions(major);
+  const minor = major / subdiv;
+  const firstIndex = Math.max(0, Math.floor(wv.window.viewStartSeconds / minor));
+  const lastIndex = Math.ceil(wv.window.viewEndSeconds / minor + minor / 1000);
+  const ticks: RulerTick[] = [];
+  for (let i = firstIndex; i <= lastIndex; i += 1) {
+    const seconds = i * minor;
+    if (seconds < wv.window.viewStartSeconds - 1e-9) continue;
+    if (seconds > wv.window.viewEndSeconds + 1e-9) continue;
+    const isMajor = i % subdiv === 0;
+    ticks.push({
+      seconds,
+      px: windowSecondsToPx(seconds, wv),
+      major: isMajor,
+      label: isMajor ? formatRulerLabel(seconds, major) : null,
+    });
+  }
+  return ticks;
+}
+
+// ── Minimap (overview strip + lens) ─────────────────────────────────────────
+
+export interface MinimapLens {
+  leftPx: number;
+  widthPx: number;
+}
+
+/** Where the view window sits on the full-clip minimap strip. */
+export function minimapLens(
+  w: TimelineWindow,
+  clipDurationSeconds: number,
+  minimapWidthPx: number,
+): MinimapLens {
+  if (!isPositive(clipDurationSeconds) || !isPositive(minimapWidthPx)) {
+    return { leftPx: 0, widthPx: 0 };
+  }
+  const leftPx = (Math.max(0, w.viewStartSeconds) / clipDurationSeconds) * minimapWidthPx;
+  const rightPx =
+    (Math.min(clipDurationSeconds, w.viewEndSeconds) / clipDurationSeconds) * minimapWidthPx;
+  return { leftPx, widthPx: Math.max(0, rightPx - leftPx) };
+}
+
+/** Minimap x-px → absolute clip seconds (clamped). */
+export function minimapPxToSeconds(
+  px: number,
+  clipDurationSeconds: number,
+  minimapWidthPx: number,
+): number {
+  if (!isPositive(clipDurationSeconds) || !isPositive(minimapWidthPx)) return 0;
+  const clamped = Math.max(0, Math.min(minimapWidthPx, px));
+  return (clamped / minimapWidthPx) * clipDurationSeconds;
+}

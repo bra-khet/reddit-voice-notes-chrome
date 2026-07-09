@@ -985,6 +985,9 @@ export function mountSubtitleSegmentEditor(
   // timeline first captures any in-flight list edits from the DOM.
   function applyViewMode(): void {
     const timelineActive = viewMode === 'timeline';
+    // CHANGED: v5.8.0 Sprint 4 — stage mode (design §16.1): Timeline view expands
+    // the dialog into a landscape stage (CSS width transition); List stays compact.
+    modalEl.classList.toggle('studio__transcript-modal--stage', timelineActive);
     timelineContainer.hidden = !timelineActive;
     listViewEl.hidden = timelineActive;
     for (const btn of viewToggleBtns) {
@@ -1079,6 +1082,9 @@ export function mountSubtitleSegmentEditor(
     modalDraft = edited.segments.map((segment) => ({ ...segment }));
     modalOpenBaseline = modalDraft.map((segment) => ({ ...segment }));
     selectedSegmentIndex = null;
+    // CHANGED: v5.8.0 Sprint 4 — a fresh session starts at fit zoom (no stale
+    // window from the previous take carrying over).
+    timelineHandle.resetView();
     renderModalSegments();
     modalEl.hidden = false;
     // Reveal the active view now the dialog has layout (track width is measurable).

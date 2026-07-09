@@ -49,6 +49,26 @@ const {
   constrainResizeStart,
   constrainResizeEnd,
   constrainMove,
+  MIN_WINDOW_SECONDS,
+  minWindowSeconds,
+  fitWindow,
+  windowDurationSeconds,
+  windowZoomFactor,
+  clampWindow,
+  zoomWindowAt,
+  panWindow,
+  windowForSpan,
+  windowFromZoomFactor,
+  sliderToZoomFactor,
+  zoomFactorToSlider,
+  windowSecondsToPx,
+  windowPxToSeconds,
+  windowPxDeltaToSeconds,
+  layoutBarInWindow,
+  layoutBarsInWindow,
+  generateRulerTicksInWindow,
+  minimapLens,
+  minimapPxToSeconds,
 } = geom;
 
 let checks = 0;
@@ -275,6 +295,134 @@ check('degenerate bar (bigger than the gap) pins to the floor without crashing',
   assert.deepEqual(constrainMove(10, 4, tight), { start: 5, end: 9 });
   // resize-start where hi < lo pins to lo
   assert.equal(constrainResizeStart(10, 5.2, tight), 5);
+});
+
+console.log('view window (zoom + pan, §16.2)');
+
+const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg ?? ''} (${a} ≈ ${b})`);
+
+check('minWindowSeconds: max(0.5s, 4 frames)', () => {
+  assert.equal(MIN_WINDOW_SECONDS, 0.5);
+  assert.equal(minWindowSeconds(24), 0.5); // 4/24 ≈ 0.167 → 0.5 wins
+  assert.equal(minWindowSeconds(2), 2); // 4/2 = 2 → frame floor wins
+});
+
+check('fitWindow spans the whole clip (z = 1)', () => {
+  const w = fitWindow(48);
+  assert.deepEqual(w, { viewStartSeconds: 0, viewEndSeconds: 48 });
+  assert.equal(windowDurationSeconds(w), 48);
+  assert.equal(windowZoomFactor(w, 48), 1);
+});
+
+check('clampWindow: duration into [min, clip], position into [0, clip]', () => {
+  // too narrow → widened to the min window
+  const narrow = clampWindow({ viewStartSeconds: 2, viewEndSeconds: 2.1 }, 10, 0.5);
+  near(windowDurationSeconds(narrow), 0.5, 'min duration');
+  // hanging past the clip end → shifted back inside
+  const shifted = clampWindow({ viewStartSeconds: 8, viewEndSeconds: 12 }, 10, 0.5);
+  assert.deepEqual(shifted, { viewStartSeconds: 6, viewEndSeconds: 10 });
+  // wider than the clip → fit
+  const wide = clampWindow({ viewStartSeconds: -5, viewEndSeconds: 40 }, 10, 0.5);
+  assert.deepEqual(wide, { viewStartSeconds: 0, viewEndSeconds: 10 });
+});
+
+check('zoomWindowAt keeps the anchor at the same relative x (anchored zoom)', () => {
+  const w = { viewStartSeconds: 0, viewEndSeconds: 10 };
+  const zoomed = zoomWindowAt(w, 2, 4, 10, 0.5); // anchor 4s at rel 0.4
+  near(zoomed.viewStartSeconds, 2, 'start');
+  near(zoomed.viewEndSeconds, 7, 'end');
+  near((4 - zoomed.viewStartSeconds) / windowDurationSeconds(zoomed), 0.4, 'anchor rel preserved');
+});
+
+check('zoomWindowAt clamps at the min window and back out to fit', () => {
+  const w = { viewStartSeconds: 4, viewEndSeconds: 5 };
+  const inMax = zoomWindowAt(w, 1000, 4.5, 10, 0.5);
+  near(windowDurationSeconds(inMax), 0.5, 'zoom-in capped at min window');
+  const out = zoomWindowAt(w, 1 / 1000, 4.5, 10, 0.5);
+  assert.deepEqual(out, { viewStartSeconds: 0, viewEndSeconds: 10 });
+});
+
+check('panWindow preserves duration and clamps at both clip edges', () => {
+  const w = { viewStartSeconds: 2, viewEndSeconds: 6 };
+  assert.deepEqual(panWindow(w, 3, 10, 0.5), { viewStartSeconds: 5, viewEndSeconds: 9 });
+  assert.deepEqual(panWindow(w, -99, 10, 0.5), { viewStartSeconds: 0, viewEndSeconds: 4 });
+  assert.deepEqual(panWindow(w, 99, 10, 0.5), { viewStartSeconds: 6, viewEndSeconds: 10 });
+});
+
+check('windowForSpan pads the span and guards tiny spans with the min window', () => {
+  const w = windowForSpan(2, 4, 10, 0.5, 0.15);
+  near(w.viewStartSeconds, 1.7, 'padded start');
+  near(w.viewEndSeconds, 4.3, 'padded end');
+  const tiny = windowForSpan(2, 2.05, 10, 0.5, 0.15);
+  near(windowDurationSeconds(tiny), 0.5, 'tiny span widened to min');
+  assert.ok(tiny.viewStartSeconds <= 2 && tiny.viewEndSeconds >= 2.05, 'span still contained');
+});
+
+check('windowFromZoomFactor centers the window (slider input)', () => {
+  const w = windowFromZoomFactor(2, 5, 10, 0.5);
+  assert.deepEqual(w, { viewStartSeconds: 2.5, viewEndSeconds: 7.5 });
+});
+
+check('log slider mapping round-trips (t=0.5 on maxZoom 16 → 4×)', () => {
+  near(sliderToZoomFactor(0.5, 16), 4, 'midpoint is sqrt of max');
+  near(zoomFactorToSlider(4, 16), 0.5, 'inverse');
+  assert.equal(sliderToZoomFactor(0.3, 1), 1); // no zoom range → always fit
+  near(sliderToZoomFactor(zoomFactorToSlider(7.3, 16), 16), 7.3, 'round trip');
+});
+
+console.log('window-relative px mapping + culling');
+
+const WV = { window: { viewStartSeconds: 5, viewEndSeconds: 15 }, trackWidthPx: 100 };
+
+check('windowSecondsToPx is window-relative and unclamped (off-window is negative/past)', () => {
+  near(windowSecondsToPx(10, WV), 50, 'mid');
+  near(windowSecondsToPx(5, WV), 0, 'window start');
+  near(windowSecondsToPx(0, WV), -50, 'before window is negative');
+  near(windowSecondsToPx(20, WV), 150, 'after window is past the track');
+});
+
+check('windowPxToSeconds clamps to the window (pointer input) and round-trips', () => {
+  near(windowPxToSeconds(50, WV), 10, 'mid');
+  near(windowPxToSeconds(-30, WV), 5, 'clamped to view start');
+  near(windowPxToSeconds(999, WV), 15, 'clamped to view end');
+  near(windowPxDeltaToSeconds(10, WV), 1, '10px = 1s at this zoom');
+});
+
+check('layoutBarsInWindow culls off-window bars but preserves original indices', () => {
+  const cues = [
+    { start: 0, end: 1 }, // far left of window {4.5,7} → culled
+    { start: 5, end: 6 }, // inside → kept
+    { start: 20, end: 21 }, // far right → culled
+  ];
+  const wv = { window: { viewStartSeconds: 4.5, viewEndSeconds: 7 }, trackWidthPx: 250 };
+  const bars = layoutBarsInWindow(cues, wv, 200);
+  assert.equal(bars.length, 1);
+  assert.equal(bars[0].index, 1, 'original index survives culling');
+  near(bars[0].leftPx, 50, 'window-relative position');
+  const single = layoutBarInWindow(cues[1], 1, wv);
+  assert.deepEqual(single, bars[0]);
+});
+
+check('generateRulerTicksInWindow: ticks inside the window, labels absolute', () => {
+  const wv = { window: { viewStartSeconds: 5, viewEndSeconds: 15 }, trackWidthPx: 500 };
+  const ticks = generateRulerTicksInWindow(wv);
+  assert.ok(ticks.length > 0);
+  for (const t of ticks) {
+    assert.ok(t.seconds >= 5 - 1e-9 && t.seconds <= 15 + 1e-9, `tick ${t.seconds} in window`);
+    assert.ok(t.px >= -1e-6 && t.px <= 500 + 1e-6, `tick px ${t.px} on track`);
+  }
+  assert.ok(
+    ticks.some((t) => t.label === '0:06'),
+    'labels are absolute clip time, not window-relative',
+  );
+});
+
+check('minimapLens maps the window onto the strip; px→seconds inverts', () => {
+  const lens = minimapLens({ viewStartSeconds: 2, viewEndSeconds: 7 }, 10, 200);
+  near(lens.leftPx, 40, 'lens left');
+  near(lens.widthPx, 100, 'lens width');
+  near(minimapPxToSeconds(40, 10, 200), 2, 'strip px → seconds');
+  near(minimapPxToSeconds(9999, 10, 200), 10, 'clamped');
 });
 
 rmSync(outdir, { recursive: true, force: true });
