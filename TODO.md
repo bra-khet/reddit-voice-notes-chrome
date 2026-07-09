@@ -12,11 +12,26 @@ Packet-level splice execution behind `coordinateRebake` — re-composite only di
 | 2 | `src/composite/composite-splice.ts` — browser executor (scan→plan→re-encode dirty GOPs→copy kept packets→interleave→validate; honest null-fallbacks) | **done (automated)** — flag-off, in-browser UNVERIFIED (avcC hazard) |
 | 3 | **fidelity gate (the load-bearing avcC check):** `selectSpliceFidelityAnchors` (pure) + `verifySpliceKeptFrames` (kept frames pixel-identical vs original + boundary decodability); wired into `renderCompositeSplice` → miss throws → full fallback | **done (automated)** — `test-splice-plan` 33/33 |
 | 4 | wire `coordinateRebake` conditional (`executed:'partial'` honest, AbortError passthrough) + `experimental.partialRebakeSplice` flag (default off) + `bakeWithOptionalSplice` in bake path + splice chronos copy; fixed executor to re-composite dirty regions from CLEAN base | **done (automated)** — `test-partial-rebake-plan` 13/13; flag-off |
-| 5 | design doc §4.2 as-built + user QA gate (real-browser AVC + VP9; splice applies + edited region shows only new cue + kept bit-identical; incompatible case rejects→full) | **next** |
+| 5 | ADR-0005 + design doc §4.2 as-built + **§13 real-browser QA checklist** + README ADR index | **done** |
+
+**Phase 2b code + docs COMPLETE.** Real-browser QA **in progress** — living checklist [`.ignore/QA-5.7.0/checklist.md`](.ignore/QA-5.7.0/checklist.md).
+
+| Gate | Status |
+|------|--------|
+| A happy path (AVC splice) | **PASS** |
+| B honesty + fidelity fallback | **PASS** (B3 unit-only; no bake-cancel GUI) |
+| C1 AVC | **PASS** |
+| C2 VP9 | **OPEN** (force codec candidates order — see checklist) |
+| D honest fallbacks | **PASS** |
+| E download / attach / artifact | **PASS** |
+| Single-machine sign-off (A+B+(C1∨C2)+D+E) | **Ready (AVC)** once B3 accepted as unit-only |
+| Default-on flip | **Not yet** — separate decision |
+
+Ships dark (`experimental.partialRebakeSplice` default OFF); production unchanged until sign-off + default-on decision.
 
 **Then (Phase 3):** trim UI + atomic artifact/cue/raw-WebM integration — own branch after 2b or parallel.
 
-**Verify (baseline):** `node scripts/test-splice-plan.mjs` (23) · `test-partial-rebake-plan.mjs` (9) · `test-browser-composite-plan.mjs` (17) · `npm run build` PASS
+**Verify (baseline):** `node scripts/test-splice-plan.mjs` (33) · `test-partial-rebake-plan.mjs` (13) · `test-browser-composite-plan.mjs` (17) · `npm run build` PASS
 
 ## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **TAGGED** `v5.6.0`
 

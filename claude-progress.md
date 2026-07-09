@@ -61,13 +61,42 @@ Reordered ahead of wiring (user call) so nothing can invoke the splice without t
 
 **Verify:** `test-splice-plan` 33/33 · `test-partial-rebake-plan` **13/13** · regression (browser-composite-plan 17, dirty-tracker 11, timeline 10, take-manager 31, take-deck 12) · `tsc` clean (3 pre-existing) · `npm run build` PASS (composite-splice now bundled/reachable).
 
-### Remaining Phase 2b sprint
+### Sprint 5 — docs + QA checklist (2026-07-08) — **DONE**; code+docs COMPLETE, real-browser QA is the release gate
 
-5. **Docs + user QA gate** (the release gate). Design doc §4.2 as-built + ADR note. Then real-browser QA with `experimental.partialRebakeSplice: true`: (a) small cue edit on a prior bake → splice applies, edited region shows ONLY the new cue, kept regions bit-identical, chronos honest (`executed:'partial'`); (b) confirm an incompatible case is REJECTED by the fidelity gate → falls back to full (`executed:'full'`); (c) AVC + VP9 artifacts; (d) attach/download reflect spliced bytes. Only after QA: consider default-on (its own decision).
+- **ADR-0005** (`docs/architecture/adr/0005-partial-rebake-splice.md`, Accepted — execution behind flag, default off): keyframe-aligned smart-render, clean-base re-composite, the avcC hazard + self-verifying kept-region pixel-equality gate, honesty via `coordinateRebake`.
+- **Design doc** `docs/v5.6.0-audio-decoupling.md` → v2.4: §4.2 Phase 2b as-built + **§13 real-browser QA checklist** (A happy path · B honesty/fidelity-gate incl. forced-rejection · C AVC+VP9 · D honest fallbacks · E downstream attach/download/H6).
+- **Architecture README** ADR index synced (0004 + 0005 added; "0006 is next").
+
+**Phase 2b is code + docs complete.** The only remaining item is the **real-browser QA gate** (§13 checklist, flag on) before any default-on decision — no more automated work. Everything ships **dark** (`experimental.partialRebakeSplice` default OFF); production behavior is unchanged.
+
+**Final Phase 2b verification (automated):** `test-splice-plan` 33 · `test-partial-rebake-plan` 13 · regression (browser-composite-plan 17, dirty-tracker 11, timeline 10, take-manager 31, take-deck 12) · `tsc` clean (3 pre-existing) · `npm run build` PASS.
 
 ```bash
 node scripts/test-splice-plan.mjs && node scripts/test-partial-rebake-plan.mjs
+# Real-browser QA: set experimental.partialRebakeSplice:true → docs/v5.6.0-audio-decoupling.md §13
 ```
+
+### Real-browser QA — Phase 2b (2026-07-08) — **IN PROGRESS · AVC single-machine gate nearly met**
+
+Working checklist (living): [`.ignore/QA-5.7.0/checklist.md`](.ignore/QA-5.7.0/checklist.md) · logs in same folder.
+
+| Section | Result | Notes |
+|---------|--------|-------|
+| **A** Happy path | **PASS** | A1–A6. `a2-partial-splice.log`: splice applied, fidelity 4/4 ok, worst mean Δ0.00, **avc** |
+| **B1** Honesty | **PASS** | `executed`/console only claim partial when a real splice ran |
+| **B2** Fidelity reject → full | **PASS** (natural) | `error-1.log`: gate rejected kept frame (mean 1.45, peak 135) → full fallback correct. `b2-fidelty-gate.log` is **not** B2 — it is the scan/`not splice-friendly` gate (still honest full fallback) |
+| **B3** Abort mid-splice | **N/A GUI** / unit PASS | No Cancel affordance while baking; `bakeAbort` only on panel dispose. `test-partial-rebake-plan` AbortError passthrough covers honesty |
+| **C1** AVC | **PASS** | All composites log `avc`; A2 splice + intermittent avcC reject both correct |
+| **C2** VP9 | **OPEN** | Force via temporary `BROWSER_COMPOSITE_VIDEO_CODEC_CANDIDATES = ['vp9','avc']` — steps in checklist |
+| **D1–D5** Fallbacks | **PASS** | First bake full; style → allDirty full; coverage 0.8 full (`bake-log-1`); re-record full; flag-off inert |
+| **E1–E3** Downstream | **PASS** | Download + Reddit attach OK. Studio reopen resets **plan session** (`lastBakeInputs`) by design; artifact bytes retained |
+
+**Intended behaviors clarified (not bugs):**
+- Two-cue edit on ~10 s → `coverageRatio: 0.8` → plan `full` (D3 threshold + keyframe expansion + old/new cue multiset windows).
+- Reopen Studio → first re-bake is full (session-local previous-bake cue snapshot); spliced bytes still on the take.
+- Intermittent AVC fidelity miss → full composite (avcC hazard self-verifying); product stays correct, just loses the speedup on that attempt.
+
+**Remaining for ideal sign-off:** C2 VP9 once. Single-machine sign-off allows C1 alone. Default-on remains a **separate** decision after formal sign-off.
 
 ---
 
