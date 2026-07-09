@@ -320,6 +320,14 @@ export async function renderBrowserComposite(
       codec: support.outputCodec,
       bitrate: BROWSER_COMPOSITE_VIDEO_BPS,
       keyFrameInterval: BROWSER_COMPOSITE_KEYFRAME_INTERVAL_SECONDS,
+      // BUG FIX: VP9 quality-mode alt-ref reordering
+      // Fix: Chrome VP9 in default quality latencyMode emits alt-ref frames whose
+      //      PTS is not strictly increasing in decode order. scanKeyframes then
+      //      rejects the artifact → partial splice always fell back to full (C2).
+      //      realtime keeps lag≈0 / no alt-ref so packet-index splices are safe.
+      //      AVC unchanged (quality). Awaited add() provides offline backpressure.
+      // Sync: composite-splice.ts encodeRegion latencyMode for VP9
+      ...(support.outputCodec === 'vp9' ? { latencyMode: 'realtime' as const } : {}),
       onEncodedPacket: () => {
         packetsEncoded += 1;
         // Encoder output trails the paint loop; attribute its advances honestly.

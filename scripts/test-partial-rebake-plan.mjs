@@ -132,7 +132,7 @@ await checkAsync('none short-circuits without executing', async () => {
   assert.equal(ran, false);
 });
 
-await checkAsync('partial plan executes FULL composite (honest scaffold) with plan attached', async () => {
+await checkAsync('partial plan with no splice executor falls back to FULL', async () => {
   const plan = planPartialRebake({
     ...BASE,
     windows: [{ startSeconds: 5, endSeconds: 6 }],
@@ -142,6 +142,64 @@ await checkAsync('partial plan executes FULL composite (honest scaffold) with pl
   assert.equal(result.executed, 'full');
   assert.equal(result.blob, marker);
   assert.equal(result.plan.strategy, 'partial');
+});
+
+await checkAsync('partial splice returning bytes reports executed:partial (honest)', async () => {
+  const plan = planPartialRebake({ ...BASE, windows: [{ startSeconds: 5, endSeconds: 6 }] });
+  const spliced = new Blob(['spliced-output']);
+  let fullRan = false;
+  const result = await coordinateRebake(
+    plan,
+    async () => {
+      fullRan = true;
+      return new Blob(['full']);
+    },
+    async () => spliced,
+  );
+  assert.equal(result.executed, 'partial');
+  assert.equal(result.blob, spliced);
+  assert.equal(fullRan, false); // full composite must NOT run when splice succeeds
+});
+
+await checkAsync('partial splice resolving null falls back to FULL', async () => {
+  const plan = planPartialRebake({ ...BASE, windows: [{ startSeconds: 5, endSeconds: 6 }] });
+  const marker = new Blob(['full-output']);
+  const result = await coordinateRebake(plan, async () => marker, async () => null);
+  assert.equal(result.executed, 'full');
+  assert.equal(result.blob, marker);
+});
+
+await checkAsync('partial splice throwing a non-abort error falls back to FULL', async () => {
+  const plan = planPartialRebake({ ...BASE, windows: [{ startSeconds: 5, endSeconds: 6 }] });
+  const marker = new Blob(['full-output']);
+  const result = await coordinateRebake(
+    plan,
+    async () => marker,
+    async () => {
+      throw new Error('fidelity gate rejected the output');
+    },
+  );
+  assert.equal(result.executed, 'full');
+  assert.equal(result.blob, marker);
+});
+
+await checkAsync('AbortError from the splice propagates (no silent full re-render)', async () => {
+  const plan = planPartialRebake({ ...BASE, windows: [{ startSeconds: 5, endSeconds: 6 }] });
+  let fullRan = false;
+  await assert.rejects(
+    coordinateRebake(
+      plan,
+      async () => {
+        fullRan = true;
+        return new Blob(['full']);
+      },
+      async () => {
+        throw new DOMException('cancelled', 'AbortError');
+      },
+    ),
+    /cancelled/,
+  );
+  assert.equal(fullRan, false);
 });
 
 rmSync(outdir, { recursive: true, force: true });

@@ -10,10 +10,109 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
-## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **NEXT**
+## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
-**Branch:** `feature/5.7.0-partial-rebake-splice` (from `main` @ `v5.6.0`)
-**Scope:** `coordinateRebake` packet splice execution + fidelity-harness extension. Planner/telemetry land in v5.6.0.
+**Branch:** merged `feature/5.7.0-partial-rebake-splice` → `main` · **Package:** `5.7.0` · **Push:** deferred  
+**Release notes:** `docs/release-notes-v5.7.0.md` · **ADR-0005** · **Contract:** `docs/v5.6.0-audio-decoupling.md` §4.2 + §13  
+**Flag:** `experimental.partialRebakeSplice` **default ON** (opt-out `false`)
+
+**Scope:** `coordinateRebake` packet splice execution + fidelity gate. Planner/telemetry landed in v5.6.0.
+
+### Sprint 1 — pure splice-plan layer (2026-07-08) — **DONE (automated)**
+
+The construction-level guarantee layer that must exist *before* any browser encode can claim a partial success (v5.3.9.1 lesson). New pure module `src/editing/splice-plan.ts`:
+
+- **Keyframe alignment:** `alignFrameToKeyframeStart/End` expand the planner's *assumed-2s-grid* spans onto the artifact's **real** keyframe (GOP) boundaries — the crux: an encoder's actual keyframes need not sit on the 2s grid, and a splice may only replace whole GOPs.
+- **Region model:** `planSplice()` → contiguous alternating `keep`/`reencode` regions covering `[0, frameCount)` exactly once; adjacent aligned GOP islands merge; honest `full` fallback when aligned coverage > `PARTIAL_REBAKE_MAX_COVERAGE` (0.6) or the keyframe layout is unreadable / doesn't start at frame 0.
+- **Two gates:** `validateSplicePlan` (contiguity, alternation, every cut on a real keyframe, reencode ends on keyframe/EOS) and `validateSpliceOutput` ("partial never lies" — `kept + reencoded === output === expected` packet count, ≤1-frame duration drift).
+- **Chronos:** distinct stages `partial-splice-{scan,reencode,assemble}` (never reuse `partial-rebake-plan` or `browser-composite-*`); banded progress from real counters (`computeSpliceReencodeRatio`/`computeSpliceAssembleRatio`).
+- Frame-native, leaf module, zero behavior change: `coordinateRebake` still executes full and reports `executed: 'full'`.
+
+**Verify:** `node scripts/test-splice-plan.mjs` **23/23** (incl. off-grid keyframe alignment + planner→splice integration) · regression: partial-rebake-plan 9, segment-dirty-tracker 11, timeline 10, browser-composite-plan 17 · `tsc` clean (4 documented pre-existing only) · `npm run build` PASS.
+
+### Sprint 2 — browser splice executor (2026-07-08) — **DONE (automated); UNVERIFIED in-browser**
+
+New module `src/composite/composite-splice.ts` — `renderCompositeSplice()`:
+
+- **scan** — buffer the existing baked MP4's video packets (`EncodedPacketSink.packets({verifyKeyPackets:true})`), gate via pure `scanKeyframes` (rejects reordered/VFR/no-leading-keyframe → null → full). Packet index == global frame index by construction.
+- **plan** — map dirty spans (seconds → whole-packet frame windows from the packets' OWN timestamps, fps-independent) → `planSplice` → `validateSplicePlan`; non-partial or invalid → null (full fallback).
+- **reencode** — per `reencode` region: `VideoSampleSink.samples(startSec,endSec)` decode → draw base + `createOverlayFramePainter`(new cues) → raw `VideoEncoder` (artifact's OWN codec string for max SPS/PPS compat, `avc:{format:'avc'}`), **forced keyframe on the region's first frame**; asserts frame/packet counts + leading keyframe.
+- **assemble** — one `EncodedVideoPacketSource` anchored to the ORIGINAL decoder config; walk regions adding `keep` packets bit-exact + re-encoded packets in decode order; audio passthrough unchanged (AAC priming rebase reused); `validateSpliceOutput` (kept+reencoded==output==expected, ≤1-frame drift) → throw-or-adopt.
+- **honest fallbacks** — probe fail / no codec string / not splice-friendly / plan=full / plan invalid all return null; mid-run error throws; never adopts a broken result. Chronos `partial-splice-{scan,reencode,assemble}` from real counters. `CompositeSpliceTiming` for the harness.
+
+**KNOWN HAZARD (documented in-file):** an MP4 video track has ONE sample description (avcC). Kept AVC packets use the original config; re-encoded GOPs use a fresh encoder (same codec string, but not proven byte-compatible here). Structural output is validated; **pixel correctness across the splice boundary is only guaranteed by the decode-back fidelity check (sprint 4) + user QA.** VP9 keyframes are self-contained and splice cleanly; AVC needs that proof. ⇒ **ships flag-off; not wired into `coordinateRebake` yet.**
+
+Leaf module (unused until sprint 3). **Verify:** `test-splice-plan` **29/29** (incl. `scanKeyframes` gate) · `tsc` clean (4 pre-existing) · `npm run build` PASS.
+
+### Sprint 3 — splice fidelity gate (2026-07-08) — **DONE (automated); the load-bearing avcC check**
+
+Reordered ahead of wiring (user call) so nothing can invoke the splice without the safety net.
+
+- **Pure** `selectSpliceFidelityAnchors` (splice-plan.ts) — frame-aligned probe timestamps: kept-region samples (pixel-equality probes) + every splice-boundary straddle + clip start/end. Node-tested.
+- **Browser** `verifySpliceKeptFrames` (composite-fidelity.ts) — decodes the spliced output at all anchors + the original at kept anchors; **kept-region frames must decode pixel-identical** (mean Δ ≤ 1.5, peak ≤ 24 / 255) between spliced & original — since those packets were copied byte-exact, any difference proves the spliced track's sample description corrupted them (the avcC hazard, caught directly); boundary frames must at least decode. Returns ok/reason (never throws for a miss).
+- **Wired** as a mandatory final step in `renderCompositeSplice`: fidelity miss → throw → caller runs the full composite. Log line reports kept/boundary checks + worst mean Δ.
+
+**Verify:** `test-splice-plan` **33/33** (+4 anchor-selection) · regression: partial-rebake-plan 9, browser-composite-plan 17, segment-dirty-tracker 11, timeline 10, take-manager 31 · `tsc` clean (4 pre-existing) · `npm run build` PASS.
+
+### Sprint 4 — wire coordinateRebake + flag + bake-path integration (2026-07-08) — **DONE (automated); flag-off**
+
+- **`coordinateRebake`** now conditional: injected `executePartialSplice` (keeps the module pure); reports `executed:'partial'` ONLY when the splice returns bytes; null / non-abort throw / fidelity reject → full fallback (`'full'`); **AbortError propagates** (no silent full re-render). `test-partial-rebake-plan` **13/13** (+partial-success / null-fallback / throw-fallback / abort-passthrough).
+- **Flag** `experimental.partialRebakeSplice` + `resolvePartialRebakeSpliceEnabled` (opt-IN; **default off** — absent from prefs defaults). 
+- **Bake-path integration** (`subtitle-bake.ts`): `computePartialRebakePlan` (was telemetry-only) now returns the plan; `bakeWithOptionalSplice` runs the splice when flag-on + plan `'partial'` + a previous baked MP4 exists, else the full composite (`runFullComposite` wraps the I1 fallback chain). Splice chronos (`partial-splice-*`) mapped to user copy in `canvasStageMessage`.
+- **Executor correctness fix found during integration:** the splice must re-composite dirty regions from the **CLEAN base** MP4 (the baked frames still carry the OLD burned-in subtitle there); Sprint 2 wrongly decoded from the baked MP4. `renderCompositeSplice` now takes both `bakedMp4` (kept packets) + `baseMp4` (dirty-region source), stamping re-encoded frames with the baked PTS for a seamless splice. Also fixed the pre-existing `subtitle-bake` `base`-null tsc error in passing (now **3** pre-existing, was 4).
+
+**Verify:** `test-splice-plan` 33/33 · `test-partial-rebake-plan` **13/13** · regression (browser-composite-plan 17, dirty-tracker 11, timeline 10, take-manager 31, take-deck 12) · `tsc` clean (3 pre-existing) · `npm run build` PASS (composite-splice now bundled/reachable).
+
+### Sprint 5 — docs + QA checklist (2026-07-08) — **DONE**; code+docs COMPLETE, real-browser QA is the release gate
+
+- **ADR-0005** (`docs/architecture/adr/0005-partial-rebake-splice.md`, Accepted — execution behind flag, default off): keyframe-aligned smart-render, clean-base re-composite, the avcC hazard + self-verifying kept-region pixel-equality gate, honesty via `coordinateRebake`.
+- **Design doc** `docs/v5.6.0-audio-decoupling.md` → v2.4: §4.2 Phase 2b as-built + **§13 real-browser QA checklist** (A happy path · B honesty/fidelity-gate incl. forced-rejection · C AVC+VP9 · D honest fallbacks · E downstream attach/download/H6).
+- **Architecture README** ADR index synced (0004 + 0005 added; "0006 is next").
+
+**Phase 2b is code + docs complete.** The only remaining item is the **real-browser QA gate** (§13 checklist, flag on) before any default-on decision — no more automated work. Everything ships **dark** (`experimental.partialRebakeSplice` default OFF); production behavior is unchanged.
+
+**Final Phase 2b verification (automated):** `test-splice-plan` 33 · `test-partial-rebake-plan` 13 · regression (browser-composite-plan 17, dirty-tracker 11, timeline 10, take-manager 31, take-deck 12) · `tsc` clean (3 pre-existing) · `npm run build` PASS.
+
+```bash
+node scripts/test-splice-plan.mjs && node scripts/test-partial-rebake-plan.mjs
+# Real-browser QA: set experimental.partialRebakeSplice:true → docs/v5.6.0-audio-decoupling.md §13
+```
+
+### Real-browser QA — Phase 2b (2026-07-08) — **IN PROGRESS · AVC single-machine gate nearly met**
+
+Working checklist (living): [`.ignore/QA-5.7.0/checklist.md`](.ignore/QA-5.7.0/checklist.md) · logs in same folder.
+
+| Section | Result | Notes |
+|---------|--------|-------|
+| **A** Happy path | **PASS** | A1–A6. `a2-partial-splice.log`: splice applied, fidelity 4/4 ok, worst mean Δ0.00, **avc** |
+| **B1** Honesty | **PASS** | `executed`/console only claim partial when a real splice ran |
+| **B2** Fidelity reject → full | **PASS** (natural) | `error-1.log`: gate rejected kept frame (mean 1.45, peak 135) → full fallback correct. `b2-fidelty-gate.log` is **not** B2 — it is the scan/`not splice-friendly` gate (still honest full fallback) |
+| **B3** Abort mid-splice | **N/A GUI** / unit PASS | No Cancel affordance while baking; `bakeAbort` only on panel dispose. `test-partial-rebake-plan` AbortError passthrough covers honesty |
+| **C1** AVC | **PASS** | All composites log `avc`; A2 splice + intermittent avcC reject both correct |
+| **C2** VP9 | **OPEN** | Force via temporary `BROWSER_COMPOSITE_VIDEO_CODEC_CANDIDATES = ['vp9','avc']` — steps in checklist |
+| **D1–D5** Fallbacks | **PASS** | First bake full; style → allDirty full; coverage 0.8 full (`bake-log-1`); re-record full; flag-off inert |
+| **E1–E3** Downstream | **PASS** | Download + Reddit attach OK. Studio reopen resets **plan session** (`lastBakeInputs`) by design; artifact bytes retained |
+
+**Intended behaviors clarified (not bugs):**
+- Two-cue edit on ~10 s → `coverageRatio: 0.8` → plan `full` (D3 threshold + keyframe expansion + old/new cue multiset windows).
+- Reopen Studio → first re-bake is full (session-local previous-bake cue snapshot); spliced bytes still on the take.
+- Intermittent AVC fidelity miss → full composite (avcC hazard self-verifying); product stays correct, just loses the speedup on that attempt.
+
+**Remaining for ideal sign-off:** C2 VP9 once. Single-machine sign-off allows C1 alone. Default-on remains a **separate** decision after formal sign-off.
+
+### Real-browser QA follow-up — B3 + C2 VP9 (2026-07-08) — **CLOSED**
+
+- **B3 PASS:** close Studio mid-splice → abort; prior baked MP4 intact.
+- **C2-A1 PASS** (`c2-a1.log`): full composite `vp9`.
+- **C2-A2 pre-fix FAIL:** scan gate alt-ref non-monotonic PTS → full (`c2-a2-attempt-1/2`). Fix: VP9 `latencyMode:realtime` + scan diagnostics.
+- **C2-A2 post-fix PASS** (`c2-a2-attempt-3.log`): re-encoded 44/680, fidelity 8 kept/6 boundary ok [worst mean Δ0.00], **vp9**, `Partial re-bake splice applied`. User: remaining C2-An visual/play PASS.
+- **Sign-off:** A+B+C1+C2+D+E single machine. **Default-on** accepted (residual: second-machine encoder variance → more full fallbacks only).
+- **Shipped `v5.7.0`.**
+
+```bash
+git checkout main && npm install && npm run dev
+node scripts/test-splice-plan.mjs && node scripts/test-partial-rebake-plan.mjs
+```
 
 ---
 

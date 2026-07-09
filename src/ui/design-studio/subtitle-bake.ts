@@ -6,8 +6,9 @@ import {
   resolveOverlayBakeEncoder,
   resolveOverlayCompositeStrategy,
   resolveParallelBakeEnabled,
+  resolvePartialRebakeSpliceEnabled,
 } from '@/src/settings/user-preferences';
-import { saveLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
+import { loadLastBakedMp4, saveLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import { loadLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { resolveAppearanceTheme } from '@/src/theme/design-overrides';
 import { prepareSegmentsForSubtitleBake } from '@/src/transcription/transcript-editing';
@@ -30,8 +31,11 @@ import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants
 import { computeDirtySegments } from '@/src/editing/segment-dirty-tracker';
 import {
   PARTIAL_REBAKE_PLAN_STAGE,
+  coordinateRebake,
   planPartialRebake,
+  type PartialRebakePlan,
 } from '@/src/editing/partial-rebake-coordinator';
+import { renderCompositeSplice } from '@/src/composite/composite-splice';
 import { createTimeline, uniformSegments } from '@/src/timeline/timeline';
 import { BROWSER_COMPOSITE_KEYFRAME_INTERVAL_SECONDS } from '@/src/composite/composite-plan';
 import type { TranscriptSegment } from '@/src/transcription/types';
@@ -70,6 +74,16 @@ function canvasStageMessage(stage: string, ratio: number): string {
   if (stage === 'browser-composite-mux') {
     return `Finalizing MP4… ${pct}%`;
   }
+  // v5.7.0 Phase 2b partial re-bake splice stages.
+  if (stage === 'partial-splice-scan') {
+    return `Reading previous bake… ${pct}%`;
+  }
+  if (stage === 'partial-splice-reencode') {
+    return `Re-compositing edited parts… ${pct}%`;
+  }
+  if (stage === 'partial-splice-assemble') {
+    return `Splicing video… ${pct}%`;
+  }
   if (stage.startsWith('canvas-overlay-render') || stage.includes('overlay-render')) {
     return `Rendering subtitles… ${pct}%`;
   }
@@ -97,15 +111,22 @@ let lastBakeInputs: {
   durationSeconds: number;
 } | null = null;
 
-function emitPartialRebakePlanTelemetry(
+/**
+ * Diff this bake's cues/style against the previous bake (session-local) and
+ * return the partial re-bake plan, logging it as telemetry. Returns null when
+ * there is no comparable previous bake (cold Studio or duration change) or the
+ * diff fails — the caller then always does a full composite. Never throws: a
+ * plan miss must never gate the bake.
+ */
+function computePartialRebakePlan(
   segments: TranscriptSegment[],
   style: SubtitleStyleConfig,
   durationSeconds: number,
-): void {
+): PartialRebakePlan | null {
   const styleKey = JSON.stringify(style);
   const previous = lastBakeInputs;
   lastBakeInputs = { segments: segments.map((s) => ({ ...s })), styleKey, durationSeconds };
-  if (!previous || previous.durationSeconds !== durationSeconds) return;
+  if (!previous || previous.durationSeconds !== durationSeconds) return null;
 
   try {
     const timeline = createTimeline(durationSeconds, WAVEFORM_TARGET_FPS);
@@ -131,10 +152,84 @@ function emitPartialRebakePlanTelemetry(
       allDirty: dirty.allDirty,
       reason: plan.reason,
     });
+    return plan;
   } catch (error) {
-    // Telemetry must never gate the bake.
+    // Telemetry / planning must never gate the bake.
     console.warn(`${EXTENSION_LOG_PREFIX} Partial-rebake plan telemetry failed`, error);
+    return null;
   }
+}
+
+type BakeReport = (
+  progress: Omit<SubtitleBakeProgress, 'elapsedMs' | 'estimatedRemainingMs'>,
+) => void;
+
+interface OptionalSpliceArgs {
+  partialPlan: PartialRebakePlan | null;
+  spliceEnabled: boolean;
+  /** Clean base MP4 — dirty regions re-composite from here (never the baked frames). */
+  baseMp4: Blob;
+  segments: TranscriptSegment[];
+  style: SubtitleStyleConfig;
+  durationSeconds: number;
+  themeBarColor: string;
+  signal?: AbortSignal;
+  report: BakeReport;
+  runFullComposite: () => Promise<Blob>;
+}
+
+/**
+ * v5.7.0 Phase 2b — attempt a partial re-bake splice, else full composite. The
+ * splice runs ONLY when: the flag is on, the plan is 'partial', and a previous
+ * baked MP4 exists to splice into. `coordinateRebake` reports 'partial' only on a
+ * real, fidelity-verified splice; every miss (null / throw / fidelity reject)
+ * delegates to `runFullComposite`, preserving invariant I1's fallback chain.
+ */
+async function bakeWithOptionalSplice(args: OptionalSpliceArgs): Promise<Blob> {
+  const { partialPlan, spliceEnabled, runFullComposite } = args;
+  if (!spliceEnabled || !partialPlan || partialPlan.strategy !== 'partial') {
+    return runFullComposite();
+  }
+
+  const prevBaked = await loadLastBakedMp4();
+  if (!prevBaked?.blob) {
+    // No prior bake this session to splice into — full composite from clean base.
+    return runFullComposite();
+  }
+
+  const execution = await coordinateRebake(partialPlan, runFullComposite, () =>
+    renderCompositeSplice({
+      bakedMp4: prevBaked.blob,
+      baseMp4: args.baseMp4,
+      segments: args.segments,
+      style: args.style,
+      durationSeconds: args.durationSeconds,
+      spans: partialPlan.spans,
+      themeBarColor: args.themeBarColor,
+      signal: args.signal,
+      onProgress: (ratio, stage) => {
+        const overallRatio = 0.1 + ratio * 0.82;
+        args.report({
+          ratio: overallRatio,
+          stage: 'burning',
+          message: canvasStageMessage(stage, overallRatio),
+        });
+      },
+    }),
+  );
+
+  if (!execution.blob) {
+    // Unreachable for a 'partial' plan (the full executor always returns a Blob);
+    // defensive so a null can never masquerade as a successful bake.
+    throw new Error('Re-bake produced no output.');
+  }
+  if (execution.executed === 'partial') {
+    console.log(
+      `${EXTENSION_LOG_PREFIX} Partial re-bake splice applied — ${partialPlan.spans.length} span(s), ` +
+        `${(partialPlan.coverageRatio * 100).toFixed(0)}% of the timeline.`,
+    );
+  }
+  return execution.blob;
 }
 
 export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promise<Blob> {
@@ -150,6 +245,9 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
   if (!base?.blob) {
     throw new Error('No base MP4 found — record a clip on Reddit first.');
   }
+  // Capture the narrowed Blob once — TS widens `base.blob` back to nullable
+  // inside the nested bake closures below.
+  const baseBlob = base.blob;
 
   const videoDurationSeconds = options.videoDurationSeconds ?? base.meta.durationSeconds;
   const segments = prepareSegmentsForSubtitleBake(
@@ -160,8 +258,9 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
     throw new Error('Transcript has no subtitle cues to burn in.');
   }
 
-  // v5.6.0 §4.2 — plan-only telemetry; the bake below is unaffected.
-  emitPartialRebakePlanTelemetry(segments, options.style, videoDurationSeconds);
+  // v5.6.0 §4.2 — diff vs the previous bake → partial re-bake plan (telemetry
+  // always; drives the v5.7.0 splice below only when the flag is on).
+  const partialPlan = computePartialRebakePlan(segments, options.style, videoDurationSeconds);
 
   const prefs = await loadUserPreferences();
   const themeBarColor = resolveAppearanceTheme(prefs.appearance).colors.bar;
@@ -180,7 +279,7 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
   });
 
   async function burnWithDrawtext(): Promise<Blob> {
-    return burnInSubtitlesToMp4(base.blob, {
+    return burnInSubtitlesToMp4(baseBlob, {
       segments,
       style: options.style,
       videoDurationSeconds,
@@ -196,15 +295,20 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
     });
   }
 
-  let burned: Blob;
-  if (preferCanvas) {
+  // The full composite over the CLEAN base — the invariant-I1 fallback chain
+  // (browser composite → WebCodecs+alphamerge → MediaRecorder → drawtext). The
+  // partial splice below either succeeds or delegates back to this.
+  async function runFullComposite(): Promise<Blob> {
+    if (!preferCanvas) {
+      return burnWithDrawtext();
+    }
     try {
-      burned = await bakeWithCanvasOverlay({
+      return await bakeWithCanvasOverlay({
         editedResult: { ...options.editedResult, segments },
         style: options.style,
         durationSeconds: videoDurationSeconds,
         themeBarColor,
-        baseMp4: base.blob,
+        baseMp4: baseBlob,
         signal: options.signal,
         renderPerfBudgetMs: canvasRenderPerfBudgetMs(videoDurationSeconds),
         // v5.3.9 / v5.3.10 — same resolver the production prefs use (Lab bypasses
@@ -242,11 +346,29 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
         stage: 'burning',
         message: 'Canvas render slow — using drawtext fallback…',
       });
-      burned = await burnWithDrawtext();
+      return burnWithDrawtext();
     }
-  } else {
-    burned = await burnWithDrawtext();
   }
+
+  // v5.7.0 Phase 2b — partial re-bake splice (experimental.partialRebakeSplice,
+  // default on after QA; opt-out with false). When a small cue edit dirties only a
+  // few keyframe-aligned regions AND a previous baked MP4 exists to splice into,
+  // re-composite just the dirty
+  // regions from the clean base and splice them into the prior bake. The executor
+  // self-verifies (kept-region pixel equality) and coordinateRebake reports
+  // 'partial' ONLY on real success — any miss delegates to runFullComposite (I2).
+  const burned = await bakeWithOptionalSplice({
+    partialPlan,
+    spliceEnabled: resolvePartialRebakeSpliceEnabled(prefs.experimental),
+    baseMp4: baseBlob,
+    segments,
+    style: options.style,
+    durationSeconds: videoDurationSeconds,
+    themeBarColor,
+    signal: options.signal,
+    report,
+    runFullComposite,
+  });
 
   report({ ratio: 0.94, stage: 'saving', message: 'Saving baked MP4…' });
   await saveLastBakedMp4(burned, base.meta.durationSeconds);

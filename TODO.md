@@ -1,14 +1,23 @@
 # TODO
 
-## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **NEXT**
+## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
-**Branch:** `feature/5.7.0-partial-rebake-splice` (from `main` @ `v5.6.0`) · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) §4.2 + §12 follow-ups
+**Release notes:** [`docs/release-notes-v5.7.0.md`](docs/release-notes-v5.7.0.md) · **ADR:** [`0005`](docs/architecture/adr/0005-partial-rebake-splice.md) · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) §4.2 + §13  
+**Package:** `5.7.0` on `main` · **Push:** deferred
 
-Packet-level splice execution behind `coordinateRebake` — re-composite only dirty keyframe-aligned spans and splice back into the MP4. Requires fidelity-harness extension first (v5.3.9.1 lesson). Planner + telemetry already ship in v5.6.0.
+Real-browser QA **SIGNED OFF** (2026-07-08, Windows/Chrome): A–E, **C1 AVC + C2 VP9**. `experimental.partialRebakeSplice` **default ON** (opt-out `false`).
 
-**Then (Phase 3):** trim UI + atomic artifact/cue/raw-WebM integration — own branch after 2b or parallel.
+| Sprint | Scope | Status |
+|--------|-------|--------|
+| 1–5 | plan + executor + fidelity + wire + docs | **done** |
+| Real-browser QA | §13 A–E, C1+C2 | **PASS** (single machine) |
+| Default-on | resolve `!== false` | **done** in `v5.7.0` |
 
-**Verify (baseline):** `node scripts/test-partial-rebake-plan.mjs` (9) · `test-browser-composite-plan.mjs` (17) · `npm run build` PASS
+**Then (Phase 3):** trim UI + atomic artifact/cue/raw-WebM integration — own branch.
+
+**Verify:** `node scripts/test-splice-plan.mjs` (36) · `test-partial-rebake-plan.mjs` (13) · `test-browser-composite-plan.mjs` (17) · `npm run build`
+
+**Restore:** `git checkout main && npm install && npm run dev`
 
 ## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **TAGGED** `v5.6.0`
 
