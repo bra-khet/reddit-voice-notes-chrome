@@ -1,37 +1,23 @@
 # TODO
 
-## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **IN PROGRESS**
+## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
-**Branch:** `feature/5.7.0-partial-rebake-splice` (from `main` @ `v5.6.0`) · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) §4.2 + §12 follow-ups
+**Release notes:** [`docs/release-notes-v5.7.0.md`](docs/release-notes-v5.7.0.md) · **ADR:** [`0005`](docs/architecture/adr/0005-partial-rebake-splice.md) · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) §4.2 + §13  
+**Package:** `5.7.0` on `main` · **Push:** deferred
 
-Packet-level splice execution behind `coordinateRebake` — re-composite only dirty keyframe-aligned spans and splice back into the MP4. Requires fidelity-harness extension (v5.3.9.1 lesson). Planner + telemetry shipped in v5.6.0.
+Real-browser QA **SIGNED OFF** (2026-07-08, Windows/Chrome): A–E, **C1 AVC + C2 VP9**. `experimental.partialRebakeSplice` **default ON** (opt-out `false`).
 
 | Sprint | Scope | Status |
 |--------|-------|--------|
-| 1 | `src/editing/splice-plan.ts` — keyframe alignment + region model + plan/output validation gates + splice chronos + `scanKeyframes` gate (pure, Node-tested) | **done** — `test-splice-plan.mjs` 29/29 |
-| 2 | `src/composite/composite-splice.ts` — browser executor (scan→plan→re-encode dirty GOPs→copy kept packets→interleave→validate; honest null-fallbacks) | **done (automated)** — flag-off, in-browser UNVERIFIED (avcC hazard) |
-| 3 | **fidelity gate (the load-bearing avcC check):** `selectSpliceFidelityAnchors` (pure) + `verifySpliceKeptFrames` (kept frames pixel-identical vs original + boundary decodability); wired into `renderCompositeSplice` → miss throws → full fallback | **done (automated)** — `test-splice-plan` 33/33 |
-| 4 | wire `coordinateRebake` conditional (`executed:'partial'` honest, AbortError passthrough) + `experimental.partialRebakeSplice` flag (default off) + `bakeWithOptionalSplice` in bake path + splice chronos copy; fixed executor to re-composite dirty regions from CLEAN base | **done (automated)** — `test-partial-rebake-plan` 13/13; flag-off |
-| 5 | ADR-0005 + design doc §4.2 as-built + **§13 real-browser QA checklist** + README ADR index | **done** |
+| 1–5 | plan + executor + fidelity + wire + docs | **done** |
+| Real-browser QA | §13 A–E, C1+C2 | **PASS** (single machine) |
+| Default-on | resolve `!== false` | **done** in `v5.7.0` |
 
-**Phase 2b code + docs COMPLETE.** Real-browser QA **in progress** — living checklist [`.ignore/QA-5.7.0/checklist.md`](.ignore/QA-5.7.0/checklist.md).
+**Then (Phase 3):** trim UI + atomic artifact/cue/raw-WebM integration — own branch.
 
-| Gate | Status |
-|------|--------|
-| A happy path (AVC splice) | **PASS** |
-| B honesty + fidelity fallback | **PASS** (B3: close-window abort retains prior MP4) |
-| C1 AVC | **PASS** |
-| C2 VP9 | **RETEST** after VP9 `latencyMode:realtime` fix (A1 passed; A2 scan-gate pre-fix) |
-| D honest fallbacks | **PASS** |
-| E download / attach / artifact | **PASS** |
-| Single-machine sign-off (A+B+(C1∨C2)+D+E) | **Ready (AVC)** once B3 accepted as unit-only |
-| Default-on flip | **Not yet** — separate decision |
+**Verify:** `node scripts/test-splice-plan.mjs` (36) · `test-partial-rebake-plan.mjs` (13) · `test-browser-composite-plan.mjs` (17) · `npm run build`
 
-Ships dark (`experimental.partialRebakeSplice` default OFF); production unchanged until sign-off + default-on decision.
-
-**Then (Phase 3):** trim UI + atomic artifact/cue/raw-WebM integration — own branch after 2b or parallel.
-
-**Verify (baseline):** `node scripts/test-splice-plan.mjs` (33) · `test-partial-rebake-plan.mjs` (13) · `test-browser-composite-plan.mjs` (17) · `npm run build` PASS
+**Restore:** `git checkout main && npm install && npm run dev`
 
 ## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **TAGGED** `v5.6.0`
 

@@ -148,9 +148,9 @@ export interface ExperimentalPreferences {
    */
   browserComposite?: boolean;
   /**
-   * v5.7.0 Phase 2b — partial re-bake splice. Default OFF (opt-in) until the
-   * fidelity gate is proven in real-browser QA on AVC + VP9 artifacts. When on,
-   * a re-bake whose cue edit dirties only a few keyframe-aligned regions splices
+   * v5.7.0 Phase 2b — partial re-bake splice. Default ON after single-machine
+   * real-browser QA (AVC + VP9, 2026-07-08). Opt-out: set `false`. When on, a
+   * re-bake whose cue edit dirties only a few keyframe-aligned regions splices
    * the freshly-composited regions into the previous baked MP4 instead of a full
    * composite; the executor self-verifies (kept-region pixel equality) and any
    * miss falls back to the full composite. Sync: subtitle-bake.ts,
@@ -176,13 +176,14 @@ export function resolveOverlayCompositeStrategy(
 }
 
 /**
- * v5.7.0 Phase 2b — partial re-bake splice. Opt-IN only (`partialRebakeSplice
- * === true`); undefined/false → disabled. Default off until real-browser QA.
+ * v5.7.0 Phase 2b — partial re-bake splice. Default-on after real-browser QA
+ * (AVC + VP9); opt-out only (`partialRebakeSplice === false`). Misses (scan
+ * gate, fidelity gate, plan full) still fall back to full composite honestly.
  */
 export function resolvePartialRebakeSpliceEnabled(
   experimental?: ExperimentalPreferences,
 ): boolean {
-  return experimental?.partialRebakeSplice === true;
+  return experimental?.partialRebakeSplice !== false;
 }
 
 /** v5.3.9 — parallel chunked render unless explicitly disabled. */
@@ -232,7 +233,12 @@ export const DEFAULT_USER_PREFERENCES: UserPreferencesV1 = {
   },
   voiceEffect: { ...DEFAULT_VOICE_EFFECT_CONFIG },
   transcriptConfig: { ...DEFAULT_TRANSCRIPT_CONFIG },
-  experimental: { parallelBake: true, webCodecsBake: true, browserComposite: true },
+  experimental: {
+    parallelBake: true,
+    webCodecsBake: true,
+    browserComposite: true,
+    partialRebakeSplice: true,
+  },
 };
 
 /** Synchronous cache on extension pages — survives design-studio tab close (BUG-019). */

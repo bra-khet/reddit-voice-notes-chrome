@@ -350,9 +350,10 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
     }
   }
 
-  // v5.7.0 Phase 2b — partial re-bake splice (behind experimental.partialRebakeSplice,
-  // default off). When a small cue edit dirties only a few keyframe-aligned regions
-  // AND a previous baked MP4 exists to splice into, re-composite just the dirty
+  // v5.7.0 Phase 2b — partial re-bake splice (experimental.partialRebakeSplice,
+  // default on after QA; opt-out with false). When a small cue edit dirties only a
+  // few keyframe-aligned regions AND a previous baked MP4 exists to splice into,
+  // re-composite just the dirty
   // regions from the clean base and splice them into the prior bake. The executor
   // self-verifies (kept-region pixel equality) and coordinateRebake reports
   // 'partial' ONLY on real success — any miss delegates to runFullComposite (I2).

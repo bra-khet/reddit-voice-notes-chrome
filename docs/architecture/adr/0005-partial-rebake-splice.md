@@ -1,9 +1,9 @@
 # ADR-0005: Partial re-bake splice — keyframe-aligned smart-render with a self-verifying fidelity gate
 
-- **Status:** Accepted (execution behind `experimental.partialRebakeSplice`, default OFF; real-browser QA 2026-07-08: AVC A/B/D/E PASS, C2 VP9 open — see `.ignore/QA-5.7.0/checklist.md`)
+- **Status:** Accepted — **shipped default-on** in `v5.7.0` after real-browser QA sign-off (AVC + VP9, single machine 2026-07-08). Opt-out: `experimental.partialRebakeSplice: false`.
 - **Date:** 2026-07-08
-- **Reflects branch:** `feature/5.7.0-partial-rebake-splice` (baseline `main` @ `v5.6.0`)
-- **Deciders:** User strategic direction (Phase 2b execution) + architecture decision (this record)
+- **Reflects:** `main` @ `v5.7.0` (from `feature/5.7.0-partial-rebake-splice`, baseline `v5.6.0`)
+- **Deciders:** User strategic direction (Phase 2b execution + default-on) + architecture decision (this record)
 - **Extends:** ADR-0004 §Follow-ups ("Phase 2b splice execution behind `coordinateRebake`"), ADR-0003 (browser composite), ADR-0001 (encoding backbone; the v5.3.9.1 honesty lesson)
 
 ## Context
@@ -23,7 +23,7 @@ The pipeline's baked MP4s are 1 packet/frame with strictly increasing PTS in dec
 
 3. **A self-verifying fidelity gate makes the avcC hazard SAFE regardless of theory.** After assembly, `verifySpliceKeptFrames` decodes the spliced output and the original at kept-region anchors and asserts they are **pixel-identical** (kept packets are byte-exact, so any difference IS the corruption signal), plus boundary-frame decodability. A miss throws → `coordinateRebake` falls back to the full composite. This converts "the SPS/PPS probably match" into "verified decodable-and-identical, or discarded."
 
-4. **Honesty preserved.** `coordinateRebake(plan, full, splice?)` reports `executed:'partial'` ONLY when the fidelity-verified splice returns bytes; `null` / non-abort throw / fidelity rejection all fall back to full (`'full'`). `AbortError` propagates. Distinct chronos stages `partial-splice-{scan,reencode,assemble}` from real counters. Ships behind `experimental.partialRebakeSplice` (default OFF) until real-browser QA.
+4. **Honesty preserved.** `coordinateRebake(plan, full, splice?)` reports `executed:'partial'` ONLY when the fidelity-verified splice returns bytes; `null` / non-abort throw / fidelity rejection all fall back to full (`'full'`). `AbortError` propagates. Distinct chronos stages `partial-splice-{scan,reencode,assemble}` from real counters. Shipped behind `experimental.partialRebakeSplice` (default **ON** after QA; opt-out `false`).
 
 ## First-class concern impact
 
@@ -44,7 +44,7 @@ The pipeline's baked MP4s are 1 packet/frame with strictly increasing PTS in dec
 - **Positive:** small cue edits re-bake in time proportional to the dirty fraction; the `splice-plan` layer + fidelity gate are reusable for any future segment-level artifact editing (trim re-composite, per-cue restyle). The intent/physical split lets the physical layer *reject* artifacts the planner's assumptions don't fit.
 - **Negative / accepted cost:** two independently-produced `avcC` parameter sets share one track — mitigated (artifact's own codec string + original-config anchor) and **verified** (kept-region pixel-equality), never merely assumed. Buffering all video packets holds the clip in memory (≤30 MB store cap — same budget as the full composite's `BufferTarget`).
 - **Rejected over-engineering:** no worker offload (measure first); no new stores/messages; no default-on before QA.
-- **Follow-ups (the release gate):** real-browser QA per `docs/v5.6.0-audio-decoupling.md` §13 (+ living `.ignore/QA-5.7.0/checklist.md`). **2026-07-08:** (a) AVC splice PASS; (b) natural fidelity reject → full PASS; (c) AVC PASS / VP9 OPEN; (d) attach/download PASS. Remaining ideal: C2 VP9. Only after formal sign-off: consider default-on (its own decision). Phase 3 trim-apply integration remains separate.
+- **Follow-ups:** real-browser QA **SIGNED OFF** 2026-07-08 (A–E, C1 AVC + C2 VP9 on one machine; VP9 required `latencyMode:realtime` to avoid alt-ref scan reject). Default-on in `v5.7.0`. Optional: second-machine A2 spot-check. Phase 3 trim-apply integration remains separate.
 
 ## References
 

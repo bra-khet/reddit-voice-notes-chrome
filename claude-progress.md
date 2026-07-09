@@ -10,11 +10,13 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
-## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **IN PROGRESS**
+## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
-**Branch:** `feature/5.7.0-partial-rebake-splice` (from `main` @ `v5.6.0`)
-**Scope:** `coordinateRebake` packet splice execution + fidelity-harness extension. Planner/telemetry landed in v5.6.0.
-**Contract:** `docs/v5.6.0-audio-decoupling.md` §4.2 (+ §12 follow-ups). Invariants I1–I9 + chronos honesty + H6 hold throughout.
+**Branch:** merged `feature/5.7.0-partial-rebake-splice` → `main` · **Package:** `5.7.0` · **Push:** deferred  
+**Release notes:** `docs/release-notes-v5.7.0.md` · **ADR-0005** · **Contract:** `docs/v5.6.0-audio-decoupling.md` §4.2 + §13  
+**Flag:** `experimental.partialRebakeSplice` **default ON** (opt-out `false`)
+
+**Scope:** `coordinateRebake` packet splice execution + fidelity gate. Planner/telemetry landed in v5.6.0.
 
 ### Sprint 1 — pure splice-plan layer (2026-07-08) — **DONE (automated)**
 
@@ -98,13 +100,19 @@ Working checklist (living): [`.ignore/QA-5.7.0/checklist.md`](.ignore/QA-5.7.0/c
 
 **Remaining for ideal sign-off:** C2 VP9 once. Single-machine sign-off allows C1 alone. Default-on remains a **separate** decision after formal sign-off.
 
-### Real-browser QA follow-up — B3 + C2 VP9 scan gate (2026-07-08)
+### Real-browser QA follow-up — B3 + C2 VP9 (2026-07-08) — **CLOSED**
 
-- **B3 PASS:** user closed Studio mid-splice → abort; reopened with prior baked MP4 intact (no partial/corrupt write).
-- **C2-A1 PASS** (`c2-a1.log`): full composite with `vp9`.
-- **C2-A2 FAIL (pre-fix):** plan `partial` but `scanKeyframes` → "not splice-friendly" → honest full (`c2-a2-attempt-1/2.log`). Root cause: Chrome VP9 + quality latencyMode **alt-ref** → non-monotonic decode-order PTS; gate correctly refused a packet-index splice.
-- **Fix:** VP9 encode paths (`browser-composite` CanvasSource + `composite-splice` encodeRegion) use `latencyMode: 'realtime'`; `diagnoseKeyframeScanFailure` logs concrete scan reject reason. Restored production codec order `['avc','vp9']` (C2 temp flip had been left on). Tests: `test-splice-plan` **36/36**.
-- **Retest:** new VP9 baseline after rebuild (old VP9 bakes remain not splice-friendly), then C2-A2.
+- **B3 PASS:** close Studio mid-splice → abort; prior baked MP4 intact.
+- **C2-A1 PASS** (`c2-a1.log`): full composite `vp9`.
+- **C2-A2 pre-fix FAIL:** scan gate alt-ref non-monotonic PTS → full (`c2-a2-attempt-1/2`). Fix: VP9 `latencyMode:realtime` + scan diagnostics.
+- **C2-A2 post-fix PASS** (`c2-a2-attempt-3.log`): re-encoded 44/680, fidelity 8 kept/6 boundary ok [worst mean Δ0.00], **vp9**, `Partial re-bake splice applied`. User: remaining C2-An visual/play PASS.
+- **Sign-off:** A+B+C1+C2+D+E single machine. **Default-on** accepted (residual: second-machine encoder variance → more full fallbacks only).
+- **Shipped `v5.7.0`.**
+
+```bash
+git checkout main && npm install && npm run dev
+node scripts/test-splice-plan.mjs && node scripts/test-partial-rebake-plan.mjs
+```
 
 ---
 

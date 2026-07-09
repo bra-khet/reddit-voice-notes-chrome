@@ -19,7 +19,6 @@
  * contract) and the most uniformly hardware-accelerated VideoEncoder codec.
  * VP9-in-MP4 is the fallback where AVC encode is unavailable.
  */
-// TEMP QA ONLY — revert after C2
 export const BROWSER_COMPOSITE_VIDEO_CODEC_CANDIDATES = ['avc', 'vp9'] as const;
 export type BrowserCompositeVideoCodec =
   (typeof BROWSER_COMPOSITE_VIDEO_CODEC_CANDIDATES)[number];
