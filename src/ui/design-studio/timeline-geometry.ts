@@ -1,0 +1,286 @@
+/**
+ * v5.8.0 — Timeline editor view geometry (pure).
+ *
+ * The pixel-space companion to src/timeline/timeline.ts: maps clip seconds ↔
+ * track pixels, lays out cue bars, generates ruler ticks, resolves pointer
+ * hit-zones (16 px edge handles with deterministic fight-priority), and resolves
+ * drag snapping against the authoritative magnetism priority.
+ *
+ * ALL frame/second quantization delegates to timeline.ts `snapTimeToFrame` so a
+ * dragged cue lands on the exact frame the overlay painter will render it at
+ * (preview=bake, invariant I11) — this module never invents its own frame math.
+ * Pixel geometry is a throwaway view concern; frame time is the real quantum.
+ *
+ * Pure logic — no DOM, no browser globals. Node-tested
+ * (scripts/test-timeline-geometry.mjs). Leaf: one import (timeline.ts).
+ *
+ * Sync: subtitle-timeline-editor.ts (sole consumer),
+ *       docs/v5.8.0-trim-ui-visual-subtitle-editor.md §5 (anatomy) + §6 (interactions)
+ */
+
+import { snapTimeToFrame } from '@/src/timeline/timeline';
+
+/** Minimum on-screen width so a very short cue stays visible and grabbable. */
+export const MIN_BAR_WIDTH_PX = 12;
+
+/** Resize-handle hit width at each bar edge (design §6.1.1, authoritative). */
+export const EDGE_HANDLE_PX = 16;
+
+/** The track's pixel viewport. t=0 maps to x=0; durationSeconds maps to trackWidthPx. */
+export interface TimelineViewport {
+  durationSeconds: number;
+  trackWidthPx: number;
+}
+
+/** Minimal cue shape geometry needs — deliberately decoupled from TranscriptSegment. */
+export interface CueSpanLike {
+  start: number;
+  end: number;
+}
+
+function isPositive(n: number): boolean {
+  return Number.isFinite(n) && n > 0;
+}
+
+/** Seconds → track x-pixels (0 when the viewport is degenerate), clamped to bounds. */
+export function secondsToPx(seconds: number, vp: TimelineViewport): number {
+  if (!isPositive(vp.durationSeconds) || !isPositive(vp.trackWidthPx)) return 0;
+  const clamped = Math.max(0, Math.min(vp.durationSeconds, seconds));
+  return (clamped / vp.durationSeconds) * vp.trackWidthPx;
+}
+
+/** Track x-pixels → seconds (0 when degenerate), clamped to [0, duration]. */
+export function pxToSeconds(px: number, vp: TimelineViewport): number {
+  if (!isPositive(vp.durationSeconds) || !isPositive(vp.trackWidthPx)) return 0;
+  const clamped = Math.max(0, Math.min(vp.trackWidthPx, px));
+  return (clamped / vp.trackWidthPx) * vp.durationSeconds;
+}
+
+/** A pixel delta → a seconds delta (no bound clamping — for tolerances/nudges). */
+export function pxDeltaToSeconds(px: number, vp: TimelineViewport): number {
+  if (!isPositive(vp.durationSeconds) || !isPositive(vp.trackWidthPx)) return 0;
+  return (px / vp.trackWidthPx) * vp.durationSeconds;
+}
+
+/** Clamp a time to the viewport's [0, duration]. */
+export function clampSeconds(seconds: number, vp: TimelineViewport): number {
+  const max = isPositive(vp.durationSeconds) ? vp.durationSeconds : 0;
+  if (!Number.isFinite(seconds)) return 0;
+  return Math.max(0, Math.min(max, seconds));
+}
+
+// ── Bar layout ────────────────────────────────────────────────────────────
+
+export interface BarLayout {
+  index: number;
+  startSeconds: number;
+  endSeconds: number;
+  leftPx: number;
+  /** Rendered width — floored at MIN_BAR_WIDTH_PX so tiny cues stay visible. */
+  widthPx: number;
+  /** True geometric width before the min-width floor (for gap/adjacency math). */
+  rawWidthPx: number;
+}
+
+/** Lay out one cue span. Inverted spans (start > end) are normalized. */
+export function layoutBar(cue: CueSpanLike, index: number, vp: TimelineViewport): BarLayout {
+  const startSeconds = Math.max(0, Math.min(cue.start, cue.end));
+  const endSeconds = Math.max(cue.start, cue.end);
+  const leftPx = secondsToPx(startSeconds, vp);
+  const rightPx = secondsToPx(endSeconds, vp);
+  const rawWidthPx = Math.max(0, rightPx - leftPx);
+  const widthPx = Math.max(MIN_BAR_WIDTH_PX, rawWidthPx);
+  return { index, startSeconds, endSeconds, leftPx, widthPx, rawWidthPx };
+}
+
+export function layoutBars(cues: readonly CueSpanLike[], vp: TimelineViewport): BarLayout[] {
+  return cues.map((cue, index) => layoutBar(cue, index, vp));
+}
+
+// ── Ruler ticks ───────────────────────────────────────────────────────────
+
+/** "Nice" major-tick intervals (seconds) — the label cadence steps up through these. */
+export const NICE_INTERVALS_SECONDS = [0.5, 1, 2, 5, 10, 15, 20, 30, 60, 120, 300, 600];
+
+/** Pick the smallest nice interval that keeps majors ≥ targetMajorSpacingPx apart. */
+export function chooseTickInterval(
+  durationSeconds: number,
+  trackWidthPx: number,
+  targetMajorSpacingPx = 90,
+): number {
+  if (!isPositive(durationSeconds) || !isPositive(trackWidthPx)) return NICE_INTERVALS_SECONDS[0];
+  const targetMajors = Math.max(1, Math.floor(trackWidthPx / targetMajorSpacingPx));
+  const rawInterval = durationSeconds / targetMajors;
+  for (const nice of NICE_INTERVALS_SECONDS) {
+    if (nice >= rawInterval) return nice;
+  }
+  return NICE_INTERVALS_SECONDS[NICE_INTERVALS_SECONDS.length - 1];
+}
+
+function minorSubdivisions(intervalSeconds: number): number {
+  if (intervalSeconds >= 60) return 4;
+  if (intervalSeconds >= 15) return 3;
+  if (intervalSeconds >= 5) return 5;
+  if (intervalSeconds >= 1) return 4;
+  return 5;
+}
+
+export interface RulerTick {
+  seconds: number;
+  px: number;
+  major: boolean;
+  label: string | null;
+}
+
+function formatRulerLabel(seconds: number, intervalSeconds: number): string {
+  const safe = Math.max(0, seconds);
+  const whole = Math.floor(safe);
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  const secs = whole % 60;
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  let base = hours > 0 ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`;
+  if (intervalSeconds < 1) base += `.${Math.round((safe - whole) * 10)}`;
+  return base;
+}
+
+/**
+ * Ruler ticks across the viewport. Every `subdiv`-th minor tick is a labeled
+ * major. Index-based stepping avoids float drift. Positions are frame-agnostic
+ * (cosmetic); the clip-end marker is drawn separately by the component.
+ */
+export function generateRulerTicks(
+  vp: TimelineViewport,
+  options?: { targetMajorSpacingPx?: number },
+): RulerTick[] {
+  if (!isPositive(vp.durationSeconds) || !isPositive(vp.trackWidthPx)) return [];
+  const major = chooseTickInterval(vp.durationSeconds, vp.trackWidthPx, options?.targetMajorSpacingPx);
+  const subdiv = minorSubdivisions(major);
+  const minor = major / subdiv;
+  const count = Math.floor(vp.durationSeconds / minor + minor / 1000);
+  const ticks: RulerTick[] = [];
+  for (let i = 0; i <= count; i += 1) {
+    const seconds = Math.min(i * minor, vp.durationSeconds);
+    const isMajor = i % subdiv === 0;
+    ticks.push({
+      seconds,
+      px: secondsToPx(seconds, vp),
+      major: isMajor,
+      label: isMajor ? formatRulerLabel(seconds, major) : null,
+    });
+  }
+  return ticks;
+}
+
+// ── Hit testing ───────────────────────────────────────────────────────────
+
+export type BarHitZone = 'start-handle' | 'end-handle' | 'body';
+
+export interface TrackHit {
+  index: number;
+  zone: BarHitZone;
+}
+
+/** Per-bar handle width, clamped so both handles stay resolvable on narrow bars. */
+export function handleWidthForBar(bar: BarLayout): number {
+  return Math.max(2, Math.min(EDGE_HANDLE_PX, Math.floor(bar.widthPx / 2)));
+}
+
+/**
+ * What does a pointer at absolute track-x hit? 16 px edge handles win over the
+ * body; when adjacent bars' handles overlap, the NEAREST boundary wins (ties →
+ * start-handle, for predictable grow-into-gap) so a "fight" is never ambiguous
+ * (design §6.1.1). Body fallback picks the last (top-most) bar containing x.
+ */
+export function hitTestTrack(trackXpx: number, bars: readonly BarLayout[]): TrackHit | null {
+  const candidates: { index: number; zone: BarHitZone; dist: number; pri: number }[] = [];
+  for (const bar of bars) {
+    const left = bar.leftPx;
+    const right = bar.leftPx + bar.widthPx;
+    const hw = handleWidthForBar(bar);
+    if (trackXpx >= left && trackXpx <= left + hw) {
+      candidates.push({ index: bar.index, zone: 'start-handle', dist: trackXpx - left, pri: 0 });
+    }
+    if (trackXpx >= right - hw && trackXpx <= right) {
+      candidates.push({ index: bar.index, zone: 'end-handle', dist: right - trackXpx, pri: 1 });
+    }
+  }
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => a.dist - b.dist || a.pri - b.pri);
+    return { index: candidates[0].index, zone: candidates[0].zone };
+  }
+  let body: TrackHit | null = null;
+  for (const bar of bars) {
+    if (trackXpx > bar.leftPx && trackXpx < bar.leftPx + bar.widthPx) {
+      body = { index: bar.index, zone: 'body' };
+    }
+  }
+  return body;
+}
+
+// ── Snap resolution ───────────────────────────────────────────────────────
+
+export type SnapKind = 'neighbor' | 'playhead' | 'tick' | 'frame';
+
+export interface SnapContext {
+  fps: number;
+  /** Candidate neighbor cue edges (seconds) — highest-priority magnet. */
+  neighborSeconds?: readonly number[];
+  playheadSeconds?: number | null;
+  tickSeconds?: readonly number[];
+  /** Magnetism radius in seconds (caller derives from a px tolerance). */
+  toleranceSeconds: number;
+  /** Shift held — disable magnetism (1–3); frame quantization still applies. */
+  disableMagnetism?: boolean;
+}
+
+export interface SnapResult {
+  seconds: number;
+  snappedTo: SnapKind;
+}
+
+function nearestWithin(
+  value: number,
+  candidates: readonly number[] | undefined,
+  tol: number,
+): number | null {
+  if (!candidates || candidates.length === 0) return null;
+  let best: number | null = null;
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    if (!Number.isFinite(c)) continue;
+    const d = Math.abs(c - value);
+    if (d <= tol && d < bestDist) {
+      best = c;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * Resolve a dragged time against the authoritative magnetism priority
+ * (design §6.2): neighbor edge > playhead > tick > frame. Frame quantization
+ * (snapTimeToFrame) ALWAYS applies as the final step, even under Shift, so the
+ * result is a valid frame PTS (preview=bake). "Fine control" (Shift) means no
+ * magnetic pull — not off-grid.
+ */
+export function resolveSnap(rawSeconds: number, ctx: SnapContext): SnapResult {
+  const tol = Math.max(0, ctx.toleranceSeconds);
+  if (!ctx.disableMagnetism) {
+    const neighbor = nearestWithin(rawSeconds, ctx.neighborSeconds, tol);
+    if (neighbor !== null) return { seconds: snapTimeToFrame(neighbor, ctx.fps), snappedTo: 'neighbor' };
+
+    if (
+      typeof ctx.playheadSeconds === 'number' &&
+      Number.isFinite(ctx.playheadSeconds) &&
+      Math.abs(ctx.playheadSeconds - rawSeconds) <= tol
+    ) {
+      return { seconds: snapTimeToFrame(ctx.playheadSeconds, ctx.fps), snappedTo: 'playhead' };
+    }
+
+    const tick = nearestWithin(rawSeconds, ctx.tickSeconds, tol);
+    if (tick !== null) return { seconds: snapTimeToFrame(tick, ctx.fps), snappedTo: 'tick' };
+  }
+  return { seconds: snapTimeToFrame(rawSeconds, ctx.fps), snappedTo: 'frame' };
+}

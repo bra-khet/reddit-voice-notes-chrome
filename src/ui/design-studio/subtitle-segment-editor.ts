@@ -47,6 +47,11 @@ import {
   type MeasureWidth,
 } from '@/src/utils/text-metrics';
 import { mountSmartAdjustModal } from '@/src/ui/design-studio/smart-adjust-modal';
+import {
+  mountSubtitleTimelineEditor,
+  renderSubtitleTimelineEditorShell,
+  type TimelineEditorHandle,
+} from '@/src/ui/design-studio/subtitle-timeline-editor';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
 import { STUDIO_V4_ASSETS, studioV4AssetUrl } from '@/src/ui/design-studio/studio-v4-assets';
 import { LAST_RECORDING_READY_KEY } from '@/src/settings/user-preferences';
@@ -199,6 +204,20 @@ export function renderSubtitleSegmentEditorFields(): string {
             screen; use ✂ Split or the highlighted <strong>Smart Adjust → Auto-fix</strong> button.
           </p>
           <div class="studio__transcript-modal-tools">
+            <div class="studio__cue-view-toggle" role="group" aria-label="Editor view">
+              <button
+                type="button"
+                class="studio__cue-view-btn studio__cue-view-btn--active"
+                data-transcript-view="timeline"
+                aria-pressed="true"
+              >Timeline</button>
+              <button
+                type="button"
+                class="studio__cue-view-btn"
+                data-transcript-view="list"
+                aria-pressed="false"
+              >List</button>
+            </div>
             <div class="studio__transcript-modal-tools-row">
               <button type="button" class="popup__profile-btn" data-transcript-validate-all>
                 Validate all cues
@@ -221,7 +240,10 @@ export function renderSubtitleSegmentEditorFields(): string {
             </div>
             <span class="studio__transcript-validate-summary popup__field-desc" data-transcript-validate-summary hidden></span>
           </div>
-          <div class="studio__transcript-segments" data-transcript-segments></div>
+          ${renderSubtitleTimelineEditorShell()}
+          <div class="studio__transcript-list-view" data-transcript-list-view hidden>
+            <div class="studio__transcript-segments" data-transcript-segments></div>
+          </div>
           <button
             type="button"
             class="studio__transcript-add-segment"
@@ -311,6 +333,11 @@ export function mountSubtitleSegmentEditor(
   const smartAdjustBtn = panel.querySelector<HTMLButtonElement>('[data-transcript-smart-adjust]')!;
   const smartAdjustHintEl = panel.querySelector<HTMLElement>('[data-transcript-smart-adjust-hint]')!;
   const validateSummaryEl = panel.querySelector<HTMLElement>('[data-transcript-validate-summary]')!;
+  const timelineContainer = panel.querySelector<HTMLElement>('[data-transcript-timeline]')!;
+  const listViewEl = panel.querySelector<HTMLElement>('[data-transcript-list-view]')!;
+  const viewToggleBtns = Array.from(
+    panel.querySelectorAll<HTMLButtonElement>('[data-transcript-view]'),
+  );
 
   const smartAdjustModal = mountSmartAdjustModal(panel);
 
@@ -325,10 +352,38 @@ export function mountSubtitleSegmentEditor(
   let loadedSourceKey = '';
   let deliveryStatus: TranscriptDeliveryStatus = 'idle';
   let playingSegmentIndex: number | null = null;
+  // CHANGED: v5.8.0 — timeline view is the primary surface; the list is a toggle.
+  // WHY: spatial editing (drag/resize/scrub) with full semiotic parity, wired to
+  //      the same modalDraft + dirty→partial-rebake pipeline as the list.
+  let selectedSegmentIndex: number | null = null;
+  let viewMode: 'timeline' | 'list' = 'timeline';
 
   const cuePlayer = createSegmentCuePlayer();
   // CHANGED: v5.3 — per-cue delete affordance (nav-chip + chevron-X asset).
   const cueDeleteIconUrl = studioV4AssetUrl(STUDIO_V4_ASSETS.icons.cueDeleteX16);
+
+  // CHANGED: v5.8.0 — mount the timeline editor. It reads modalDraft + selection
+  // via deps (never owns them); mutations still flow through the list helpers.
+  const timelineHandle: TimelineEditorHandle = mountSubtitleTimelineEditor(panel, {
+    getSegments: () => modalDraft,
+    getSelectedIndex: () => selectedSegmentIndex,
+    // Same clip reference the OOB check uses, so OOB bars align with the clip-end marker.
+    getClipDurationSeconds: () => clipDurationForOob(),
+    onSelect: (index) => {
+      selectedSegmentIndex = index;
+    },
+    onRequestPlay: (index) => {
+      void playTimelineCue(index);
+    },
+    onRequestStop: () => {
+      cuePlayer.stop();
+      playingSegmentIndex = null;
+      timelineHandle.endPlaybackSweep();
+      timelineHandle.render();
+    },
+    isPlayingIndex: (index) => playingSegmentIndex === index,
+    hasAudio: () => cuePlayer.hasSource(),
+  });
 
   interface CaptionMetrics extends CaptionMetricsContext {
     measure: MeasureWidth;
@@ -793,6 +848,9 @@ export function mountSubtitleSegmentEditor(
       segmentsEl.append(row);
     }
     syncSmartAdjustAffordance(metrics);
+    // v5.8.0 — keep the timeline view in sync with any list re-render (it reads
+    // modalDraft via deps; no-op/early-return when hidden or zero-width).
+    timelineHandle.render();
   }
 
   function syncModalSegmentUiFromCache(): void {
@@ -889,6 +947,51 @@ export function mountSubtitleSegmentEditor(
     modalDraft = readModalDraft();
   }
 
+  // CHANGED: v5.8.0 — swap between the timeline (primary) and list (secondary)
+  // views. Both read the same modalDraft, so the switch is lossless: entering the
+  // timeline first captures any in-flight list edits from the DOM.
+  function applyViewMode(): void {
+    const timelineActive = viewMode === 'timeline';
+    timelineContainer.hidden = !timelineActive;
+    listViewEl.hidden = timelineActive;
+    for (const btn of viewToggleBtns) {
+      const active = btn.dataset.transcriptView === viewMode;
+      btn.classList.toggle('studio__cue-view-btn--active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+    if (timelineActive) {
+      syncModalDraftFromDom();
+      timelineHandle.render();
+    } else {
+      renderModalSegments();
+    }
+  }
+
+  // CHANGED: v5.8.0 — timeline per-cue preview. Mirrors playSegmentAtIndex but
+  // sources timing from modalDraft (no list row) and sweeps the timeline playhead
+  // for the play window. The shared playPoll resets state when playback ends.
+  async function playTimelineCue(index: number): Promise<void> {
+    const segment = modalDraft[index];
+    if (!segment || !cuePlayer.hasSource()) return;
+    const clipDuration = clipDurationForPlayback();
+    cuePlayer.stop();
+    playingSegmentIndex = index;
+    timelineHandle.render();
+    const sweepEnd = clipDuration !== null ? Math.min(segment.end, clipDuration) : segment.end;
+    timelineHandle.beginPlaybackSweep(segment.start, sweepEnd);
+    try {
+      await cuePlayer.playSegment(segment.start, segment.end, clipDuration);
+    } catch (error) {
+      console.warn('[Reddit Voice Notes] Timeline cue preview failed', error);
+    } finally {
+      if (!cuePlayer.isPlaying()) {
+        playingSegmentIndex = null;
+        timelineHandle.endPlaybackSweep();
+        timelineHandle.render();
+      }
+    }
+  }
+
   function addSegment(): void {
     syncModalDraftFromDom();
     const clipDuration =
@@ -932,6 +1035,8 @@ export function mountSubtitleSegmentEditor(
     syncModalDraftFromDom();
     if (index < 0 || index >= modalDraft.length) return;
     modalDraft = [...modalDraft.slice(0, index), ...modalDraft.slice(index + 1)];
+    // Selection indices shift on delete — clear rather than point at the wrong cue.
+    selectedSegmentIndex = null;
     renderModalSegments();
   }
 
@@ -940,8 +1045,11 @@ export function mountSubtitleSegmentEditor(
     hideModalUnsavedPrompt();
     modalDraft = edited.segments.map((segment) => ({ ...segment }));
     modalOpenBaseline = modalDraft.map((segment) => ({ ...segment }));
+    selectedSegmentIndex = null;
     renderModalSegments();
     modalEl.hidden = false;
+    // Reveal the active view now the dialog has layout (track width is measurable).
+    applyViewMode();
     // CHANGED: drop the caret into the first slot when scaffolding (v5.3 Phase 4)
     // so the user can start typing captions immediately.
     if (inScaffoldMode()) {
@@ -955,6 +1063,8 @@ export function mountSubtitleSegmentEditor(
     smartAdjustModal.close();
     cuePlayer.stop();
     playingSegmentIndex = null;
+    selectedSegmentIndex = null;
+    timelineHandle.endPlaybackSweep();
     modalEl.hidden = true;
     modalDraft = [];
     modalOpenBaseline = [];
@@ -1154,6 +1264,14 @@ export function mountSubtitleSegmentEditor(
     void validateAllCues(true);
   });
   smartAdjustBtn.addEventListener('click', openSmartAdjustMenu);
+  for (const btn of viewToggleBtns) {
+    btn.addEventListener('click', () => {
+      const mode = btn.dataset.transcriptView;
+      if ((mode !== 'timeline' && mode !== 'list') || mode === viewMode) return;
+      viewMode = mode;
+      applyViewMode();
+    });
+  }
   modalCloseBtn.addEventListener('click', requestCloseModal);
   modalCancelBtn.addEventListener('click', requestCloseModal);
   modalSaveBtn.addEventListener('click', applyModalDraft);
@@ -1247,7 +1365,11 @@ export function mountSubtitleSegmentEditor(
   const playPoll = window.setInterval(() => {
     if (!cuePlayer.isPlaying() && playingSegmentIndex !== null) {
       playingSegmentIndex = null;
-      if (!modalEl.hidden) refreshModalSegmentUi();
+      timelineHandle.endPlaybackSweep();
+      if (!modalEl.hidden) {
+        refreshModalSegmentUi();
+        timelineHandle.render();
+      }
     }
   }, 200);
 
@@ -1255,6 +1377,7 @@ export function mountSubtitleSegmentEditor(
     dispose(): void {
       closeModal();
       smartAdjustModal.dispose();
+      timelineHandle.dispose();
       document.removeEventListener('keydown', onModalKeydown);
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onStorageRefresh);

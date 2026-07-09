@@ -2375,3 +2375,302 @@ details[open] .wf-why__summary::before {
    blocks (white panels, Reddit-blue #0079d3 step dots / alignment bars) were removed
    in polish-v5; do not reintroduce a light variant here. */
 
+/* ══════════════════════════════════════════════════════════════════════════
+   v5.8.0 — Timeline visual subtitle editor (Sprint 2 foundation)
+   Cividis indigo→amber axis (studio-palette.css). Every cue STATE pairs its hue
+   with a non-color signal (label/icon/border) — CVD-safe, design §4. State is
+   declared via --modifier classes so the palette map is one source of truth.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* View toggle (Timeline / List) */
+.studio__cue-view-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: 8px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.studio__cue-view-btn {
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: var(--studio-text-muted);
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-meta);
+  letter-spacing: var(--studio-letter-meta);
+  cursor: pointer;
+}
+
+.studio__cue-view-btn--active {
+  background: var(--studio-surface-raised);
+  color: var(--studio-text);
+}
+
+.studio__cue-view-btn:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: -2px;
+}
+
+/* Timeline shell */
+.studio__cue-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.studio__cue-timeline[hidden] {
+  display: none;
+}
+
+/* Ruler */
+.studio__cue-timeline-ruler {
+  position: relative;
+  height: 26px;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+  border-bottom: 1px solid var(--studio-hairline);
+}
+
+.studio__cue-timeline-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 6px;
+  background: var(--studio-indigo-muted);
+  opacity: 0.5;
+}
+
+.studio__cue-timeline-tick--major {
+  height: 10px;
+  opacity: 0.85;
+}
+
+.studio__cue-timeline-tick-label {
+  position: absolute;
+  top: 11px;
+  left: 0;
+  transform: translateX(-50%);
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--studio-indigo-muted);
+  white-space: nowrap;
+}
+
+/* Track — bars ride a single horizontal lane; will-change on the CONTAINER only. */
+.studio__cue-timeline-track {
+  position: relative;
+  height: 56px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--studio-bg-deep), var(--studio-panel-edge));
+  border: 1px solid var(--studio-hairline);
+  overflow: hidden;
+  contain: layout paint;
+  will-change: transform;
+}
+
+.studio__cue-timeline-track:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+/* Cue bar — NORMAL = indigo base fill (design §4.1) */
+.studio__cue-bar {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  height: 40px;
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--studio-accent-bars), var(--studio-indigo-accent));
+  border: 1px solid var(--studio-indigo-accent);
+  color: #0a0014;
+  cursor: pointer;
+  overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
+}
+
+.studio__cue-bar-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 8px;
+  flex: 1;
+}
+
+.studio__cue-bar-label {
+  font-family: var(--studio-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(10, 0, 20, 0.28);
+  color: #0a0014;
+  flex-shrink: 0;
+}
+
+.studio__cue-bar-text {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Resize handles — 16px targets (geometry EDGE_HANDLE_PX); revealed on hover/selection */
+.studio__cue-bar-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.studio__cue-bar-handle--start {
+  left: 0;
+  box-shadow: inset 2px 0 0 rgba(10, 0, 20, 0.4);
+}
+
+.studio__cue-bar-handle--end {
+  right: 0;
+  box-shadow: inset -2px 0 0 rgba(10, 0, 20, 0.4);
+}
+
+.studio__cue-bar:hover .studio__cue-bar-handle,
+.studio__cue-bar--selected .studio__cue-bar-handle {
+  opacity: 1;
+}
+
+/* SELECTED = amber fill + focus ring (design §4.1) */
+.studio__cue-bar--selected {
+  background: linear-gradient(180deg, var(--studio-accent-subtitles), var(--studio-amber-dim));
+  border-color: var(--studio-amber);
+  box-shadow: 0 0 0 2px var(--studio-focus), 0 2px 10px rgba(255, 213, 79, 0.25);
+  z-index: 2;
+}
+
+/* NOW PLAYING = amber glow + progress fill (paired with ■ in inspector) */
+.studio__cue-bar--playing {
+  box-shadow: 0 0 0 1px var(--studio-amber), 0 0 12px var(--studio-track-glow);
+}
+
+/* SCAFFOLD-empty = muted indigo dashed outline + "(empty)" ghost text */
+.studio__cue-bar--scaffold {
+  background: rgba(138, 134, 176, 0.12);
+  border: 1px dashed var(--studio-indigo-muted);
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-bar--scaffold .studio__cue-bar-label {
+  background: rgba(138, 134, 176, 0.18);
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-bar--scaffold .studio__cue-bar-text {
+  font-style: italic;
+  color: var(--studio-indigo-muted);
+}
+
+/* OOB = red end-cap stripe past the clip-end marker (paired with ⚠ OOB pill later) */
+.studio__cue-bar--oob {
+  border-right: 3px solid var(--studio-negate-edge);
+}
+
+.studio__cue-bar--oob::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 107, 107, 0.55) 0,
+    rgba(255, 107, 107, 0.55) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  pointer-events: none;
+}
+
+/* Playhead — amber line + glow, driven by cuePlayer sweep or ruler scrub */
+.studio__cue-timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--studio-amber);
+  box-shadow: 0 0 8px var(--studio-track-glow);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.studio__cue-timeline-playhead[hidden] {
+  display: none;
+}
+
+/* Clip-end marker — the OOB reference boundary */
+.studio__cue-timeline-clip-end {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-left: 1px dashed rgba(255, 107, 107, 0.6);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Selected-cue inspector strip (Sprint 2 = read-only summary + cuePlayer preview) */
+.studio__cue-timeline-inspector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 0;
+}
+
+.studio__cue-timeline-inspector[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-inspector-label {
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-body);
+  color: var(--studio-text);
+}
+
+.studio__cue-timeline-inspector-range {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--studio-amber);
+  background: var(--studio-panel-edge);
+  border: 1px solid #2a2a44;
+  border-radius: 3px;
+  padding: 2px 7px;
+  text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
+}
+
+.studio__cue-timeline-empty {
+  margin: 6px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__cue-bar-handle {
+    transition: none;
+  }
+  .studio__cue-bar--playing {
+    box-shadow: 0 0 0 2px var(--studio-amber);
+  }
+}
+
