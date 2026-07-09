@@ -19,9 +19,9 @@ Packet-level splice execution behind `coordinateRebake` — re-composite only di
 | Gate | Status |
 |------|--------|
 | A happy path (AVC splice) | **PASS** |
-| B honesty + fidelity fallback | **PASS** (B3 unit-only; no bake-cancel GUI) |
+| B honesty + fidelity fallback | **PASS** (B3: close-window abort retains prior MP4) |
 | C1 AVC | **PASS** |
-| C2 VP9 | **OPEN** (force codec candidates order — see checklist) |
+| C2 VP9 | **RETEST** after VP9 `latencyMode:realtime` fix (A1 passed; A2 scan-gate pre-fix) |
 | D honest fallbacks | **PASS** |
 | E download / attach / artifact | **PASS** |
 | Single-machine sign-off (A+B+(C1∨C2)+D+E) | **Ready (AVC)** once B3 accepted as unit-only |

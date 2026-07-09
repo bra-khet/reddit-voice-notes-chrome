@@ -136,7 +136,8 @@ export interface KeyframeScan {
  * frame — so packet index IS the global frame index. Returns null (→ caller
  * falls back to full) when: no packets, the first packet isn't a keyframe, or
  * presentation timestamps aren't strictly increasing in decode order (B-frames
- * / VFR reordering — a packet-index splice would corrupt such a stream).
+ * / VP9 alt-ref / VFR reordering — a packet-index splice would corrupt such a
+ * stream).
  */
 export function scanKeyframes(packets: readonly ScanPacketLike[]): KeyframeScan | null {
   if (packets.length === 0) return null;
@@ -153,6 +154,34 @@ export function scanKeyframes(packets: readonly ScanPacketLike[]): KeyframeScan 
     if (packet.type === 'key') keyframeFrames.push(i);
   }
   return { keyframeFrames, frameCount: packets.length };
+}
+
+/**
+ * Human-readable reason when {@link scanKeyframes} returns null. Used by the
+ * browser splice executor so the console names the gate (first-not-key vs
+ * non-monotonic PTS / alt-ref reordering) instead of a lumped generic string.
+ * Pure; mirrors the same checks as scanKeyframes.
+ */
+export function diagnoseKeyframeScanFailure(packets: readonly ScanPacketLike[]): string {
+  if (packets.length === 0) return 'no video packets';
+  if (packets[0].type !== 'key') {
+    return `first packet is '${packets[0].type}' (need leading keyframe)`;
+  }
+  let previousTimestamp = -Infinity;
+  let keyCount = 0;
+  for (let i = 0; i < packets.length; i += 1) {
+    const packet = packets[i];
+    if (!(packet.timestamp > previousTimestamp)) {
+      return (
+        `non-monotonic PTS at packet ${i}/${packets.length}: ` +
+        `${previousTimestamp.toFixed(6)}s → ${packet.timestamp.toFixed(6)}s ` +
+        `(reordering/alt-ref/VFR; ${keyCount} key(s) seen before fail)`
+      );
+    }
+    previousTimestamp = packet.timestamp;
+    if (packet.type === 'key') keyCount += 1;
+  }
+  return 'unknown (scanKeyframes null without matching diagnostic)';
 }
 
 function fullPlan(reason: string, coverageRatio = 1): SplicePlan {

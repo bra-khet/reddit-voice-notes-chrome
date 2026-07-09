@@ -39,7 +39,9 @@
  * byte-compatible here. Structural output is validated (frame count + duration);
  * PIXEL correctness across the splice boundary is only guaranteed by the
  * decode-back fidelity check (Phase 2b sprint 4) + user QA. VP9 keyframes are
- * self-contained and splice cleanly; AVC relies on that decode-back proof.
+ * self-contained once the stream is splice-friendly (strictly increasing PTS —
+ * browser composite forces VP9 latencyMode realtime to avoid alt-ref reorder);
+ * AVC relies on that decode-back proof.
  * FAILURE POLICY: any precondition miss returns null (caller runs the full
  * composite); a mid-run error throws. Never a partial/broken result adopted.
  *
@@ -81,6 +83,7 @@ import {
   computeSpliceReencodeRatio,
   computeSpliceAssembleRatio,
   planSplice,
+  diagnoseKeyframeScanFailure,
   scanKeyframes,
   selectSpliceFidelityAnchors,
   validateSplicePlan,
@@ -181,10 +184,17 @@ async function scanVideoPackets(
   for await (const packet of sink.packets(undefined, undefined, { verifyKeyPackets: true })) {
     packets.push(packet);
   }
-  const scan = scanKeyframes(
-    packets.map((packet) => ({ timestamp: packet.timestamp, type: packet.type })),
-  );
-  if (!scan) return null;
+  const metas = packets.map((packet) => ({ timestamp: packet.timestamp, type: packet.type }));
+  const scan = scanKeyframes(metas);
+  if (!scan) {
+    // CHANGED: surface the concrete scan gate (first-not-key vs non-monotonic PTS)
+    // WHY: VP9 quality-mode alt-ref reordering was lumped into a generic message;
+    //      C2 QA could not tell scan-gate from fidelity-gate without this detail.
+    console.warn(
+      `${EXTENSION_LOG_PREFIX} Composite splice: scan rejected — ${diagnoseKeyframeScanFailure(metas)}.`,
+    );
+    return null;
+  }
   return { packets, keyframeFrames: scan.keyframeFrames, frameCount: scan.frameCount };
 }
 
@@ -242,7 +252,13 @@ async function encodeRegion(
     height: support.height,
     bitrate: BROWSER_COMPOSITE_VIDEO_BPS,
     framerate: support.averageFps,
-    latencyMode: 'quality',
+    // BUG FIX: VP9 quality-mode alt-ref reordering
+    // Fix: VP9 uses realtime so decode-order PTS stays strictly increasing
+    //      (scanKeyframes / packet-index splice). AVC keeps quality (no B-frames
+    //      on our path; already splice-friendly). Offline bake awaits each frame
+    //      so realtime "may drop" is not expected under backpressure.
+    // Sync: browser-composite.ts CanvasSource latencyMode for VP9
+    latencyMode: support.outputCodec === 'vp9' ? 'realtime' : 'quality',
     // Length-prefixed AVC bitstream so mediabunny's MP4 muxer accepts the packets.
     ...(support.outputCodec === 'avc' ? { avc: { format: 'avc' as const } } : {}),
   });
@@ -347,9 +363,9 @@ export async function renderCompositeSplice(
     const scanStartedAt = performance.now();
     const scan = await scanVideoPackets(videoTrack);
     if (!scan) {
+      // Detail already logged in scanVideoPackets (diagnoseKeyframeScanFailure).
       console.warn(
-        `${EXTENSION_LOG_PREFIX} Composite splice: artifact not splice-friendly ` +
-          `(reordered/VFR/no keyframe) — full composite.`,
+        `${EXTENSION_LOG_PREFIX} Composite splice: artifact not splice-friendly — full composite.`,
       );
       return null;
     }

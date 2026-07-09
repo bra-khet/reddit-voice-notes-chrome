@@ -42,6 +42,7 @@ const {
   alignFrameToKeyframeEnd,
   planSplice,
   scanKeyframes,
+  diagnoseKeyframeScanFailure,
   selectSpliceFidelityAnchors,
   validateSplicePlan,
   validateSpliceOutput,
@@ -405,6 +406,26 @@ check('rejects duplicate timestamps (breaks 1:1 index mapping)', () => {
     { timestamp: 1 / 24, type: 'delta' },
   ];
   assert.equal(scanKeyframes(packets), null);
+});
+
+check('diagnoseKeyframeScanFailure: empty', () => {
+  assert.match(diagnoseKeyframeScanFailure([]), /no video packets/);
+});
+
+check('diagnoseKeyframeScanFailure: first-not-key', () => {
+  assert.match(diagnoseKeyframeScanFailure(packetsAt(24, 5, [2])), /first packet is 'delta'/);
+});
+
+check('diagnoseKeyframeScanFailure: non-monotonic PTS (alt-ref style)', () => {
+  const packets = [
+    { timestamp: 0, type: 'key' },
+    { timestamp: 0.333, type: 'delta' }, // alt-ref with future PTS
+    { timestamp: 0.041, type: 'delta' }, // then normal frame → non-monotonic
+  ];
+  assert.equal(scanKeyframes(packets), null);
+  const reason = diagnoseKeyframeScanFailure(packets);
+  assert.match(reason, /non-monotonic PTS at packet 2/);
+  assert.match(reason, /alt-ref/);
 });
 
 console.log('selectSpliceFidelityAnchors — the decode-back gate probes');

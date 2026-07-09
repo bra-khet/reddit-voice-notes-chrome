@@ -98,6 +98,14 @@ Working checklist (living): [`.ignore/QA-5.7.0/checklist.md`](.ignore/QA-5.7.0/c
 
 **Remaining for ideal sign-off:** C2 VP9 once. Single-machine sign-off allows C1 alone. Default-on remains a **separate** decision after formal sign-off.
 
+### Real-browser QA follow-up — B3 + C2 VP9 scan gate (2026-07-08)
+
+- **B3 PASS:** user closed Studio mid-splice → abort; reopened with prior baked MP4 intact (no partial/corrupt write).
+- **C2-A1 PASS** (`c2-a1.log`): full composite with `vp9`.
+- **C2-A2 FAIL (pre-fix):** plan `partial` but `scanKeyframes` → "not splice-friendly" → honest full (`c2-a2-attempt-1/2.log`). Root cause: Chrome VP9 + quality latencyMode **alt-ref** → non-monotonic decode-order PTS; gate correctly refused a packet-index splice.
+- **Fix:** VP9 encode paths (`browser-composite` CanvasSource + `composite-splice` encodeRegion) use `latencyMode: 'realtime'`; `diagnoseKeyframeScanFailure` logs concrete scan reject reason. Restored production codec order `['avc','vp9']` (C2 temp flip had been left on). Tests: `test-splice-plan` **36/36**.
+- **Retest:** new VP9 baseline after rebuild (old VP9 bakes remain not splice-friendly), then C2-A2.
+
 ---
 
 ## v5.6.0 — Audio Decoupling + Editing-Suite Backend — **TAGGED** `v5.6.0`
