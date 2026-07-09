@@ -284,3 +284,62 @@ export function resolveSnap(rawSeconds: number, ctx: SnapContext): SnapResult {
   }
   return { seconds: snapTimeToFrame(rawSeconds, ctx.fps), snappedTo: 'frame' };
 }
+
+// ── Edit constraints (clamp-to-neighbor policy, design §6.1) ────────────────
+
+/** Minimum editable cue duration — mirrors transcript-editing's editor floor. */
+export const MIN_CUE_DURATION_SECONDS = 0.5;
+
+/**
+ * Neighbor + duration bounds for a single cue edit. `prevEndSeconds` is the left
+ * neighbor's end (0 if none); `nextStartSeconds` is the right neighbor's start
+ * (track duration if none). The clamp policy (authoritative, user-confirmed):
+ * cues may touch a neighbor edge but never overlap it.
+ */
+export interface CueEditContext {
+  prevEndSeconds: number;
+  nextStartSeconds: number;
+  minDurationSeconds?: number;
+}
+
+function clampValue(value: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, value));
+}
+
+/** Clamp a proposed START: never before the left neighbor's end, never within minDur of end. */
+export function constrainResizeStart(
+  rawStart: number,
+  endSeconds: number,
+  ctx: CueEditContext,
+): number {
+  const minDur = ctx.minDurationSeconds ?? MIN_CUE_DURATION_SECONDS;
+  const lo = Math.max(0, ctx.prevEndSeconds);
+  const hi = endSeconds - minDur;
+  if (hi < lo) return lo; // bar smaller than minDur (degenerate) — pin to the floor
+  return clampValue(rawStart, lo, hi);
+}
+
+/** Clamp a proposed END: never within minDur of start, never past the right neighbor's start. */
+export function constrainResizeEnd(
+  startSeconds: number,
+  rawEnd: number,
+  ctx: CueEditContext,
+): number {
+  const minDur = ctx.minDurationSeconds ?? MIN_CUE_DURATION_SECONDS;
+  const lo = startSeconds + minDur;
+  const hi = ctx.nextStartSeconds;
+  if (hi < lo) return lo;
+  return clampValue(rawEnd, lo, hi);
+}
+
+/** Clamp a whole-bar MOVE (duration preserved) so it fits between its neighbors. */
+export function constrainMove(
+  rawStart: number,
+  durationSeconds: number,
+  ctx: CueEditContext,
+): { start: number; end: number } {
+  const lo = Math.max(0, ctx.prevEndSeconds);
+  const hi = ctx.nextStartSeconds - durationSeconds;
+  const start = hi < lo ? lo : clampValue(rawStart, lo, hi);
+  return { start, end: start + durationSeconds };
+}

@@ -50,6 +50,7 @@ import { mountSmartAdjustModal } from '@/src/ui/design-studio/smart-adjust-modal
 import {
   mountSubtitleTimelineEditor,
   renderSubtitleTimelineEditorShell,
+  TIMELINE_DEFAULT_FPS,
   type TimelineEditorHandle,
 } from '@/src/ui/design-studio/subtitle-timeline-editor';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
@@ -383,6 +384,29 @@ export function mountSubtitleSegmentEditor(
     },
     isPlayingIndex: (index) => playingSegmentIndex === index,
     hasAudio: () => cuePlayer.hasSource(),
+    getFps: () => TIMELINE_DEFAULT_FPS,
+    onCommitTiming: (index, start, end) => {
+      const segment = modalDraft[index];
+      if (!segment) return;
+      modalDraft[index] = { ...segment, start, end };
+    },
+    onCommitText: (index, text) => {
+      const segment = modalDraft[index];
+      if (!segment) return;
+      // Mirror readModalDraft: a blank field persists as the scaffold soft-hyphen
+      // so empty timed slots survive normalize (parity with the list editor).
+      modalDraft[index] = { ...segment, text: cueTextIsBlank(text) ? SCAFFOLD_SOFT_HYPHEN : text };
+    },
+    isDirtyIndex: (index) => {
+      const current = modalDraft[index];
+      const baseline = modalOpenBaseline[index];
+      if (!current || !baseline) return Boolean(current) !== Boolean(baseline);
+      return (
+        normalizeSegmentSeconds(current.start) !== normalizeSegmentSeconds(baseline.start) ||
+        normalizeSegmentSeconds(current.end) !== normalizeSegmentSeconds(baseline.end) ||
+        current.text !== baseline.text
+      );
+    },
   });
 
   interface CaptionMetrics extends CaptionMetricsContext {
@@ -526,7 +550,8 @@ export function mountSubtitleSegmentEditor(
 
   function isModalDirty(): boolean {
     if (modalEl.hidden) return false;
-    return !segmentsDraftEqual(readModalDraft(), modalOpenBaseline);
+    captureActiveDraft();
+    return !segmentsDraftEqual(modalDraft, modalOpenBaseline);
   }
 
   function hideModalUnsavedPrompt(): void {
@@ -947,6 +972,14 @@ export function mountSubtitleSegmentEditor(
     modalDraft = readModalDraft();
   }
 
+  // CHANGED: v5.8.0 — the ACTIVE view owns the draft. Capture from the list DOM
+  // only when List is showing; in Timeline view modalDraft is already current
+  // (drag/inspector edits write straight to it), so reading the stale list DOM
+  // would clobber them. See design §3C / the two-view source-of-truth rule.
+  function captureActiveDraft(): void {
+    if (viewMode === 'list') syncModalDraftFromDom();
+  }
+
   // CHANGED: v5.8.0 — swap between the timeline (primary) and list (secondary)
   // views. Both read the same modalDraft, so the switch is lossless: entering the
   // timeline first captures any in-flight list edits from the DOM.
@@ -993,7 +1026,7 @@ export function mountSubtitleSegmentEditor(
   }
 
   function addSegment(): void {
-    syncModalDraftFromDom();
+    captureActiveDraft();
     const clipDuration =
       clipDurationForOob() ?? clipDurationForPlayback() ?? resolvedClipMetaDuration();
     modalDraft.push(buildDefaultNewSegment(modalDraft, clipDuration));
@@ -1009,7 +1042,7 @@ export function mountSubtitleSegmentEditor(
   // (transcript-editing.splitSegmentIntoChunks). Operates on the live DOM draft so
   // unsaved edits to the cue are respected before splitting.
   function splitSegmentAtIndex(index: number): void {
-    syncModalDraftFromDom();
+    captureActiveDraft();
     const segment = modalDraft[index];
     if (!segment) return;
     const text = stripScaffoldPlaceholder(segment.text).trim();
@@ -1032,7 +1065,7 @@ export function mountSubtitleSegmentEditor(
   // Cancel/Discard (the deletion isn't committed until Apply to preview), so no
   // confirm prompt is needed. Operates on the live DOM draft to keep sibling edits.
   function deleteSegmentAtIndex(index: number): void {
-    syncModalDraftFromDom();
+    captureActiveDraft();
     if (index < 0 || index >= modalDraft.length) return;
     modalDraft = [...modalDraft.slice(0, index), ...modalDraft.slice(index + 1)];
     // Selection indices shift on delete — clear rather than point at the wrong cue.
@@ -1088,7 +1121,7 @@ export function mountSubtitleSegmentEditor(
     validateSummaryEl.hidden = false;
     validateSummaryEl.textContent = 'Validating cues…';
 
-    syncModalDraftFromDom();
+    captureActiveDraft();
     const metrics = buildCaptionMetrics();
     let overflowCount = 0;
     let marginalCount = 0;
@@ -1115,7 +1148,7 @@ export function mountSubtitleSegmentEditor(
   }
 
   function applySmartAdjustProposal(proposal: SmartAdjustProposal): void {
-    syncModalDraftFromDom();
+    captureActiveDraft();
     modalDraft = proposal.segments.map((segment) => ({ ...segment }));
     if (proposal.isGlobal && typeof proposal.globalFontSize === 'number') {
       handlers?.onApplyGlobalFontSize?.(proposal.globalFontSize);
@@ -1126,7 +1159,7 @@ export function mountSubtitleSegmentEditor(
   }
 
   function openSmartAdjustMenu(): void {
-    syncModalDraftFromDom();
+    captureActiveDraft();
     const metrics = buildCaptionMetrics();
     const draftEdited = draftAsEditedResult();
     const overflowing =
@@ -1168,7 +1201,8 @@ export function mountSubtitleSegmentEditor(
 
   function applyModalDraft(): void {
     if (!edited) return;
-    const segments = readModalDraft();
+    captureActiveDraft();
+    const segments = modalDraft;
     // CHANGED: keep empty timed slots while in scaffold mode (v5.3 Phase 4) so the
     // template survives partial fills — empties still bake to nothing.
     edited = normalizeEditedTranscriptResult(edited, segments, {

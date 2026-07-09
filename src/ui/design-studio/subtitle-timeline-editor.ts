@@ -1,55 +1,89 @@
 /**
- * v5.8.0 — Timeline visual subtitle editor (Sprint 2: read-only foundation).
+ * v5.8.0 — Timeline visual subtitle editor (Sprint 3: drag / resize / inspector).
  *
  * The spatial view of the cue draft: a time ruler, cue bars positioned by
- * start / sized by duration, a playhead, and click-to-select. Sprint 2 is
- * render + selection + a playhead the cuePlayer drives via an elapsed-time
- * sweep (the cue player has no currentTime — it plays a fixed [start,end]
- * window). Drag/resize, live badges, and the full inspector land in later
- * sprints; the host still owns the `draft` and all mutations.
+ * start / sized by duration, a playhead, click-to-select, body-drag to move,
+ * edge-handle resize, and a live two-way inspector. Timing is frame-snapped
+ * with magnetism (neighbor edge > playhead > tick) and clamped so cues touch
+ * but never overlap (clamp-to-neighbor policy). The host still owns the draft:
+ * the component reads it via deps and writes edits back through deps — it never
+ * mutates the array itself, so the list view and the bake pipeline stay in sync.
  *
- * Substrate: DOM + CSS transforms (design §3B) so the existing semiotic DOM,
- * a11y, and cuePlayer wiring port directly. Geometry is delegated to the pure
- * timeline-geometry.ts; frame math (later, for snapping) to timeline.ts.
+ * Substrate: DOM + CSS transforms (design §3B). Geometry/constraints are the
+ * pure timeline-geometry.ts; frame math is timeline.ts (preview=bake, I11).
  *
  * Sync: subtitle-segment-editor.ts (host: mounts, owns draft + selection),
- *       timeline-geometry.ts (layout/hit/snap), style.css (.studio__cue-timeline*)
+ *       timeline-geometry.ts (layout/hit/snap/constrain), style.css
  */
 
 import type { TranscriptSegment } from '@/src/transcription/types';
 import { cueTextIsBlank, formatCueTimestamp, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import { segmentHasOutOfBoundsEnd } from '@/src/transcription/segment-timing';
 import {
+  constrainMove,
+  constrainResizeEnd,
+  constrainResizeStart,
   generateRulerTicks,
+  layoutBar,
   layoutBars,
+  pxDeltaToSeconds,
   pxToSeconds,
+  resolveSnap,
   secondsToPx,
+  type CueEditContext,
   type TimelineViewport,
 } from '@/src/ui/design-studio/timeline-geometry';
 
-/** Fallback compositing fps (matches the overlay backbone). Used for snapping in Sprint 3. */
+/** Fallback compositing fps (matches the overlay backbone). */
 export const TIMELINE_DEFAULT_FPS = 24;
+
+/** Neighbor-edge magnetism radius (px) — strongest, for clustering (design §6.2). */
+const NEIGHBOR_MAGNET_PX = 12;
+/** Playhead / tick magnetism radius (px) — softer than neighbor pull. */
+const SOFT_MAGNET_PX = 8;
+/** Movement under this (px) is a click (select), not a drag. */
+const CLICK_SLOP_PX = 3;
+/** Vertical stray beyond this (px) suspends the drag; it re-acquires on return (§6.1.1). */
+const VERTICAL_TOLERANCE_PX = 90;
+
+type DragZone = 'start' | 'end' | 'body';
+
+interface DragState {
+  index: number;
+  zone: DragZone;
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  origStart: number;
+  origEnd: number;
+  origDuration: number;
+  ctx: CueEditContext;
+  moved: boolean;
+  suspended: boolean;
+}
 
 export interface TimelineEditorDeps {
   getSegments(): TranscriptSegment[];
   getSelectedIndex(): number | null;
   getClipDurationSeconds(): number | null;
+  getFps(): number;
   onSelect(index: number | null): void;
-  /** Ask the host to preview a cue via the shared cuePlayer (host then sweeps the playhead). */
   onRequestPlay(index: number): void;
   onRequestStop(): void;
   isPlayingIndex(index: number): boolean;
   hasAudio(): boolean;
+  /** Write a timing edit back to the host draft (host owns the array). */
+  onCommitTiming(index: number, startSeconds: number, endSeconds: number): void;
+  /** Write a text edit back to the host draft (host applies the blank→scaffold rule). */
+  onCommitText(index: number, text: string): void;
+  /** Has this cue changed since the editor opened? (drives the dirty bar state) */
+  isDirtyIndex(index: number): boolean;
 }
 
 export interface TimelineEditorHandle {
-  /** Full re-render from current host state (segments, selection, clip). */
   render(): void;
-  /** Position the playhead (null hides it). */
   setPlayheadSeconds(seconds: number | null): void;
-  /** Begin a cuePlayer-driven elapsed-time sweep across [start,end]. */
   beginPlaybackSweep(startSeconds: number, endSeconds: number): void;
-  /** End the sweep and hide the playhead. */
   endPlaybackSweep(): void;
   dispose(): void;
 }
@@ -60,6 +94,10 @@ function escapeHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export function renderSubtitleTimelineEditorShell(): string {
@@ -95,8 +133,11 @@ export function mountSubtitleTimelineEditor(
   const emptyEl = container.querySelector<HTMLElement>('[data-timeline-empty]')!;
 
   let viewport: TimelineViewport = { durationSeconds: 0, trackWidthPx: 0 };
+  let clipCache: number | null = null;
+  let tickSecondsCache: number[] = [];
   let playheadSeconds: number | null = null;
   let sweepRaf = 0;
+  let drag: DragState | null = null;
 
   function resolveDuration(segments: TranscriptSegment[], clip: number | null): number {
     let maxEnd = 0;
@@ -106,9 +147,31 @@ export function mountSubtitleTimelineEditor(
     return Math.max(clip ?? 0, maxEnd, 0);
   }
 
+  /** Immediate left/right neighbors by start position (clamp bounds). */
+  function neighborContext(segments: TranscriptSegment[], index: number): CueEditContext {
+    const start = segments[index].start;
+    let prevEndSeconds = 0;
+    let bestPrevStart = -Infinity;
+    let nextStartSeconds = viewport.durationSeconds;
+    let bestNextStart = Infinity;
+    segments.forEach((other, j) => {
+      if (j === index) return;
+      if (other.start < start && other.start > bestPrevStart) {
+        bestPrevStart = other.start;
+        prevEndSeconds = other.end;
+      }
+      if (other.start > start && other.start < bestNextStart) {
+        bestNextStart = other.start;
+        nextStartSeconds = other.start;
+      }
+    });
+    return { prevEndSeconds, nextStartSeconds };
+  }
+
   function barStateClasses(segment: TranscriptSegment, index: number, clip: number | null): string {
     const classes: string[] = ['studio__cue-bar'];
     if (index === deps.getSelectedIndex()) classes.push('studio__cue-bar--selected');
+    if (deps.isDirtyIndex(index)) classes.push('studio__cue-bar--dirty');
     if (cueTextIsBlank(segment.text)) classes.push('studio__cue-bar--scaffold');
     if (clip !== null && segmentHasOutOfBoundsEnd(segment, clip)) classes.push('studio__cue-bar--oob');
     if (deps.isPlayingIndex(index)) classes.push('studio__cue-bar--playing');
@@ -117,6 +180,7 @@ export function mountSubtitleTimelineEditor(
 
   function renderRuler(): void {
     const ticks = generateRulerTicks(viewport);
+    tickSecondsCache = ticks.filter((tick) => tick.major).map((tick) => tick.seconds);
     rulerEl.innerHTML = ticks
       .map((tick) => {
         const cls = tick.major
@@ -131,8 +195,7 @@ export function mountSubtitleTimelineEditor(
   }
 
   function renderClipEndMarker(clip: number | null): void {
-    const existing = trackEl.querySelector('[data-timeline-clip-end]');
-    if (existing) existing.remove();
+    trackEl.querySelector('[data-timeline-clip-end]')?.remove();
     if (clip === null || clip >= viewport.durationSeconds - 1e-6) return;
     const marker = document.createElement('div');
     marker.className = 'studio__cue-timeline-clip-end';
@@ -142,8 +205,19 @@ export function mountSubtitleTimelineEditor(
     trackEl.append(marker);
   }
 
+  function barInnerHtml(segment: TranscriptSegment, index: number): string {
+    const preview = escapeHtml(stripScaffoldPlaceholder(segment.text).trim() || '(empty)');
+    return `
+      <span class="studio__cue-bar-handle studio__cue-bar-handle--start" data-cue-handle="start" aria-hidden="true"></span>
+      <span class="studio__cue-bar-body">
+        <span class="studio__cue-bar-label">${index + 1}</span>
+        <span class="studio__cue-bar-text">${preview}</span>
+      </span>
+      <span class="studio__cue-bar-handle studio__cue-bar-handle--end" data-cue-handle="end" aria-hidden="true"></span>
+    `;
+  }
+
   function renderBars(segments: TranscriptSegment[], clip: number | null): void {
-    // Remove old bars but keep the persistent playhead node.
     trackEl.querySelectorAll('[data-cue-index]').forEach((node) => node.remove());
     const bars = layoutBars(
       segments.map((segment) => ({ start: segment.start, end: segment.end })),
@@ -152,8 +226,6 @@ export function mountSubtitleTimelineEditor(
     const html = bars
       .map((bar, index) => {
         const segment = segments[index];
-        const stripped = stripScaffoldPlaceholder(segment.text).trim();
-        const preview = escapeHtml(stripped || '(empty)');
         const selected = index === deps.getSelectedIndex();
         return `
           <div
@@ -163,14 +235,7 @@ export function mountSubtitleTimelineEditor(
             aria-selected="${selected ? 'true' : 'false'}"
             style="transform:translateX(${bar.leftPx.toFixed(2)}px);width:${bar.widthPx.toFixed(2)}px"
             title="Cue ${index + 1}: ${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}"
-          >
-            <span class="studio__cue-bar-handle studio__cue-bar-handle--start" data-cue-handle="start" aria-hidden="true"></span>
-            <span class="studio__cue-bar-body">
-              <span class="studio__cue-bar-label">${index + 1}</span>
-              <span class="studio__cue-bar-text">${preview}</span>
-            </span>
-            <span class="studio__cue-bar-handle studio__cue-bar-handle--end" data-cue-handle="end" aria-hidden="true"></span>
-          </div>
+          >${barInnerHtml(segment, index)}</div>
         `;
       })
       .join('');
@@ -187,21 +252,34 @@ export function mountSubtitleTimelineEditor(
     const segment = segments[index];
     const playing = deps.isPlayingIndex(index);
     const canPlay = deps.hasAudio();
+    const text = escapeHtml(stripScaffoldPlaceholder(segment.text));
     inspectorEl.hidden = false;
-    // Sprint 2: read-only summary + cuePlayer preview. Numeric/text editing lands in Sprint 3.
     inspectorEl.innerHTML = `
-      <span class="studio__cue-timeline-inspector-label">Cue ${index + 1}</span>
-      <span class="studio__cue-timeline-inspector-range">${escapeHtml(
-        `${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}`,
-      )}</span>
-      <button
-        type="button"
-        class="studio__transcript-cue-play"
-        data-timeline-play
-        aria-pressed="${playing ? 'true' : 'false'}"
-        ${canPlay ? '' : 'disabled'}
-        aria-label="${playing ? 'Stop cue preview' : 'Play cue preview'}"
-      >${playing ? '■' : '▶'}</button>
+      <div class="studio__cue-timeline-inspector-row">
+        <span class="studio__cue-timeline-inspector-label">Cue ${index + 1}</span>
+        <label class="studio__cue-timeline-inspector-field">
+          <span>Start</span>
+          <input type="number" min="0" step="0.1" value="${round2(segment.start)}" data-timeline-start aria-label="Cue start seconds" />
+        </label>
+        <label class="studio__cue-timeline-inspector-field">
+          <span>End</span>
+          <input type="number" min="0" step="0.1" value="${round2(segment.end)}" data-timeline-end aria-label="Cue end seconds" />
+        </label>
+        <button
+          type="button"
+          class="studio__transcript-cue-play"
+          data-timeline-play
+          aria-pressed="${playing ? 'true' : 'false'}"
+          ${canPlay ? '' : 'disabled'}
+          aria-label="${playing ? 'Stop cue preview' : 'Play cue preview'}"
+        >${playing ? '■' : '▶'}</button>
+      </div>
+      <textarea
+        class="studio__cue-timeline-inspector-text"
+        rows="2"
+        data-timeline-text
+        aria-label="Cue text"
+      >${text}</textarea>
     `;
   }
 
@@ -216,8 +294,8 @@ export function mountSubtitleTimelineEditor(
 
   function render(): void {
     const segments = deps.getSegments();
-    const clip = deps.getClipDurationSeconds();
-    const durationSeconds = resolveDuration(segments, clip);
+    clipCache = deps.getClipDurationSeconds();
+    const durationSeconds = resolveDuration(segments, clipCache);
     const trackWidthPx = trackEl.clientWidth;
 
     if (segments.length === 0) {
@@ -228,29 +306,188 @@ export function mountSubtitleTimelineEditor(
       return;
     }
     emptyEl.hidden = true;
-
-    // Width can be 0 while the container is hidden/animating; the ResizeObserver re-fires.
-    if (durationSeconds <= 0 || trackWidthPx <= 0) return;
+    if (durationSeconds <= 0 || trackWidthPx <= 0) return; // ResizeObserver re-fires when shown
 
     viewport = { durationSeconds, trackWidthPx };
     renderRuler();
-    renderBars(segments, clip);
-    renderClipEndMarker(clip);
+    renderBars(segments, clipCache);
+    renderClipEndMarker(clipCache);
     renderInspector(segments);
     applyPlayhead();
   }
 
-  // ── Interactions (Sprint 2: select + ruler scrub + preview) ───────────────
+  // ── Targeted updates (during interaction — no full re-render) ──────────────
 
-  function onTrackClick(event: MouseEvent): void {
-    const playBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-timeline-play]');
-    if (playBtn) return; // handled by inspector listener
-    const barEl = (event.target as HTMLElement).closest<HTMLElement>('[data-cue-index]');
+  function barElAt(index: number): HTMLElement | null {
+    return trackEl.querySelector<HTMLElement>(`[data-cue-index="${index}"]`);
+  }
+
+  function updateBarDom(index: number): void {
+    const barEl = barElAt(index);
+    const segment = deps.getSegments()[index];
+    if (!barEl || !segment) return;
+    const bar = layoutBar({ start: segment.start, end: segment.end }, index, viewport);
+    barEl.style.transform = `translateX(${bar.leftPx.toFixed(2)}px)`;
+    barEl.style.width = `${bar.widthPx.toFixed(2)}px`;
+    barEl.className = barStateClasses(segment, index, clipCache);
+    barEl.setAttribute('aria-selected', index === deps.getSelectedIndex() ? 'true' : 'false');
+    barEl.title = `Cue ${index + 1}: ${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}`;
+    const textEl = barEl.querySelector<HTMLElement>('.studio__cue-bar-text');
+    if (textEl) textEl.textContent = stripScaffoldPlaceholder(segment.text).trim() || '(empty)';
+  }
+
+  function updateInspectorFields(index: number): void {
+    if (deps.getSelectedIndex() !== index) return;
+    const segment = deps.getSegments()[index];
+    if (!segment) return;
+    const startInput = inspectorEl.querySelector<HTMLInputElement>('[data-timeline-start]');
+    const endInput = inspectorEl.querySelector<HTMLInputElement>('[data-timeline-end]');
+    if (startInput && document.activeElement !== startInput) startInput.value = String(round2(segment.start));
+    if (endInput && document.activeElement !== endInput) endInput.value = String(round2(segment.end));
+  }
+
+  // ── Snap helper (neighbor 12px, playhead/tick 8px, Shift disables magnetism) ─
+
+  function snapValue(raw: number, neighborSeconds: number[], shift: boolean): number {
+    const neighborTol = pxDeltaToSeconds(NEIGHBOR_MAGNET_PX, viewport);
+    const softTol = pxDeltaToSeconds(SOFT_MAGNET_PX, viewport);
+    const softTicks = tickSecondsCache.filter((t) => Math.abs(t - raw) <= softTol);
+    const playhead =
+      playheadSeconds !== null && Math.abs(playheadSeconds - raw) <= softTol ? playheadSeconds : null;
+    return resolveSnap(raw, {
+      fps: deps.getFps(),
+      neighborSeconds,
+      playheadSeconds: playhead,
+      tickSeconds: softTicks,
+      toleranceSeconds: neighborTol,
+      disableMagnetism: shift,
+    }).seconds;
+  }
+
+  // ── Drag / resize ─────────────────────────────────────────────────────────
+
+  function onTrackPointerDown(event: PointerEvent): void {
+    const target = event.target as HTMLElement;
+    const barEl = target.closest<HTMLElement>('[data-cue-index]');
     if (!barEl) return;
     const index = Number(barEl.dataset.cueIndex);
     if (!Number.isFinite(index)) return;
-    deps.onSelect(index);
-    render();
+
+    if (deps.getSelectedIndex() !== index) {
+      deps.onSelect(index);
+      render();
+    }
+    const segments = deps.getSegments();
+    const segment = segments[index];
+    if (!segment) return;
+    const rawZone = target.closest<HTMLElement>('[data-cue-handle]')?.dataset.cueHandle;
+    const zone: DragZone = rawZone === 'start' || rawZone === 'end' ? rawZone : 'body';
+    drag = {
+      index,
+      zone,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      origStart: segment.start,
+      origEnd: segment.end,
+      origDuration: segment.end - segment.start,
+      ctx: neighborContext(segments, index),
+      moved: false,
+      suspended: false,
+    };
+    try {
+      trackEl.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+  }
+
+  function onTrackPointerMove(event: PointerEvent): void {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dx = event.clientX - drag.startClientX;
+    const dy = event.clientY - drag.startClientY;
+
+    if (Math.abs(dy) > VERTICAL_TOLERANCE_PX) {
+      drag.suspended = true; // drop the drag but keep capture — re-acquire on return
+      return;
+    }
+    drag.suspended = false;
+    if (!drag.moved && Math.abs(dx) < CLICK_SLOP_PX) return;
+    drag.moved = true;
+
+    const deltaSeconds = pxDeltaToSeconds(dx, viewport);
+    let start = drag.origStart;
+    let end = drag.origEnd;
+
+    if (drag.zone === 'start') {
+      const raw = snapValue(drag.origStart + deltaSeconds, [drag.ctx.prevEndSeconds], event.shiftKey);
+      start = constrainResizeStart(raw, drag.origEnd, drag.ctx);
+    } else if (drag.zone === 'end') {
+      const raw = snapValue(drag.origEnd + deltaSeconds, [drag.ctx.nextStartSeconds], event.shiftKey);
+      end = constrainResizeEnd(drag.origStart, raw, drag.ctx);
+    } else {
+      const raw = snapValue(
+        drag.origStart + deltaSeconds,
+        [drag.ctx.prevEndSeconds, drag.ctx.nextStartSeconds - drag.origDuration],
+        event.shiftKey,
+      );
+      const moved = constrainMove(raw, drag.origDuration, drag.ctx);
+      start = moved.start;
+      end = moved.end;
+    }
+
+    deps.onCommitTiming(drag.index, start, end);
+    updateBarDom(drag.index);
+    updateInspectorFields(drag.index);
+  }
+
+  function onTrackPointerUp(event: PointerEvent): void {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    try {
+      trackEl.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    const moved = drag.moved;
+    drag = null;
+    if (moved) render(); // reconcile dirty state + inspector after the gesture
+  }
+
+  // ── Inspector editing ─────────────────────────────────────────────────────
+
+  function onInspectorInput(event: Event): void {
+    const target = event.target as HTMLElement;
+    const index = deps.getSelectedIndex();
+    if (index === null) return;
+
+    if (target.matches('[data-timeline-text]')) {
+      deps.onCommitText(index, (target as HTMLTextAreaElement).value);
+      updateBarDom(index);
+      return;
+    }
+    if (!target.matches('[data-timeline-start], [data-timeline-end]')) return;
+
+    const segment = deps.getSegments()[index];
+    if (!segment) return;
+    const ctx = neighborContext(deps.getSegments(), index);
+    const startInput = inspectorEl.querySelector<HTMLInputElement>('[data-timeline-start]');
+    const endInput = inspectorEl.querySelector<HTMLInputElement>('[data-timeline-end]');
+    const rawStart = Number(startInput?.value ?? segment.start);
+    const rawEnd = Number(endInput?.value ?? segment.end);
+
+    let start = segment.start;
+    let end = segment.end;
+    if (target.matches('[data-timeline-start]') && Number.isFinite(rawStart)) {
+      start = constrainResizeStart(snapValue(rawStart, [], true), Number.isFinite(rawEnd) ? rawEnd : segment.end, ctx);
+    } else if (Number.isFinite(rawEnd)) {
+      end = constrainResizeEnd(Number.isFinite(rawStart) ? rawStart : segment.start, snapValue(rawEnd, [], true), ctx);
+    }
+    deps.onCommitTiming(index, start, end);
+    updateBarDom(index); // leave the focused input as typed; blur re-renders the clamped value
+  }
+
+  function onInspectorChange(): void {
+    render(); // normalize clamped values back into the inputs on commit/blur
   }
 
   function onInspectorClick(event: MouseEvent): void {
@@ -262,14 +499,13 @@ export function mountSubtitleTimelineEditor(
     else deps.onRequestPlay(index);
   }
 
-  // Ruler scrub — moves the playhead marker (the cue player can't seek, so this is
-  // a visual scrub / future-scrub anchor, not an audio seek).
+  // ── Ruler scrub + playhead sweep ──────────────────────────────────────────
+
   let scrubbing = false;
   function scrubToClientX(clientX: number): void {
     if (viewport.trackWidthPx <= 0) return;
     const rect = rulerEl.getBoundingClientRect();
-    const seconds = pxToSeconds(clientX - rect.left, viewport);
-    setPlayheadSeconds(seconds);
+    setPlayheadSeconds(pxToSeconds(clientX - rect.left, viewport));
   }
   function onRulerPointerDown(event: PointerEvent): void {
     scrubbing = true;
@@ -277,8 +513,7 @@ export function mountSubtitleTimelineEditor(
     scrubToClientX(event.clientX);
   }
   function onRulerPointerMove(event: PointerEvent): void {
-    if (!scrubbing) return;
-    scrubToClientX(event.clientX);
+    if (scrubbing) scrubToClientX(event.clientX);
   }
   function onRulerPointerUp(event: PointerEvent): void {
     scrubbing = false;
@@ -297,14 +532,12 @@ export function mountSubtitleTimelineEditor(
   function beginPlaybackSweep(startSeconds: number, endSeconds: number): void {
     endPlaybackSweep();
     const span = Math.max(0, endSeconds - startSeconds);
-    const startedAt = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const tick = (): void => {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const elapsed = (now - startedAt) / 1000;
-      const at = startSeconds + Math.min(elapsed, span);
-      setPlayheadSeconds(at);
-      if (elapsed < span) sweepRaf = requestAnimationFrame(tick);
-      else sweepRaf = 0;
+      setPlayheadSeconds(startSeconds + Math.min(elapsed, span));
+      sweepRaf = elapsed < span ? requestAnimationFrame(tick) : 0;
     };
     setPlayheadSeconds(startSeconds);
     sweepRaf = requestAnimationFrame(tick);
@@ -316,7 +549,12 @@ export function mountSubtitleTimelineEditor(
     setPlayheadSeconds(null);
   }
 
-  trackEl.addEventListener('click', onTrackClick);
+  trackEl.addEventListener('pointerdown', onTrackPointerDown);
+  trackEl.addEventListener('pointermove', onTrackPointerMove);
+  trackEl.addEventListener('pointerup', onTrackPointerUp);
+  trackEl.addEventListener('pointercancel', onTrackPointerUp);
+  inspectorEl.addEventListener('input', onInspectorInput);
+  inspectorEl.addEventListener('change', onInspectorChange);
   inspectorEl.addEventListener('click', onInspectorClick);
   rulerEl.addEventListener('pointerdown', onRulerPointerDown);
   rulerEl.addEventListener('pointermove', onRulerPointerMove);
@@ -334,7 +572,12 @@ export function mountSubtitleTimelineEditor(
     dispose(): void {
       endPlaybackSweep();
       resizeObserver.disconnect();
-      trackEl.removeEventListener('click', onTrackClick);
+      trackEl.removeEventListener('pointerdown', onTrackPointerDown);
+      trackEl.removeEventListener('pointermove', onTrackPointerMove);
+      trackEl.removeEventListener('pointerup', onTrackPointerUp);
+      trackEl.removeEventListener('pointercancel', onTrackPointerUp);
+      inspectorEl.removeEventListener('input', onInspectorInput);
+      inspectorEl.removeEventListener('change', onInspectorChange);
       inspectorEl.removeEventListener('click', onInspectorClick);
       rulerEl.removeEventListener('pointerdown', onRulerPointerDown);
       rulerEl.removeEventListener('pointermove', onRulerPointerMove);

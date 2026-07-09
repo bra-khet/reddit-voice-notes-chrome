@@ -2674,3 +2674,75 @@ details[open] .wf-why__summary::before {
   }
 }
 
+/* ── v5.8.0 Sprint 3 — drag/resize + editable inspector ─────────────────── */
+
+/* Draggable affordance; the track owns the pointer during a drag (no scroll). */
+.studio__cue-timeline-track {
+  touch-action: none;
+}
+
+.studio__cue-bar {
+  cursor: grab;
+}
+
+/* DIRTY = amber-highlighted cue-number chip (composes with every other state) */
+.studio__cue-bar--dirty .studio__cue-bar-label {
+  background: var(--studio-amber);
+  color: #0a0014;
+  box-shadow: 0 0 6px rgba(255, 213, 79, 0.65);
+}
+
+/* Editable inspector — Start / End / ▶ on one row, text below */
+.studio__cue-timeline-inspector {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.studio__cue-timeline-inspector-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.studio__cue-timeline-inspector-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--studio-font-meta);
+  letter-spacing: var(--studio-letter-meta);
+  color: var(--studio-field-label);
+}
+
+.studio__cue-timeline-inspector-field input {
+  width: 4.75rem;
+  padding: 3px 6px;
+  background: var(--studio-panel-edge);
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 4px;
+  color: var(--studio-text);
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.studio__cue-timeline-inspector-text {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--studio-panel-edge);
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 6px;
+  color: var(--studio-text);
+  font-family: var(--studio-font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.studio__cue-timeline-inspector-field input:focus-visible,
+.studio__cue-timeline-inspector-text:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+

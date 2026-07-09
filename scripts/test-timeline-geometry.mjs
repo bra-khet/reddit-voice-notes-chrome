@@ -45,6 +45,10 @@ const {
   handleWidthForBar,
   hitTestTrack,
   resolveSnap,
+  MIN_CUE_DURATION_SECONDS,
+  constrainResizeStart,
+  constrainResizeEnd,
+  constrainMove,
 } = geom;
 
 let checks = 0;
@@ -229,6 +233,48 @@ check('Shift (disableMagnetism) skips magnets but STILL frame-snaps', () => {
   assert.equal(r.seconds, snapTimeToFrame(10.06, FPS));
   // and the result is a valid frame PTS
   assert.equal(r.seconds, snapTimeToFrame(r.seconds, FPS));
+});
+
+console.log('edit constraints (clamp-to-neighbor policy)');
+
+const CTX = { prevEndSeconds: 5, nextStartSeconds: 20, minDurationSeconds: 0.5 };
+
+check('MIN_CUE_DURATION_SECONDS is 0.5', () => {
+  assert.equal(MIN_CUE_DURATION_SECONDS, 0.5);
+});
+
+check('resize-start clamps to left neighbor end and keeps min duration', () => {
+  // free move within range
+  assert.equal(constrainResizeStart(8, 15, CTX), 8);
+  // cannot cross into the left neighbor (end 5)
+  assert.equal(constrainResizeStart(2, 15, CTX), 5);
+  // cannot come within 0.5s of the end
+  assert.equal(constrainResizeStart(14.9, 15, CTX), 14.5);
+});
+
+check('resize-end clamps to right neighbor start and keeps min duration', () => {
+  assert.equal(constrainResizeEnd(10, 15, CTX), 15);
+  // cannot cross into the right neighbor (start 20)
+  assert.equal(constrainResizeEnd(10, 25, CTX), 20);
+  // cannot come within 0.5s of the start
+  assert.equal(constrainResizeEnd(10, 10.1, CTX), 10.5);
+});
+
+check('move preserves duration and clamps both edges to neighbors', () => {
+  // duration 4, free move
+  assert.deepEqual(constrainMove(8, 4, CTX), { start: 8, end: 12 });
+  // pushed left into neighbor end (5) — start pins to 5
+  assert.deepEqual(constrainMove(2, 4, CTX), { start: 5, end: 9 });
+  // pushed right so end would pass 20 — start pins to 16 (20 - 4)
+  assert.deepEqual(constrainMove(18, 4, CTX), { start: 16, end: 20 });
+});
+
+check('degenerate bar (bigger than the gap) pins to the floor without crashing', () => {
+  const tight = { prevEndSeconds: 5, nextStartSeconds: 6, minDurationSeconds: 0.5 };
+  // gap is 1s but duration 4 — start pins to prevEnd
+  assert.deepEqual(constrainMove(10, 4, tight), { start: 5, end: 9 });
+  // resize-start where hi < lo pins to lo
+  assert.equal(constrainResizeStart(10, 5.2, tight), 5);
 });
 
 rmSync(outdir, { recursive: true, force: true });
