@@ -1,5 +1,27 @@
 # TODO
 
+## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **IN PROGRESS**
+
+**Design:** [`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`](docs/v5.8.0-trim-ui-visual-subtitle-editor.md) (authoritative) · **Scope:** [`docs/v5.8.0-scope.md`](docs/v5.8.0-scope.md)
+**Branch:** `feature/v5.8.0-trim-ui-visual-subtitle-editor` (from `main` @ `1a8f370`) · **Package:** `5.7.0` (bump at release)
+
+Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: DOM-not-canvas, timeline-primary + List toggle, `SegmentEditorHandle` preserved, frame-snap via `timeline.ts` (I11), no new seam, Cividis palette.
+
+| Sprint | Scope | Status |
+|--------|-------|--------|
+| 1 | docs redraft + committed architecture | **done** (`04e803d`, `be1c7be`) |
+| 2 | foundation: `timeline-geometry` (pure) + read-only ruler/bars/playhead + List toggle | **done** (`f1f3d16`) |
+| 3 | drag/resize + magnetism + bar↔inspector two-way sync + dirty write-back | next (snap-detail checkpoint first) |
+| 4 | semiotic parity (all badges/states, per-cue play, split, scaffold, add/delete, unsaved guard, keyboard) | pending |
+| 5 | smart integration: on-bar overflow/OOB/re-splice highlight + one-click apply | pending |
+| 6 | trim hooks (in/out markers + cue-shift preview + intent) + polish/a11y/perf | pending |
+| 7 | wire + verify + release (notes, version bump, QA sign-off) | pending |
+
+**Verify:** `node scripts/test-timeline-geometry.mjs` (18) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13) · `npm run build` · `npx tsc --noEmit`
+**QA pending (user):** real-browser — open cue editor → Timeline view renders ruler/bars/playhead; select a bar; ▶ sweeps playhead; List toggle is lossless.
+
+**Restore:** `git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev`
+
 ## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
 **Release notes:** [`docs/release-notes-v5.7.0.md`](docs/release-notes-v5.7.0.md) · **ADR:** [`0005`](docs/architecture/adr/0005-partial-rebake-splice.md) · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) §4.2 + §13  

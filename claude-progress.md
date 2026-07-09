@@ -10,6 +10,37 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
+## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **IN PROGRESS**
+
+**Branch:** `feature/v5.8.0-trim-ui-visual-subtitle-editor` (from `main` @ `1a8f370`) · **Package:** still `5.7.0` (bump at release) · **Push:** deferred
+**Authoritative design:** [`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`](docs/v5.8.0-trim-ui-visual-subtitle-editor.md) · **Scope card:** [`docs/v5.8.0-scope.md`](docs/v5.8.0-scope.md)
+
+**Goal:** replace the flat cue-list modal with a timeline-centric visual editor (draggable/resizable bars, playhead scrub, on-bar suggestion highlighting) that keeps EVERY current semiotic affordance and wires edits into the already-live dirty→partial-rebake pipeline (v5.7.0, default-on). Backend is done; this phase is the surface.
+
+**Committed architecture (design §3):** DOM + CSS-transform bars (not canvas) for free semiotic/a11y parity · timeline primary + List toggle (lossless, same draft) · `SegmentEditorHandle` preserved verbatim (mount untouched) · all frame snapping via `timeline.ts` (frame-exact = preview=bake, I11) · no new message/storage/take-writer seam · reuse every existing pure module. Palette = Cividis indigo→amber (`studio-palette.css`), color always paired with icon/label (CVD-safe).
+
+### Sprint 1 — docs redraft + committed architecture (2026-07-09) — **DONE**
+
+Redrafted both v5.8.0 docs to project standard; folded the user's authoritative decisions (CSS-containment scaling + virtualization escape hatch, 16px hit-test + fight-priority + pointer re-acquisition + sticky-break, snap magnetism priority neighbor>playhead>tick>frame, rove-select/nudge-timing keyboard, trim overhang behavior, palette rules). Commits `04e803d` (redraft) + `be1c7be` (decision fold).
+
+### Sprint 2 — timeline foundation (read-only + view toggle) (2026-07-09) — **DONE (automated); real-browser QA pending**
+
+- **`src/ui/design-studio/timeline-geometry.ts`** (NEW, pure, Node-tested) — seconds↔px (+ degenerate guards), bar layout (min visible width + honest rawWidth), nice-interval ruler ticks, 16px edge-handle hit-testing with deterministic nearest-boundary fight-priority (ties→start-handle), and `resolveSnap` on the authoritative magnetism priority with `snapTimeToFrame` ALWAYS applied last (Shift disables magnetism only). Frame math delegated to `timeline.ts` — geometry never invents its own.
+- **`src/ui/design-studio/subtitle-timeline-editor.ts`** (NEW, UI) — DOM+CSS-transform substrate: renders ruler, cue bars (`translateX`/width), clip-end marker, playhead, read-only selected-cue inspector strip. Cividis state classes (normal indigo / selected amber / scaffold muted-dashed / oob red end-cap / playing amber glow). Playhead driven by cuePlayer via elapsed-time sweep (player has no `currentTime`) + ruler pointer scrub. Click-select. ResizeObserver re-layout. **Host owns the draft; the component never mutates it.**
+- **`subtitle-segment-editor.ts`** — mounts the timeline; Timeline/List toggle (entering timeline captures in-flight list edits from the DOM → lossless); selection + timeline playback state; timeline re-render piggybacks every list re-render; teardown. Contract unchanged.
+- **`style.css`** — `.studio__cue-timeline*` block on palette tokens; `content-visibility`/`contain`/`will-change` per the scaling decision; reduced-motion substitutes.
+
+**Verify (automated):** `test-timeline-geometry` **18/18** · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13) · `npm run build` PASS · `tsc` clean (3 documented pre-existing only). Commits `be1c7be` + `f1f3d16`.
+
+**Next — Sprint 3 (drag/resize + inspector sync):** a quick decision checkpoint on snap implementation details (tolerances/feel), then body-drag move + edge-resize with the §6.2 magnetism, live neighbor validation, two-way bar↔inspector sync, and dirty write-back. Sprints 4 (semiotic parity) · 5 (smart integration) · 6 (trim hooks + polish) · 7 (wire + verify + release) follow.
+
+```bash
+git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
+node scripts/test-timeline-geometry.mjs && npm run build && npx tsc --noEmit
+```
+
+---
+
 ## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
 **Branch:** merged `feature/5.7.0-partial-rebake-splice` → `main` · **Package:** `5.7.0` · **Push:** deferred  
