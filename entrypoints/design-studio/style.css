@@ -2413,6 +2413,23 @@ details[open] .wf-why__summary::before {
   outline-offset: -2px;
 }
 
+/* BUG FIX: List view lost its vertical scrollbar (v5.8.0 regression)
+   Fix: Sprint 2 wrapped .studio__transcript-segments in this view-toggle
+   container, demoting it from a direct flex child of the overflow-hidden
+   dialog — so its flex:1/overflow-y:auto no longer bounded its height and
+   the list clipped instead of scrolling. The wrapper must be a flex conduit:
+   flex:1 + min-height:0 so the inner segments list scrolls again. */
+.studio__transcript-list-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.studio__transcript-list-view[hidden] {
+  display: none;
+}
+
 /* Timeline shell */
 .studio__cue-timeline {
   display: flex;
