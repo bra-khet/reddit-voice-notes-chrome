@@ -384,6 +384,9 @@ export function mountSubtitleSegmentEditor(
     },
     isPlayingIndex: (index) => playingSegmentIndex === index,
     hasAudio: () => cuePlayer.hasSource(),
+    // CHANGED: v5.8.0 §16.5 — the waveform lane reads the SAME decoded buffer
+    // the ▶ preview plays (no second decode; null in element-mode fallback).
+    getDecodedAudioBuffer: () => cuePlayer.getDecodedBuffer(),
     getFps: () => TIMELINE_DEFAULT_FPS,
     onCommitTiming: (index, start, end) => {
       const segment = modalDraft[index];
@@ -965,6 +968,9 @@ export function mountSubtitleSegmentEditor(
     renderPreview();
     if (!modalEl.hidden) {
       refreshModalSegmentUi();
+      // CHANGED: v5.8.0 §16.5 — the decode just landed; repaint the timeline so
+      // the waveform lane (and ▶ enablement) appear without a draft change.
+      timelineHandle.render();
     }
   }
 

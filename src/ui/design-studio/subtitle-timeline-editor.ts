@@ -16,6 +16,12 @@
  * are px-derived and converted through the window, snap precision scales with
  * zoom automatically.
  *
+ * Sprint 6 (design §16.5): waveform lane — a DPR-aware canvas between ruler
+ * and track painted from the cue player's decoded AudioBuffer via the pure
+ * waveform-peaks leaf (pyramid at low zoom, exact range peaks at deep zoom).
+ * Repaints ONLY when the view window, canvas size, or source changes; a bare
+ * centerline is the element-mode (no decoded buffer) fallback.
+ *
  * Substrate: DOM + CSS transforms (design §3B). Geometry/constraints are the
  * pure timeline-geometry.ts; frame math is timeline.ts (preview=bake, I11).
  *
@@ -58,6 +64,13 @@ import {
   type TimelineWindow,
   type WindowViewport,
 } from '@/src/ui/design-studio/timeline-geometry';
+import {
+  WAVEFORM_PYRAMID_PEAKS_PER_SECOND,
+  computeRangePeaks,
+  computeWaveformPyramid,
+  resamplePeaks,
+  type WaveformPeaks,
+} from '@/src/ui/design-studio/waveform-peaks';
 
 /** Fallback compositing fps (matches the overlay backbone). */
 export const TIMELINE_DEFAULT_FPS = 24;
@@ -111,6 +124,8 @@ export interface TimelineEditorDeps {
   onRequestStop(): void;
   isPlayingIndex(index: number): boolean;
   hasAudio(): boolean;
+  /** Decoded clip audio for the waveform lane (null = element-mode fallback, §16.5). */
+  getDecodedAudioBuffer(): AudioBuffer | null;
   /** Write a timing edit back to the host draft (host owns the array). */
   onCommitTiming(index: number, startSeconds: number, endSeconds: number): void;
   /** Write a text edit back to the host draft (host applies the blank→scaffold rule). */
@@ -147,6 +162,10 @@ export function renderSubtitleTimelineEditorShell(): string {
       <div class="studio__cue-timeline-main">
         <div class="studio__cue-timeline-lanes" data-timeline-lanes>
           <div class="studio__cue-timeline-ruler" data-timeline-ruler aria-hidden="true"></div>
+          <div class="studio__cue-timeline-waveform-lane" data-timeline-waveform-lane aria-hidden="true">
+            <canvas class="studio__cue-timeline-waveform" data-timeline-waveform></canvas>
+            <div class="studio__cue-timeline-waveform-playhead" data-timeline-waveform-playhead hidden></div>
+          </div>
           <div
             class="studio__cue-timeline-track"
             data-timeline-track
@@ -242,6 +261,9 @@ export function mountSubtitleTimelineEditor(
   const trackEl = container.querySelector<HTMLElement>('[data-timeline-track]')!;
   const playheadEl = container.querySelector<HTMLElement>('[data-timeline-playhead]')!;
   const snapGuideEl = container.querySelector<HTMLElement>('[data-timeline-snap-guide]')!;
+  const waveformLaneEl = container.querySelector<HTMLElement>('[data-timeline-waveform-lane]')!;
+  const waveformCanvasEl = container.querySelector<HTMLCanvasElement>('[data-timeline-waveform]')!;
+  const waveformPlayheadEl = container.querySelector<HTMLElement>('[data-timeline-waveform-playhead]')!;
   const minimapEl = container.querySelector<HTMLElement>('[data-timeline-minimap]')!;
   const minimapHeatEl = container.querySelector<HTMLElement>('[data-timeline-minimap-heat]')!;
   const lensEl = container.querySelector<HTMLElement>('[data-timeline-lens]')!;
@@ -278,6 +300,12 @@ export function mountSubtitleTimelineEditor(
     startClientX: number;
     orig: TimelineWindow;
   } | null = null;
+  /** Waveform source cache — pyramid computed once per decoded buffer (§16.5). */
+  let peaksBuffer: AudioBuffer | null = null;
+  let peaksChannel: Float32Array | null = null;
+  let peaksPyramid: WaveformPeaks | null = null;
+  let peaksGeneration = 0;
+  let lastWaveformPaintKey = '';
 
   function resolveDuration(segments: TranscriptSegment[], clip: number | null): number {
     let maxEnd = 0;
@@ -469,17 +497,22 @@ export function mountSubtitleTimelineEditor(
     const capEl = rulerEl.querySelector<HTMLElement>('[data-timeline-playhead-cap]');
     if (playheadSeconds === null || fullDurationSeconds <= 0) {
       playheadEl.hidden = true;
+      waveformPlayheadEl.hidden = true;
       if (capEl) capEl.hidden = true;
       return;
     }
     const px = windowSecondsToPx(playheadSeconds, wv);
     if (px < -1 || px > wv.trackWidthPx + 1) {
       playheadEl.hidden = true; // playhead is outside the zoomed window
+      waveformPlayheadEl.hidden = true;
       if (capEl) capEl.hidden = true;
       return;
     }
     playheadEl.hidden = false;
     playheadEl.style.transform = `translateX(${px.toFixed(2)}px)`;
+    // Echo through the waveform lane so cap → waveform → track reads as one line.
+    waveformPlayheadEl.hidden = false;
+    waveformPlayheadEl.style.transform = `translateX(${px.toFixed(2)}px)`;
     if (capEl) {
       capEl.hidden = false;
       capEl.style.transform = `translateX(${(px - 5.5).toFixed(2)}px)`;
@@ -547,6 +580,80 @@ export function mountSubtitleTimelineEditor(
     lensEl.style.width = `${Math.max(8, lens.widthPx).toFixed(2)}px`;
   }
 
+  // ── Waveform lane (§16.5) — repaint ONLY on window/resize/source change ────
+
+  function paintWaveform(): void {
+    const cssWidth = waveformCanvasEl.clientWidth;
+    const cssHeight = waveformCanvasEl.clientHeight;
+    if (cssWidth <= 0 || cssHeight <= 0) return;
+
+    const buffer = deps.getDecodedAudioBuffer();
+    if (buffer !== peaksBuffer) {
+      // New source: extract channel 0 + one full-clip pyramid pass (cached).
+      peaksBuffer = buffer;
+      peaksChannel = buffer ? buffer.getChannelData(0) : null;
+      peaksPyramid =
+        buffer && peaksChannel ? computeWaveformPyramid(peaksChannel, buffer.sampleRate) : null;
+      peaksGeneration += 1;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    const paintKey = [
+      peaksGeneration,
+      wv.window.viewStartSeconds.toFixed(4),
+      wv.window.viewEndSeconds.toFixed(4),
+      cssWidth,
+      cssHeight,
+      dpr,
+    ].join(':');
+    if (paintKey === lastWaveformPaintKey) return; // view + source unchanged — skip
+    lastWaveformPaintKey = paintKey;
+
+    waveformCanvasEl.width = Math.round(cssWidth * dpr); // also resets ctx state
+    waveformCanvasEl.height = Math.round(cssHeight * dpr);
+    const ctx = waveformCanvasEl.getContext('2d');
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+
+    const styles = getComputedStyle(waveformCanvasEl);
+    const fillColor = styles.getPropertyValue('--studio-indigo-accent').trim() || '#4a4a8a';
+    const lineColor = styles.getPropertyValue('--studio-accent-bars').trim() || '#8f93e6';
+    const mid = cssHeight / 2;
+
+    if (peaksBuffer && peaksChannel && peaksPyramid) {
+      const winStart = wv.window.viewStartSeconds;
+      const winEnd = wv.window.viewEndSeconds;
+      const pps = WAVEFORM_PYRAMID_PEAKS_PER_SECOND;
+      // Low zoom: resample the cached pyramid. Deep zoom (window holds fewer
+      // pyramid bins than pixels): exact peaks from raw samples — the window is
+      // small there, so the pass stays cheap.
+      const peaks =
+        (winEnd - winStart) * pps >= cssWidth
+          ? resamplePeaks(peaksPyramid, winStart * pps, winEnd * pps, cssWidth)
+          : computeRangePeaks(
+              peaksChannel,
+              winStart * peaksBuffer.sampleRate,
+              winEnd * peaksBuffer.sampleRate,
+              cssWidth,
+            );
+      const amp = mid - 2;
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = fillColor;
+      for (let x = 0; x < cssWidth; x += 1) {
+        const hi = Math.min(1, Math.max(-1, peaks.max[x]));
+        const lo = Math.min(1, Math.max(-1, peaks.min[x]));
+        const top = mid - hi * amp;
+        ctx.fillRect(x, top, 1, Math.max(1, (hi - lo) * amp));
+      }
+    }
+
+    // Centerline on top — alone, it is the "quiet line" element-mode fallback.
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = lineColor;
+    ctx.fillRect(0, mid - 0.5, cssWidth, 1);
+    ctx.globalAlpha = 1;
+  }
+
   function render(): void {
     const segments = deps.getSegments();
     clipCache = deps.getClipDurationSeconds();
@@ -558,12 +665,14 @@ export function mountSubtitleTimelineEditor(
       rulerEl.innerHTML = '';
       trackEl.querySelectorAll('[data-cue-index]').forEach((node) => node.remove());
       minimapEl.hidden = true;
+      waveformLaneEl.hidden = true;
       renderInspector(segments);
       updateTransport();
       return;
     }
     emptyEl.hidden = true;
     if (fullDurationSeconds <= 0 || trackWidthPx <= 0) return; // ResizeObserver re-fires when shown
+    waveformLaneEl.hidden = false;
 
     // Resolve the view window: user zoom/pan clamped to the (possibly changed)
     // duration, or fit. Keeping the normalized value avoids re-clamp drift.
@@ -578,6 +687,7 @@ export function mountSubtitleTimelineEditor(
     renderClipEndMarker(clipCache);
     renderInspector(segments);
     renderMinimap(segments);
+    paintWaveform();
     updateZoomUi();
     updateTransport();
     applyPlayhead();
