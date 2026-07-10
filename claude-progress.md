@@ -79,7 +79,20 @@ Sprints 3–5 real-browser QA **PASSED** (user, 2026-07-09).
 
 **Verify:** `test-waveform-peaks` **10** (NEW) · `test-timeline-geometry` **42** · regression (timeline 10, dirty 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` PASS · `tsc` clean (3 pre-existing). Commit `905e718`.
 
-**Next — Sprint 7 (semiotic parity + keyboard, §7 matrix + §16.7):** port the remaining list affordances onto bars — LONG/overflow ⚠ + live canvas fit-status (`resolveCueFit`/`evaluateCueBakeFitHeuristic`), ✂ Split gesture (`splitSegmentIntoChunks`), scaffold banner, add-at-playhead + delete on bar — plus keyboard (rove ←/→, nudge ↑/↓ w/ hold-accelerate, roving tabindex, aria-live), modal-session **undo/redo** (Ctrl+Z/Y) and **multi-select** (Shift/Ctrl-click + batch ops). Then 8 (smart integration) · 9 (trim hooks + polish) · 10 (wire + verify + release).
+### Waveform contrast fix (2026-07-10) — **DONE**
+
+User QA on Sprint 6: fill too dim + lane too short. Fix (`300bd84`, same indigo axis): figure/ground swap (fill = bright `--studio-accent-bars` @0.9, baseline = dim muted silence reference UNDERNEATH — alone it stays the element-mode fallback) · **view-only display gain** normalizing peaks to the clip's own max (capped 4×; voice takes rarely peak past ~0.4) · lane 36→48 px on a darker ground.
+
+### Sprint 7 — semiotic parity + keyboard + undo/redo + multi-select (2026-07-10) — **DONE (automated); real-browser QA pending**
+
+- **Parity (§7):** ⚠ LONG warning-tint + pill on bars and ⚠ OOB pill (same `cueFitCache`/heuristic as list rows via `getCueFitState`); live fit-status line in the inspector (canvas/estimate + tier colors); ✂ Split + 🗑 delete in the inspector action row (same >1-chunk rule); **"+ Cue" adds at the playhead** (inserted in start order, 2 s clamped to next neighbor, selected). Timeline text edits drive the same heuristic→canvas fit pipeline via new index-based `scheduleCueFitMeasureForDraft` (the row-bound twin validates against the STALE list DOM); async results land via `handle.refreshCueState` — **targeted updates only, never a rebuild** (rebuild would steal textarea focus).
+- **Keyboard (§6.4):** ←/→ rove (pans the cue into view when zoomed) · ↑/↓ nudge ±1 frame (×4 after ~8 held repeats) · Space play/stop · Enter → cue text · Del deletes selection · `aria-live` announcements + `.studio__sr-only`.
+- **Undo/redo (§16.7, host):** bounded 50-deep snapshot stack, modal-session scoped, pushed at **discrete gesture starts** (drag first-move, field focus either view, nudge burst, structural ops) so one undo = one action; Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z; equal-top dedupe.
+- **Multi-select:** Ctrl-click toggle + Shift-click range (resolved on pointerUP — Shift-drag stays fine-control, Ctrl never drags); batch nudge (ordered so neighbors vacate) + batch delete; zoom-to-selection frames the whole selection; minimap highlights all selected.
+
+**Verify:** geometry **42** · waveform-peaks **10** · regression (timeline 10, dirty 11, splice 36, partial-rebake 13, take-manager 31) · build PASS · tsc clean (3 pre-existing). Commits `300bd84` (contrast) + `b0afad9` (sprint 7).
+
+**Next — Sprint 8 (smart integration, design §8):** on-bar overflow/OOB/re-splice **suggestion** highlighting + prioritization (amber suggestion state per §4.1), one-click "Apply minimal fix" / "Open Smart Adjust" from the bar, validate-all painting onto bars. Then 9 (trim hooks + polish) · 10 (wire + verify + release).
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
