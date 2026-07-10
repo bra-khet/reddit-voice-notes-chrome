@@ -22,6 +22,14 @@
  * Repaints ONLY when the view window, canvas size, or source changes; a bare
  * centerline is the element-mode (no decoded buffer) fallback.
  *
+ * Sprint 7 (design §7 parity matrix + §16.7): ⚠ LONG / ⚠ OOB pills on bars +
+ * live fit-status in the inspector (host's cueFitCache — no new measurement
+ * logic), ✂ Split / 🗑 delete / add-at-playhead through host helpers, keyboard
+ * (←/→ rove, ↑/↓ frame-nudge w/ hold-accelerate, Space play, Enter text,
+ * Del delete; aria-live announcements), multi-select (Ctrl-click toggle,
+ * Shift-click range; batch nudge/delete), and gesture-level undo snapshots
+ * via deps.onEditGestureStart (host owns the modal-session undo/redo stack).
+ *
  * Substrate: DOM + CSS transforms (design §3B). Geometry/constraints are the
  * pure timeline-geometry.ts; frame math is timeline.ts (preview=bake, I11).
  *
@@ -114,12 +122,22 @@ interface DragState {
   lastShift: boolean;
 }
 
+export interface CueFitState {
+  overflow: boolean;
+  /** Human fit-status line ("Fits (canvas)" …) — null until an evaluation exists. */
+  label: string | null;
+  tier: string | null;
+}
+
 export interface TimelineEditorDeps {
   getSegments(): TranscriptSegment[];
   getSelectedIndex(): number | null;
+  /** Full selection (primary + multi-select extras), ascending. */
+  getSelectedIndices(): number[];
   getClipDurationSeconds(): number | null;
   getFps(): number;
-  onSelect(index: number | null): void;
+  /** Plain select replaces; toggle = Ctrl-click; range = Shift-click from primary. */
+  onSelect(index: number | null, opts?: { toggle?: boolean; range?: boolean }): void;
   onRequestPlay(index: number): void;
   onRequestStop(): void;
   isPlayingIndex(index: number): boolean;
@@ -132,6 +150,17 @@ export interface TimelineEditorDeps {
   onCommitText(index: number, text: string): void;
   /** Has this cue changed since the editor opened? (drives the dirty bar state) */
   isDirtyIndex(index: number): boolean;
+  /** Live fit verdict from the host's cueFitCache/heuristic (parity row 5–6). */
+  getCueFitState(index: number): CueFitState | null;
+  /** Split enablement rule — identical to the list (>1 width chunk). */
+  canSplitIndex(index: number): boolean;
+  onRequestSplit(index: number): void;
+  /** Delete one or many cues (host resets selection + re-renders). */
+  onRequestDelete(indices: number[]): void;
+  /** Add a cue at a time (null = append at the end, list-button behavior). */
+  onRequestAddAt(seconds: number | null): void;
+  /** A discrete edit gesture is starting — host pushes an undo snapshot (§16.7). */
+  onEditGestureStart(): void;
 }
 
 export interface TimelineEditorHandle {
@@ -141,6 +170,8 @@ export interface TimelineEditorHandle {
   endPlaybackSweep(): void;
   /** Reset zoom/pan to fit + clear the playhead (host calls on modal open). */
   resetView(): void;
+  /** Refresh one cue's bar + inspector fit line in place (async fit results). */
+  refreshCueState(index: number): void;
   dispose(): void;
 }
 
@@ -191,6 +222,13 @@ export function renderSubtitleTimelineEditorShell(): string {
           >▶</button>
           <span class="studio__cue-timeline-timecode" data-timeline-timecode>0:00.000</span>
           <span class="studio__cue-timeline-timecode-total" data-timeline-timecode-total></span>
+          <button
+            type="button"
+            class="studio__cue-timeline-zoom-btn studio__cue-timeline-zoom-btn--wide"
+            data-timeline-add
+            title="Add a cue at the playhead (at the end when no playhead is set)"
+            aria-label="Add a cue at the playhead"
+          >+ Cue</button>
           <span class="studio__cue-timeline-transport-spacer"></span>
           <button
             type="button"
@@ -247,6 +285,7 @@ export function renderSubtitleTimelineEditorShell(): string {
       <p class="studio__cue-timeline-empty popup__field-desc" data-timeline-empty hidden>
         No cues yet — add one, or switch to List view.
       </p>
+      <p class="studio__sr-only" data-timeline-live aria-live="polite"></p>
     </div>
   `;
 }
@@ -279,6 +318,8 @@ export function mountSubtitleTimelineEditor(
   const zoomInBtn = container.querySelector<HTMLButtonElement>('[data-timeline-zoom-in]')!;
   const zoomSliderEl = container.querySelector<HTMLInputElement>('[data-timeline-zoom-slider]')!;
   const zoomReadoutEl = container.querySelector<HTMLElement>('[data-timeline-zoom-readout]')!;
+  const addBtn = container.querySelector<HTMLButtonElement>('[data-timeline-add]')!;
+  const liveEl = container.querySelector<HTMLElement>('[data-timeline-live]')!;
 
   /** Window-relative viewport — ALL sec↔px mapping goes through this (§16.2). */
   let wv: WindowViewport = {
@@ -300,6 +341,11 @@ export function mountSubtitleTimelineEditor(
     startClientX: number;
     orig: TimelineWindow;
   } | null = null;
+  /** Modifier-click (Ctrl/Shift) resolves as select on pointerUP, not drag. */
+  let pendingSelect: { index: number; pointerId: number; mode: 'toggle' | 'range' } | null = null;
+  /** Consecutive ↑/↓ repeats — accelerates the nudge step when held (§6.4). */
+  let nudgeRepeatCount = 0;
+  let liveToggle = false;
   /** Waveform source cache — pyramid computed once per decoded buffer (§16.5). */
   let peaksBuffer: AudioBuffer | null = null;
   let peaksChannel: Float32Array | null = null;
@@ -341,10 +387,12 @@ export function mountSubtitleTimelineEditor(
 
   function barStateClasses(segment: TranscriptSegment, index: number, clip: number | null): string {
     const classes: string[] = ['studio__cue-bar'];
-    if (index === deps.getSelectedIndex()) classes.push('studio__cue-bar--selected');
+    if (deps.getSelectedIndices().includes(index)) classes.push('studio__cue-bar--selected');
     if (deps.isDirtyIndex(index)) classes.push('studio__cue-bar--dirty');
     if (cueTextIsBlank(segment.text)) classes.push('studio__cue-bar--scaffold');
     if (clip !== null && segmentHasOutOfBoundsEnd(segment, clip)) classes.push('studio__cue-bar--oob');
+    // Parity row 5: warning tint + ⚠ LONG pill (host cueFitCache / heuristic).
+    if (deps.getCueFitState(index)?.overflow) classes.push('studio__cue-bar--long');
     if (deps.isPlayingIndex(index)) classes.push('studio__cue-bar--playing');
     if (drag && drag.index === index) classes.push('studio__cue-bar--grabbed');
     return classes.join(' ');
@@ -387,12 +435,16 @@ export function mountSubtitleTimelineEditor(
 
   function barInnerHtml(segment: TranscriptSegment, index: number): string {
     const preview = escapeHtml(stripScaffoldPlaceholder(segment.text).trim() || '(empty)');
+    // Pills are always in the DOM; the bar's state classes decide visibility
+    // (CSS), so targeted class updates keep them honest without re-rendering.
     return `
       <span class="studio__cue-bar-handle studio__cue-bar-handle--start" data-cue-handle="start" aria-hidden="true"></span>
       <span class="studio__cue-bar-body">
         <span class="studio__cue-bar-label">${index + 1}</span>
         <span class="studio__cue-bar-text">${preview}</span>
       </span>
+      <span class="studio__cue-bar-pill studio__cue-bar-pill--long" title="Too long for one line — will trail off screen in the baked video">⚠ LONG</span>
+      <span class="studio__cue-bar-pill studio__cue-bar-pill--oob" title="Cue end exceeds recording length">⚠ OOB</span>
       <span class="studio__cue-bar-handle studio__cue-bar-handle--end" data-cue-handle="end" aria-hidden="true"></span>
     `;
   }
@@ -440,6 +492,7 @@ export function mountSubtitleTimelineEditor(
     const playing = deps.isPlayingIndex(index);
     const canPlay = deps.hasAudio();
     const text = escapeHtml(stripScaffoldPlaceholder(segment.text));
+    const selectedCount = deps.getSelectedIndices().length;
     inspectorEl.hidden = false;
     railHintEl.hidden = true;
     inspectorEl.innerHTML = `
@@ -453,6 +506,15 @@ export function mountSubtitleTimelineEditor(
           <span>End</span>
           <input type="number" min="0" step="0.1" value="${round2(segment.end)}" data-timeline-end aria-label="Cue end seconds" />
         </label>
+      </div>
+      <textarea
+        class="studio__cue-timeline-inspector-text"
+        rows="2"
+        data-timeline-text
+        aria-label="Cue text"
+      >${text}</textarea>
+      <p class="studio__cue-timeline-inspector-fit" data-timeline-fit hidden></p>
+      <div class="studio__cue-timeline-inspector-actions">
         <button
           type="button"
           class="studio__transcript-cue-play"
@@ -461,14 +523,49 @@ export function mountSubtitleTimelineEditor(
           ${canPlay ? '' : 'disabled'}
           aria-label="${playing ? 'Stop cue preview' : 'Play cue preview'}"
         >${playing ? '■' : '▶'}</button>
+        <button
+          type="button"
+          class="studio__transcript-cue-split"
+          data-timeline-split
+          title="Split this cue into shorter timed cues that each fit on screen"
+          aria-label="Smart split this cue"
+        >✂ Split</button>
+        <button
+          type="button"
+          class="studio__cue-timeline-inspector-delete"
+          data-timeline-delete
+          title="${selectedCount > 1 ? `Delete the ${selectedCount} selected cues` : 'Delete this cue'}"
+          aria-label="${selectedCount > 1 ? `Delete the ${selectedCount} selected cues` : 'Delete this cue'}"
+        >🗑</button>
       </div>
-      <textarea
-        class="studio__cue-timeline-inspector-text"
-        rows="2"
-        data-timeline-text
-        aria-label="Cue text"
-      >${text}</textarea>
+      ${
+        selectedCount > 1
+          ? `<p class="studio__cue-timeline-inspector-multi popup__field-desc">${selectedCount} cues selected — ↑/↓ nudges all, Delete removes all.</p>`
+          : ''
+      }
     `;
+    updateInspectorFit(index);
+  }
+
+  /** In-place fit-line + Split-enablement refresh — never rebuilds the inspector
+      (rebuilding would steal focus from the textarea mid-typing). */
+  function updateInspectorFit(index: number): void {
+    if (deps.getSelectedIndex() !== index) return;
+    const fitEl = inspectorEl.querySelector<HTMLElement>('[data-timeline-fit]');
+    if (fitEl) {
+      const fit = deps.getCueFitState(index);
+      if (fit?.label) {
+        fitEl.hidden = false;
+        fitEl.textContent = fit.label;
+        if (fit.tier) fitEl.dataset.fitTier = fit.tier;
+        else delete fitEl.dataset.fitTier;
+      } else {
+        fitEl.hidden = true;
+        fitEl.textContent = '';
+      }
+    }
+    const splitBtn = inspectorEl.querySelector<HTMLButtonElement>('[data-timeline-split]');
+    if (splitBtn) splitBtn.disabled = !deps.canSplitIndex(index);
   }
 
   function formatTimecode(seconds: number): string {
@@ -564,16 +661,17 @@ export function mountSubtitleTimelineEditor(
     const show = fullDurationSeconds > 0 && currentZoom() > 1.02;
     minimapEl.hidden = !show;
     if (!show) return;
-    // Selected cue reads amber in the overview — "where am I" at a glance
+    // Selected cues read amber in the overview — "where am I" at a glance
     // (mirrors the selected bar treatment; user-requested after Sprint-4 QA).
-    const selectedIndex = deps.getSelectedIndex();
+    const selectedIndices = deps.getSelectedIndices();
     minimapHeatEl.innerHTML = segments
       .map((segment, index) => {
         const startSec = Math.max(0, Math.min(segment.start, segment.end));
         const left = (startSec / fullDurationSeconds) * 100;
         const width = (Math.abs(segment.end - segment.start) / fullDurationSeconds) * 100;
-        const cls =
-          index === selectedIndex ? ' class="studio__cue-timeline-minimap-cue--selected"' : '';
+        const cls = selectedIndices.includes(index)
+          ? ' class="studio__cue-timeline-minimap-cue--selected"'
+          : '';
         return `<span${cls} style="left:${left.toFixed(2)}%;width:${Math.max(0.4, width).toFixed(2)}%"></span>`;
       })
       .join('');
@@ -874,7 +972,16 @@ export function mountSubtitleTimelineEditor(
     const index = Number(barEl.dataset.cueIndex);
     if (!Number.isFinite(index)) return;
 
-    if (deps.getSelectedIndex() !== index) {
+    // Multi-select modifiers act on pointerUP-as-click (never start a drag for
+    // Ctrl; Shift still drags — fine control — and range-selects only on click).
+    if (event.ctrlKey || event.metaKey) {
+      pendingSelect = { index, pointerId: event.pointerId, mode: 'toggle' };
+      return;
+    }
+    if (event.shiftKey && deps.getSelectedIndex() !== null) {
+      pendingSelect = { index, pointerId: event.pointerId, mode: 'range' };
+      // fall through — a Shift-drag on the bar must still work (fine control)
+    } else if (deps.getSelectedIndex() !== index) {
       deps.onSelect(index);
       render();
     }
@@ -954,13 +1061,36 @@ export function mountSubtitleTimelineEditor(
     drag.lastClientX = event.clientX;
     drag.lastShift = event.shiftKey;
     if (!drag.moved && Math.abs(dx) < CLICK_SLOP_PX) return;
-    drag.moved = true;
+    if (!drag.moved) {
+      drag.moved = true;
+      pendingSelect = null; // it became a drag, not a modifier-click
+      deps.onEditGestureStart(); // undo snapshot at gesture start (§16.7)
+    }
 
     applyDragAt(event.clientX, event.shiftKey);
     maybeAutoPan();
   }
 
   function onTrackPointerUp(event: PointerEvent): void {
+    // Modifier-click selection resolves on release (only if it never became a drag).
+    if (pendingSelect && event.pointerId === pendingSelect.pointerId) {
+      const { index, mode } = pendingSelect;
+      pendingSelect = null;
+      if (!drag || !drag.moved) {
+        deps.onSelect(index, mode === 'toggle' ? { toggle: true } : { range: true });
+        announce(`${deps.getSelectedIndices().length} cues selected`);
+        if (drag) {
+          try {
+            trackEl.releasePointerCapture(event.pointerId);
+          } catch {
+            // ignore
+          }
+          drag = null;
+        }
+        render();
+        return;
+      }
+    }
     if (!drag || event.pointerId !== drag.pointerId) return;
     stopAutoPan();
     hideSnapGuide();
@@ -1009,6 +1139,7 @@ export function mountSubtitleTimelineEditor(
     if (target.matches('[data-timeline-text]')) {
       deps.onCommitText(index, (target as HTMLTextAreaElement).value);
       updateBarDom(index);
+      updateInspectorFit(index); // heuristic fit lands synchronously in the host cache
       return;
     }
     if (!target.matches('[data-timeline-start], [data-timeline-end]')) return;
@@ -1037,12 +1168,36 @@ export function mountSubtitleTimelineEditor(
   }
 
   function onInspectorClick(event: MouseEvent): void {
-    const playBtn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-timeline-play]');
-    if (!playBtn || playBtn.disabled) return;
+    const target = event.target as HTMLElement;
     const index = deps.getSelectedIndex();
     if (index === null) return;
-    if (deps.isPlayingIndex(index)) deps.onRequestStop();
-    else deps.onRequestPlay(index);
+
+    const playBtn = target.closest<HTMLButtonElement>('[data-timeline-play]');
+    if (playBtn && !playBtn.disabled) {
+      if (deps.isPlayingIndex(index)) deps.onRequestStop();
+      else deps.onRequestPlay(index);
+      return;
+    }
+    const splitBtn = target.closest<HTMLButtonElement>('[data-timeline-split]');
+    if (splitBtn && !splitBtn.disabled) {
+      deps.onRequestSplit(index); // host snapshots + splits + re-renders
+      announce(`Cue ${index + 1} split`);
+      return;
+    }
+    const deleteBtn = target.closest<HTMLButtonElement>('[data-timeline-delete]');
+    if (deleteBtn) {
+      const indices = deps.getSelectedIndices();
+      deps.onRequestDelete(indices.length > 0 ? indices : [index]);
+      announce(indices.length > 1 ? `${indices.length} cues deleted` : `Cue ${index + 1} deleted`);
+    }
+  }
+
+  /** Focusing a precise field starts a discrete edit — snapshot for undo (§16.7). */
+  function onInspectorFocusIn(event: FocusEvent): void {
+    const target = event.target as HTMLElement;
+    if (target.matches('[data-timeline-start], [data-timeline-end], [data-timeline-text]')) {
+      deps.onEditGestureStart();
+    }
   }
 
   // ── Ruler scrub + playhead sweep ──────────────────────────────────────────
@@ -1110,10 +1265,20 @@ export function mountSubtitleTimelineEditor(
   }
 
   function onZoomSelection(): void {
-    const index = deps.getSelectedIndex();
-    const segment = index !== null ? deps.getSegments()[index] : undefined;
-    if (!segment) return;
-    setWindow(windowForSpan(segment.start, segment.end, fullDurationSeconds, minWin()));
+    // Frame the WHOLE selection (multi-select spans every selected cue).
+    const indices = deps.getSelectedIndices();
+    if (indices.length === 0) return;
+    const segments = deps.getSegments();
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const index of indices) {
+      const segment = segments[index];
+      if (!segment) continue;
+      lo = Math.min(lo, Math.min(segment.start, segment.end));
+      hi = Math.max(hi, Math.max(segment.start, segment.end));
+    }
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return;
+    setWindow(windowForSpan(lo, hi, fullDurationSeconds, minWin()));
   }
 
   function onZoomOut(): void {
@@ -1229,6 +1394,113 @@ export function mountSubtitleTimelineEditor(
     else deps.onRequestPlay(index);
   }
 
+  function onAddClick(): void {
+    deps.onRequestAddAt(playheadSeconds); // host snapshots, inserts, selects, re-renders
+    announce(playheadSeconds === null ? 'Cue added at the end' : 'Cue added at the playhead');
+  }
+
+  // ── Keyboard (§6.4): ←/→ rove · ↑/↓ frame-nudge (hold accelerates) ─────────
+
+  /** Screen-reader announcement (aria-live polite); NBSP toggle re-arms repeats. */
+  function announce(text: string): void {
+    liveToggle = !liveToggle;
+    liveEl.textContent = liveToggle ? `${text} ` : text;
+  }
+
+  /** Keep the roved-to cue in view when zoomed (gentle pan, zoom untouched). */
+  function ensureIndexVisible(index: number): void {
+    if (currentZoom() <= 1.001) return;
+    const segment = deps.getSegments()[index];
+    if (!segment) return;
+    const w = wv.window;
+    if (segment.start >= w.viewStartSeconds && segment.end <= w.viewEndSeconds) return;
+    const dur = windowDurationSeconds(w);
+    const start = segment.start - dur * 0.15;
+    setWindow({ viewStartSeconds: start, viewEndSeconds: start + dur });
+  }
+
+  /** Nudge the whole selection by ±1 frame (×4 when held). Order matters: moving
+      later cues first when going right (and vice versa) so neighbors vacate. */
+  function nudgeSelection(direction: 1 | -1): void {
+    const indices = deps.getSelectedIndices();
+    if (indices.length === 0) return;
+    const frame = 1 / Math.max(1, deps.getFps());
+    const delta = direction * frame * (nudgeRepeatCount > 8 ? 4 : 1);
+    const order = direction > 0 ? [...indices].reverse() : indices;
+    for (const index of order) {
+      const segment = deps.getSegments()[index];
+      if (!segment) continue;
+      const raw = resolveSnap(segment.start + delta, {
+        fps: deps.getFps(),
+        toleranceSeconds: 0,
+        disableMagnetism: true,
+      }).seconds;
+      const movedTo = constrainMove(raw, segment.end - segment.start, neighborContext(deps.getSegments(), index));
+      deps.onCommitTiming(index, movedTo.start, movedTo.end);
+      updateBarDom(index);
+    }
+    const primary = deps.getSelectedIndex();
+    if (primary !== null) {
+      updateInspectorFields(primary);
+      const segment = deps.getSegments()[primary];
+      if (segment) announce(`Cue ${primary + 1} at ${formatTimecode(segment.start)}`);
+    }
+  }
+
+  function onTrackKeyDown(event: KeyboardEvent): void {
+    const segments = deps.getSegments();
+    if (segments.length === 0) return;
+    const primary = deps.getSelectedIndex();
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      const dir = event.key === 'ArrowRight' ? 1 : -1;
+      const next =
+        primary === null
+          ? dir === 1
+            ? 0
+            : segments.length - 1
+          : Math.min(segments.length - 1, Math.max(0, primary + dir));
+      if (next === primary) return;
+      deps.onSelect(next);
+      render();
+      ensureIndexVisible(next);
+      announce(`Cue ${next + 1} selected`);
+      return;
+    }
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (primary === null) return;
+      if (!event.repeat) {
+        nudgeRepeatCount = 0;
+        deps.onEditGestureStart(); // one undo snapshot per key-burst
+      } else {
+        nudgeRepeatCount += 1;
+      }
+      nudgeSelection(event.key === 'ArrowUp' ? 1 : -1);
+      return;
+    }
+    if (event.key === ' ' || event.key === 'Spacebar') {
+      event.preventDefault();
+      if (primary === null || !deps.hasAudio()) return;
+      if (deps.isPlayingIndex(primary)) deps.onRequestStop();
+      else deps.onRequestPlay(primary);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      inspectorEl.querySelector<HTMLTextAreaElement>('[data-timeline-text]')?.focus();
+      return;
+    }
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      const indices = deps.getSelectedIndices();
+      if (indices.length === 0) return;
+      deps.onRequestDelete(indices);
+      announce(indices.length > 1 ? `${indices.length} cues deleted` : 'Cue deleted');
+    }
+  }
+
   trackEl.addEventListener('pointerdown', onTrackPointerDown);
   trackEl.addEventListener('pointermove', onTrackPointerMove);
   trackEl.addEventListener('pointerup', onTrackPointerUp);
@@ -1251,6 +1523,9 @@ export function mountSubtitleTimelineEditor(
   zoomOutBtn.addEventListener('click', onZoomOut);
   zoomInBtn.addEventListener('click', onZoomIn);
   zoomSliderEl.addEventListener('input', onZoomSlider);
+  addBtn.addEventListener('click', onAddClick);
+  trackEl.addEventListener('keydown', onTrackKeyDown);
+  inspectorEl.addEventListener('focusin', onInspectorFocusIn);
   document.addEventListener('keydown', onDocKeyDown, true);
 
   const resizeObserver = new ResizeObserver(() => render());
@@ -1264,7 +1539,14 @@ export function mountSubtitleTimelineEditor(
     resetView(): void {
       userWindow = null;
       lensDrag = null;
+      pendingSelect = null;
       setPlayheadSeconds(null);
+    },
+    refreshCueState(index: number): void {
+      // Async fit results land here — in-place updates only, never a rebuild
+      // (a full render would steal focus from the inspector textarea).
+      updateBarDom(index);
+      updateInspectorFit(index);
     },
     dispose(): void {
       endPlaybackSweep();
@@ -1293,6 +1575,9 @@ export function mountSubtitleTimelineEditor(
       zoomOutBtn.removeEventListener('click', onZoomOut);
       zoomInBtn.removeEventListener('click', onZoomIn);
       zoomSliderEl.removeEventListener('input', onZoomSlider);
+      addBtn.removeEventListener('click', onAddClick);
+      trackEl.removeEventListener('keydown', onTrackKeyDown);
+      inspectorEl.removeEventListener('focusin', onInspectorFocusIn);
     },
   };
 }

@@ -357,6 +357,10 @@ export function mountSubtitleSegmentEditor(
   // WHY: spatial editing (drag/resize/scrub) with full semiotic parity, wired to
   //      the same modalDraft + dirty→partial-rebake pipeline as the list.
   let selectedSegmentIndex: number | null = null;
+  // CHANGED: v5.8.0 Sprint 7 — multi-select extras (Ctrl-toggle / Shift-range).
+  // selectedSegmentIndex stays the PRIMARY (drives the inspector); extras join
+  // it for batch nudge/delete/zoom-to-selection. Cleared by structural edits.
+  const selectedSegmentExtras = new Set<number>();
   let viewMode: 'timeline' | 'list' = 'timeline';
 
   const cuePlayer = createSegmentCuePlayer();
@@ -368,10 +372,47 @@ export function mountSubtitleSegmentEditor(
   const timelineHandle: TimelineEditorHandle = mountSubtitleTimelineEditor(panel, {
     getSegments: () => modalDraft,
     getSelectedIndex: () => selectedSegmentIndex,
+    getSelectedIndices: () => {
+      if (selectedSegmentIndex === null) return [];
+      const all = new Set(selectedSegmentExtras);
+      all.add(selectedSegmentIndex);
+      return [...all].sort((a, b) => a - b);
+    },
     // Same clip reference the OOB check uses, so OOB bars align with the clip-end marker.
     getClipDurationSeconds: () => clipDurationForOob(),
-    onSelect: (index) => {
+    // CHANGED: v5.8.0 Sprint 7 — multi-select: plain replaces, toggle = Ctrl-click,
+    // range = Shift-click from the primary. Primary always drives the inspector.
+    onSelect: (index, opts) => {
+      if (index === null) {
+        selectedSegmentIndex = null;
+        selectedSegmentExtras.clear();
+        return;
+      }
+      if (opts?.toggle) {
+        if (index === selectedSegmentIndex) {
+          const first = selectedSegmentExtras.values().next();
+          selectedSegmentIndex = first.done ? null : first.value;
+          if (!first.done) selectedSegmentExtras.delete(first.value);
+        } else if (selectedSegmentExtras.has(index)) {
+          selectedSegmentExtras.delete(index);
+        } else if (selectedSegmentIndex === null) {
+          selectedSegmentIndex = index;
+        } else {
+          selectedSegmentExtras.add(index);
+        }
+        return;
+      }
+      if (opts?.range && selectedSegmentIndex !== null) {
+        selectedSegmentExtras.clear();
+        const lo = Math.min(selectedSegmentIndex, index);
+        const hi = Math.max(selectedSegmentIndex, index);
+        for (let i = lo; i <= hi; i += 1) {
+          if (i !== selectedSegmentIndex) selectedSegmentExtras.add(i);
+        }
+        return;
+      }
       selectedSegmentIndex = index;
+      selectedSegmentExtras.clear();
     },
     onRequestPlay: (index) => {
       void playTimelineCue(index);
@@ -399,6 +440,11 @@ export function mountSubtitleSegmentEditor(
       // Mirror readModalDraft: a blank field persists as the scaffold soft-hyphen
       // so empty timed slots survive normalize (parity with the list editor).
       modalDraft[index] = { ...segment, text: cueTextIsBlank(text) ? SCAFFOLD_SOFT_HYPHEN : text };
+      // CHANGED: v5.8.0 Sprint 7 — timeline text edits drive the same fit pipeline
+      // as list rows (heuristic now, canvas after the debounce), parity rows 5–6.
+      const stripped = stripScaffoldPlaceholder(modalDraft[index].text).trim();
+      if (stripped) scheduleCueFitMeasureForDraft(index, stripped);
+      else cueFitCache.delete(index);
     },
     isDirtyIndex: (index) => {
       const current = modalDraft[index];
@@ -410,6 +456,40 @@ export function mountSubtitleSegmentEditor(
         current.text !== baseline.text
       );
     },
+    // CHANGED: v5.8.0 Sprint 7 — parity deps. Fit verdicts come from the SAME
+    // cueFitCache/heuristic the list rows use; split shares the >1-chunk rule.
+    getCueFitState: (index) => {
+      const segment = modalDraft[index];
+      if (!segment) return null;
+      const text = stripScaffoldPlaceholder(segment.text).trim();
+      if (!text) return null;
+      const cached = cueFitCache.get(index);
+      if (cached) {
+        return {
+          overflow: cached.overflows,
+          label: `${formatFitStatusLabel(cached)} (${cached.source === 'canvas' ? 'canvas' : 'estimate'})`,
+          tier: cached.fitStatus,
+        };
+      }
+      const metrics = memoizedCaptionMetrics();
+      return {
+        overflow: evaluateCueBakeFitHeuristic(text, metrics, metrics.style).overflows,
+        label: null,
+        tier: null,
+      };
+    },
+    canSplitIndex: (index) => {
+      const segment = modalDraft[index];
+      if (!segment) return false;
+      const text = stripScaffoldPlaceholder(segment.text).trim();
+      if (!text) return false;
+      const metrics = memoizedCaptionMetrics();
+      return groupWordsByWidth(text, metrics.splitBudget, metrics.measure).length > 1;
+    },
+    onRequestSplit: (index) => splitSegmentAtIndex(index),
+    onRequestDelete: (indices) => deleteSegmentsAtIndices(indices),
+    onRequestAddAt: (seconds) => addSegmentAt(seconds),
+    onEditGestureStart: () => pushUndoSnapshot(),
   });
 
   interface CaptionMetrics extends CaptionMetricsContext {
@@ -437,6 +517,20 @@ export function mountSubtitleSegmentEditor(
 
   function resolveSubtitleStyle(): SubtitleStyleConfig {
     return handlers?.getSubtitleStyle?.() ?? DEFAULT_SUBTITLE_STYLE;
+  }
+
+  // CHANGED: v5.8.0 Sprint 7 — short-TTL metrics memo. The timeline's per-bar
+  // fit/split deps would otherwise build a fresh canvas measurer per bar per
+  // render; 300 ms staleness is invisible (style changes re-render anyway).
+  let metricsMemoValue: CaptionMetrics | null = null;
+  let metricsMemoAt = 0;
+  function memoizedCaptionMetrics(): CaptionMetrics {
+    const now = Date.now();
+    if (!metricsMemoValue || now - metricsMemoAt > 300) {
+      metricsMemoValue = buildCaptionMetrics();
+      metricsMemoAt = now;
+    }
+    return metricsMemoValue;
   }
 
   function clearCueFitCache(): void {
@@ -530,6 +624,37 @@ export function mountSubtitleSegmentEditor(
     cueFitDebounceTimers.set(index, timer);
   }
 
+  // CHANGED: v5.8.0 Sprint 7 — index-based fit measure for TIMELINE text edits.
+  // The row-bound scheduleCueFitMeasure validates its async result against the
+  // live LIST row, which is stale while the timeline owns the draft. This
+  // variant validates against modalDraft and pokes the timeline's TARGETED
+  // refresh (never a full render — that would steal focus from the inspector
+  // textarea mid-typing).
+  // Sync: scheduleCueFitMeasure (list twin), subtitle-timeline-editor.ts refreshCueState
+  function scheduleCueFitMeasureForDraft(index: number, text: string): void {
+    const existing = cueFitDebounceTimers.get(index);
+    if (existing !== undefined) window.clearTimeout(existing);
+
+    const metrics = memoizedCaptionMetrics();
+    cueFitCache.set(index, evaluateCueBakeFitHeuristic(text, metrics, metrics.style));
+
+    const timer = window.setTimeout(() => {
+      cueFitDebounceTimers.delete(index);
+      void resolveCueFit(text, metrics.style, metrics, {
+        forceCanvas: true,
+        themeBarColor: handlers?.getThemeBarColor?.(),
+      }).then((evaluation) => {
+        if (modalEl.hidden) return;
+        const liveText = stripScaffoldPlaceholder(modalDraft[index]?.text ?? '');
+        if (liveText.trim() !== text.trim()) return; // text moved on — stale result
+        cueFitCache.set(index, evaluation);
+        timelineHandle.refreshCueState(index);
+        syncSmartAdjustAffordance(metrics);
+      });
+    }, CAPTION_FIT_DEBOUNCE_MS);
+    cueFitDebounceTimers.set(index, timer);
+  }
+
   function computeDirty(): boolean {
     if (!edited || !savedBaseline) return false;
     return isTranscriptDirty(savedBaseline, edited);
@@ -556,6 +681,67 @@ export function mountSubtitleSegmentEditor(
     captureActiveDraft();
     return !segmentsDraftEqual(modalDraft, modalOpenBaseline);
   }
+
+  // CHANGED: v5.8.0 Sprint 7 (§16.7) — modal-session undo/redo. Bounded
+  // draft-snapshot stack; snapshots are pushed at DISCRETE GESTURE STARTS
+  // (drag first-move, field focus, nudge burst, structural ops), not per
+  // keystroke, so one undo reverts one user-perceived action. Cleared on
+  // modal open/close; Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) while the modal is up.
+  const UNDO_STACK_LIMIT = 50;
+  let undoStack: TranscriptSegment[][] = [];
+  let redoStack: TranscriptSegment[][] = [];
+
+  function cloneDraftSegments(): TranscriptSegment[] {
+    return modalDraft.map((segment) => ({ ...segment }));
+  }
+
+  function pushUndoSnapshot(): void {
+    captureActiveDraft();
+    const top = undoStack[undoStack.length - 1];
+    if (top && segmentsDraftEqual(top, modalDraft)) return; // no-op since last snapshot
+    undoStack.push(cloneDraftSegments());
+    if (undoStack.length > UNDO_STACK_LIMIT) undoStack.shift();
+    redoStack = [];
+  }
+
+  function restoreDraftFrom(source: TranscriptSegment[][], into: TranscriptSegment[][]): void {
+    if (source.length === 0) return;
+    captureActiveDraft();
+    into.push(cloneDraftSegments());
+    modalDraft = source.pop()!;
+    selectedSegmentExtras.clear();
+    if (selectedSegmentIndex !== null && selectedSegmentIndex >= modalDraft.length) {
+      selectedSegmentIndex = null;
+    }
+    renderModalSegments();
+  }
+
+  function undoDraft(): void {
+    restoreDraftFrom(undoStack, redoStack);
+  }
+
+  function redoDraft(): void {
+    restoreDraftFrom(redoStack, undoStack);
+  }
+
+  function clearUndoHistory(): void {
+    undoStack = [];
+    redoStack = [];
+  }
+
+  function onUndoKeydown(event: KeyboardEvent): void {
+    if (modalEl.hidden) return;
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      undoDraft();
+    } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+      event.preventDefault();
+      redoDraft();
+    }
+  }
+  document.addEventListener('keydown', onUndoKeydown);
 
   function hideModalUnsavedPrompt(): void {
     modalUnsavedEl.hidden = true;
@@ -1035,7 +1221,7 @@ export function mountSubtitleSegmentEditor(
   }
 
   function addSegment(): void {
-    captureActiveDraft();
+    pushUndoSnapshot(); // captures the active draft, then snapshots
     const clipDuration =
       clipDurationForOob() ?? clipDurationForPlayback() ?? resolvedClipMetaDuration();
     modalDraft.push(buildDefaultNewSegment(modalDraft, clipDuration));
@@ -1044,6 +1230,43 @@ export function mountSubtitleSegmentEditor(
     const lastText = textAreas[textAreas.length - 1];
     lastText?.focus();
     segmentsEl.scrollTop = segmentsEl.scrollHeight;
+  }
+
+  // CHANGED: v5.8.0 Sprint 7 — add-at-playhead (parity row 10: "new bar at
+  // playhead/end"). Inserts an empty timed slot AT the given time, kept in
+  // start order; a 2 s duration clamped to the next neighbor (min 0.5 s).
+  function addSegmentAt(seconds: number | null): void {
+    pushUndoSnapshot();
+    const clipDuration =
+      clipDurationForOob() ?? clipDurationForPlayback() ?? resolvedClipMetaDuration();
+    if (seconds === null || !Number.isFinite(seconds)) {
+      modalDraft.push(buildDefaultNewSegment(modalDraft, clipDuration));
+      selectedSegmentIndex = modalDraft.length - 1;
+      selectedSegmentExtras.clear();
+      renderModalSegments();
+      return;
+    }
+    const start = normalizeSegmentSeconds(Math.max(0, seconds));
+    let insertAt = modalDraft.length;
+    for (let i = 0; i < modalDraft.length; i += 1) {
+      if (modalDraft[i].start >= start) {
+        insertAt = i;
+        break;
+      }
+    }
+    const nextStart = insertAt < modalDraft.length ? modalDraft[insertAt].start : null;
+    const cap = nextStart ?? clipDuration ?? start + 2;
+    // Prefer 2 s clamped to the neighbor; keep at least 0.5 s even if that
+    // overlaps slightly (clamp policy governs gestures, not insertion).
+    const end = normalizeSegmentSeconds(Math.max(start + 0.5, Math.min(start + 2, cap)));
+    modalDraft = [
+      ...modalDraft.slice(0, insertAt),
+      { start, end, text: SCAFFOLD_SOFT_HYPHEN },
+      ...modalDraft.slice(insertAt),
+    ];
+    selectedSegmentIndex = insertAt;
+    selectedSegmentExtras.clear();
+    renderModalSegments();
   }
 
   // CHANGED: Phase 6 — Smart Split. Break one long cue into shorter timed cues,
@@ -1061,6 +1284,7 @@ export function mountSubtitleSegmentEditor(
     const chunks = groupWordsByWidth(text, splitBudget, measure);
     if (chunks.length <= 1) return; // already fits, or a single un-splittable word
 
+    pushUndoSnapshot(); // v5.8.0 Sprint 7 — one undo reverts the whole split
     const replacement = splitSegmentIntoChunks({ ...segment, text }, chunks);
     modalDraft = [
       ...modalDraft.slice(0, index),
@@ -1074,11 +1298,23 @@ export function mountSubtitleSegmentEditor(
   // Cancel/Discard (the deletion isn't committed until Apply to preview), so no
   // confirm prompt is needed. Operates on the live DOM draft to keep sibling edits.
   function deleteSegmentAtIndex(index: number): void {
+    deleteSegmentsAtIndices([index]);
+  }
+
+  // CHANGED: v5.8.0 Sprint 7 — batch delete (multi-select Delete / inspector 🗑).
+  function deleteSegmentsAtIndices(indices: number[]): void {
     captureActiveDraft();
-    if (index < 0 || index >= modalDraft.length) return;
-    modalDraft = [...modalDraft.slice(0, index), ...modalDraft.slice(index + 1)];
+    const valid = [...new Set(indices)]
+      .filter((i) => Number.isFinite(i) && i >= 0 && i < modalDraft.length)
+      .sort((a, b) => b - a); // descending so earlier indices stay stable
+    if (valid.length === 0) return;
+    pushUndoSnapshot();
+    for (const index of valid) {
+      modalDraft = [...modalDraft.slice(0, index), ...modalDraft.slice(index + 1)];
+    }
     // Selection indices shift on delete — clear rather than point at the wrong cue.
     selectedSegmentIndex = null;
+    selectedSegmentExtras.clear();
     renderModalSegments();
   }
 
@@ -1088,6 +1324,8 @@ export function mountSubtitleSegmentEditor(
     modalDraft = edited.segments.map((segment) => ({ ...segment }));
     modalOpenBaseline = modalDraft.map((segment) => ({ ...segment }));
     selectedSegmentIndex = null;
+    selectedSegmentExtras.clear();
+    clearUndoHistory(); // undo/redo is modal-session scoped (§16.7)
     // CHANGED: v5.8.0 Sprint 4 — a fresh session starts at fit zoom (no stale
     // window from the previous take carrying over).
     timelineHandle.resetView();
@@ -1109,6 +1347,8 @@ export function mountSubtitleSegmentEditor(
     cuePlayer.stop();
     playingSegmentIndex = null;
     selectedSegmentIndex = null;
+    selectedSegmentExtras.clear();
+    clearUndoHistory();
     timelineHandle.endPlaybackSweep();
     modalEl.hidden = true;
     modalDraft = [];
@@ -1160,8 +1400,9 @@ export function mountSubtitleSegmentEditor(
   }
 
   function applySmartAdjustProposal(proposal: SmartAdjustProposal): void {
-    captureActiveDraft();
+    pushUndoSnapshot(); // captures the active draft, then snapshots (Sprint 7)
     modalDraft = proposal.segments.map((segment) => ({ ...segment }));
+    selectedSegmentExtras.clear();
     if (proposal.isGlobal && typeof proposal.globalFontSize === 'number') {
       handlers?.onApplyGlobalFontSize?.(proposal.globalFontSize);
     }
@@ -1254,6 +1495,15 @@ export function mountSubtitleSegmentEditor(
       }
     }
   }
+
+  // CHANGED: v5.8.0 Sprint 7 — list-view edits snapshot for undo at field focus
+  // (one snapshot per focus burst; pushUndoSnapshot dedupes unchanged drafts).
+  segmentsEl.addEventListener('focusin', (event) => {
+    const target = event.target as HTMLElement;
+    if (target.matches('[data-segment-start], [data-segment-end], [data-segment-text]')) {
+      pushUndoSnapshot();
+    }
+  });
 
   segmentsEl.addEventListener('input', (event) => {
     const target = event.target as HTMLElement;
@@ -1425,6 +1675,7 @@ export function mountSubtitleSegmentEditor(
       smartAdjustModal.dispose();
       timelineHandle.dispose();
       document.removeEventListener('keydown', onModalKeydown);
+      document.removeEventListener('keydown', onUndoKeydown);
       document.removeEventListener('visibilitychange', onVisibility);
       browser.storage.onChanged.removeListener(onStorageRefresh);
       unsubscribeTake();
