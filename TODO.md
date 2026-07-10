@@ -13,8 +13,8 @@ Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: D
 | 2 | foundation: `timeline-geometry` (pure) + read-only ruler/bars/playhead + List toggle | **done** (`f1f3d16`) |
 | 3 | drag/resize (clamp-to-neighbor) + magnetism + bar↔inspector two-way sync + dirty | **done** (`e24eb96`) |
 | 4 | **stage & zoom** (§16.1–16.2): stage-mode modal + view-window model + zoom cluster/wheel/pan + minimap + R1 label fix | **done** (`f73f013`) |
-| 5 | **feel pass** (§16.3–16.4): short-cue ears, hysteresis snap + guides, grab-lift/spring, draggable playhead, Esc-cancel | next |
-| 6 | **waveform lane** (§16.5): pure peaks leaf + canvas + fallback | pending |
+| 5 | **feel pass** (§16.3–16.4): short-cue ears, hysteresis snap + guides, grab-lift/spring, playhead cap, Esc-cancel, auto-pan, minimap selected-highlight | **done** (`a382d74`) |
+| 6 | **waveform lane** (§16.5): pure peaks leaf + canvas + fallback | next |
 | 7 | semiotic parity (LONG/fit-status, split gesture, per-cue play, scaffold, add/delete, keyboard + undo/redo + multi-select) | pending |
 | 8 | smart integration: on-bar overflow/OOB/re-splice highlight + one-click apply | pending |
 | 9 | trim hooks (in/out markers + cue-shift preview + intent) + polish/a11y/perf | pending |
@@ -22,8 +22,8 @@ Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: D
 
 *Ladder revised 2026-07-09 (Sprint-3 QA → design doc §16 "Stage" refinement addendum): zoom/layout/feel/waveform land before parity so later sprints build on the real surface.*
 
-**Verify:** `node scripts/test-timeline-geometry.mjs` (37) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
-**QA pending (user):** real-browser — Sprint 3: drag/resize (clamp at neighbors, min 0.5s), Shift = fine control, inspector two-way sync, dirty amber chip, Apply keeps timeline edits. **Sprint 4: Timeline tab expands the modal into the landscape stage (List returns compact); inspector docks right; Ctrl+wheel zooms at the cursor; plain wheel pans when zoomed; zoom cluster (Fit / Sel / − slider + / readout) works; minimap appears when zoomed — lens drag pans, lens edge-drag zooms, strip click jumps; transport ▶ plays the selected cue + timecode tracks the playhead; short/dense cues no longer show garbled overflowing text (R1); reopen modal → zoom reset to fit.**
+**Verify:** `node scripts/test-timeline-geometry.mjs` (42) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
+**QA pending (user):** real-browser — Sprint 3: drag/resize (clamp at neighbors, min 0.5s), Shift = fine control, inspector two-way sync, dirty amber chip, Apply keeps timeline edits. Sprint 4: stage expansion (List returns compact); inspector rail; Ctrl+wheel anchored zoom; wheel pan; zoom cluster; minimap (lens drag/edge-drag/strip click); transport ▶ + timecode; R1 text fixed; reopen → fit. **Sprint 5: short cues grow visible outboard ears (grabbable down to slivers); snapping feels sticky-but-escapable (guide line appears — violet for neighbor/tick, amber for playhead — with a brief flash on acquire); Shift still frees the drag; grabbed bar lifts and settles back on release; playhead has a draggable teardrop cap in the ruler; Esc mid-drag reverts the gesture (and does NOT close the modal); dragging a bar to the track edge while zoomed auto-pans the view; selected cue shows amber in the minimap overview.**
 
 **Restore:** `git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev`
 

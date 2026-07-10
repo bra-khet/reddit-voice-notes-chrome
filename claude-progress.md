@@ -58,7 +58,17 @@ User approved the §16 mockup verbatim ("we'll go with something just like that"
 
 **Verify:** `test-timeline-geometry` **37** · regression (timeline 10, dirty 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` PASS · `tsc` clean (3 pre-existing). Commits `f581eb5` (design fold) + `f73f013` (code).
 
-**Next — Sprint 5 (feel pass, §16.3–16.4 + 16.6):** short-cue outboard "ears" + hit slop, snap **hysteresis** (+6 px exit) + visual snap guides + acquisition flash, grab-lift/spring micro-interactions, draggable playhead cap, Esc cancels gesture. Candidate add: auto-pan when dragging a bar to the window edge (noted during Sprint 4). Then 6 (waveform lane) · 7 (semiotic parity + keyboard/undo/multi-select) · 8 (smart integration) · 9 (trim hooks + polish) · 10 (wire + verify + release).
+### Sprint 5 — feel pass (2026-07-09) — **DONE (automated); real-browser QA pending**
+
+User approved Sprint 4 + the auto-pan candidate, and requested one addition: the selected cue's minimap block highlighted amber ("where am I" in the overview).
+
+- **`timeline-geometry.ts`** (+5 tests → **42**) — `resolveSnapSticky`: **hysteresis** snapping (acquire at enter tolerance, break only past release = enter + 6 px; returns held magnet + `acquired` flag for the flash; Shift bypasses; frame quantization always last).
+- **`subtitle-timeline-editor.ts`** — **ears** (§16.3): bars < 44 px move trim handles outboard as always-visible 8 px tabs (whole inner width = body/move; works down to the 12 px floor); ±3 px hit slop on all handles. **Sticky drag snap** with per-kind release radii + **snap guide** (1 px line, violet = neighbor/tick, amber = playhead) + one-shot acquisition **flash**. **Auto-pan** (28 px edge zone, depth-scaled RAF, stops at clip edges; `panAccumSeconds` carries the cue with the sliding window; wheel-zoom ignored mid-drag). **Esc cancels** the gesture (capture-phase keydown so it never closes the modal). **Grab lift** via `--grabbed` (in `barStateClasses` so auto-pan re-renders preserve it). **Playhead cap** teardrop in the ruler (re-appended by `renderRuler`; ruler owns the scrub). **Minimap selected-cue amber highlight** (user-requested).
+- **`style.css`** — ears/lift/guide/cap/minimap blocks; lift transitions `top`/`box-shadow` ONLY (never `transform` — drags stay 1:1); spring settle `cubic-bezier(0.34,1.56,0.64,1)`; reduced-motion disables lift transition + flash.
+
+**Verify:** `test-timeline-geometry` **42** · regression (timeline 10, dirty 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` PASS · `tsc` clean (3 pre-existing). Commit `a382d74`.
+
+**Next — Sprint 6 (waveform lane, §16.5):** additive `getDecodedBuffer()` on `SegmentCuePlayerHandle` (non-breaking) + pure `waveform-peaks.ts` (`computeWaveformPeaks` min/max bins, Node-tested, `scripts/test-waveform-peaks.mjs`) + one DPR-aware canvas lane between ruler and track, repainted only on window/resize/source change, quiet-line fallback in element mode. Then 7 (semiotic parity + keyboard/undo/multi-select) · 8 (smart integration) · 9 (trim hooks + polish) · 10 (wire + verify + release).
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
