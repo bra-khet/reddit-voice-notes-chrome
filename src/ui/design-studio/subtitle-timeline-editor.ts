@@ -304,6 +304,8 @@ export function mountSubtitleTimelineEditor(
   let peaksBuffer: AudioBuffer | null = null;
   let peaksChannel: Float32Array | null = null;
   let peaksPyramid: WaveformPeaks | null = null;
+  /** View-only display gain: quiet voice takes are normalized to fill the lane. */
+  let peaksGain = 1;
   let peaksGeneration = 0;
   let lastWaveformPaintKey = '';
 
@@ -594,6 +596,20 @@ export function mountSubtitleTimelineEditor(
       peaksChannel = buffer ? buffer.getChannelData(0) : null;
       peaksPyramid =
         buffer && peaksChannel ? computeWaveformPyramid(peaksChannel, buffer.sampleRate) : null;
+      // Display gain (user contrast feedback): voice takes rarely peak past
+      // ~0.4, so normalize the VIEW to the clip's own maximum (capped at 4×).
+      // Emphasis only — playback and every stored artifact are untouched.
+      peaksGain = 1;
+      if (peaksPyramid) {
+        let peak = 0;
+        for (let i = 0; i < peaksPyramid.max.length; i += 1) {
+          const hi = Math.abs(peaksPyramid.max[i]);
+          const lo = Math.abs(peaksPyramid.min[i]);
+          if (hi > peak) peak = hi;
+          if (lo > peak) peak = lo;
+        }
+        if (peak > 0.01) peaksGain = Math.min(4, 0.92 / peak);
+      }
       peaksGeneration += 1;
     }
 
@@ -615,10 +631,19 @@ export function mountSubtitleTimelineEditor(
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
+    // Contrast pass (user feedback): the WAVEFORM is the bright figure
+    // (--studio-accent-bars, high alpha, view gain applied) and the baseline is
+    // a dim silence reference drawn UNDERNEATH (--studio-indigo-muted) — it
+    // shows through quiet stretches and alone is the element-mode fallback.
+    // Same indigo/cividis axis, roles swapped for figure–ground contrast.
     const styles = getComputedStyle(waveformCanvasEl);
-    const fillColor = styles.getPropertyValue('--studio-indigo-accent').trim() || '#4a4a8a';
-    const lineColor = styles.getPropertyValue('--studio-accent-bars').trim() || '#8f93e6';
+    const fillColor = styles.getPropertyValue('--studio-accent-bars').trim() || '#8f93e6';
+    const baselineColor = styles.getPropertyValue('--studio-indigo-muted').trim() || '#8a86b0';
     const mid = cssHeight / 2;
+
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = baselineColor;
+    ctx.fillRect(0, mid - 0.5, cssWidth, 1);
 
     if (peaksBuffer && peaksChannel && peaksPyramid) {
       const winStart = wv.window.viewStartSeconds;
@@ -637,20 +662,15 @@ export function mountSubtitleTimelineEditor(
               cssWidth,
             );
       const amp = mid - 2;
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.9;
       ctx.fillStyle = fillColor;
       for (let x = 0; x < cssWidth; x += 1) {
-        const hi = Math.min(1, Math.max(-1, peaks.max[x]));
-        const lo = Math.min(1, Math.max(-1, peaks.min[x]));
+        const hi = Math.min(1, Math.max(-1, peaks.max[x] * peaksGain));
+        const lo = Math.min(1, Math.max(-1, peaks.min[x] * peaksGain));
         const top = mid - hi * amp;
         ctx.fillRect(x, top, 1, Math.max(1, (hi - lo) * amp));
       }
     }
-
-    // Centerline on top — alone, it is the "quiet line" element-mode fallback.
-    ctx.globalAlpha = 0.75;
-    ctx.fillStyle = lineColor;
-    ctx.fillRect(0, mid - 0.5, cssWidth, 1);
     ctx.globalAlpha = 1;
   }
 

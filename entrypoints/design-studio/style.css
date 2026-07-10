@@ -3113,10 +3113,12 @@ details[open] .wf-why__summary::before {
 
 /* ── v5.8.0 Sprint 6 — waveform lane (audio reference terrain), design §16.5 ── */
 
+/* Contrast pass (user feedback): taller lane on a darker ground so the bright
+   accent-bars fill reads at a glance; the painter swaps figure/ground roles. */
 .studio__cue-timeline-waveform-lane {
   position: relative;
-  height: 36px;
-  background: rgba(10, 0, 20, 0.35);
+  height: 48px;
+  background: rgba(10, 0, 20, 0.6);
   border-bottom: 1px solid var(--studio-hairline);
   pointer-events: none; /* reference-only chrome — wheel falls through to the lanes */
 }
