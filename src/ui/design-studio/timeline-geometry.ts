@@ -285,6 +285,52 @@ export function resolveSnap(rawSeconds: number, ctx: SnapContext): SnapResult {
   return { seconds: snapTimeToFrame(rawSeconds, ctx.fps), snappedTo: 'frame' };
 }
 
+// ── Sticky snap (hysteresis), design §16.4 ──────────────────────────────────
+
+/** A currently-held magnet: what the drag is snapped to right now. */
+export interface StickySnapState {
+  kind: SnapKind;
+  seconds: number;
+}
+
+export interface StickySnapResolution {
+  seconds: number;
+  snappedTo: SnapKind;
+  /** The magnet held after this resolution (null = free / frame-only). */
+  active: StickySnapState | null;
+  /** True when a magnet was newly acquired this resolution (drives the flash). */
+  acquired: boolean;
+}
+
+/**
+ * resolveSnap with hysteresis: acquiring a magnet uses the normal enter
+ * tolerance (ctx.toleranceSeconds), but BREAKING an acquired magnet requires
+ * pulling past `releaseToleranceSeconds` (enter + ~6 px upstream). Snapped
+ * feels intentional, escaping feels deliberate, and there is no flicker at the
+ * tolerance boundary. Shift (disableMagnetism) bypasses the hold entirely;
+ * frame quantization still always applies (I11).
+ */
+export function resolveSnapSticky(
+  rawSeconds: number,
+  ctx: SnapContext,
+  active: StickySnapState | null,
+  releaseToleranceSeconds: number,
+): StickySnapResolution {
+  if (!ctx.disableMagnetism && active) {
+    if (Math.abs(rawSeconds - active.seconds) <= Math.max(0, releaseToleranceSeconds)) {
+      return { seconds: active.seconds, snappedTo: active.kind, active, acquired: false };
+    }
+  }
+  const result = resolveSnap(rawSeconds, ctx);
+  if (ctx.disableMagnetism || result.snappedTo === 'frame') {
+    return { seconds: result.seconds, snappedTo: result.snappedTo, active: null, acquired: false };
+  }
+  const next: StickySnapState = { kind: result.snappedTo, seconds: result.seconds };
+  const isNew =
+    !active || active.kind !== next.kind || Math.abs(active.seconds - next.seconds) > 1e-9;
+  return { seconds: result.seconds, snappedTo: result.snappedTo, active: next, acquired: isNew };
+}
+
 // ── Edit constraints (clamp-to-neighbor policy, design §6.1) ────────────────
 
 /** Minimum editable cue duration — mirrors transcript-editing's editor floor. */

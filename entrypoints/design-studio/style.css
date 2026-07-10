@@ -2970,3 +2970,144 @@ details[open] .wf-why__summary::before {
   }
 }
 
+/* ── v5.8.0 Sprint 5 — feel pass (ears, hysteresis guides, lift, cap), design §16.3–16.4 + 16.6 ── */
+
+/* Invisible hit slop on every trim handle (§16.3) — larger target, same look. */
+.studio__cue-bar-handle::after {
+  content: '';
+  position: absolute;
+  inset: -4px -3px;
+}
+
+/* Outboard "ears" — bars < 44px move their trim handles OUTSIDE the span so the
+   whole inner width stays a body/move zone. Always visible: they ARE the
+   affordance that makes tiny cues editable. */
+.studio__cue-bar--eared {
+  overflow: visible;
+}
+
+.studio__cue-bar--eared .studio__cue-bar-body {
+  overflow: hidden;
+}
+
+.studio__cue-bar--eared .studio__cue-bar-handle {
+  opacity: 1;
+  top: 4px;
+  bottom: 4px;
+  width: 8px;
+  background: rgba(143, 147, 230, 0.55);
+  box-shadow: none;
+  border: 1px solid var(--studio-indigo-accent);
+}
+
+.studio__cue-bar--eared .studio__cue-bar-handle--start {
+  left: -10px;
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+
+.studio__cue-bar--eared .studio__cue-bar-handle--end {
+  right: -10px;
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+
+.studio__cue-bar--eared.studio__cue-bar--selected .studio__cue-bar-handle {
+  background: var(--studio-amber-dim);
+  border-color: var(--studio-amber-edge);
+}
+
+/* Grab lift — the held bar rises 2px with a deeper shadow; release settles back
+   on a spring curve. Transition is on top/box-shadow ONLY (never transform —
+   the drag itself must stay 1:1). */
+.studio__cue-bar {
+  transition:
+    top 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.16s ease;
+}
+
+.studio__cue-bar--grabbed {
+  top: 6px;
+  box-shadow: 0 5px 14px rgba(10, 0, 20, 0.6);
+  cursor: grabbing;
+  z-index: 4;
+}
+
+.studio__cue-bar--selected.studio__cue-bar--grabbed {
+  box-shadow:
+    0 0 0 2px var(--studio-focus),
+    0 5px 14px rgba(10, 0, 20, 0.6);
+}
+
+/* Snap guide — 1px full-height line at the held magnet: violet for neighbor/tick,
+   amber for the playhead. One-shot flash on acquisition. */
+.studio__cue-timeline-snap-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--studio-violet-confirm);
+  color: var(--studio-violet-confirm);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.studio__cue-timeline-snap-guide--playhead {
+  background: var(--studio-amber);
+  color: var(--studio-amber);
+}
+
+.studio__cue-timeline-snap-guide[hidden] {
+  display: none;
+}
+
+@keyframes studio-snap-flash {
+  0% {
+    box-shadow: 0 0 10px 2px currentColor;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.studio__cue-timeline-snap-guide--flash {
+  animation: studio-snap-flash 0.16s ease-out;
+}
+
+/* Playhead cap — amber teardrop seated in the ruler; the grab affordance for
+   scrubbing (the ruler already owns the scrub gesture). */
+.studio__cue-timeline-playhead-cap {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 11px;
+  height: 13px;
+  background: var(--studio-amber);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.studio__cue-timeline-playhead-cap[hidden] {
+  display: none;
+}
+
+/* Minimap: the selected cue reads amber in the overview — "where am I" at a
+   glance (mirrors the selected bar treatment). */
+.studio__cue-timeline-minimap-heat span.studio__cue-timeline-minimap-cue--selected {
+  top: 5px;
+  height: 8px;
+  background: var(--studio-amber);
+  box-shadow: 0 0 4px rgba(255, 213, 79, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__cue-bar {
+    transition: none;
+  }
+  .studio__cue-timeline-snap-guide--flash {
+    animation: none;
+  }
+}
+

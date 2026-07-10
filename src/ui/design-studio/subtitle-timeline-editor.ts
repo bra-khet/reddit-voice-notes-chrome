@@ -41,6 +41,7 @@ import {
   minimapPxToSeconds,
   panWindow,
   resolveSnap,
+  resolveSnapSticky,
   sliderToZoomFactor,
   windowDurationSeconds,
   windowForSpan,
@@ -52,6 +53,8 @@ import {
   zoomFactorToSlider,
   zoomWindowAt,
   type CueEditContext,
+  type StickySnapResolution,
+  type StickySnapState,
   type TimelineWindow,
   type WindowViewport,
 } from '@/src/ui/design-studio/timeline-geometry';
@@ -67,6 +70,14 @@ const SOFT_MAGNET_PX = 8;
 const CLICK_SLOP_PX = 3;
 /** Vertical stray beyond this (px) suspends the drag; it re-acquires on return (§6.1.1). */
 const VERTICAL_TOLERANCE_PX = 90;
+/** Bars narrower than this get outboard "ear" trim handles (§16.3). */
+const EAR_THRESHOLD_PX = 44;
+/** Extra pull (px) past the enter tolerance required to break an acquired snap (§16.4). */
+const SNAP_RELEASE_EXTRA_PX = 6;
+/** Dragging a bar within this distance of the track edge auto-pans the window. */
+const AUTO_PAN_ZONE_PX = 28;
+/** Fastest auto-pan speed (px of track per frame, scaled by zone depth). */
+const AUTO_PAN_MAX_PX_PER_FRAME = 14;
 
 type DragZone = 'start' | 'end' | 'body';
 
@@ -82,6 +93,12 @@ interface DragState {
   ctx: CueEditContext;
   moved: boolean;
   suspended: boolean;
+  /** Magnet currently held by the hysteresis resolver (§16.4). */
+  activeSnap: StickySnapState | null;
+  /** Seconds the window auto-panned under the pointer — added to the px delta. */
+  panAccumSeconds: number;
+  lastClientX: number;
+  lastShift: boolean;
 }
 
 export interface TimelineEditorDeps {
@@ -138,6 +155,7 @@ export function renderSubtitleTimelineEditorShell(): string {
             tabindex="0"
           >
             <div class="studio__cue-timeline-playhead" data-timeline-playhead hidden></div>
+            <div class="studio__cue-timeline-snap-guide" data-timeline-snap-guide hidden></div>
           </div>
           <div class="studio__cue-timeline-minimap" data-timeline-minimap aria-hidden="true" hidden>
             <div class="studio__cue-timeline-minimap-heat" data-timeline-minimap-heat></div>
@@ -223,6 +241,7 @@ export function mountSubtitleTimelineEditor(
   const rulerEl = container.querySelector<HTMLElement>('[data-timeline-ruler]')!;
   const trackEl = container.querySelector<HTMLElement>('[data-timeline-track]')!;
   const playheadEl = container.querySelector<HTMLElement>('[data-timeline-playhead]')!;
+  const snapGuideEl = container.querySelector<HTMLElement>('[data-timeline-snap-guide]')!;
   const minimapEl = container.querySelector<HTMLElement>('[data-timeline-minimap]')!;
   const minimapHeatEl = container.querySelector<HTMLElement>('[data-timeline-minimap-heat]')!;
   const lensEl = container.querySelector<HTMLElement>('[data-timeline-lens]')!;
@@ -297,6 +316,7 @@ export function mountSubtitleTimelineEditor(
     if (cueTextIsBlank(segment.text)) classes.push('studio__cue-bar--scaffold');
     if (clip !== null && segmentHasOutOfBoundsEnd(segment, clip)) classes.push('studio__cue-bar--oob');
     if (deps.isPlayingIndex(index)) classes.push('studio__cue-bar--playing');
+    if (drag && drag.index === index) classes.push('studio__cue-bar--grabbed');
     return classes.join(' ');
   }
 
@@ -314,6 +334,12 @@ export function mountSubtitleTimelineEditor(
         return `<span class="${cls}" style="left:${tick.px.toFixed(2)}px">${label}</span>`;
       })
       .join('');
+    // The cap lives in the ruler (renderRuler wipes innerHTML, so re-append here);
+    // applyPlayhead() repositions it on every playhead change.
+    rulerEl.insertAdjacentHTML(
+      'beforeend',
+      '<span class="studio__cue-timeline-playhead-cap" data-timeline-playhead-cap hidden></span>',
+    );
   }
 
   function renderClipEndMarker(clip: number | null): void {
@@ -355,9 +381,11 @@ export function mountSubtitleTimelineEditor(
         const selected = bar.index === deps.getSelectedIndex();
         // R1: a floored-width bar has no honest room for label/text — hide them.
         const tiny = bar.rawWidthPx < MIN_BAR_WIDTH_PX ? ' studio__cue-bar--tiny' : '';
+        // §16.3: narrow bars grow outboard "ears" so trim stays grabbable.
+        const eared = bar.widthPx < EAR_THRESHOLD_PX ? ' studio__cue-bar--eared' : '';
         return `
           <div
-            class="${barStateClasses(segment, bar.index, clip)}${tiny}"
+            class="${barStateClasses(segment, bar.index, clip)}${tiny}${eared}"
             data-cue-index="${bar.index}"
             role="option"
             aria-selected="${selected ? 'true' : 'false'}"
@@ -438,17 +466,24 @@ export function mountSubtitleTimelineEditor(
 
   function applyPlayhead(): void {
     updateTimecode();
+    const capEl = rulerEl.querySelector<HTMLElement>('[data-timeline-playhead-cap]');
     if (playheadSeconds === null || fullDurationSeconds <= 0) {
       playheadEl.hidden = true;
+      if (capEl) capEl.hidden = true;
       return;
     }
     const px = windowSecondsToPx(playheadSeconds, wv);
     if (px < -1 || px > wv.trackWidthPx + 1) {
       playheadEl.hidden = true; // playhead is outside the zoomed window
+      if (capEl) capEl.hidden = true;
       return;
     }
     playheadEl.hidden = false;
     playheadEl.style.transform = `translateX(${px.toFixed(2)}px)`;
+    if (capEl) {
+      capEl.hidden = false;
+      capEl.style.transform = `translateX(${(px - 5.5).toFixed(2)}px)`;
+    }
   }
 
   // ── Zoom state (window resolution + control cluster) ───────────────────────
@@ -494,12 +529,17 @@ export function mountSubtitleTimelineEditor(
     const show = fullDurationSeconds > 0 && currentZoom() > 1.02;
     minimapEl.hidden = !show;
     if (!show) return;
+    // Selected cue reads amber in the overview — "where am I" at a glance
+    // (mirrors the selected bar treatment; user-requested after Sprint-4 QA).
+    const selectedIndex = deps.getSelectedIndex();
     minimapHeatEl.innerHTML = segments
-      .map((segment) => {
+      .map((segment, index) => {
         const startSec = Math.max(0, Math.min(segment.start, segment.end));
         const left = (startSec / fullDurationSeconds) * 100;
         const width = (Math.abs(segment.end - segment.start) / fullDurationSeconds) * 100;
-        return `<span style="left:${left.toFixed(2)}%;width:${Math.max(0.4, width).toFixed(2)}%"></span>`;
+        const cls =
+          index === selectedIndex ? ' class="studio__cue-timeline-minimap-cue--selected"' : '';
+        return `<span${cls} style="left:${left.toFixed(2)}%;width:${Math.max(0.4, width).toFixed(2)}%"></span>`;
       })
       .join('');
     const lens = minimapLens(wv.window, fullDurationSeconds, minimapEl.clientWidth);
@@ -558,6 +598,7 @@ export function mountSubtitleTimelineEditor(
     barEl.style.width = `${bar.widthPx.toFixed(2)}px`;
     barEl.className = barStateClasses(segment, index, clipCache);
     barEl.classList.toggle('studio__cue-bar--tiny', bar.rawWidthPx < MIN_BAR_WIDTH_PX);
+    barEl.classList.toggle('studio__cue-bar--eared', bar.widthPx < EAR_THRESHOLD_PX);
     barEl.setAttribute('aria-selected', index === deps.getSelectedIndex() ? 'true' : 'false');
     barEl.title = `Cue ${index + 1}: ${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}`;
     const textEl = barEl.querySelector<HTMLElement>('.studio__cue-bar-text');
@@ -594,6 +635,106 @@ export function mountSubtitleTimelineEditor(
     }).seconds;
   }
 
+  // ── Snap guide (visual feedback while a magnet is held, §16.4) ──────────────
+
+  function hideSnapGuide(): void {
+    snapGuideEl.hidden = true;
+  }
+
+  function updateSnapGuide(res: StickySnapResolution): void {
+    if (!res.active) {
+      hideSnapGuide();
+      return;
+    }
+    const px = windowSecondsToPx(res.active.seconds, wv);
+    if (px < 0 || px > wv.trackWidthPx) {
+      hideSnapGuide();
+      return;
+    }
+    snapGuideEl.hidden = false;
+    snapGuideEl.style.transform = `translateX(${px.toFixed(2)}px)`;
+    snapGuideEl.classList.toggle(
+      'studio__cue-timeline-snap-guide--playhead',
+      res.active.kind === 'playhead',
+    );
+    if (res.acquired) {
+      // Restart the one-shot acquisition flash (reflow re-arms the animation).
+      snapGuideEl.classList.remove('studio__cue-timeline-snap-guide--flash');
+      void snapGuideEl.offsetWidth;
+      snapGuideEl.classList.add('studio__cue-timeline-snap-guide--flash');
+    }
+  }
+
+  /** Drag-path snap: hysteresis hold + guide side effects (inspector keeps snapValue). */
+  function snapDrag(raw: number, neighborSeconds: number[], shift: boolean): number {
+    if (!drag) return raw;
+    const neighborTol = windowPxDeltaToSeconds(NEIGHBOR_MAGNET_PX, wv);
+    const softTol = windowPxDeltaToSeconds(SOFT_MAGNET_PX, wv);
+    const softTicks = tickSecondsCache.filter((t) => Math.abs(t - raw) <= softTol);
+    const playhead =
+      playheadSeconds !== null && Math.abs(playheadSeconds - raw) <= softTol ? playheadSeconds : null;
+    const enterPx = drag.activeSnap?.kind === 'neighbor' ? NEIGHBOR_MAGNET_PX : SOFT_MAGNET_PX;
+    const res = resolveSnapSticky(
+      raw,
+      {
+        fps: deps.getFps(),
+        neighborSeconds,
+        playheadSeconds: playhead,
+        tickSeconds: softTicks,
+        toleranceSeconds: neighborTol,
+        disableMagnetism: shift,
+      },
+      drag.activeSnap,
+      windowPxDeltaToSeconds(enterPx + SNAP_RELEASE_EXTRA_PX, wv),
+    );
+    drag.activeSnap = res.active;
+    updateSnapGuide(res);
+    return res.seconds;
+  }
+
+  // ── Auto-pan (drag a bar against the window edge to scroll the view) ────────
+
+  let autoPanRaf = 0;
+
+  function stopAutoPan(): void {
+    if (autoPanRaf) cancelAnimationFrame(autoPanRaf);
+    autoPanRaf = 0;
+  }
+
+  function autoPanStep(): void {
+    autoPanRaf = 0;
+    if (!drag || drag.suspended || !drag.moved) return;
+    if (currentZoom() <= 1.001) return;
+    const rect = trackEl.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const x = drag.lastClientX - rect.left;
+    let dir = 0;
+    let depth = 0;
+    if (x < AUTO_PAN_ZONE_PX) {
+      dir = -1;
+      depth = Math.min(1, (AUTO_PAN_ZONE_PX - x) / AUTO_PAN_ZONE_PX);
+    } else if (x > rect.width - AUTO_PAN_ZONE_PX) {
+      dir = 1;
+      depth = Math.min(1, (x - (rect.width - AUTO_PAN_ZONE_PX)) / AUTO_PAN_ZONE_PX);
+    }
+    if (dir === 0) return;
+    const before = wv.window.viewStartSeconds;
+    const panSeconds = windowPxDeltaToSeconds(dir * depth * AUTO_PAN_MAX_PX_PER_FRAME, wv);
+    userWindow = panWindow(wv.window, panSeconds, fullDurationSeconds, minWin());
+    render();
+    const actual = wv.window.viewStartSeconds - before;
+    if (Math.abs(actual) < 1e-9) return; // clamped at the clip edge — stop panning
+    // The window slid under a (roughly) stationary pointer: carry the cue along.
+    drag.panAccumSeconds += actual;
+    applyDragAt(drag.lastClientX, drag.lastShift);
+    autoPanRaf = requestAnimationFrame(autoPanStep);
+  }
+
+  function maybeAutoPan(): void {
+    if (autoPanRaf) return;
+    autoPanRaf = requestAnimationFrame(autoPanStep);
+  }
+
   // ── Drag / resize ─────────────────────────────────────────────────────────
 
   function onTrackPointerDown(event: PointerEvent): void {
@@ -624,7 +765,13 @@ export function mountSubtitleTimelineEditor(
       ctx: neighborContext(segments, index),
       moved: false,
       suspended: false,
+      activeSnap: null,
+      panAccumSeconds: 0,
+      lastClientX: event.clientX,
+      lastShift: event.shiftKey,
     };
+    // Grab lift — instant feedback (render() above may have replaced the node).
+    barElAt(index)?.classList.add('studio__cue-bar--grabbed');
     try {
       trackEl.setPointerCapture(event.pointerId);
     } catch {
@@ -632,34 +779,25 @@ export function mountSubtitleTimelineEditor(
     }
   }
 
-  function onTrackPointerMove(event: PointerEvent): void {
-    if (!drag || event.pointerId !== drag.pointerId) return;
-    const dx = event.clientX - drag.startClientX;
-    const dy = event.clientY - drag.startClientY;
-
-    if (Math.abs(dy) > VERTICAL_TOLERANCE_PX) {
-      drag.suspended = true; // drop the drag but keep capture — re-acquire on return
-      return;
-    }
-    drag.suspended = false;
-    if (!drag.moved && Math.abs(dx) < CLICK_SLOP_PX) return;
-    drag.moved = true;
-
-    const deltaSeconds = windowPxDeltaToSeconds(dx, wv);
+  /** Compute + commit the drag value for a pointer x (shared by move + auto-pan). */
+  function applyDragAt(clientX: number, shift: boolean): void {
+    if (!drag) return;
+    const dx = clientX - drag.startClientX;
+    const deltaSeconds = windowPxDeltaToSeconds(dx, wv) + drag.panAccumSeconds;
     let start = drag.origStart;
     let end = drag.origEnd;
 
     if (drag.zone === 'start') {
-      const raw = snapValue(drag.origStart + deltaSeconds, [drag.ctx.prevEndSeconds], event.shiftKey);
+      const raw = snapDrag(drag.origStart + deltaSeconds, [drag.ctx.prevEndSeconds], shift);
       start = constrainResizeStart(raw, drag.origEnd, drag.ctx);
     } else if (drag.zone === 'end') {
-      const raw = snapValue(drag.origEnd + deltaSeconds, [drag.ctx.nextStartSeconds], event.shiftKey);
+      const raw = snapDrag(drag.origEnd + deltaSeconds, [drag.ctx.nextStartSeconds], shift);
       end = constrainResizeEnd(drag.origStart, raw, drag.ctx);
     } else {
-      const raw = snapValue(
+      const raw = snapDrag(
         drag.origStart + deltaSeconds,
         [drag.ctx.prevEndSeconds, drag.ctx.nextStartSeconds - drag.origDuration],
-        event.shiftKey,
+        shift,
       );
       const moved = constrainMove(raw, drag.origDuration, drag.ctx);
       start = moved.start;
@@ -671,8 +809,32 @@ export function mountSubtitleTimelineEditor(
     updateInspectorFields(drag.index);
   }
 
+  function onTrackPointerMove(event: PointerEvent): void {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dx = event.clientX - drag.startClientX;
+    const dy = event.clientY - drag.startClientY;
+
+    if (Math.abs(dy) > VERTICAL_TOLERANCE_PX) {
+      drag.suspended = true; // drop the drag but keep capture — re-acquire on return
+      stopAutoPan();
+      hideSnapGuide();
+      return;
+    }
+    drag.suspended = false;
+    drag.lastClientX = event.clientX;
+    drag.lastShift = event.shiftKey;
+    if (!drag.moved && Math.abs(dx) < CLICK_SLOP_PX) return;
+    drag.moved = true;
+
+    applyDragAt(event.clientX, event.shiftKey);
+    maybeAutoPan();
+  }
+
   function onTrackPointerUp(event: PointerEvent): void {
     if (!drag || event.pointerId !== drag.pointerId) return;
+    stopAutoPan();
+    hideSnapGuide();
+    barElAt(drag.index)?.classList.remove('studio__cue-bar--grabbed');
     try {
       trackEl.releasePointerCapture(event.pointerId);
     } catch {
@@ -681,6 +843,30 @@ export function mountSubtitleTimelineEditor(
     const moved = drag.moved;
     drag = null;
     if (moved) render(); // reconcile dirty state + inspector after the gesture
+  }
+
+  /** Esc mid-gesture cancels: revert to gesture-start values (§16.4). */
+  function cancelDrag(): void {
+    if (!drag) return;
+    stopAutoPan();
+    hideSnapGuide();
+    deps.onCommitTiming(drag.index, drag.origStart, drag.origEnd);
+    barElAt(drag.index)?.classList.remove('studio__cue-bar--grabbed');
+    try {
+      trackEl.releasePointerCapture(drag.pointerId);
+    } catch {
+      // ignore
+    }
+    drag = null;
+    render();
+  }
+
+  // Capture phase so a drag-cancel Esc never reaches the host's modal-close handler.
+  function onDocKeyDown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape' || !drag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    cancelDrag();
   }
 
   // ── Inspector editing ─────────────────────────────────────────────────────
@@ -820,6 +1006,7 @@ export function mountSubtitleTimelineEditor(
 
   /** Ctrl(/Cmd)+wheel = anchored zoom at the cursor; plain wheel = pan when zoomed. */
   function onLanesWheel(event: WheelEvent): void {
+    if (drag) return; // zoom mid-drag would invalidate the gesture's px math
     if (fullDurationSeconds <= 0 || wv.trackWidthPx <= 0) return;
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault(); // also swallows browser page-zoom / pinch
@@ -934,6 +1121,7 @@ export function mountSubtitleTimelineEditor(
   zoomOutBtn.addEventListener('click', onZoomOut);
   zoomInBtn.addEventListener('click', onZoomIn);
   zoomSliderEl.addEventListener('input', onZoomSlider);
+  document.addEventListener('keydown', onDocKeyDown, true);
 
   const resizeObserver = new ResizeObserver(() => render());
   resizeObserver.observe(trackEl);
@@ -950,6 +1138,8 @@ export function mountSubtitleTimelineEditor(
     },
     dispose(): void {
       endPlaybackSweep();
+      stopAutoPan();
+      document.removeEventListener('keydown', onDocKeyDown, true);
       resizeObserver.disconnect();
       trackEl.removeEventListener('pointerdown', onTrackPointerDown);
       trackEl.removeEventListener('pointermove', onTrackPointerMove);

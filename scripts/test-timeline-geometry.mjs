@@ -49,6 +49,7 @@ const {
   constrainResizeStart,
   constrainResizeEnd,
   constrainMove,
+  resolveSnapSticky,
   MIN_WINDOW_SECONDS,
   minWindowSeconds,
   fitWindow,
@@ -295,6 +296,55 @@ check('degenerate bar (bigger than the gap) pins to the floor without crashing',
   assert.deepEqual(constrainMove(10, 4, tight), { start: 5, end: 9 });
   // resize-start where hi < lo pins to lo
   assert.equal(constrainResizeStart(10, 5.2, tight), 5);
+});
+
+console.log('sticky snap (hysteresis, §16.4)');
+
+// enter tolerance 0.2s, release 0.35s — mirrors the component's px-derived values
+const stickyCtx = { fps: FPS, toleranceSeconds: 0.2, neighborSeconds: [10.0] };
+const RELEASE = 0.35;
+
+check('acquire: entering the enter tolerance snaps and flags acquired', () => {
+  const r = resolveSnapSticky(10.1, stickyCtx, null, RELEASE);
+  assert.equal(r.snappedTo, 'neighbor');
+  assert.equal(r.seconds, snapTimeToFrame(10.0, FPS));
+  assert.ok(r.active, 'magnet held');
+  assert.equal(r.acquired, true);
+});
+
+check('hold: beyond enter but within release tolerance stays snapped (no flicker)', () => {
+  const held = { kind: 'neighbor', seconds: snapTimeToFrame(10.0, FPS) };
+  const r = resolveSnapSticky(10.3, stickyCtx, held, RELEASE); // 0.3 > enter 0.2, < release 0.35
+  assert.equal(r.seconds, held.seconds);
+  assert.equal(r.snappedTo, 'neighbor');
+  assert.deepEqual(r.active, held);
+  assert.equal(r.acquired, false, 'holding is not a new acquisition');
+});
+
+check('break: pulling past the release tolerance frees the drag (frame-only)', () => {
+  const held = { kind: 'neighbor', seconds: snapTimeToFrame(10.0, FPS) };
+  const r = resolveSnapSticky(10.5, stickyCtx, held, RELEASE); // 0.5 > release 0.35
+  assert.equal(r.snappedTo, 'frame');
+  assert.equal(r.seconds, snapTimeToFrame(10.5, FPS));
+  assert.equal(r.active, null);
+});
+
+check('re-acquire: breaking into another magnet flags acquired again', () => {
+  const held = { kind: 'neighbor', seconds: snapTimeToFrame(10.0, FPS) };
+  const ctx = { ...stickyCtx, neighborSeconds: [10.0, 11.0] };
+  const r = resolveSnapSticky(10.9, ctx, held, RELEASE); // past release of 10.0, within enter of 11.0
+  assert.equal(r.snappedTo, 'neighbor');
+  assert.equal(r.seconds, snapTimeToFrame(11.0, FPS));
+  assert.equal(r.acquired, true, 'new target = new acquisition');
+});
+
+check('Shift bypasses the hold entirely but still frame-snaps', () => {
+  const held = { kind: 'neighbor', seconds: snapTimeToFrame(10.0, FPS) };
+  const r = resolveSnapSticky(10.05, { ...stickyCtx, disableMagnetism: true }, held, RELEASE);
+  assert.equal(r.snappedTo, 'frame');
+  assert.equal(r.seconds, snapTimeToFrame(10.05, FPS));
+  assert.equal(r.active, null);
+  assert.equal(r.acquired, false);
 });
 
 console.log('view window (zoom + pan, §16.2)');
