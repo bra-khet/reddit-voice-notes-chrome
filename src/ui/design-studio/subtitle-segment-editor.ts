@@ -51,6 +51,7 @@ import {
   mountSubtitleTimelineEditor,
   renderSubtitleTimelineEditorShell,
   TIMELINE_DEFAULT_FPS,
+  type CueSuggestionState,
   type TimelineEditorHandle,
 } from '@/src/ui/design-studio/subtitle-timeline-editor';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
@@ -433,6 +434,7 @@ export function mountSubtitleSegmentEditor(
       const segment = modalDraft[index];
       if (!segment) return;
       modalDraft[index] = { ...segment, start, end };
+      invalidateCueSuggestions(); // timing moves OOB in/out of suggestion range
     },
     onCommitText: (index, text) => {
       const segment = modalDraft[index];
@@ -445,6 +447,7 @@ export function mountSubtitleSegmentEditor(
       const stripped = stripScaffoldPlaceholder(modalDraft[index].text).trim();
       if (stripped) scheduleCueFitMeasureForDraft(index, stripped);
       else cueFitCache.delete(index);
+      invalidateCueSuggestions();
     },
     isDirtyIndex: (index) => {
       const current = modalDraft[index];
@@ -490,6 +493,24 @@ export function mountSubtitleSegmentEditor(
     onRequestDelete: (indices) => deleteSegmentsAtIndices(indices),
     onRequestAddAt: (seconds) => addSegmentAt(seconds),
     onEditGestureStart: () => pushUndoSnapshot(),
+    // CHANGED: v5.8.0 Sprint 8 — smart suggestions on bars (design §8): the
+    // host derives them from the SAME pure detectors Smart Adjust uses.
+    getCueSuggestion: (index) => currentCueSuggestions().get(index) ?? null,
+    onApplyMinimalFix: (index) => {
+      // Re-derive fresh — never apply a proposal built against a moved draft.
+      const metrics = memoizedCaptionMetrics();
+      const overflowing = findOverflowingIndicesFromDraft(metrics);
+      const proposal = collectMinimalFixProposals(modalDraft, overflowing, metrics, metrics.fontSize)
+        .find((candidate) => candidate.cueIndex === index && !candidate.isGlobal);
+      if (!proposal) {
+        // Stale affordance (text changed since the last paint) — resync bars.
+        syncSuggestionBars();
+        return false;
+      }
+      applySmartAdjustProposal(proposal); // snapshots, applies, re-validates
+      return true;
+    },
+    onOpenSmartAdjust: (index) => openSmartAdjustMenu(index),
   });
 
   interface CaptionMetrics extends CaptionMetricsContext {
@@ -500,6 +521,12 @@ export function mountSubtitleSegmentEditor(
   const cueFitCache = new Map<number, CueFitEvaluation>();
   const cueFitDebounceTimers = new Map<number, number>();
   let validateAllRunning = false;
+
+  // CHANGED: v5.8.0 Sprint 8 — on-bar smart suggestions (design §8). Computed
+  // lazily from the same detectors Smart Adjust uses; any draft/fit change
+  // marks the map stale and the next read (bar render, dep call) recomputes.
+  let cueSuggestions = new Map<number, CueSuggestionState>();
+  let cueSuggestionsStale = true;
 
   // CHANGED: Phase 6 + Phase 1 — width measurer + two-tier real-canvas fit (v5.3.6 refactor).
   function buildCaptionMetrics(): CaptionMetrics {
@@ -537,6 +564,7 @@ export function mountSubtitleSegmentEditor(
     cueFitCache.clear();
     cueFitDebounceTimers.forEach((timer) => window.clearTimeout(timer));
     cueFitDebounceTimers.clear();
+    invalidateCueSuggestions(); // suggestions derive from the fit cache (§8)
   }
 
   function getCueOverflow(evaluation: CueFitEvaluation | undefined, text: string, metrics: CaptionMetrics): boolean {
@@ -597,6 +625,7 @@ export function mountSubtitleSegmentEditor(
 
     const heuristic = evaluateCueBakeFitHeuristic(text, metrics, metrics.style);
     cueFitCache.set(index, heuristic);
+    invalidateCueSuggestions();
     syncRowFitStatus(row, heuristic);
     syncRowOverflowUi(row, metrics, heuristic);
     syncSmartAdjustAffordance(metrics);
@@ -615,6 +644,7 @@ export function mountSubtitleSegmentEditor(
         );
         if (liveText.trim() !== text.trim()) return;
         cueFitCache.set(index, evaluation);
+        invalidateCueSuggestions();
         syncRowFitStatus(liveRow, evaluation);
         syncRowOverflowUi(liveRow, metrics, evaluation);
         syncSmartAdjustAffordance(metrics);
@@ -637,6 +667,7 @@ export function mountSubtitleSegmentEditor(
 
     const metrics = memoizedCaptionMetrics();
     cueFitCache.set(index, evaluateCueBakeFitHeuristic(text, metrics, metrics.style));
+    invalidateCueSuggestions();
 
     const timer = window.setTimeout(() => {
       cueFitDebounceTimers.delete(index);
@@ -648,6 +679,10 @@ export function mountSubtitleSegmentEditor(
         const liveText = stripScaffoldPlaceholder(modalDraft[index]?.text ?? '');
         if (liveText.trim() !== text.trim()) return; // text moved on — stale result
         cueFitCache.set(index, evaluation);
+        // §8: a canvas verdict can add/remove a suggestion AND renumber the
+        // global priority ranking — diff-refresh every bar whose state moved.
+        invalidateCueSuggestions();
+        syncSuggestionBars();
         timelineHandle.refreshCueState(index);
         syncSmartAdjustAffordance(metrics);
       });
@@ -984,6 +1019,93 @@ export function mountSubtitleSegmentEditor(
     return indices;
   }
 
+  // ── v5.8.0 Sprint 8 — smart suggestions for the timeline (design §8) ────────
+  // Detection reuses the existing pure logic (no new generation): overflow via
+  // the cache-aware draft scan, OOB via segmentHasOutOfBoundsEnd, one-click
+  // fixes via collectMinimalFixProposals. Ranking: overflow a one-word shift
+  // fixes ranks above fixes needing Smart Adjust; OOB ranks with LONG (§8).
+
+  function invalidateCueSuggestions(): void {
+    cueSuggestionsStale = true;
+  }
+
+  function computeCueSuggestions(): Map<number, CueSuggestionState> {
+    const map = new Map<number, CueSuggestionState>();
+    if (modalEl.hidden || modalDraft.length === 0) return map;
+    const metrics = memoizedCaptionMetrics();
+    const clip = clipDurationForOob();
+    const overflowing = findOverflowingIndicesFromDraft(metrics);
+    const overflowSet = new Set(overflowing);
+    const fixFor = new Map<number, SmartAdjustProposal>();
+    for (const proposal of collectMinimalFixProposals(modalDraft, overflowing, metrics, metrics.fontSize)) {
+      if (typeof proposal.cueIndex === 'number' && !proposal.isGlobal && !fixFor.has(proposal.cueIndex)) {
+        fixFor.set(proposal.cueIndex, proposal);
+      }
+    }
+    interface Candidate {
+      index: number;
+      kind: 'overflow' | 'oob';
+      fix: SmartAdjustProposal | undefined;
+    }
+    const candidates: Candidate[] = [];
+    modalDraft.forEach((segment, index) => {
+      // A cue can be both LONG and OOB — overflow leads (it has the fix path);
+      // the ⚠ OOB pill still shows independently via the bar's --oob state.
+      if (overflowSet.has(index)) {
+        candidates.push({ index, kind: 'overflow', fix: fixFor.get(index) });
+      } else if (clip !== null && segmentHasOutOfBoundsEnd(segment, clip)) {
+        candidates.push({ index, kind: 'oob', fix: undefined });
+      }
+    });
+    const ranked = [...candidates.filter((c) => c.fix), ...candidates.filter((c) => !c.fix)];
+    ranked.forEach((candidate, rank) => {
+      map.set(candidate.index, {
+        kind: candidate.kind,
+        priority: rank + 1,
+        hasMinimalFix: Boolean(candidate.fix),
+        title: candidate.fix
+          ? candidate.fix.title
+          : candidate.kind === 'oob'
+            ? `Cue ${candidate.index + 1} ends past the clip — shorten or move it`
+            : `Cue ${candidate.index + 1} overflows — try ✂ Split or Smart Adjust`,
+      });
+    });
+    return map;
+  }
+
+  function currentCueSuggestions(): Map<number, CueSuggestionState> {
+    // openModal renders BEFORE unhiding the dialog — never cache the empty
+    // hidden-modal result or the first visible paint would miss its dots.
+    if (modalEl.hidden) return new Map();
+    if (cueSuggestionsStale) {
+      cueSuggestions = computeCueSuggestions();
+      cueSuggestionsStale = false;
+    }
+    return cueSuggestions;
+  }
+
+  /** Recompute suggestions and refresh only the bars whose state changed —
+      priorities are a GLOBAL ranking, so fixing cue A can renumber cue B. */
+  function syncSuggestionBars(): void {
+    const prev = cueSuggestions;
+    cueSuggestions = computeCueSuggestions();
+    cueSuggestionsStale = false;
+    const touched = new Set<number>([...prev.keys(), ...cueSuggestions.keys()]);
+    for (const index of touched) {
+      const before = prev.get(index);
+      const after = cueSuggestions.get(index);
+      if (
+        before?.kind === after?.kind &&
+        before?.priority === after?.priority &&
+        before?.hasMinimalFix === after?.hasMinimalFix &&
+        before?.title === after?.title
+      ) {
+        continue;
+      }
+      timelineHandle.refreshCueState(index);
+    }
+  }
+
   function renderModalSegments(): void {
     clearCueFitCache();
     segmentsEl.innerHTML = '';
@@ -1079,6 +1201,14 @@ export function mountSubtitleSegmentEditor(
       syncRowFitStatus(row, evaluation);
       syncRowOverflowUi(row, metrics, evaluation);
     });
+    // CHANGED: v5.8.0 Sprint 8 — Validate all paints onto the timeline too
+    // (design §7 row 12): fresh canvas verdicts drive LONG tint + suggestion
+    // dots on every bar, not just the list rows.
+    invalidateCueSuggestions();
+    syncSuggestionBars();
+    for (let index = 0; index < modalDraft.length; index += 1) {
+      timelineHandle.refreshCueState(index);
+    }
     syncSmartAdjustAffordance(metrics);
   }
 
@@ -1411,7 +1541,10 @@ export function mountSubtitleSegmentEditor(
     void validateAllCues(true);
   }
 
-  function openSmartAdjustMenu(): void {
+  // CHANGED: v5.8.0 Sprint 8 — optional focus cue (design §8): opened from a
+  // suggested bar, that cue's minimal fixes lead the list. The re-splice
+  // entries stay on top — the recommended path stays recommended.
+  function openSmartAdjustMenu(focusIndex: number | null = null): void {
     captureActiveDraft();
     const metrics = buildCaptionMetrics();
     const draftEdited = draftAsEditedResult();
@@ -1439,10 +1572,18 @@ export function mountSubtitleSegmentEditor(
         ? buildReSpliceProposal(voskOriginal, draftEdited, metrics, 'full')
         : null;
 
+    const orderedMinimal =
+      focusIndex === null
+        ? minimal
+        : [
+            ...minimal.filter((proposal) => proposal.cueIndex === focusIndex),
+            ...minimal.filter((proposal) => proposal.cueIndex !== focusIndex),
+          ];
+
     const proposals = [
       ...(reSpliceFull ? [reSpliceFull] : []),
       ...(reSplicePreserve ? [reSplicePreserve] : []),
-      ...minimal,
+      ...orderedMinimal,
     ];
 
     smartAdjustModal.open({
@@ -1559,7 +1700,8 @@ export function mountSubtitleSegmentEditor(
   validateAllBtn.addEventListener('click', () => {
     void validateAllCues(true);
   });
-  smartAdjustBtn.addEventListener('click', openSmartAdjustMenu);
+  // Wrapped so the MouseEvent never flows into the optional focusIndex param.
+  smartAdjustBtn.addEventListener('click', () => openSmartAdjustMenu());
   for (const btn of viewToggleBtns) {
     btn.addEventListener('click', () => {
       const mode = btn.dataset.transcriptView;

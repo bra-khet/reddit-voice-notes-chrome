@@ -129,6 +129,20 @@ export interface CueFitState {
   tier: string | null;
 }
 
+// CHANGED: v5.8.0 Sprint 8 — on-bar smart suggestions (design §8). The host
+// computes these from the SAME pure detectors the Smart Adjust modal uses
+// (findOverflowingIndicesFromDraft / segmentHasOutOfBoundsEnd /
+// collectMinimalFixProposals); the timeline only paints and forwards clicks.
+export interface CueSuggestionState {
+  kind: 'overflow' | 'oob';
+  /** 1-based rank across the draft — one-word-shift-fixable overflow ranks first. */
+  priority: number;
+  /** A one-click word-shift proposal exists for this cue. */
+  hasMinimalFix: boolean;
+  /** Human line for the dot tooltip + inspector callout (proposal title or hint). */
+  title: string;
+}
+
 export interface TimelineEditorDeps {
   getSegments(): TranscriptSegment[];
   getSelectedIndex(): number | null;
@@ -161,6 +175,13 @@ export interface TimelineEditorDeps {
   onRequestAddAt(seconds: number | null): void;
   /** A discrete edit gesture is starting — host pushes an undo snapshot (§16.7). */
   onEditGestureStart(): void;
+  /** Smart suggestion for a cue (design §8) — null when nothing needs attention. */
+  getCueSuggestion(index: number): CueSuggestionState | null;
+  /** One-click word-shift fix — host re-derives the proposal fresh, then applies.
+      Returns false when the affordance was stale (draft moved) and nothing changed. */
+  onApplyMinimalFix(index: number): boolean;
+  /** Open the existing Smart Adjust modal, pre-contextualized to this cue. */
+  onOpenSmartAdjust(index: number): void;
 }
 
 export interface TimelineEditorHandle {
@@ -393,6 +414,8 @@ export function mountSubtitleTimelineEditor(
     if (clip !== null && segmentHasOutOfBoundsEnd(segment, clip)) classes.push('studio__cue-bar--oob');
     // Parity row 5: warning tint + ⚠ LONG pill (host cueFitCache / heuristic).
     if (deps.getCueFitState(index)?.overflow) classes.push('studio__cue-bar--long');
+    // §8: amber attention halo + priority dot when a smart fix is suggested.
+    if (deps.getCueSuggestion(index)) classes.push('studio__cue-bar--suggested');
     if (deps.isPlayingIndex(index)) classes.push('studio__cue-bar--playing');
     if (drag && drag.index === index) classes.push('studio__cue-bar--grabbed');
     return classes.join(' ');
@@ -437,6 +460,9 @@ export function mountSubtitleTimelineEditor(
     const preview = escapeHtml(stripScaffoldPlaceholder(segment.text).trim() || '(empty)');
     // Pills are always in the DOM; the bar's state classes decide visibility
     // (CSS), so targeted class updates keep them honest without re-rendering.
+    // The §8 suggestion dot follows the same pattern; its number/tooltip are
+    // dynamic, so updateBarDom keeps them in sync between full renders.
+    const suggestion = deps.getCueSuggestion(index);
     return `
       <span class="studio__cue-bar-handle studio__cue-bar-handle--start" data-cue-handle="start" aria-hidden="true"></span>
       <span class="studio__cue-bar-body">
@@ -445,6 +471,7 @@ export function mountSubtitleTimelineEditor(
       </span>
       <span class="studio__cue-bar-pill studio__cue-bar-pill--long" title="Too long for one line — will trail off screen in the baked video">⚠ LONG</span>
       <span class="studio__cue-bar-pill studio__cue-bar-pill--oob" title="Cue end exceeds recording length">⚠ OOB</span>
+      <span class="studio__cue-bar-suggest-dot" data-cue-suggest-dot title="${escapeHtml(suggestion?.title ?? '')}" aria-hidden="true">${suggestion ? suggestion.priority : ''}</span>
       <span class="studio__cue-bar-handle studio__cue-bar-handle--end" data-cue-handle="end" aria-hidden="true"></span>
     `;
   }
@@ -514,6 +541,23 @@ export function mountSubtitleTimelineEditor(
         aria-label="Cue text"
       >${text}</textarea>
       <p class="studio__cue-timeline-inspector-fit" data-timeline-fit hidden></p>
+      <div class="studio__cue-timeline-inspector-suggest" data-timeline-suggest hidden>
+        <p class="studio__cue-timeline-inspector-suggest-copy" data-timeline-suggest-copy></p>
+        <div class="studio__cue-timeline-inspector-suggest-actions">
+          <button
+            type="button"
+            class="studio__cue-timeline-suggest-fix"
+            data-timeline-suggest-fix
+            title="Apply the smallest change that makes this cue fit"
+          >⚡ Apply minimal fix</button>
+          <button
+            type="button"
+            class="studio__cue-timeline-suggest-open"
+            data-timeline-suggest-adjust
+            title="Open Smart Adjust with this cue's proposals first"
+          >Smart Adjust…</button>
+        </div>
+      </div>
       <div class="studio__cue-timeline-inspector-actions">
         <button
           type="button"
@@ -566,6 +610,19 @@ export function mountSubtitleTimelineEditor(
     }
     const splitBtn = inspectorEl.querySelector<HTMLButtonElement>('[data-timeline-split]');
     if (splitBtn) splitBtn.disabled = !deps.canSplitIndex(index);
+    // §8: suggestion callout — same in-place contract as the fit line, so async
+    // fit results landing via refreshCueState keep the panel honest too.
+    const suggestEl = inspectorEl.querySelector<HTMLElement>('[data-timeline-suggest]');
+    if (suggestEl) {
+      const suggestion = deps.getCueSuggestion(index);
+      suggestEl.hidden = !suggestion;
+      if (suggestion) {
+        const copyEl = suggestEl.querySelector<HTMLElement>('[data-timeline-suggest-copy]');
+        if (copyEl) copyEl.textContent = suggestion.title;
+        const fixBtn = suggestEl.querySelector<HTMLButtonElement>('[data-timeline-suggest-fix]');
+        if (fixBtn) fixBtn.hidden = !suggestion.hasMinimalFix;
+      }
+    }
   }
 
   function formatTimecode(seconds: number): string {
@@ -831,6 +888,14 @@ export function mountSubtitleTimelineEditor(
     barEl.title = `Cue ${index + 1}: ${formatCueTimestamp(segment.start)} → ${formatCueTimestamp(segment.end)}`;
     const textEl = barEl.querySelector<HTMLElement>('.studio__cue-bar-text');
     if (textEl) textEl.textContent = stripScaffoldPlaceholder(segment.text).trim() || '(empty)';
+    // §8: the priority number/tooltip are the dot's dynamic bits — the state
+    // class (set above via barStateClasses) controls its visibility.
+    const dotEl = barEl.querySelector<HTMLElement>('[data-cue-suggest-dot]');
+    if (dotEl) {
+      const suggestion = deps.getCueSuggestion(index);
+      dotEl.textContent = suggestion ? String(suggestion.priority) : '';
+      dotEl.title = suggestion?.title ?? '';
+    }
   }
 
   function updateInspectorFields(index: number): void {
@@ -1182,6 +1247,23 @@ export function mountSubtitleTimelineEditor(
     if (splitBtn && !splitBtn.disabled) {
       deps.onRequestSplit(index); // host snapshots + splits + re-renders
       announce(`Cue ${index + 1} split`);
+      return;
+    }
+    // §8: one-click smart entry points — the host owns proposal derivation and
+    // apply (fresh each click, never a cached proposal against a moved draft).
+    const suggestFixBtn = target.closest<HTMLButtonElement>('[data-timeline-suggest-fix]');
+    if (suggestFixBtn) {
+      const applied = deps.onApplyMinimalFix(index);
+      announce(
+        applied
+          ? `Minimal fix applied around cue ${index + 1}`
+          : `That fix is no longer available for cue ${index + 1}`,
+      );
+      return;
+    }
+    const suggestOpenBtn = target.closest<HTMLButtonElement>('[data-timeline-suggest-adjust]');
+    if (suggestOpenBtn) {
+      deps.onOpenSmartAdjust(index);
       return;
     }
     const deleteBtn = target.closest<HTMLButtonElement>('[data-timeline-delete]');

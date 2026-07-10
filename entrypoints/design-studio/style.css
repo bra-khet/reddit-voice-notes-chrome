@@ -3287,3 +3287,129 @@ details[open] .wf-why__summary::before {
   color: var(--studio-amber-dim);
 }
 
+/* ── v5.8.0 Sprint 8 — smart integration: on-bar suggestions (design §8, tokens §4.1) ── */
+
+/* Suggested bars adopt the eared overflow model (Sprint 5, browser-proven) so
+   the priority dot can sit outboard above the bar — it must survive --tiny,
+   where the in-bar pills have no honest room and are hidden. */
+.studio__cue-bar--suggested {
+  overflow: visible;
+}
+
+.studio__cue-bar--suggested .studio__cue-bar-body {
+  overflow: hidden;
+}
+
+/* Priority dot — the §4.1 non-color pairing (number + tooltip) in the same
+   amber-action family as the Smart Adjust attention affordance. Always in the
+   DOM; the --suggested state class shows it (same pattern as the pills). */
+.studio__cue-bar-suggest-dot {
+  display: none;
+  position: absolute;
+  top: -8px;
+  left: -6px;
+  z-index: 4;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  background: var(--studio-amber-action, #d4a020);
+  color: #0a0014;
+  font-family: var(--studio-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(10, 0, 20, 0.55);
+  pointer-events: none;
+}
+
+.studio__cue-bar--suggested .studio__cue-bar-suggest-dot {
+  display: inline-block;
+}
+
+/* Eared (narrow) bars: the start ear owns the top-left corner — float the dot
+   centered above the bar instead so both affordances stay legible. */
+.studio__cue-bar--eared .studio__cue-bar-suggest-dot {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Attention halo (§4.1 amber highlight, matching .studio__smart-adjust-open--attention).
+   Scoped so the selection treatment and the grab-lift shadow always win —
+   this rule is later in the file and would otherwise beat both. */
+.studio__cue-bar--suggested:not(.studio__cue-bar--selected):not(.studio__cue-bar--grabbed) {
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge, #9a7210),
+    0 0 10px rgba(212, 160, 32, 0.35);
+}
+
+/* Inspector suggestion callout — one-click smart entry points (§8). */
+.studio__cue-timeline-inspector-suggest {
+  padding: 6px 8px;
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  border-radius: 6px;
+  background: rgba(212, 160, 32, 0.08);
+}
+
+.studio__cue-timeline-inspector-suggest[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-inspector-suggest-copy {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--studio-amber-action, #d4a020);
+}
+
+.studio__cue-timeline-inspector-suggest-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio__cue-timeline-suggest-fix,
+.studio__cue-timeline-suggest-open {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-suggest-fix {
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  background: var(--studio-amber-action, #d4a020);
+  color: #0a0014;
+  font-weight: 700;
+}
+
+.studio__cue-timeline-suggest-fix:hover {
+  filter: brightness(1.08);
+}
+
+.studio__cue-timeline-suggest-fix[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-suggest-open {
+  border: 1px solid var(--studio-hairline-strong);
+  background: transparent;
+  color: var(--studio-text-muted);
+}
+
+.studio__cue-timeline-suggest-open:hover {
+  color: var(--studio-text);
+  border-color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-suggest-fix:focus-visible,
+.studio__cue-timeline-suggest-open:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
