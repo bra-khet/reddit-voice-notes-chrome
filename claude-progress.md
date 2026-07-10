@@ -68,7 +68,18 @@ User approved Sprint 4 + the auto-pan candidate, and requested one addition: the
 
 **Verify:** `test-timeline-geometry` **42** · regression (timeline 10, dirty 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` PASS · `tsc` clean (3 pre-existing). Commit `a382d74`.
 
-**Next — Sprint 6 (waveform lane, §16.5):** additive `getDecodedBuffer()` on `SegmentCuePlayerHandle` (non-breaking) + pure `waveform-peaks.ts` (`computeWaveformPeaks` min/max bins, Node-tested, `scripts/test-waveform-peaks.mjs`) + one DPR-aware canvas lane between ruler and track, repainted only on window/resize/source change, quiet-line fallback in element mode. Then 7 (semiotic parity + keyboard/undo/multi-select) · 8 (smart integration) · 9 (trim hooks + polish) · 10 (wire + verify + release).
+### Sprint 6 — waveform lane (2026-07-09) — **DONE (automated); real-browser QA pending**
+
+Sprints 3–5 real-browser QA **PASSED** (user, 2026-07-09).
+
+- **`segment-cue-player.ts`** — additive `getDecodedBuffer()` (non-breaking): the waveform reads the SAME decoded `AudioBuffer` the ▶ preview plays — zero extra decode.
+- **`waveform-peaks.ts`** (NEW pure leaf, zero imports; `test-waveform-peaks.mjs` **10/10**) — `computeRangePeaks` (min/max bins, **time-aligned**: out-of-range bins silent, never stretched — lane stays honest against the ruler past clip end), `computeWaveformPyramid` (one 50 bins/s full-clip pass per source), `resamplePeaks` (extrema-preserving fractional downsample; impulses survive).
+- **`subtitle-timeline-editor.ts`** — 36 px canvas lane between ruler and track; DPR-aware; mirrored min/max fill `--studio-indigo-accent` + brighter `--studio-accent-bars` centerline (tokens via `getComputedStyle`); two-path peaks (pyramid resample at low zoom / exact range peaks at deep zoom where the window is small); **repaints only when the paint key (source gen + window + size + dpr) changes** — never per pointermove; playhead DOM echo above the canvas (cap → waveform → track = one line); quiet-centerline fallback in element mode; new dep `getDecodedAudioBuffer()`.
+- **`subtitle-segment-editor.ts`** — dep wired; `loadRecordingSource()` re-renders the timeline when the decode lands. **`style.css`** — lane block (`pointer-events: none` so wheel zoom/pan falls through) + playhead echo.
+
+**Verify:** `test-waveform-peaks` **10** (NEW) · `test-timeline-geometry` **42** · regression (timeline 10, dirty 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` PASS · `tsc` clean (3 pre-existing). Commit `905e718`.
+
+**Next — Sprint 7 (semiotic parity + keyboard, §7 matrix + §16.7):** port the remaining list affordances onto bars — LONG/overflow ⚠ + live canvas fit-status (`resolveCueFit`/`evaluateCueBakeFitHeuristic`), ✂ Split gesture (`splitSegmentIntoChunks`), scaffold banner, add-at-playhead + delete on bar — plus keyboard (rove ←/→, nudge ↑/↓ w/ hold-accelerate, roving tabindex, aria-live), modal-session **undo/redo** (Ctrl+Z/Y) and **multi-select** (Shift/Ctrl-click + batch ops). Then 8 (smart integration) · 9 (trim hooks + polish) · 10 (wire + verify + release).
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
