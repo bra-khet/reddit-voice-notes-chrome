@@ -92,7 +92,22 @@ User QA on Sprint 6: fill too dim + lane too short. Fix (`300bd84`, same indigo 
 
 **Verify:** geometry **42** · waveform-peaks **10** · regression (timeline 10, dirty 11, splice 36, partial-rebake 13, take-manager 31) · build PASS · tsc clean (3 pre-existing). Commits `300bd84` (contrast) + `b0afad9` (sprint 7).
 
-**Next — Sprint 8 (smart integration, design §8):** on-bar overflow/OOB/re-splice **suggestion** highlighting + prioritization (amber suggestion state per §4.1), one-click "Apply minimal fix" / "Open Smart Adjust" from the bar, validate-all painting onto bars. Then 9 (trim hooks + polish) · 10 (wire + verify + release).
+### List-view scrollbar regression fix (2026-07-10) — **DONE**
+
+Sprint 7 real-browser QA **PASSED** (user) — including the waveform contrast fix. One regression reported: **List view lost its vertical scrollbar** (tab-focus force-scrolled the clipped dialog, hiding the header/close). Root cause: Sprint 2 wrapped `.studio__transcript-segments` in the unstyled `.studio__transcript-list-view` toggle container, demoting it from a direct flex child of the `overflow: hidden` dialog — the wrapper couldn't shrink below its content (`min-height: auto`), so the list clipped instead of scrolling. Fix (`a5a2a3f`): the wrapper is now a flex conduit (`flex: 1; min-height: 0;` column flex + `[hidden]` override), restoring the inner `flex:1/overflow-y:auto` scroll.
+
+### Sprint 8 — smart integration (2026-07-10) — **DONE (automated); real-browser QA pending**
+
+Suggestions surface *where the problem is* (design §8), reusing existing pure detectors only — `findOverflowingIndicesFromDraft` (cache-aware), `segmentHasOutOfBoundsEnd`, `collectMinimalFixProposals`; no new generation logic.
+
+- **Host suggestion engine:** lazy stale-flagged `Map<index, CueSuggestionState>` — kind `overflow|oob`, **global priority ranking** (one-word-shift-fixable overflow first, then the rest in time order; OOB ranks with LONG), `hasMinimalFix`, human title (the proposal's own title when a fix exists). `syncSuggestionBars()` diff-refreshes only bars whose suggestion moved (fixing cue A renumbers cue B — targeted `refreshCueState`, never a rebuild). Invalidation at every draft/fit mutation; `currentCueSuggestions` never caches the hidden-modal empty result (openModal renders before unhiding).
+- **On-bar:** `--suggested` state = static amber-action halo (matches the Smart Adjust attention affordance, §4.1 — the doc's stale §8 "cyan-ready" line corrected) + outboard **priority dot** (number + tooltip; always-in-DOM pill pattern; survives `--tiny`; suggested bars adopt the browser-proven eared overflow model so the dot paints outboard; centered above eared bars).
+- **Inspector callout:** suggestion copy + **⚡ Apply minimal fix** (hidden when no one-click fix exists) + **Smart Adjust…**. Apply re-derives the proposal **fresh per click** (never a cached proposal against a moved draft; returns false when stale → honest aria-live) and flows through the existing `applySmartAdjustProposal` path (undo snapshot + apply + re-validate). Smart Adjust opens **pre-contextualized**: the bar's cue's minimal fixes lead the list; re-splice stays on top (recommended stays recommended).
+- **Validate all paints onto bars** (§7 row 12): fresh canvas verdicts drive LONG tint + suggestion dots on every bar, not just list rows.
+
+**Verify:** geometry **42** · waveform-peaks **10** · regression (timeline 10, dirty 11, splice 36, partial-rebake 13, take-manager 31) · build PASS · tsc clean (3 pre-existing). Commits `a5a2a3f` (scrollbar fix) + `7dafb30` (sprint 8).
+
+**Next — Sprint 9 (trim hooks + polish, design §10):** draggable in/out markers on the timeline + cue-shift **preview** (ghosting) + overhang warning + "Save trim intent" via `planTrim`/`edits.trim` (intent only — atomic apply stays deferred); then a11y/reduced-motion/perf polish pass. Then 10 (wire + verify + release).
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev

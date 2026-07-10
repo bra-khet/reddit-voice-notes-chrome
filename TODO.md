@@ -15,15 +15,15 @@ Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: D
 | 4 | **stage & zoom** (§16.1–16.2): stage-mode modal + view-window model + zoom cluster/wheel/pan + minimap + R1 label fix | **done** (`f73f013`) |
 | 5 | **feel pass** (§16.3–16.4): short-cue ears, hysteresis snap + guides, grab-lift/spring, playhead cap, Esc-cancel, auto-pan, minimap selected-highlight | **done** (`a382d74`) — QA **PASS** |
 | 6 | **waveform lane** (§16.5): pure peaks leaf + canvas + fallback | **done** (`905e718` + contrast fix `300bd84`) |
-| 7 | semiotic parity (LONG/OOB pills, fit-status, split, delete, add-at-playhead, keyboard + undo/redo + multi-select) | **done** (`b0afad9`) |
-| 8 | smart integration: on-bar overflow/OOB/re-splice highlight + one-click apply | next |
-| 9 | trim hooks (in/out markers + cue-shift preview + intent) + polish/a11y/perf | pending |
+| 7 | semiotic parity (LONG/OOB pills, fit-status, split, delete, add-at-playhead, keyboard + undo/redo + multi-select) | **done** (`b0afad9`) — QA **PASS** |
+| 8 | smart integration: on-bar suggestion halo/priority dot + one-click minimal fix + pre-contextualized Smart Adjust + validate-all onto bars | **done** (`7dafb30` + List-scrollbar fix `a5a2a3f`) |
+| 9 | trim hooks (in/out markers + cue-shift preview + intent) + polish/a11y/perf | next |
 | 10 | wire + verify + release (notes, version bump, QA sign-off) | pending |
 
 *Ladder revised 2026-07-09 (Sprint-3 QA → design doc §16 "Stage" refinement addendum): zoom/layout/feel/waveform land before parity so later sprints build on the real surface.*
 
 **Verify:** `node scripts/test-timeline-geometry.mjs` (42) · `node scripts/test-waveform-peaks.mjs` (10) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
-**QA:** Sprints 3–6 real-browser **PASS** (contrast fix `300bd84` pending re-check: waveform now bright indigo on a taller darker lane, quiet takes fill it). **Pending — Sprint 7: ⚠ LONG tint+pill and ⚠ OOB pill on bars match the list badges; inspector shows the live fit line (canvas/estimate) that updates as you type; ✂ Split from the inspector (disabled on unsplittable cues); 🗑 deletes; "+ Cue" inserts at the playhead and selects it; with track focused — ←/→ roves (view follows when zoomed), ↑/↓ nudges a frame (accelerates when held), Space plays, Enter jumps to text, Del deletes; Ctrl+Z / Ctrl+Y undo/redo whole gestures (a full drag = one undo); Ctrl-click toggles multi-select, Shift-click ranges; ↑/↓ + Del act on the whole selection; Sel zoom frames the selection; minimap highlights every selected cue.**
+**QA:** Sprints 3–7 real-browser **PASS** (incl. waveform contrast fix). **Pending — Sprint 8 + List-scrollbar fix: List view scrolls vertically again (scrollbar visible, header/close stays reachable); an overflowing (⚠ LONG) cue's bar gets the amber halo + numbered priority dot (dot tooltip names the fix); a cue dragged past clip end gets the halo + dot too (OOB); priority 1 goes to a cue a one-word shift fixes; selecting a suggested bar shows the inspector callout — ⚡ Apply minimal fix (only when a word-shift fix exists) applies it, bar's LONG state clears, other dots renumber; Ctrl+Z reverts the applied fix in one step; Smart Adjust… from the callout opens the modal with that cue's fixes listed first (re-splice still on top); Validate all paints fresh verdicts onto bars (LONG tint + dots appear/clear without reopening); dot visible even on very short (tiny/eared) bars — centered above eared bars; typing in the inspector textarea until the cue fits clears the halo/dot after the canvas verdict lands (no focus loss).**
 
 **Restore:** `git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev`
 
