@@ -585,13 +585,15 @@ export function mountSubtitleSegmentEditor(
         notify();
         // Controls-side cache sync (lastSnapshot, delivery status, source
         // label). The store already holds these bytes — the re-save is
-        // idempotent; a failure here must not report the applied trim as failed.
+        // idempotent; a failure must not report the applied trim as failed.
+        // Fire-and-forget: awaiting here would let a frame paint stale trim
+        // veils before the component exits trim mode on our resolution.
         if (edited) {
-          try {
-            await Promise.resolve(handlers?.onSaveEdits?.(cloneTranscriptResult(edited)));
-          } catch (error) {
-            console.warn('[Reddit Voice Notes] Post-trim controls sync failed', error);
-          }
+          void Promise.resolve(handlers?.onSaveEdits?.(cloneTranscriptResult(edited))).catch(
+            (error: unknown) => {
+              console.warn('[Reddit Voice Notes] Post-trim controls sync failed', error);
+            },
+          );
         }
         void loadRecordingSource(); // fresh base stamp → trimmed audio + waveform
         return {

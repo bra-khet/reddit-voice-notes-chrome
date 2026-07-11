@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.6 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.8.0`  
+**Version:** v1.7 · **Updated:** 2026-07-11 · **Reflects:** `feature/v5.9.0-trim-apply` (v5.9.0 pre-release)  
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.7 — **atomic trim APPLY** shipped (v5.9.0): the audio-editing seam's "artifact integration still deferred" caveat is lifted — new `trim-apply.ts` orchestrator entry (H6 base mutate, dual-copy cue shift via `shiftCuesForTrim`/`replaceSessionTranscriptResults`, stamp null-delete take patch, voice-lock + full-composite-after-apply gotchas); timeline cue editor seam's trim note updated (Apply strip control, preview=apply). NO new seam. v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -272,7 +272,21 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
   splice coordinator — **execution SHIPPED v5.7.0**; see the Partial re-bake
   splice seam below), `src/editing/trim.ts` (`planTrim` gate; intent in
   `take.edits.trim`; `loadTrimIntent` read helper added v5.8.0; mediabunny
-  `Conversion` apply — artifact integration still deferred).
+  `Conversion` apply; pure `shiftCuesForTrim` added v5.9.0 — mirrors the
+  ghost-preview math `projectCueThroughTrim`, no frame-snapping of cue times).
+- **Apply a trim end-to-end (v5.9.0):** `applyTrimToCurrentTake({ requested,
+  fps, editedResult })` (`src/editing/trim-apply.ts` — NEW module, kept out of
+  `trim.ts` so `test-timeline.mjs` bundles the pure logic without the storage
+  graph; structurally parallel to `reapplyVoiceToCurrentTake`). H6-verified
+  base → container trim → dual-copy cue shift (`replaceSessionTranscriptResults`
+  rewrites BOTH session-transcript copies — revert must never resurrect
+  pre-trim times) → superseded guard → commit-last: new base stamp +
+  `meta.durationSeconds` + `edits.trim` clear + `bakedMp4`/`baseRecording`
+  stamp DELETES (patch `null` = delete, v5.9.0 take-manager evolution) +
+  status `baked → ready`. Deliberately NO `BAKED_MP4_READY_KEY` (no baked
+  bytes produced — the take-snapshot broadcast is the channel). Studio
+  surface: "Apply trim" + two-click confirm in the timeline trim strip
+  (`onApplyTrim` dep; host owns the post-apply draft/undo/clip-source refresh).
 - **Preview=bake?** YES for voice — re-apply resolves through the same
   `resolveVoiceGraph` + renderer as the audition. N/A for the remux
   (bit-copy by definition).
@@ -288,6 +302,13 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
 - **Gotchas:**
   - A DSP fallback ABORTS the re-apply (never silently ship raw audio under
     a claimed voice); the take stays untouched.
+  - **A trim apply LOCKS THE VOICE IN (v5.9.0):** it drops the `baseRecording`
+    stamp (the raw WebM no longer matches the timeline), so a later re-apply
+    fails honestly at the clean-audio door ("re-record to change the voice") —
+    never desynced audio. Trimming the raw WebM is its own follow-up if wanted.
+  - **Post-apply bakes are FULL composites by construction** —
+    `computePartialRebakePlan` nulls on any duration change; never "fix" that
+    guard without replacing what it protects.
   - Audio tails are bounded at video end + 1 s (`AUDIO_TAIL_ALLOWANCE_SECONDS`)
     — long convolution rings are cut by design.
   - Re-check take identity before the commit writes — a concurrent capture
@@ -366,9 +387,12 @@ the existing edit / dirty-tracking / trim seams. Canonical as-built:
 - **Trim:** ✂ mode writes the non-destructive `edits.trim` intent through the existing `planTrim`
   gate (`src/editing/trim.ts` `loadTrimIntent`/`storeTrimIntent`) → TakeManager `mergeTakeEdits`.
   **View-state + intent only** — no atomic apply consumes it yet.
-- **Preview=bake?** YES for cue timing (frame-snap, I17). Trim has no bake path yet by design
-  (intent-only); when `applyTrimToMp4` ships it needs its own preview=bake + cue-shift + H6
-  re-stamp reasoning (own ADR/QA).
+- **Preview=bake?** YES for cue timing (frame-snap, I17). **YES for trim since v5.9.0
+  (preview=APPLY):** the ghost bars project the live draft through `projectCueThroughTrim`,
+  and `shiftCuesForTrim` reproduces that math on apply — the host passes the LIVE draft
+  (`draftAsEditedResult`) into `applyTrimToCurrentTake`, never the stale store copy. The
+  trim strip's Apply control is two-click-confirm (permanent; no restore for pre-apply
+  bytes) and the host resets undo + reseeds every transcript copy on success.
 - **Sync points:** the `SegmentEditorHandle` mount in `subtitle-controls.ts` (preserved
   verbatim — do not change the mount contract); `style.css` `.studio__cue-timeline*` + `--stage`
   dialog; palette tokens in `studio-palette.css`; the tests above.
@@ -389,7 +413,7 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.6 (2026-07-11), main @ v5.8.0.
+Extension points v1.7 (2026-07-11), feature/v5.9.0-trim-apply.
 Seams: voice effects v5 (graph-native) · subtitle effects v1 · font pipeline v1 ·
 message pipelines v2 (pipeline + query kinds; store: baked|base relay param) ·
 storage v1 · theme/canvas v1 · Studio surfaces v1 · voice live-mic preview v1 ·
@@ -401,6 +425,8 @@ source; TakeVoiceStamp provenance; stream-copy remux) · partial re-bake splice 
 ADR-0005: dirty GOPs re-encoded from CLEAN base, kept-region fidelity gate I16, default ON) ·
 timeline cue editor v1 (v5.8.0: DOM timeline over existing seams — NO new msg/store/writer;
 pure timeline-geometry/waveform-peaks leaves; frame-snap via timeline.ts → I17).
+v5.9.0 trim APPLY rides the audio-editing seam (trim-apply.ts): H6 base mutate + dual-copy cue
+shift; drops bakedMp4/baseRecording stamps (voice locked in); post-apply bakes full-composite.
 Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
 one-shot question → query message. New editing UI → reuse the edit/dirty/trim seams, don't add a wire.
 ```
