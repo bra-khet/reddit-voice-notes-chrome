@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.3 · **Updated:** 2026-07-07 · **Reflects:** `main` @ package `5.4.0` (commit b0db6bd) + branch `feature/v5.5.0-browser-composite`
+**Version:** v2.4 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.8.0`
 **Status:** Ranked hardening items for the v5.4.x standalone-suite direction. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite` (behind `experimental.browserComposite`, default false; Phase 0 QA gate user-owned before default flip). New R13 (30 MB baked-store cap vs composite bitrate). v2.2 (2026-07-07) — H9 decision recorded: browser-side full composite accepted via ADR-0003 (user directive: performance + extensibility over preview pixel fidelity; v5.3.10 primitives leveraged). Summary table + risk register updated; new R9–R12. v2.1 (2026-07-06) — triage + H6 implemented (user directive): H6 **resolved** (stamp verification shipped + tested), H11 **resolved** (user QA — concurrent recordings work; minor transient display note), H10 **deferred** (user decision), H8/H12 re-filed as v5.4.x patches, H9 stays decision-first (ADR-0003). v2.0 (2026-07-06) — full refresh post-v5.4.0; risk register. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
+**Changelog:** v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14 (self-verifying, not an open item). v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → new risk R15 (handled by `captureActiveDraft`; the review checklist for new cue-draft views). **No new OPEN hardening item** from the v5.5→v5.8 arc; H8/H12 remain the carried v5.x patches (H8 may now be subsumable by v5.6.0 `TakeVoiceStamp` — verify before scoping). v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite` (behind `experimental.browserComposite`, default false; Phase 0 QA gate user-owned before default flip). New R13 (30 MB baked-store cap vs composite bitrate). v2.2 (2026-07-07) — H9 decision recorded: browser-side full composite accepted via ADR-0003 (user directive: performance + extensibility over preview pixel fidelity; v5.3.10 primitives leveraged). Summary table + risk register updated; new R9–R12. v2.1 (2026-07-06) — triage + H6 implemented (user directive): H6 **resolved** (stamp verification shipped + tested), H11 **resolved** (user QA — concurrent recordings work; minor transient display note), H10 **deferred** (user decision), H8/H12 re-filed as v5.4.x patches, H9 stays decision-first (ADR-0003). v2.0 (2026-07-06) — full refresh post-v5.4.0; risk register. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -19,7 +19,8 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **v5.4.x patch** |
 | H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **v5.4.x patch** |
 | H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
-| H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **Hybrid cut implemented** on `feature/v5.5.0-browser-composite` behind `experimental.browserComposite` (2026-07-07); Phase 0 QA gate → default flip. Decision: ADR-0003 |
+| H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **SHIPPED** — browser full composite merged v5.5.0, **default-on since v5.5.1** (two-machine QA PASS). ADR-0003 Accepted. Partial-splice (v5.7.0) cuts re-bakes further |
+| — | v5.7.0 splice avcC hazard · v5.8.0 timeline two-view | — | — | **Mitigated by design** — fidelity gate I16 (→ R14) + `captureActiveDraft` (→ R15); no open work, see risk register |
 | H5 | Binary transport / 3:00 cap restoration (BUG-001 deferred) | Low | XL | Deferred (carried) |
 | — | Vosk model re-download (~40 MB/session, BUG-013) | Low | L | Accepted tradeoff (carried) |
 
@@ -123,13 +124,14 @@ so resumed base MP4s were saved with duration 0.
 
 **Verification hook:** fidelity harness exercising planner global indices; `node scripts/test-*.mjs` (existing + new); multi-machine visual + timing; end-to-end take/attach after new-path bakes.
 
-**Implementation status (2026-07-07):** hybrid cut landed on `feature/v5.5.0-browser-composite` —
-`src/composite/*` (plan/probe/orchestrator/fidelity extraction), `composite: 'browser' | 'ffmpeg'`
-through `subtitle-canvas-bake.ts`, `experimental.browserComposite` default **false**, Lab A/B
-toggle (OFF = R12 force-legacy sweep), timing schema v4, `test-browser-composite-plan.mjs` 14
-checks. Execution plan + as-built log: `docs/v5.5.0-browser-composite-migration.md`. Remaining
-before default flip: user-run Phase 0 QA gate (real-browser bake, two machines, R9 visual
-side-by-side, end-to-end take/attach).
+**Implementation status — SHIPPED (v5.5.0 → v5.5.1).** Browser full composite merged v5.5.0
+(`src/composite/*` plan/probe/orchestrator/fidelity, `composite: 'browser' | 'ffmpeg'` through
+`subtitle-canvas-bake.ts`, Lab A/B toggle, timing schema v4, `test-browser-composite-plan.mjs`
+17 checks). Phase 0 QA passed on **two machines** (R9 side-by-side, R12 legacy sweep, take/attach
+e2e); `experimental.browserComposite` flipped **default-on in v5.5.1** with a one-time rollout
+migration. The ~43 s x264 wall is eliminated on the primary path; **v5.7.0 partial-splice** cuts
+re-bakes further (only dirty GOPs re-encoded — see R14). As-built:
+`docs/v5.5.0-browser-composite-migration.md`; `archive/docs/release-notes-v5.5.1.md`.
 
 ## H10 — Encoder-fallback observability (DEFERRED — user decision 2026-07-06)
 
@@ -202,7 +204,7 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 
 ---
 
-## Risk register — WebCodecs + canvas paths (v5.4.0 tag window)
+## Risk register — WebCodecs / canvas / splice paths (through v5.8.0)
 
 | # | Risk | Likelihood | Impact | Mitigation in place | Residual action |
 |---|------|-----------|--------|--------------------|-----------------|
@@ -216,9 +218,11 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 | R8 | Composite stage (~43 s) perceived as regression once users compare with render-only timings | Med (UX) | Trust in progress UI | **ADR-0003 accepted (browser full composite)**; implementation must use distinct honest chronos stages with real frame/encoder-derived ratios (no fudging). Legacy fallback paths unchanged. | Closed by decision + strict stage-label rule in ADR-0003. |
 | R9 | Browser canvas blend + VideoEncoder produces visible differences from alphamerge (glow tails, subpixel, premul) | Med | Edge quality regression on rich effects | Shared global-frame painter; deterministic indices for comparison harness; canvas premul discipline matches overlay encoder; fallback preserved | New dedicated fidelity harness (see ADR-0003); document "production-grade, not bit-identical" |
 | R10 | Audio passthrough mux drifts timing or loses channels vs FFmpeg | Low | A/V desync or corrupt baked MP4 | Sample-accurate demux + same PTS math as planner; harness duration + alignment asserts | Duration/container validation in bake tests + harness |
-| R11 | VideoDecoder/Encoder capability or perf varies widely vs FFmpeg path | Med | Slow/failed bakes on some hardware (silent fallback risk) | Extend existing probe to decode+encode roundtrip; full fallback chain; honest surfacing | Capability matrix during spike/QA; consider observability later |
+| R11 | VideoDecoder/Encoder capability or perf varies widely vs FFmpeg path | Med | Slow/failed bakes on some hardware (silent fallback risk) | Extend existing probe to decode+encode roundtrip; full fallback chain; honest surfacing | **Two-machine capability matrix PASS (v5.5.0 QA); default-on v5.5.1.** Residual = long-tail hardware → honest fallback |
 | R12 | New dep + composite surface increases maintenance / breakage surface | Low | Future Chrome/dep breakage | Small tree-shaken dep (mediabunny **1.50.6 pinned exact**); all core logic (painter/segments) in-repo; FFmpeg composite path is permanent fallback | ~~Pin dep~~ done; "force legacy composite" Lab toggle **shipped** (browser-composite toggle OFF) |
 | R13 | 30 MB `rvnLastBakedMp4` cap silently drops oversized composite output (`saveLastBakedMp4` returns without saving; take stamp would still update) | Low (bitrate pinned) | Bake "succeeds" but Download/attach serve the PREVIOUS artifact | Composite video bitrate pinned 1.5 Mbps (`composite-plan.ts`, ≈24.5 MB worst case at 2:00 cap incl. AAC); pre-encode size-estimate warning; Node test asserts ≥10% headroom | Verify real output size at the 2:00 cap during Phase 0 QA; consider a save-failure surface for ALL bake paths (pre-existing class) |
+| R14 | A splice's re-encoded GOP uses a fresh encoder whose avcC / sample-description differs from the kept AVC packets → corrupt decode across the boundary | Med | Garbled frames at the splice seam | **Self-verifying** `verifySpliceKeptFrames` decodes kept-region anchors and requires pixel-equality with the original → any mismatch throws → full composite (I16); VP9 keyframes are self-contained | Second-machine encoder variance may raise the *full-fallback* rate (never a wrong pixel); collect splice logs from a 2nd machine |
+| R15 | Timeline/List two-view edits desync — an edit in one view lost because the other's stale DOM is read on Apply (dirty-state collapse) | Med | Silent loss of a cue edit | `captureActiveDraft()` reads the List DOM only when List is active; Timeline writes straight to `modalDraft` (Sprint-3 fix, QA PASS) | Any NEW view onto the cue draft must route through the same capture discipline — the review checklist for editor changes |
 
 ---
 
@@ -245,15 +249,16 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.3 (2026-07-07), main @ 5.4.0 (commit b0db6bd) +
-feature/v5.5.0-browser-composite (hybrid cut landed).
+Hardening backlog v2.4 (2026-07-11), main @ v5.8.0.
 DONE: H6 stamp verification SHIPPED; H7 doc drift fixed; H11 closed by user QA;
-H9 hybrid cut IMPLEMENTED behind experimental.browserComposite (default false):
-src/composite/* + Lab A/B toggle + timing schema v4 + 14 Node checks — see
-docs/v5.5.0-browser-composite-migration.md §0. Default flip gated on user-run
-Phase 0 QA (real-browser bake, 2 machines, R9 side-by-side, take/attach e2e).
-Risks: R8 closed; R9–R12 mitigations partly shipped (dep pinned, force-legacy
-toggle live); NEW R13 = 30 MB baked-store cap vs composite bitrate (pinned 1.5 Mbps).
-OPEN: H8 voice-prefs provenance + H12 verify Studio progress relay = v5.4.x patches.
+H9 SHIPPED — browser full composite default-on since v5.5.1 (two-machine QA PASS;
+~43 s x264 wall gone on the primary path). v5.7.0 partial-splice execution: avcC
+hazard mitigated BY CONSTRUCTION via the kept-region fidelity gate (I16) = R14.
+v5.8.0 timeline two-view source-of-truth = R15 (handled by captureActiveDraft).
+OPEN (carried v5.x patches): H8 recovery voice-prefs provenance — MAY be subsumed by
+v5.6.0 TakeVoiceStamp, VERIFY before scoping; H12 verify Studio-job progress relay.
 DEFERRED: H10 fallback observability (user decision).
+Risks live: R1 (now fallback-tier only — browser composite has no alphamerge), R14
+splice avcC (mitigated), R15 timeline two-view. NO new OPEN item from the v5.5–v5.8 arc.
+Next feature likely: atomic trim APPLY (edits.trim intent is INERT until then) — own branch + QA.
 ```

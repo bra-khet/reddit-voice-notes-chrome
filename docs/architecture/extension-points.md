@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.5 · **Updated:** 2026-07-07 · **Reflects:** `feature/5.6.0-audio-decoupling` (baseline `main` @ `v5.5.1`)  
+**Version:** v1.6 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.8.0`  
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -269,9 +269,10 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
   painter's global-PTS expression; `TrimRange` + `clampTrimRange`),
   `src/editing/segment-dirty-tracker.ts` (cue diff → dirty windows →
   segments), `src/editing/partial-rebake-coordinator.ts` (keyframe-grid
-  splice PLANNER — execution is Phase 2b behind `coordinateRebake`),
-  `src/editing/trim.ts` (`planTrim` gate; intent in `take.edits.trim`;
-  mediabunny `Conversion` apply — artifact integration deferred).
+  splice coordinator — **execution SHIPPED v5.7.0**; see the Partial re-bake
+  splice seam below), `src/editing/trim.ts` (`planTrim` gate; intent in
+  `take.edits.trim`; `loadTrimIntent` read helper added v5.8.0; mediabunny
+  `Conversion` apply — artifact integration still deferred).
 - **Preview=bake?** YES for voice — re-apply resolves through the same
   `resolveVoiceGraph` + renderer as the audition. N/A for the remux
   (bit-copy by definition).
@@ -291,9 +292,89 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
     — long convolution rings are cut by design.
   - Re-check take identity before the commit writes — a concurrent capture
     owns the single-slot stores (`superseded` error path).
-  - `partial-rebake-coordinator` currently executes FULL composites; do not
-    surface its plan as an execution stage until Phase 2b lands with the
-    fidelity-harness extension.
+  - Phase 2b (partial-splice execution) shipped in v5.7.0 — `partial-rebake-plan`
+    telemetry now has a real executor (`coordinateRebake` → the Partial re-bake
+    splice seam below). The `partial-splice-*` chronos stages are the live labels;
+    `partial-rebake-plan` stays PLAN-only and must never label execution work.
+
+## Partial re-bake splice — v1 (v5.7.0)
+
+Phase 2b execution of the v5.6.0 planner: when a *re*-bake changes only a bounded
+fraction of cues, re-encode just the keyframe-aligned dirty GOPs instead of the whole
+clip. Ships behind `experimental.partialRebakeSplice` (**default ON**, opt-out).
+Decision: ADR-0005; contract: `docs/v5.6.0-audio-decoupling.md` §4.2 + §13 QA checklist.
+
+- **The pure plan (leaf):** `src/editing/splice-plan.ts` — `planSplice()` produces
+  contiguous alternating `keep`/`reencode` regions on the artifact's REAL keyframe (GOP)
+  boundaries (an encoder's keyframes need not sit on the assumed 2 s grid); the two gates
+  `validateSplicePlan` (every cut on a real keyframe) and `validateSpliceOutput` ("partial
+  never lies": kept + reencoded == output == expected, ≤1-frame drift); `selectSpliceFidelityAnchors`
+  picks probe timestamps. Node-tested (`test-splice-plan.mjs`).
+- **The browser executor:** `src/composite/composite-splice.ts` `renderCompositeSplice` —
+  takes BOTH the prior `bakedMp4` (kept packets copied bit-exact) AND the CLEAN `baseMp4`
+  (dirty regions re-composited from clean frames, because the baked frames there still
+  carry the OLD burned-in subtitle). Re-encodes with the artifact's OWN codec string,
+  forced keyframe on each region's first frame.
+- **The load-bearing gate:** `src/composite/composite-fidelity.ts` `verifySpliceKeptFrames`
+  — decodes the spliced output at kept-region anchors and proves them pixel-identical to
+  the original (mean Δ ≤ 1.5, peak ≤ 24); the copied AVC packets share the original avcC,
+  so any difference means the spliced track's sample description corrupted them. Mandatory
+  final step; a miss throws → full composite.
+- **The honest wiring:** `src/editing/partial-rebake-coordinator.ts` `coordinateRebake`
+  takes an injected `executePartialSplice` (keeps the module pure), reports `executed:'partial'`
+  ONLY when real bytes come back, and **propagates AbortError** (never a silent full
+  re-render). Bake-path entry: `bakeWithOptionalSplice` in `subtitle-bake.ts` (flag on +
+  plan `partial` + a prior baked MP4 exists, else `runFullComposite`).
+- **Preview=bake?** N/A directly — output is a subset of the same overlay-painted frames a
+  full bake produces; the fidelity gate is what guarantees the kept region is byte-for-byte
+  the earlier bake (invariant I16).
+- **Chronos:** `partial-splice-{scan,reencode,assemble}` from real counters — never reuse
+  `partial-rebake-plan` (telemetry) or `browser-composite-*` labels.
+- **Add a codec:** the executor reads the artifact's own codec string; VP9 keyframes are
+  self-contained and splice cleanly, AVC needs the fidelity proof (the whole reason the gate
+  exists). A new container/codec ⇒ re-run the AVC+VP9 QA matrix (`docs/v5.6.0-audio-decoupling.md` §13).
+- **Gotcha:** the coverage cap (`PARTIAL_REBAKE_MAX_COVERAGE` 0.6) + keyframe expansion mean
+  a two-cue edit on a short clip often plans `full` — that is correct, not a bug (the splice
+  would touch most GOPs anyway).
+
+## Timeline cue editor — v1 (v5.8.0)
+
+The visual replacement for the flat cue-list modal: a DOM + CSS-transform timeline
+(draggable/resizable bars, ruler, waveform lane, minimap, stage-mode zoom, ✂ trim mode).
+**It introduced NO new message family, storage key, or take writer** — it is a surface over
+the existing edit / dirty-tracking / trim seams. Canonical as-built:
+`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`; Studio semantics: `docs/design-studio.md`.
+
+- **The two pure leaves (add geometry / waveform math here):**
+  `src/ui/design-studio/timeline-geometry.ts` — sec↔px, view-window viewport, snap
+  (`resolveSnap`/`resolveSnapSticky`), resize/move constraints, trim projection. **One import
+  only** (`timeline.ts` `snapTimeToFrame`) — it owns NO frame math of its own, so edited timing
+  is frame-exact = bake-exact (I17). `src/ui/design-studio/waveform-peaks.ts` — pure min/max
+  peak bins, zero imports. Both Node-tested (`test-timeline-geometry.mjs` 48, `test-waveform-peaks.mjs` 10).
+- **The UI substrate:** `subtitle-timeline-editor.ts` renders bars/ruler/waveform/minimap and
+  emits edits into the host's draft via a `SegmentEditorHandle`. The host
+  (`subtitle-segment-editor.ts`) owns the draft, undo/redo, multi-select, and the suggestion
+  engine; the component never mutates the draft directly.
+- **The load-bearing host invariant (two-view source-of-truth):** List and Timeline edit the
+  SAME `modalDraft`; `captureActiveDraft()` reads the List DOM *only when List is active* while
+  Timeline writes straight to the draft. Break this and a timeline edit + Apply reads stale List
+  values (dirty-state collapse — risk R15). Any new view onto the cue draft MUST route through
+  the same capture discipline.
+- **Waveform source:** `getDecodedBuffer()` on `segment-cue-player.ts` (additive) — the lane
+  reads the SAME decoded `AudioBuffer` the ▶ preview plays; zero extra decode, time-aligned to
+  the ruler so it can't imply a cue lands where the bake won't.
+- **Trim:** ✂ mode writes the non-destructive `edits.trim` intent through the existing `planTrim`
+  gate (`src/editing/trim.ts` `loadTrimIntent`/`storeTrimIntent`) → TakeManager `mergeTakeEdits`.
+  **View-state + intent only** — no atomic apply consumes it yet.
+- **Preview=bake?** YES for cue timing (frame-snap, I17). Trim has no bake path yet by design
+  (intent-only); when `applyTrimToMp4` ships it needs its own preview=bake + cue-shift + H6
+  re-stamp reasoning (own ADR/QA).
+- **Sync points:** the `SegmentEditorHandle` mount in `subtitle-controls.ts` (preserved
+  verbatim — do not change the mount contract); `style.css` `.studio__cue-timeline*` + `--stage`
+  dialog; palette tokens in `studio-palette.css`; the tests above.
+- **Gotcha:** the surface is big (`subtitle-timeline-editor.ts` ~2k lines) but strictly additive
+  — it consumes existing seams. Resist adding a message/store for timeline state; per-session view
+  state lives in the component, cue data in the draft.
 
 ---
 
@@ -308,18 +389,18 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.5 (2026-07-07), feature/5.6.0-audio-decoupling (base v5.5.1).
+Extension points v1.6 (2026-07-11), main @ v5.8.0.
 Seams: voice effects v5 (graph-native) · subtitle effects v1 · font pipeline v1 ·
 message pipelines v2 (pipeline + query kinds; store: baked|base relay param) ·
 storage v1 · theme/canvas v1 · Studio surfaces v1 · voice live-mic preview v1 ·
 overlay encoding backbone v1 (painter seam; webcodecs→mediarecorder→serial→drawtext;
-flags default TRUE since v5.4.0) · take lifecycle v1 (storage sync, ADR-0002;
-takeArtifactMatchesStore MANDATORY before adopting blobs — H6; v5.6.0 adds
-additive voice/edits snapshot fields) · Studio capture host v1 (onLiveCanvas
-zero-copy contract) · audio editing & voice re-apply v1 (ADR-0004: raw WebM is
-the invariant source; TakeVoiceStamp provenance; stream-copy remux — visuals
-never re-composite for audio; timeline/trim/dirty-tracking primitives;
-partial-rebake is PLAN-only until Phase 2b).
+flags default TRUE) · take lifecycle v1 (storage sync, ADR-0002; takeArtifactMatchesStore
+MANDATORY before adopting blobs — H6; voice/edits snapshot fields) · Studio capture host v1
+(onLiveCanvas zero-copy) · audio editing & voice re-apply v1 (ADR-0004: raw WebM invariant
+source; TakeVoiceStamp provenance; stream-copy remux) · partial re-bake splice v1 (v5.7.0,
+ADR-0005: dirty GOPs re-encoded from CLEAN base, kept-region fidelity gate I16, default ON) ·
+timeline cue editor v1 (v5.8.0: DOM timeline over existing seams — NO new msg/store/writer;
+pure timeline-geometry/waveform-peaks leaves; frame-snap via timeline.ts → I17).
 Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
-one-shot question → query message.
+one-shot question → query message. New editing UI → reuse the edit/dirty/trim seams, don't add a wire.
 ```
