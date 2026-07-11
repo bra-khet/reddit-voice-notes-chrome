@@ -5,6 +5,12 @@ type SourceMode = 'buffer' | 'element' | null;
 export interface SegmentCuePlayerHandle {
   setSource(blob: Blob | null): Promise<void>;
   getDecodedDuration(): number | null;
+  /**
+   * The decoded source buffer (buffer mode only; null in element-mode fallback).
+   * CHANGED: v5.8.0 §16.5 — feeds the timeline's waveform lane; additive,
+   * non-breaking (the buffer already exists for playback).
+   */
+  getDecodedBuffer(): AudioBuffer | null;
   playSegment(start: number, end: number, clipDurationSeconds?: number | null): Promise<void>;
   stop(): void;
   dispose(): void;
@@ -136,6 +142,10 @@ export function createSegmentCuePlayer(): SegmentCuePlayerHandle {
         return audioBuffer.duration;
       }
       return null;
+    },
+
+    getDecodedBuffer() {
+      return audioBuffer;
     },
 
     async playSegment(start, end, clipDurationSeconds) {

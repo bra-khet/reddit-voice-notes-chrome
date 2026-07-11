@@ -2375,3 +2375,1222 @@ details[open] .wf-why__summary::before {
    blocks (white panels, Reddit-blue #0079d3 step dots / alignment bars) were removed
    in polish-v5; do not reintroduce a light variant here. */
 
+/* ══════════════════════════════════════════════════════════════════════════
+   v5.8.0 — Timeline visual subtitle editor (Sprint 2 foundation)
+   Cividis indigo→amber axis (studio-palette.css). Every cue STATE pairs its hue
+   with a non-color signal (label/icon/border) — CVD-safe, design §4. State is
+   declared via --modifier classes so the palette map is one source of truth.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* View toggle (Timeline / List) */
+.studio__cue-view-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: 8px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.studio__cue-view-btn {
+  padding: 4px 12px;
+  border: none;
+  background: transparent;
+  color: var(--studio-text-muted);
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-meta);
+  letter-spacing: var(--studio-letter-meta);
+  cursor: pointer;
+}
+
+.studio__cue-view-btn--active {
+  background: var(--studio-surface-raised);
+  color: var(--studio-text);
+}
+
+.studio__cue-view-btn:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: -2px;
+}
+
+/* BUG FIX: List view lost its vertical scrollbar (v5.8.0 regression)
+   Fix: Sprint 2 wrapped .studio__transcript-segments in this view-toggle
+   container, demoting it from a direct flex child of the overflow-hidden
+   dialog — so its flex:1/overflow-y:auto no longer bounded its height and
+   the list clipped instead of scrolling. The wrapper must be a flex conduit:
+   flex:1 + min-height:0 so the inner segments list scrolls again. */
+.studio__transcript-list-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.studio__transcript-list-view[hidden] {
+  display: none;
+}
+
+/* Timeline shell */
+.studio__cue-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.studio__cue-timeline[hidden] {
+  display: none;
+}
+
+/* Ruler */
+.studio__cue-timeline-ruler {
+  position: relative;
+  height: 26px;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+  border-bottom: 1px solid var(--studio-hairline);
+}
+
+.studio__cue-timeline-tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 6px;
+  background: var(--studio-indigo-muted);
+  opacity: 0.5;
+}
+
+.studio__cue-timeline-tick--major {
+  height: 10px;
+  opacity: 0.85;
+}
+
+.studio__cue-timeline-tick-label {
+  position: absolute;
+  top: 11px;
+  left: 0;
+  transform: translateX(-50%);
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--studio-indigo-muted);
+  white-space: nowrap;
+}
+
+/* Track — bars ride a single horizontal lane; will-change on the CONTAINER only. */
+.studio__cue-timeline-track {
+  position: relative;
+  height: 56px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--studio-bg-deep), var(--studio-panel-edge));
+  border: 1px solid var(--studio-hairline);
+  overflow: hidden;
+  contain: layout paint;
+  will-change: transform;
+}
+
+.studio__cue-timeline-track:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+/* Cue bar — NORMAL = indigo base fill (design §4.1) */
+.studio__cue-bar {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  height: 40px;
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--studio-accent-bars), var(--studio-indigo-accent));
+  border: 1px solid var(--studio-indigo-accent);
+  color: #0a0014;
+  cursor: pointer;
+  overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 40px;
+}
+
+.studio__cue-bar-body {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 8px;
+  flex: 1;
+}
+
+.studio__cue-bar-label {
+  font-family: var(--studio-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(10, 0, 20, 0.28);
+  color: #0a0014;
+  flex-shrink: 0;
+}
+
+.studio__cue-bar-text {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Resize handles — 16px targets (geometry EDGE_HANDLE_PX); revealed on hover/selection */
+.studio__cue-bar-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 16px;
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.studio__cue-bar-handle--start {
+  left: 0;
+  box-shadow: inset 2px 0 0 rgba(10, 0, 20, 0.4);
+}
+
+.studio__cue-bar-handle--end {
+  right: 0;
+  box-shadow: inset -2px 0 0 rgba(10, 0, 20, 0.4);
+}
+
+.studio__cue-bar:hover .studio__cue-bar-handle,
+.studio__cue-bar--selected .studio__cue-bar-handle {
+  opacity: 1;
+}
+
+/* SELECTED = amber fill + focus ring (design §4.1) */
+.studio__cue-bar--selected {
+  background: linear-gradient(180deg, var(--studio-accent-subtitles), var(--studio-amber-dim));
+  border-color: var(--studio-amber);
+  box-shadow: 0 0 0 2px var(--studio-focus), 0 2px 10px rgba(255, 213, 79, 0.25);
+  z-index: 2;
+}
+
+/* NOW PLAYING = amber glow + progress fill (paired with ■ in inspector) */
+.studio__cue-bar--playing {
+  box-shadow: 0 0 0 1px var(--studio-amber), 0 0 12px var(--studio-track-glow);
+}
+
+/* SCAFFOLD-empty = muted indigo dashed outline + "(empty)" ghost text */
+.studio__cue-bar--scaffold {
+  background: rgba(138, 134, 176, 0.12);
+  border: 1px dashed var(--studio-indigo-muted);
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-bar--scaffold .studio__cue-bar-label {
+  background: rgba(138, 134, 176, 0.18);
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-bar--scaffold .studio__cue-bar-text {
+  font-style: italic;
+  color: var(--studio-indigo-muted);
+}
+
+/* OOB = red end-cap stripe past the clip-end marker (paired with ⚠ OOB pill later) */
+.studio__cue-bar--oob {
+  border-right: 3px solid var(--studio-negate-edge);
+}
+
+.studio__cue-bar--oob::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 107, 107, 0.55) 0,
+    rgba(255, 107, 107, 0.55) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  pointer-events: none;
+}
+
+/* Playhead — amber line + glow, driven by cuePlayer sweep or ruler scrub */
+.studio__cue-timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--studio-amber);
+  box-shadow: 0 0 8px var(--studio-track-glow);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.studio__cue-timeline-playhead[hidden] {
+  display: none;
+}
+
+/* Clip-end marker — the OOB reference boundary */
+.studio__cue-timeline-clip-end {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  border-left: 1px dashed rgba(255, 107, 107, 0.6);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Selected-cue inspector strip (Sprint 2 = read-only summary + cuePlayer preview) */
+.studio__cue-timeline-inspector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px 0;
+}
+
+.studio__cue-timeline-inspector[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-inspector-label {
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-body);
+  color: var(--studio-text);
+}
+
+.studio__cue-timeline-inspector-range {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--studio-amber);
+  background: var(--studio-panel-edge);
+  border: 1px solid #2a2a44;
+  border-radius: 3px;
+  padding: 2px 7px;
+  text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
+}
+
+.studio__cue-timeline-empty {
+  margin: 6px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__cue-bar-handle {
+    transition: none;
+  }
+  .studio__cue-bar--playing {
+    box-shadow: 0 0 0 2px var(--studio-amber);
+  }
+}
+
+/* ── v5.8.0 Sprint 3 — drag/resize + editable inspector ─────────────────── */
+
+/* Draggable affordance; the track owns the pointer during a drag (no scroll). */
+.studio__cue-timeline-track {
+  touch-action: none;
+}
+
+.studio__cue-bar {
+  cursor: grab;
+}
+
+/* DIRTY = amber-highlighted cue-number chip (composes with every other state) */
+.studio__cue-bar--dirty .studio__cue-bar-label {
+  background: var(--studio-amber);
+  color: #0a0014;
+  box-shadow: 0 0 6px rgba(255, 213, 79, 0.65);
+}
+
+/* Editable inspector — Start / End / ▶ on one row, text below */
+.studio__cue-timeline-inspector {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.studio__cue-timeline-inspector-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.studio__cue-timeline-inspector-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--studio-font-meta);
+  letter-spacing: var(--studio-letter-meta);
+  color: var(--studio-field-label);
+}
+
+.studio__cue-timeline-inspector-field input {
+  width: 4.75rem;
+  padding: 3px 6px;
+  background: var(--studio-panel-edge);
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 4px;
+  color: var(--studio-text);
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+.studio__cue-timeline-inspector-text {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--studio-panel-edge);
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 6px;
+  color: var(--studio-text);
+  font-family: var(--studio-font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.studio__cue-timeline-inspector-field input:focus-visible,
+.studio__cue-timeline-inspector-text:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+/* ── v5.8.0 Sprint 4 — stage mode + view window (zoom/pan/minimap), design §16.1–16.2 ── */
+
+/* Stage expansion: Timeline view widens the dialog into a landscape stage with a
+   settle curve (no bounce); List view returns it to the compact width. */
+.studio__transcript-dialog {
+  transition:
+    max-width 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.studio__transcript-modal--stage .studio__transcript-dialog {
+  max-width: min(1240px, calc(100vw - 48px));
+  max-height: min(88vh, 820px);
+}
+
+/* Stage grid: timeline stack + transport on the left, inspector rail docked right. */
+.studio__cue-timeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 264px;
+  gap: 12px;
+  align-items: start;
+}
+
+.studio__cue-timeline-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.studio__cue-timeline-empty {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .studio__cue-timeline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Lanes: ruler → track → minimap as one contiguous machined block. */
+.studio__cue-timeline-lanes {
+  background: var(--studio-bg-deep);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.studio__cue-timeline-lanes .studio__cue-timeline-ruler {
+  margin: 0 0 0;
+}
+
+.studio__cue-timeline-lanes .studio__cue-timeline-track {
+  border: none;
+  border-radius: 0;
+}
+
+.studio__cue-timeline-lanes .studio__cue-timeline-track:focus-visible {
+  outline-offset: -2px; /* lanes clip overflow — keep the ring inside */
+}
+
+/* Minimap — full-clip overview strip; visible only when zoomed in. */
+.studio__cue-timeline-minimap {
+  position: relative;
+  height: 18px;
+  background: rgba(10, 0, 20, 0.65);
+  border-top: 1px solid var(--studio-hairline);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-minimap[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-minimap-heat {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.studio__cue-timeline-minimap-heat span {
+  position: absolute;
+  top: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(143, 147, 230, 0.5);
+}
+
+.studio__cue-timeline-minimap-lens {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 0;
+  border: 1px solid var(--studio-amber);
+  border-radius: 4px;
+  background: rgba(255, 213, 79, 0.08);
+  cursor: grab;
+}
+
+/* Transport bar — play + amber mono timecode left, zoom cluster right. */
+.studio__cue-timeline-transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio__cue-timeline-timecode {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--studio-amber);
+  text-shadow: 0 0 5px rgba(255, 213, 79, 0.4);
+}
+
+.studio__cue-timeline-timecode-total {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-transport-spacer {
+  flex: 1;
+}
+
+.studio__cue-timeline-zoom-btn {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--studio-text-muted);
+  font-family: var(--studio-font-mono);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-zoom-btn--wide {
+  padding: 0 8px;
+  font-family: var(--studio-font-display);
+  font-size: var(--studio-font-meta);
+  letter-spacing: var(--studio-letter-meta);
+}
+
+.studio__cue-timeline-zoom-btn:hover:not(:disabled) {
+  color: var(--studio-text);
+  border-color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.studio__cue-timeline-zoom-btn:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+.studio__cue-timeline-zoom-slider {
+  width: 110px;
+  accent-color: var(--studio-amber);
+}
+
+.studio__cue-timeline-zoom-slider:disabled {
+  opacity: 0.35;
+}
+
+.studio__cue-timeline-zoom-readout {
+  min-width: 34px;
+  text-align: right;
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--studio-text-muted);
+}
+
+/* Inspector rail — persistent dock; hint shown until a cue is selected. */
+.studio__cue-timeline-rail {
+  background: rgba(18, 0, 31, 0.35);
+  border: 1px solid var(--studio-hairline);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 132px;
+}
+
+.studio__cue-timeline-rail .studio__cue-timeline-inspector {
+  padding: 0;
+}
+
+.studio__cue-timeline-rail-hint {
+  margin: 4px 0;
+  color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-rail-hint[hidden] {
+  display: none;
+}
+
+/* BUG FIX: R1 — cue-bar text overflow glitch (repeated/clipped label text)
+   Fix: labels end in a gradient fade mask instead of mid-glyph clipping, and a
+   floored-width bar (--tiny, rawWidth < 12px) hides its label/text entirely —
+   there is no honest room to render them.
+   Sync: subtitle-timeline-editor.ts renderBars/updateBarDom (--tiny toggle) */
+.studio__cue-bar-text {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent);
+}
+
+.studio__cue-bar--tiny .studio__cue-bar-body {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__transcript-dialog {
+    transition: none;
+  }
+}
+
+/* ── v5.8.0 Sprint 5 — feel pass (ears, hysteresis guides, lift, cap), design §16.3–16.4 + 16.6 ── */
+
+/* Invisible hit slop on every trim handle (§16.3) — larger target, same look. */
+.studio__cue-bar-handle::after {
+  content: '';
+  position: absolute;
+  inset: -4px -3px;
+}
+
+/* Outboard "ears" — bars < 44px move their trim handles OUTSIDE the span so the
+   whole inner width stays a body/move zone. Always visible: they ARE the
+   affordance that makes tiny cues editable. */
+.studio__cue-bar--eared {
+  overflow: visible;
+}
+
+.studio__cue-bar--eared .studio__cue-bar-body {
+  overflow: hidden;
+}
+
+.studio__cue-bar--eared .studio__cue-bar-handle {
+  opacity: 1;
+  top: 4px;
+  bottom: 4px;
+  width: 8px;
+  background: rgba(143, 147, 230, 0.55);
+  box-shadow: none;
+  border: 1px solid var(--studio-indigo-accent);
+}
+
+.studio__cue-bar--eared .studio__cue-bar-handle--start {
+  left: -10px;
+  border-radius: 4px 0 0 4px;
+  border-right: none;
+}
+
+.studio__cue-bar--eared .studio__cue-bar-handle--end {
+  right: -10px;
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+
+.studio__cue-bar--eared.studio__cue-bar--selected .studio__cue-bar-handle {
+  background: var(--studio-amber-dim);
+  border-color: var(--studio-amber-edge);
+}
+
+/* Grab lift — the held bar rises 2px with a deeper shadow; release settles back
+   on a spring curve. Transition is on top/box-shadow ONLY (never transform —
+   the drag itself must stay 1:1). */
+.studio__cue-bar {
+  transition:
+    top 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.16s ease;
+}
+
+.studio__cue-bar--grabbed {
+  top: 6px;
+  box-shadow: 0 5px 14px rgba(10, 0, 20, 0.6);
+  cursor: grabbing;
+  z-index: 4;
+}
+
+.studio__cue-bar--selected.studio__cue-bar--grabbed {
+  box-shadow:
+    0 0 0 2px var(--studio-focus),
+    0 5px 14px rgba(10, 0, 20, 0.6);
+}
+
+/* Snap guide — 1px full-height line at the held magnet: violet for neighbor/tick,
+   amber for the playhead. One-shot flash on acquisition. */
+.studio__cue-timeline-snap-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: var(--studio-violet-confirm);
+  color: var(--studio-violet-confirm);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.studio__cue-timeline-snap-guide--playhead {
+  background: var(--studio-amber);
+  color: var(--studio-amber);
+}
+
+.studio__cue-timeline-snap-guide[hidden] {
+  display: none;
+}
+
+@keyframes studio-snap-flash {
+  0% {
+    box-shadow: 0 0 10px 2px currentColor;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.studio__cue-timeline-snap-guide--flash {
+  animation: studio-snap-flash 0.16s ease-out;
+}
+
+/* Playhead cap — amber teardrop seated in the ruler; the grab affordance for
+   scrubbing (the ruler already owns the scrub gesture). */
+.studio__cue-timeline-playhead-cap {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 11px;
+  height: 13px;
+  background: var(--studio-amber);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.studio__cue-timeline-playhead-cap[hidden] {
+  display: none;
+}
+
+/* Minimap: the selected cue reads amber in the overview — "where am I" at a
+   glance (mirrors the selected bar treatment). */
+.studio__cue-timeline-minimap-heat span.studio__cue-timeline-minimap-cue--selected {
+  top: 5px;
+  height: 8px;
+  background: var(--studio-amber);
+  box-shadow: 0 0 4px rgba(255, 213, 79, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__cue-bar {
+    transition: none;
+  }
+  .studio__cue-timeline-snap-guide--flash {
+    animation: none;
+  }
+}
+
+/* ── v5.8.0 Sprint 6 — waveform lane (audio reference terrain), design §16.5 ── */
+
+/* Contrast pass (user feedback): taller lane on a darker ground so the bright
+   accent-bars fill reads at a glance; the painter swaps figure/ground roles. */
+.studio__cue-timeline-waveform-lane {
+  position: relative;
+  height: 48px;
+  background: rgba(10, 0, 20, 0.6);
+  border-bottom: 1px solid var(--studio-hairline);
+  pointer-events: none; /* reference-only chrome — wheel falls through to the lanes */
+}
+
+.studio__cue-timeline-waveform-lane[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-waveform {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Playhead echo through the lane — cap → waveform → track reads as one line. */
+.studio__cue-timeline-waveform-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--studio-amber);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.studio__cue-timeline-waveform-playhead[hidden] {
+  display: none;
+}
+
+/* ── v5.8.0 Sprint 7 — semiotic parity + keyboard + multi-select, design §7 + §16.7 ── */
+
+/* Screen-reader-only live region (keyboard announcements). */
+.studio__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* LONG = warning tint (parity row 5); selection still wins the fill fight. */
+.studio__cue-bar--long:not(.studio__cue-bar--selected) {
+  background: linear-gradient(180deg, rgba(255, 184, 77, 0.6), rgba(201, 166, 61, 0.5));
+  border-color: var(--studio-warning);
+}
+
+/* On-bar pills — state classes decide visibility, so targeted class updates
+   keep them honest without re-rendering. Hidden on tiny/eared bars (no room). */
+.studio__cue-bar-pill {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-family: var(--studio-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.studio__cue-bar--long .studio__cue-bar-pill--long {
+  display: inline-block;
+  background: var(--studio-warning);
+  color: #0a0014;
+}
+
+.studio__cue-bar--oob .studio__cue-bar-pill--oob {
+  display: inline-block;
+  background: var(--studio-negate-bg);
+  color: var(--studio-negate-text);
+  border: 1px solid var(--studio-negate-edge);
+}
+
+/* Both states at once: stack the OOB pill under the LONG pill. */
+.studio__cue-bar--long.studio__cue-bar--oob .studio__cue-bar-pill--oob {
+  top: 19px;
+}
+
+.studio__cue-bar--tiny .studio__cue-bar-pill,
+.studio__cue-bar--eared .studio__cue-bar-pill {
+  display: none !important;
+}
+
+/* Inspector fit-status line — same tier vocabulary as the list rows. */
+.studio__cue-timeline-inspector-fit {
+  margin: 0;
+  font-size: var(--studio-font-meta);
+  color: var(--studio-text-muted);
+}
+
+.studio__cue-timeline-inspector-fit[data-fit-tier='comfortable'] {
+  color: var(--studio-cyan-ready);
+}
+
+.studio__cue-timeline-inspector-fit[data-fit-tier='marginal'] {
+  color: var(--studio-amber-dim);
+}
+
+.studio__cue-timeline-inspector-fit[data-fit-tier='overflow'] {
+  color: var(--studio-warning);
+}
+
+.studio__cue-timeline-inspector-fit[hidden] {
+  display: none;
+}
+
+/* Inspector action row (▶ ✂ 🗑) + batch-selection note. */
+.studio__cue-timeline-inspector-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio__cue-timeline-inspector-delete {
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 107, 107, 0.45);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--studio-negate-text);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-inspector-delete:hover {
+  background: var(--studio-negate-bg);
+  border-color: var(--studio-negate-edge);
+}
+
+.studio__cue-timeline-inspector-delete:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+.studio__cue-timeline-inspector-multi {
+  margin: 0;
+  color: var(--studio-amber-dim);
+}
+
+/* ── v5.8.0 Sprint 8 — smart integration: on-bar suggestions (design §8, tokens §4.1) ── */
+
+/* Suggested bars adopt the eared overflow model (Sprint 5, browser-proven) so
+   the priority dot can sit outboard above the bar — it must survive --tiny,
+   where the in-bar pills have no honest room and are hidden. */
+.studio__cue-bar--suggested {
+  overflow: visible;
+}
+
+.studio__cue-bar--suggested .studio__cue-bar-body {
+  overflow: hidden;
+}
+
+/* Priority dot — the §4.1 non-color pairing (number + tooltip) in the same
+   amber-action family as the Smart Adjust attention affordance. Always in the
+   DOM; the --suggested state class shows it (same pattern as the pills). */
+.studio__cue-bar-suggest-dot {
+  display: none;
+  position: absolute;
+  top: -8px;
+  left: -6px;
+  z-index: 4;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  background: var(--studio-amber-action, #d4a020);
+  color: #0a0014;
+  font-family: var(--studio-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(10, 0, 20, 0.55);
+  pointer-events: none;
+}
+
+.studio__cue-bar--suggested .studio__cue-bar-suggest-dot {
+  display: inline-block;
+}
+
+/* Eared (narrow) bars: the start ear owns the top-left corner — float the dot
+   centered above the bar instead so both affordances stay legible. */
+.studio__cue-bar--eared .studio__cue-bar-suggest-dot {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Attention halo (§4.1 amber highlight, matching .studio__smart-adjust-open--attention).
+   Scoped so the selection treatment and the grab-lift shadow always win —
+   this rule is later in the file and would otherwise beat both. */
+.studio__cue-bar--suggested:not(.studio__cue-bar--selected):not(.studio__cue-bar--grabbed) {
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge, #9a7210),
+    0 0 10px rgba(212, 160, 32, 0.35);
+}
+
+/* Inspector suggestion callout — one-click smart entry points (§8). */
+.studio__cue-timeline-inspector-suggest {
+  padding: 6px 8px;
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  border-radius: 6px;
+  background: rgba(212, 160, 32, 0.08);
+}
+
+.studio__cue-timeline-inspector-suggest[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-inspector-suggest-copy {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--studio-amber-action, #d4a020);
+}
+
+.studio__cue-timeline-inspector-suggest-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio__cue-timeline-suggest-fix,
+.studio__cue-timeline-suggest-open {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-suggest-fix {
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  background: var(--studio-amber-action, #d4a020);
+  color: #0a0014;
+  font-weight: 700;
+}
+
+.studio__cue-timeline-suggest-fix:hover {
+  filter: brightness(1.08);
+}
+
+.studio__cue-timeline-suggest-fix[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-suggest-open {
+  border: 1px solid var(--studio-hairline-strong);
+  background: transparent;
+  color: var(--studio-text-muted);
+}
+
+.studio__cue-timeline-suggest-open:hover {
+  color: var(--studio-text);
+  border-color: var(--studio-indigo-muted);
+}
+
+.studio__cue-timeline-suggest-fix:focus-visible,
+.studio__cue-timeline-suggest-open:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+/* ── v5.8.0 Sprint 9 — trim mode (design §10): markers, veils, ghosts, intent ── */
+
+/* ✂ Trim toggle — pressed state on the shared transport-button language. */
+.studio__cue-timeline-zoom-btn--on {
+  background: var(--studio-surface-raised);
+  border-color: var(--studio-amber-dim);
+  color: var(--studio-text);
+}
+
+/* Trim strip — readout + Save/Clear, visible only while trim mode is on. */
+.studio__cue-timeline-trimbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 184, 77, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 184, 77, 0.05);
+}
+
+.studio__cue-timeline-trimbar[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-trim-readout {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--studio-warning);
+}
+
+.studio__cue-timeline-trim-status {
+  font-size: 0.7rem;
+  color: var(--studio-text-muted);
+}
+
+.studio__cue-timeline-trim-status[data-trim-state='saved'] {
+  color: var(--studio-violet-confirm);
+}
+
+.studio__cue-timeline-trim-status[data-trim-state='error'] {
+  color: var(--studio-negate-text);
+}
+
+.studio__cue-timeline-trim-save,
+.studio__cue-timeline-trim-clear {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-trim-save {
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  background: var(--studio-amber-action, #d4a020);
+  color: #0a0014;
+  font-weight: 700;
+}
+
+.studio__cue-timeline-trim-save:disabled,
+.studio__cue-timeline-trim-clear:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.studio__cue-timeline-trim-clear {
+  border: 1px solid var(--studio-hairline-strong);
+  background: transparent;
+  color: var(--studio-text-muted);
+}
+
+.studio__cue-timeline-trim-save:focus-visible,
+.studio__cue-timeline-trim-clear:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+/* Cut-region veils — everything outside [in, out) dims under warning stripes.
+   pointer-events none: cue drags and marker grabs pass straight through. */
+.studio__cue-timeline-trim-veil {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 184, 77, 0.07) 0 6px,
+      transparent 6px 12px
+    ),
+    rgba(10, 0, 20, 0.55);
+  pointer-events: none;
+}
+
+/* In/out markers — full-height warning line with a grabbable ✂ flag seated at
+   the bottom of the track (§10 "overhang" affordance, kept inside the clipping
+   lanes). The whole marker is the grab target, widened by hit slop. */
+.studio__cue-timeline-trim-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--studio-warning);
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 5;
+}
+
+.studio__cue-timeline-trim-marker::after {
+  content: '';
+  position: absolute;
+  inset: 0 -8px; /* invisible hit slop — same trick as the cue trim handles */
+}
+
+.studio__cue-timeline-trim-marker:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio__cue-timeline-trim-flag {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--studio-warning);
+  color: #0a0014;
+  font-family: var(--studio-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Ghost bars — each surviving cue previewed at its POST-trim position (visual
+   only, drawn UNDER the real bars: the ghost layer is the track's first child). */
+.studio__cue-timeline-trim-ghosts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.studio__cue-timeline-trim-ghost {
+  position: absolute;
+  top: 8px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px dashed var(--studio-amber-dim);
+  border-radius: 6px;
+  background: rgba(201, 166, 61, 0.06);
+}
+
+/* Overhang cues (§4.1 row: outside/past the kept region) — amber warning
+   outline with a subtle breathing pulse; outline (not box-shadow) so it stacks
+   cleanly with the suggestion halo and the grab-lift shadow. */
+.studio__cue-bar--trim-overhang {
+  outline: 1px dashed var(--studio-warning);
+  outline-offset: 2px;
+  animation: studio-trim-overhang-pulse 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes studio-trim-overhang-pulse {
+  from {
+    outline-color: var(--studio-warning);
+  }
+  to {
+    outline-color: rgba(255, 184, 77, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__cue-bar--trim-overhang {
+    animation: none;
+  }
+}
+

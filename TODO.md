@@ -1,5 +1,35 @@
 # TODO
 
+## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **TAGGED** `v5.8.0`
+
+**Design (as-built):** [`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`](docs/v5.8.0-trim-ui-visual-subtitle-editor.md) (authoritative) · **Scope:** [`docs/v5.8.0-scope.md`](docs/v5.8.0-scope.md) · **Release notes:** [`docs/release-notes-v5.8.0.md`](docs/release-notes-v5.8.0.md)
+**Merged:** `feature/v5.8.0-trim-ui-visual-subtitle-editor` → `main` (2026-07-10) · **Package:** `5.8.0` · **Push:** deferred (user pushes)
+
+Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: DOM-not-canvas, timeline-primary + List toggle, `SegmentEditorHandle` preserved, frame-snap via `timeline.ts` (I11), no new seam, Cividis palette.
+
+| Sprint | Scope | Status |
+|--------|-------|--------|
+| 1 | docs redraft + committed architecture | **done** (`04e803d`, `be1c7be`) |
+| 2 | foundation: `timeline-geometry` (pure) + read-only ruler/bars/playhead + List toggle | **done** (`f1f3d16`) |
+| 3 | drag/resize (clamp-to-neighbor) + magnetism + bar↔inspector two-way sync + dirty | **done** (`e24eb96`) |
+| 4 | **stage & zoom** (§16.1–16.2): stage-mode modal + view-window model + zoom cluster/wheel/pan + minimap + R1 label fix | **done** (`f73f013`) |
+| 5 | **feel pass** (§16.3–16.4): short-cue ears, hysteresis snap + guides, grab-lift/spring, playhead cap, Esc-cancel, auto-pan, minimap selected-highlight | **done** (`a382d74`) — QA **PASS** |
+| 6 | **waveform lane** (§16.5): pure peaks leaf + canvas + fallback | **done** (`905e718` + contrast fix `300bd84`) |
+| 7 | semiotic parity (LONG/OOB pills, fit-status, split, delete, add-at-playhead, keyboard + undo/redo + multi-select) | **done** (`b0afad9`) — QA **PASS** |
+| 8 | smart integration: on-bar suggestion halo/priority dot + one-click minimal fix + pre-contextualized Smart Adjust + validate-all onto bars | **done** (`7dafb30` + List-scrollbar fix `a5a2a3f`) — QA **PASS** |
+| 9 | **trim hooks** (§10): ✂ Trim mode — in/out markers + veils + ghost shift-preview + overhang warnings + Save/Clear intent via `planTrim` + polish/a11y/perf | **done** (`0260e9a`) — QA **PASS** |
+| 10 | wire + verify + release: verify sweep, release notes, bump `5.7.0`→`5.8.0` (+ stale `version.ts` catch-up), docs close-out, merge + tag | **done** (2026-07-10) |
+
+*Ladder revised 2026-07-09 (Sprint-3 QA → design doc §16 "Stage" refinement addendum): zoom/layout/feel/waveform land before parity so later sprints build on the real surface.*
+
+**QA:** Sprints 3–9 real-browser **PASS** (Windows/Chrome; per-sprint sign-offs 2026-07-09/10, Sprint 9 confirmed bake unchanged — trim is intent-only). **BUG-037 fixed:** Vite no longer watches `.ignore/` (Explorer paste EBUSY crash).
+
+**Then (follow-up, own branch):** atomic trim **apply** — `applyTrimToMp4` artifact integration + automatic cue/transcript shift + H6 re-stamp, with its own QA gate. Stored `edits.trim` intent is inert until then.
+
+**Verify:** `node scripts/test-timeline-geometry.mjs` (48) · `test-waveform-peaks.mjs` (10) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31, browser-composite-plan 17, take-deck 12) · `npm run build` · `npx tsc --noEmit` (3 documented pre-existing)
+
+**Restore:** `git checkout main && npm install && npm run dev`
+
 ## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
 **Release notes:** [`docs/release-notes-v5.7.0.md`](docs/release-notes-v5.7.0.md) · **ADR:** [`0005`](docs/architecture/adr/0005-partial-rebake-splice.md) · **Contract:** [`docs/v5.6.0-audio-decoupling.md`](docs/v5.6.0-audio-decoupling.md) §4.2 + §13  

@@ -10,6 +10,22 @@ const packageJson = JSON.parse(
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: '.',
+  // BUG FIX: Vite/WXT FSWatcher EBUSY crash when pasting files into .ignore/ (Windows)
+  // Fix: do not watch gitignored QA/agent scratch dirs. Explorer paste locks the new file
+  // briefly; chokidar's unhandled EBUSY on watch() killed the whole `wxt` dev process.
+  // Sync: .gitignore entries for local-only trees that must never trigger HMR.
+  vite: () => ({
+    server: {
+      watch: {
+        ignored: [
+          '**/.ignore/**',
+          '**/terminals/**',
+          '**/agent-tools/**',
+          '**/mcps/**',
+        ],
+      },
+    },
+  }),
   manifest: {
     content_security_policy: {
       // MV3 extension_pages: wasm-unsafe-eval only (FFmpeg). No unsafe-eval — Chrome forbids it.

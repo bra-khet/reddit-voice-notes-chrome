@@ -75,6 +75,13 @@ export async function storeTrimIntent(range: TrimRange): Promise<void> {
   });
 }
 
+/** Read any stored trim intent from the current take (null when none). */
+export async function loadTrimIntent(): Promise<TrimRange | null> {
+  const take = await getTakeManager().getCurrentTake();
+  const trim = take?.edits?.trim;
+  return trim ? { inSeconds: trim.inSeconds, outSeconds: trim.outSeconds } : null;
+}
+
 /** Clear any pending trim intent. */
 export async function clearTrimIntent(): Promise<void> {
   await getTakeManager().updateCurrentTake({ edits: { trim: null } });
