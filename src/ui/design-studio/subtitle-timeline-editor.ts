@@ -203,6 +203,20 @@ export interface TimelineEditorDeps {
   >;
   /** Clear any stored trim intent from the take. */
   onClearTrimIntent(): Promise<void>;
+  /**
+   * v5.9.0 — atomic apply (roadmap §4): permanently cut the clip to
+   * [inSeconds, outSeconds) and shift every cue. The HOST refreshes all draft /
+   * transcript / clip-source / undo state before resolving; the component only
+   * exits trim mode on ok. Progress is the overall apply ratio [0,1].
+   */
+  onApplyTrim(
+    inSeconds: number,
+    outSeconds: number,
+    onProgress: (ratio: number) => void,
+  ): Promise<
+    | { ok: true; newDurationSeconds: number; removedCueCount: number }
+    | { ok: false; error: string }
+  >;
 }
 
 export interface TimelineEditorHandle {
@@ -352,6 +366,12 @@ export function renderSubtitleTimelineEditorShell(): string {
           <span class="studio__cue-timeline-transport-spacer"></span>
           <button
             type="button"
+            class="studio__cue-timeline-trim-apply"
+            data-timeline-trim-apply
+            title="Permanently cut the clip to the kept region and shift every cue"
+          >Apply trim</button>
+          <button
+            type="button"
             class="studio__cue-timeline-trim-save"
             data-timeline-trim-save
             title="Store this trim on the take (non-destructive — nothing is cut yet)"
@@ -412,6 +432,7 @@ export function mountSubtitleTimelineEditor(
   const trimBarEl = container.querySelector<HTMLElement>('[data-timeline-trimbar]')!;
   const trimReadoutEl = container.querySelector<HTMLElement>('[data-timeline-trim-readout]')!;
   const trimStatusEl = container.querySelector<HTMLElement>('[data-timeline-trim-status]')!;
+  const trimApplyBtn = container.querySelector<HTMLButtonElement>('[data-timeline-trim-apply]')!;
   const trimSaveBtn = container.querySelector<HTMLButtonElement>('[data-timeline-trim-save]')!;
   const trimClearBtn = container.querySelector<HTMLButtonElement>('[data-timeline-trim-clear]')!;
   const trimGhostsEl = container.querySelector<HTMLElement>('[data-timeline-trim-ghosts]')!;
@@ -451,6 +472,11 @@ export function mountSubtitleTimelineEditor(
   let trimRange: { inSeconds: number; outSeconds: number } | null = null;
   let trimSaveState: 'idle' | 'saving' | 'saved' | 'error' = 'idle';
   let trimErrorText = '';
+  // CHANGED: v5.9.0 — atomic apply (roadmap §4). Two-click confirm ('confirm'
+  // arms the button; any marker edit or Esc disarms) because the cut is
+  // permanent (§3G) — the ghost preview is the safety BEFORE this point.
+  let trimApplyState: 'idle' | 'confirm' | 'applying' = 'idle';
+  let trimApplyProgress = 0;
   let trimDrag: {
     edge: 'in' | 'out';
     pointerId: number;
@@ -1184,28 +1210,46 @@ export function mountSubtitleTimelineEditor(
     });
     trimGhostsEl.innerHTML = ghostHtml.join('');
 
-    // Readout + save/clear states. Δ is the removed duration (vs the clip).
+    // Readout + apply/save/clear states. Δ is the removed duration (vs the clip).
     const keep = outSeconds - inSeconds;
     const delta = clip !== null ? keep - clip : 0;
     trimReadoutEl.textContent = `Keep ${keep.toFixed(1)}s · Δ ${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(1)}s`;
     const fullSpan = clip !== null && inSeconds <= 1e-6 && outSeconds >= clip - 1e-6;
     const tooShort = keep < TRIM_MIN_DURATION_SECONDS - 1e-6;
+    const applying = trimApplyState === 'applying';
     trimSaveBtn.disabled =
-      fullSpan || tooShort || trimSaveState === 'saving' || trimSaveState === 'saved';
-    trimClearBtn.disabled = trimSaveState === 'saving' || deps.getSavedTrimIntent() === null;
-    trimStatusEl.dataset.trimState = trimSaveState;
-    trimStatusEl.textContent =
-      trimSaveState === 'saving'
-        ? 'Saving…'
-        : trimSaveState === 'saved'
-          ? 'Saved — stored on the take, nothing cut yet'
-          : trimSaveState === 'error'
-            ? trimErrorText
-            : fullSpan
-              ? 'Move a marker to trim something'
-              : tooShort
-                ? `Keep at least ${TRIM_MIN_DURATION_SECONDS}s`
-                : '';
+      fullSpan || tooShort || applying || trimSaveState === 'saving' || trimSaveState === 'saved';
+    trimClearBtn.disabled =
+      applying || trimSaveState === 'saving' || deps.getSavedTrimIntent() === null;
+    // CHANGED: v5.9.0 — the apply control (roadmap §4). Armed state renames the
+    // button so the second click is an informed confirm, never a double-click slip.
+    trimApplyBtn.disabled = fullSpan || tooShort || applying || trimSaveState === 'saving';
+    trimApplyBtn.classList.toggle(
+      'studio__cue-timeline-trim-apply--armed',
+      trimApplyState === 'confirm',
+    );
+    trimApplyBtn.textContent =
+      trimApplyState === 'confirm'
+        ? `Cut ${Math.abs(delta).toFixed(1)}s — confirm`
+        : applying
+          ? 'Applying…'
+          : 'Apply trim';
+    trimStatusEl.dataset.trimState = applying ? 'saving' : trimSaveState;
+    trimStatusEl.textContent = applying
+      ? `Cutting… ${Math.round(trimApplyProgress * 100)}%`
+      : trimApplyState === 'confirm'
+        ? `Permanent — keeps ${keep.toFixed(1)}s and shifts every cue. Click again to confirm.`
+        : trimSaveState === 'saving'
+          ? 'Saving…'
+          : trimSaveState === 'saved'
+            ? 'Saved — stored on the take, nothing cut yet'
+            : trimSaveState === 'error'
+              ? trimErrorText
+              : fullSpan
+                ? 'Move a marker to trim something'
+                : tooShort
+                  ? `Keep at least ${TRIM_MIN_DURATION_SECONDS}s`
+                  : '';
   }
 
   function setTrimMode(on: boolean): void {
@@ -1222,6 +1266,7 @@ export function mountSubtitleTimelineEditor(
         : { inSeconds: 0, outSeconds: clip };
       trimSaveState = saved ? 'saved' : 'idle';
       trimErrorText = '';
+      trimApplyState = 'idle';
       trimMode = true;
       announce('Trim mode on — drag the in and out markers');
     } else {
@@ -1230,6 +1275,7 @@ export function mountSubtitleTimelineEditor(
       trimDrag = null;
       trimSaveState = 'idle';
       trimErrorText = '';
+      trimApplyState = 'idle';
       announce('Trim mode off');
     }
     render();
@@ -1271,10 +1317,53 @@ export function mountSubtitleTimelineEditor(
     });
   }
 
+  // CHANGED: v5.9.0 — atomic apply (roadmap §4). First click arms (renderTrim
+  // renames the button + status states the permanence); second click executes.
+  // The host owns every post-apply refresh; on ok the component only leaves
+  // trim mode. On error the strip reuses the existing error rendering.
+  function onTrimApplyClick(): void {
+    if (!trimRange || trimApplyBtn.disabled) return;
+    if (trimApplyState === 'idle') {
+      trimApplyState = 'confirm';
+      announce('Applying is permanent — click again to confirm the cut');
+      renderTrim();
+      return;
+    }
+    if (trimApplyState !== 'confirm') return;
+    trimApplyState = 'applying';
+    trimApplyProgress = 0;
+    renderTrim();
+    void deps
+      .onApplyTrim(trimRange.inSeconds, trimRange.outSeconds, (ratio) => {
+        trimApplyProgress = ratio;
+        if (trimMode && trimApplyState === 'applying') renderTrim();
+      })
+      .then((result) => {
+        if (!trimMode) return; // mode (or modal) left while applying
+        trimApplyState = 'idle';
+        if (result.ok) {
+          announce(
+            `Trim applied — clip is now ${result.newDurationSeconds.toFixed(1)} seconds` +
+              (result.removedCueCount > 0
+                ? `, ${result.removedCueCount} cue(s) removed`
+                : ''),
+          );
+          setTrimMode(false); // host already refreshed draft/duration/waveform
+        } else {
+          trimSaveState = 'error';
+          trimErrorText = result.error;
+          announce(`Trim not applied — ${result.error}`);
+          renderTrim();
+        }
+      });
+  }
+
   /** Apply a marker drag/nudge value: cue-edge magnetism (unless Shift), frame
       snap, then clamp so in/out never cross or leave [0, clip]. */
   function applyTrimEdge(edge: 'in' | 'out', rawSeconds: number, magnetize: boolean): void {
     if (!trimRange) return;
+    if (trimApplyState === 'applying') return; // markers are inert mid-apply
+    if (trimApplyState === 'confirm') trimApplyState = 'idle'; // edit disarms the confirm
     const clip = trimClipDuration() ?? fullDurationSeconds;
     const cueEdges: number[] = [];
     for (const segment of deps.getSegments()) {
@@ -1558,6 +1647,16 @@ export function mountSubtitleTimelineEditor(
 
   // Capture phase so a drag-cancel Esc never reaches the host's modal-close handler.
   function onDocKeyDown(event: KeyboardEvent): void {
+    // CHANGED: v5.9.0 — Esc also disarms an armed apply confirm (never closes
+    // the modal underneath a pending destructive decision).
+    if (event.key === 'Escape' && trimApplyState === 'confirm') {
+      event.preventDefault();
+      event.stopPropagation();
+      trimApplyState = 'idle';
+      announce('Apply cancelled');
+      renderTrim();
+      return;
+    }
     if (event.key !== 'Escape' || (!drag && !trimDrag)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1995,6 +2094,7 @@ export function mountSubtitleTimelineEditor(
   zoomSliderEl.addEventListener('input', onZoomSlider);
   addBtn.addEventListener('click', onAddClick);
   trimToggleBtn.addEventListener('click', onTrimToggleClick);
+  trimApplyBtn.addEventListener('click', onTrimApplyClick);
   trimSaveBtn.addEventListener('click', onTrimSaveClick);
   trimClearBtn.addEventListener('click', onTrimClearClick);
   trackEl.addEventListener('keydown', onTrackKeyDown);
@@ -2057,6 +2157,7 @@ export function mountSubtitleTimelineEditor(
       zoomSliderEl.removeEventListener('input', onZoomSlider);
       addBtn.removeEventListener('click', onAddClick);
       trimToggleBtn.removeEventListener('click', onTrimToggleClick);
+      trimApplyBtn.removeEventListener('click', onTrimApplyClick);
       trimSaveBtn.removeEventListener('click', onTrimSaveClick);
       trimClearBtn.removeEventListener('click', onTrimClearClick);
       trackEl.removeEventListener('keydown', onTrackKeyDown);

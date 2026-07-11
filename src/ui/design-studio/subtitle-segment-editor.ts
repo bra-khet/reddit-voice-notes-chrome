@@ -53,6 +53,7 @@ import {
   planTrim,
   storeTrimIntent,
 } from '@/src/editing/trim';
+import { applyTrimToCurrentTake } from '@/src/editing/trim-apply';
 import type { TrimRange } from '@/src/timeline/timeline';
 import {
   mountSubtitleTimelineEditor,
@@ -544,6 +545,66 @@ export function mountSubtitleSegmentEditor(
         return; // storage write failed — keep the cache so Clear stays offered
       }
       savedTrimIntent = null;
+    },
+    // CHANGED: v5.9.0 — atomic trim apply (roadmap §4). The component owns the
+    // confirm gesture; this owns the orchestrator call + the FULL post-apply
+    // refresh: every in-memory transcript copy re-seeds from the persisted
+    // outcome, the undo stack resets (§3H — old snapshots reference the
+    // pre-trim timeline), and the clip source reloads off the fresh base stamp.
+    onApplyTrim: async (inSeconds, outSeconds, onProgress) => {
+      // Preview = apply: the ghost bars projected the LIVE draft, so the draft
+      // is the edited source the shift consumes (unsaved edits ride along).
+      captureActiveDraft();
+      const draftEdited = draftAsEditedResult();
+      try {
+        const outcome = await applyTrimToCurrentTake({
+          requested: { inSeconds, outSeconds },
+          fps: TIMELINE_DEFAULT_FPS,
+          editedResult: draftEdited,
+          onProgress,
+        });
+        voskOriginal = outcome.shiftedOriginal
+          ? cloneTranscriptResult(outcome.shiftedOriginal)
+          : null;
+        edited = outcome.shiftedEdited
+          ? cloneTranscriptResult(outcome.shiftedEdited)
+          : null;
+        savedBaseline = edited ? cloneTranscriptResult(edited) : null;
+        modalDraft = edited ? edited.segments.map((segment) => ({ ...segment })) : [];
+        modalOpenBaseline = modalDraft.map((segment) => ({ ...segment }));
+        selectedSegmentIndex = null;
+        selectedSegmentExtras.clear();
+        clearUndoHistory();
+        savedTrimIntent = null; // the orchestrator cleared edits.trim
+        clearCueFitCache();
+        invalidateCueSuggestions();
+        timelineHandle.resetView(); // fit zoom to the shorter clip
+        renderModalSegments();
+        renderPreview();
+        syncActionButtons();
+        notify();
+        // Controls-side cache sync (lastSnapshot, delivery status, source
+        // label). The store already holds these bytes — the re-save is
+        // idempotent; a failure here must not report the applied trim as failed.
+        if (edited) {
+          try {
+            await Promise.resolve(handlers?.onSaveEdits?.(cloneTranscriptResult(edited)));
+          } catch (error) {
+            console.warn('[Reddit Voice Notes] Post-trim controls sync failed', error);
+          }
+        }
+        void loadRecordingSource(); // fresh base stamp → trimmed audio + waveform
+        return {
+          ok: true,
+          newDurationSeconds: outcome.newDurationSeconds,
+          removedCueCount: outcome.removedCueCount,
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
     },
   });
 

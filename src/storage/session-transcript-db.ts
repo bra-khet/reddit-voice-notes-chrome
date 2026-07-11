@@ -192,6 +192,33 @@ export async function saveSessionTranscriptEdits(
   await writeRecord(record);
 }
 
+/**
+ * v5.9.0 — trim apply (roadmap §3H): rewrite BOTH copies after the timeline
+ * itself changed. Unlike saveSessionTranscriptEdits, the baseline does NOT
+ * survive — a destructive trim re-bases "original" onto the new timeline so
+ * "revert edits" can never resurrect pre-trim cue times onto the short clip.
+ * Metadata (jobId, capturedAt, error, isScaffolded) survives; the write counts
+ * as a confirmed edit (the apply is an explicit user commit).
+ */
+export async function replaceSessionTranscriptResults(
+  originalResult: TranscriptResult,
+  editedResult: TranscriptResult,
+): Promise<void> {
+  const existing = await loadSessionTranscript();
+  const now = Date.now();
+  const record: StoredSessionTranscriptV2 = {
+    originalResult: cloneTranscriptResult(originalResult),
+    editedResult: cloneTranscriptResult(editedResult),
+    jobId: existing?.jobId,
+    capturedAt: existing?.capturedAt ?? now,
+    lastEditedAt: now,
+    confirmedAt: now,
+    error: existing?.error,
+    isScaffolded: existing?.isScaffolded,
+  };
+  await writeRecord(record);
+}
+
 async function writeRecord(record: StoredSessionTranscriptV2): Promise<void> {
   try {
     const db = await openDatabase();
