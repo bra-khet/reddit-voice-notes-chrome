@@ -17,13 +17,17 @@ Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: D
 | 6 | **waveform lane** (§16.5): pure peaks leaf + canvas + fallback | **done** (`905e718` + contrast fix `300bd84`) |
 | 7 | semiotic parity (LONG/OOB pills, fit-status, split, delete, add-at-playhead, keyboard + undo/redo + multi-select) | **done** (`b0afad9`) — QA **PASS** |
 | 8 | smart integration: on-bar suggestion halo/priority dot + one-click minimal fix + pre-contextualized Smart Adjust + validate-all onto bars | **done** (`7dafb30` + List-scrollbar fix `a5a2a3f`) — QA **PASS** |
-| 9 | **trim hooks** (§10): ✂ Trim mode — in/out markers + veils + ghost shift-preview + overhang warnings + Save/Clear intent via `planTrim` + polish/a11y/perf | **done** (`0260e9a`) |
-| 10 | wire + verify + release (notes, version bump, QA sign-off) | next |
+| 9 | **trim hooks** (§10): ✂ Trim mode — in/out markers + veils + ghost shift-preview + overhang warnings + Save/Clear intent via `planTrim` + polish/a11y/perf | **done** (`0260e9a`) — QA **PASS** |
+| 10 | wire + verify + release (notes, version bump, full v5.8.0 QA sign-off) | **next** |
 
 *Ladder revised 2026-07-09 (Sprint-3 QA → design doc §16 "Stage" refinement addendum): zoom/layout/feel/waveform land before parity so later sprints build on the real surface.*
 
 **Verify:** `node scripts/test-timeline-geometry.mjs` (48) · `node scripts/test-waveform-peaks.mjs` (10) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
-**QA:** Sprints 3–8 real-browser **PASS** (incl. waveform contrast fix + List-scrollbar fix; Sprint 8 full sign-off 2026-07-10). **BUG-037 fixed:** Vite no longer watches `.ignore/` (Explorer paste EBUSY crash). **Pending — Sprint 9 (trim):** ✂ Trim toggle enters trim mode (disabled when no clip duration); markers seed at 0/clip — or at the stored intent when one exists; dragging ✂ In/Out snaps to cue edges (Shift = fine) and can't cross (1s minimum keep); cut regions dim under warning stripes; ghost bars preview where each surviving cue lands after the cut (shift left by the in-point) and update live while dragging a marker OR a cue; cues outside/past the kept region pulse an amber dashed outline (static under reduced-motion); dragging a cue edge onto a trim marker sticks and needs a deliberate pull to escape; readout shows Keep/Δ; **Save trim** disabled at full span or <1s keep (status says why), stores intent, status turns "Saved" and survives modal close/reopen (markers re-seed from it); **Clear** removes it; Esc mid-marker-drag reverts; keyboard — Tab reaches markers, ←/→ nudges a frame (Shift ×10) with announcements; a saved trim changes NOTHING in the baked output (intent only).
+**QA:** Sprints 3–**9** real-browser **PASS** (Windows/Chrome). Sprint 8 full sign-off 2026-07-10; **Sprint 9 full sign-off 2026-07-10** (trim hooks — intent-only). **BUG-037 fixed:** Vite no longer watches `.ignore/` (Explorer paste EBUSY crash).
+
+**Sprint 9 QA (signed off):** ✂ Trim on Timeline transport (needs extension reload after pull; disabled without clip duration). Markers seed 0/clip or from stored intent; In/Out drag, veils, ghosts, Keep/Δ readout, Save/Clear all behave as designed. **Save** stores `edits.trim` and survives modal close/reopen; **Clear** drops intent. **Bake does not change duration or cut media** — confirmed by user (e.g. ~20s clip trimmed to ~15s keep → intent retained, bake still full length). No Apply button this phase (atomic apply = follow-up after v5.8.0; Sprint 10 = release packaging, not trim-apply). Revert today = **Clear** (clip never left original state).
+
+**Next agent (Sprint 10):** release path only — verify sweep, release notes, package bump `5.7.0` → `5.8.0`, TODO/progress close-out, full branch QA/sign-off gate. Do **not** implement `applyTrimToMp4` artifact integration in Sprint 10 unless scope is explicitly expanded.
 
 **Restore:** `git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev`
 

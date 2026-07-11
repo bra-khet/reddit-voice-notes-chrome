@@ -120,7 +120,7 @@ Screenshots `.ignore/QA-5.8.0/img/sprint8-1-revised.png` + `sprint8-2.png`:
 
 **Sprint 8 QA close-out (2026-07-10):** user confirmed **full PASS** — Sprint 8 + the List-scrollbar fix, all remaining checklist items included.
 
-### Sprint 9 — trim hooks + polish (2026-07-10) — **DONE (automated); real-browser QA pending**
+### Sprint 9 — trim hooks + polish (2026-07-10) — **DONE (automated + real-browser QA PASS)**
 
 Design §10 — **non-destructive trim**: markers are view state; only an explicit Save stores intent (`edits.trim` via the existing `planTrim` gate). Atomic apply stays a follow-up — nothing is cut this phase.
 
@@ -129,9 +129,28 @@ Design §10 — **non-destructive trim**: markers are view state; only an explic
 - **`trim.ts`** — additive `loadTrimIntent()` (reads `edits.trim` off the current take). **`subtitle-segment-editor.ts`** — trim deps: session cache of stored intent (loaded async on modal open) + `onSaveTrimIntent` through `planTrim` (validation errors surface in the strip) + `onClearTrimIntent`.
 - **Polish pass (§12 row 9):** a11y audit of the new surface (sliders/pressed states/announcements/aria-hidden chrome), reduced-motion guard on the only new animation, all trim updates targeted. Windowizing stays un-built per §3B.1 (no profiling evidence demands it).
 
-**Verify:** geometry **48** · waveform-peaks **10** · regression (timeline 10, dirty 11, splice 36, partial-rebake 13, take-manager 31) · build PASS · tsc clean (3 pre-existing). Commit `0260e9a`.
+**Verify:** geometry **48** · waveform-peaks **10** · regression (timeline 10, dirty 11, splice 36, partial-rebake 13, take-manager 31) · build PASS · tsc clean (3 pre-existing). Commit `0260e9a` (+ docs `0e622df`).
 
-**Next — Sprint 10 (wire + verify + release):** honest parent-integration check, full verify sweep, release notes, version bump 5.7.0 → 5.8.0, TODO/progress close-out, user QA sign-off gate.
+### Sprint 9 real-browser QA (2026-07-10) — **PASS / SIGNED OFF**
+
+User (Windows/Chrome, Design Studio, recorded take with known clip duration). Extension hard-reload required after Sprint 9 pull (stale bundle had no ✂ Trim in transport).
+
+| Check | Result |
+|-------|--------|
+| ✂ Trim on Timeline transport (between + Cue and Fit) | **PASS** — present after reload; needs clip duration (disabled without) |
+| Enter trim mode → markers at 0/clip; veils; Keep/Δ readout | **PASS** |
+| Drag In/Out — control feels solid; snap / can't-cross / min keep | **PASS** (user: “decent control”) |
+| **Save trim** stores intent; status “Saved… nothing cut yet” | **PASS** |
+| Intent survives modal close/reopen (markers re-seed) | **PASS** |
+| **Clear** removes stored intent | **PASS** |
+| Bake after save (e.g. ~20s → ~15s keep) — duration/media **unchanged** | **PASS / expected** — intent only; no Apply control this phase |
+| Atomic apply / shorter baked output | **Out of scope** — deferred follow-up (`applyTrimToMp4` exists, unwired); not Sprint 10 |
+
+**Honesty contract confirmed with user:** Save = `edits.trim` on the take only. Revert path today = **Clear** (media never left the original state). When apply ships later, QA becomes: keep duration matches bake/download + cue shift + restore story for pre-apply artifacts.
+
+### Next — Sprint 10 (wire + verify + release)
+
+**Scope (do not expand unless user asks):** honest parent-integration check, full verify sweep, release notes, package bump **5.7.0 → 5.8.0**, TODO/progress close-out, full v5.8.0 branch QA/sign-off gate. **Not** in Sprint 10 by default: wiring `applyTrimToMp4` into artifacts/cues/H6 (separate follow-up after tag).
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
