@@ -11,10 +11,10 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
-## v5.9.0 — Atomic Trim Apply — **CODE COMPLETE (2026-07-11); real-browser QA gates merge/tag**
+## v5.9.0 — Atomic Trim Apply — **SHIPPED / TAGGED `v5.9.0` (2026-07-11)**
 
-**Branch:** `feature/v5.9.0-trim-apply` (from `main` @ v5.8.0) · **Package:** `5.9.0` · **Push:** deferred (user pushes)
-**Authoritative design (living, as-built §10):** [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) · **Release notes (draft):** [`docs/release-notes-v5.9.0.md`](docs/release-notes-v5.9.0.md)
+**Branch:** merged `feature/v5.9.0-trim-apply` → `main` · **Package:** `5.9.0` · **Push:** deferred (user pushes)
+**Authoritative design (as-built §10):** [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) · **Release notes:** [`docs/release-notes-v5.9.0.md`](docs/release-notes-v5.9.0.md)
 
 **Goal:** make v5.8.0's inert `edits.trim` intent actually cut — `applyTrimToMp4` wired to artifacts, automatic cue shift, H6 re-stamp. Completes the v5.6→v5.9 editing arc.
 
@@ -37,7 +37,24 @@ Baked-consumer sweep: all four `loadLastBakedMp4` readers safe post-stamp-drop (
 
 **Verify (release sweep):** timeline **16** · take-manager **33** · dirty **11** · splice **36** · partial-rebake **13** · geometry **48** · waveform-peaks **10** · take-deck **12** · browser-composite-plan **17** · `npm run build` PASS @ 5.9.0 · `tsc` clean (3 documented pre-existing).
 
-**→ USER QA GATE (roadmap §7 / release-notes table):** apply happy path (duration + cues land where ghosts previewed) · post-apply bake = FULL composite w/ subs on new timeline · voice-change honest failure · revert/undo can't cross the cut · deck/Download/attach serve trimmed base · minimal-keep/all-cues-removed edges · v5.8 editor + splice regression. Merge → `main` + tag `v5.9.0` after PASS.
+### Real-browser QA + post-QA fixes (2026-07-11) — **PASS → merge/tag**
+
+User sign-off (Windows/Chrome) covers roadmap §7 / release-notes table:
+
+| Row | Verdict |
+|-----|---------|
+| Apply happy path (duration + cues vs ghosts) | **PASS** |
+| Bake after apply = full composite + subs on new timeline | **PASS** |
+| Change Voice after apply | **PASS (accepted UX)** — button grays out + same re-record path as no-valid-clip; no desync. Not trim-specific copy (design note for later UI; no code change) |
+| Revert / Ctrl+Z honesty | **PASS** |
+| Deck / Download / attach trimmed base | **PASS** |
+| 1s min keep + all-cues-removed | **PASS** |
+| Recovery after apply + close | **PASS** |
+| Editor + untrimmed voice re-apply regression | **PASS** |
+
+**Post-QA commits on the feature branch:** Reddit panel same-take attach promote aborting transcription (`751da08`); trim OUT forced to whole-second floored meta (`24066bc` — stop stamps precise duration; trim uses max(meta, decoded); `clampTrimRange` keeps true clip end).
+
+**Merge:** `feature/v5.9.0-trim-apply` → `main` · **Tag:** `v5.9.0`.
 
 ---
 

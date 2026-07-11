@@ -1,10 +1,10 @@
 # Release notes — v5.9.0 **Trim Apply** (atomic clip trimming)
 
-**Tag:** `v5.9.0` (pending user QA sign-off) · **Date:** 2026-07-11  
+**Tag:** `v5.9.0` · **Date:** 2026-07-11  
 **Prior stable:** `v5.8.0`  
-**Branch:** `feature/v5.9.0-trim-apply` (merge + tag after the QA gate)  
+**Branch:** merged `feature/v5.9.0-trim-apply` → `main`  
 **Design (authoritative, as-built):** [`v5.9.0-trim-apply-roadmap.md`](v5.9.0-trim-apply-roadmap.md)  
-**Restore:** `git checkout feature/v5.9.0-trim-apply && npm install && npm run dev`
+**Restore:** `git checkout v5.9.0 && npm install && npm run dev`
 
 ---
 
@@ -34,7 +34,7 @@
 
 ## Verify
 ```bash
-node scripts/test-timeline.mjs          # 16 (was 10) — shift scenarios incl. ghost parity
+node scripts/test-timeline.mjs          # 18 (shift + fractional full-span) — was 10
 node scripts/test-take-manager.mjs      # 33 (was 31) — stamp null-delete patch
 node scripts/test-timeline-geometry.mjs # 48
 node scripts/test-waveform-peaks.mjs    # 10
@@ -42,21 +42,31 @@ node scripts/test-segment-dirty-tracker.mjs && node scripts/test-splice-plan.mjs
 npm run build && npx tsc --noEmit       # PASS / clean (3 documented pre-existing)
 ```
 
-## QA gate (real-browser, user sign-off required before merge/tag)
-The full checklist is roadmap §7. The rows that are new to this release:
+## Real-browser QA sign-off
 
-| Check | Expect |
+Windows / Chrome, single machine. Evidence: `.ignore/QA-5.9.0/` (gitignored). Gate = roadmap §7.
+
+| Check | Result |
 |-------|--------|
-| Apply from trim mode (confirm → progress → done) | Shorter clip; duration correct everywhere (deck, Download, attach) |
-| Cue positions after apply | Exactly where the ghost bars previewed; boundary cues dropped |
-| Bake after apply | FULL composite (no splice in console), subs on the new timeline |
-| "Change Voice" after apply | Honest re-record message — never desynced audio |
-| "Revert edits" after apply | Shifted baseline cues — never pre-trim times |
-| Ctrl+Z after apply | Cannot cross the cut (stack cleared) |
-| Trim removing all cues / 1s minimal keep | Honest empty editor / gate blocks below 1s |
-| Recovery after apply + close | Trimmed take resumes; H6 passes |
+| Apply from trim mode (confirm → progress → done); duration + cue positions vs ghosts | **PASS** (2026-07-11) |
+| Bake after apply | **PASS** — full composite; subs on the new timeline |
+| "Change Voice" after apply | **PASS (accepted UX)** — Apply New Voice grays out + same “record a new clip” path as no-valid-clip; never desynced. No trim-specific copy (design note for a later UI rework — voice is committed when you trim) |
+| "Revert edits" / Ctrl+Z after apply | **PASS** — no pre-trim times resurrected |
+| Deck / Download / attach serve trimmed base | **PASS** |
+| 1s minimal keep + trim removing all cues | **PASS** — gate blocks &lt; 1s; cues can all be cut away (blank editor) |
+| Recovery after apply + close | **PASS** |
+| v5.8 editor + untrimmed voice re-apply / splice regression | **PASS** |
+
+### Post-QA fixes folded into this tag
+- **Reddit legacy recorder panel:** same-take attach promote no longer aborts mid-finalizing transcription (`recorder-panel.ts`).
+- **Trim OUT floor:** OUT defaults to real media length (decoded/wall-clock), not whole-second floored meta; `clampTrimRange` keeps true clip end on fractional durations.
 
 ## Deferred (explicitly out)
 - Trimming the raw capture WebM (would restore post-trim voice changes).
 - Word-level editing, new Smart-Split generation, demo-site parity.
 - Visual/background polish — the proposed **v6.0 "Polish & Visual Maturity"** arc (roadmap §9).
+- Unique “you trimmed, so voice is locked” copy on Change Voice (current clean-audio gray-out is correct and safe).
+
+---
+
+*Push of `main` + tag deferred per repo convention unless you push.*
