@@ -1033,6 +1033,28 @@ Each slow miss extended the wall-clock gap between captured frames without reduc
 
 ---
 
+## BUG-037 (2026-07): `wxt` dev server crash on paste into `.ignore/` (Windows EBUSY)
+
+### Symptoms
+
+- During real-browser QA, pasting a screenshot (Explorer Ctrl+V) into a path under `.ignore/` (e.g. `.ignore/QA-5.8.0/img/*.png`) **kills the `wxt` / Vite dev process**.
+- Stack: `Error: EBUSY: resource busy or locked, watch '…\.ignore\…\….png'` from `node:internal/fs/watchers` → Vite `createFsWatchInstance` / chokidar; unhandled `'error'` on `FSWatcher` exits Node.
+
+### Root cause
+
+`srcDir: '.'` makes Vite's file watcher cover the whole repo, including **gitignored** local trees (`.ignore/`, `terminals/`, …). On Windows, Explorer's paste briefly locks the new file; chokidar still tries to `fs.watch` it, gets `EBUSY`, and Vite does not recover — process dies. Unrelated to extension runtime code or Sprint 8 UI.
+
+### Fix (2026-07, `feature/v5.8.0-trim-ui-visual-subtitle-editor`)
+
+`wxt.config.ts` → `vite().server.watch.ignored` for `**/.ignore/**`, `**/terminals/**`, `**/agent-tools/**`, `**/mcps/**` (aligned with `.gitignore` local-only trees). QA artifact drops no longer re-trigger HMR or crash the watcher.
+
+### Related files
+
+- `wxt.config.ts` — `server.watch.ignored`
+- Repro log (local): `.ignore/QA-5.8.0/img/wxt-log-crash-on-paste-elsewhere.txt`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.

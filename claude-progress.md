@@ -107,6 +107,17 @@ Suggestions surface *where the problem is* (design §8), reusing existing pure d
 
 **Verify:** geometry **42** · waveform-peaks **10** · regression (timeline 10, dirty 11, splice 36, partial-rebake 13, take-manager 31) · build PASS · tsc clean (3 pre-existing). Commits `a5a2a3f` (scrollbar fix) + `7dafb30` (sprint 8).
 
+### Sprint 8 real-browser QA notes (2026-07-10) — **partial; behavior matches design**
+
+Screenshots `.ignore/QA-5.8.0/img/sprint8-1-revised.png` + `sprint8-2.png`:
+
+- **On-bar:** LONG cue selected with amber treatment + priority dots on suggested bars — **PASS**.
+- **Inspector callout:** selected overflow cue shows amber callout copy `Cue N overflows — try ✂ Split or Smart Adjust` + **Smart Adjust…** only — **PASS / expected**. **⚡ Apply minimal fix is correctly hidden** when `collectMinimalFixProposals` has no per-cue word-shift (this take: long multi-word overflow that neighbors cannot absorb). Not a missing control.
+- **Smart Adjust from callout:** modal opens; **Recommended** re-splice stays on top; preserve re-splice second; no minimal-fix rows when none exist — **PASS** (pre-contextualization of word-shifts only applies when those proposals exist).
+- **Still optional for full §8 sign-off:** construct a cue where a one-word shift fits both sides → confirm ⚡ appears, applies, renumbers, Ctrl+Z; Validate-all → bars; OOB drag → halo/dot; List scrollbar.
+
+**BUG-037 (fixed same day):** pasting a PNG into `.ignore/…` crashed `wxt` on Windows (`EBUSY` on Vite FSWatcher). Dev-only; `wxt.config.ts` now ignores `.ignore` / `terminals` / `agent-tools` / `mcps`. See `docs/bug-archive.md` BUG-037.
+
 **Next — Sprint 9 (trim hooks + polish, design §10):** draggable in/out markers on the timeline + cue-shift **preview** (ghosting) + overhang warning + "Save trim intent" via `planTrim`/`edits.trim` (intent only — atomic apply stays deferred); then a11y/reduced-motion/perf polish pass. Then 10 (wire + verify + release).
 
 ```bash
