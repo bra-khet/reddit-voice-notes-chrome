@@ -120,7 +120,12 @@ export interface CurrentTake {
 export type CurrentTakePatch = {
   status?: TakeStatus;
   meta?: Partial<CurrentTakeMeta>;
-  artifacts?: Partial<Record<TakeArtifactKind, TakeArtifactStamp>>;
+  // CHANGED: v5.9.0 — stamps accept `null` = delete (mirrors TakeEditsPatch).
+  // WHY: trim apply must drop bakedMp4/baseRecording stamps in the SAME write
+  //      as the new base stamp; separate clearArtifact calls would expose
+  //      inconsistent intermediate snapshots to other contexts.
+  /** Per-kind stamp merge; an object replaces, `null` deletes. */
+  artifacts?: Partial<Record<TakeArtifactKind, TakeArtifactStamp | null>>;
   /** Replaces the voice stamp wholesale (voice provenance is atomic). */
   voice?: TakeVoiceStamp;
   /** Per-field edit-intent merge; `null` clears a field. */
@@ -452,12 +457,23 @@ export function mergeTakePatch(
   patch: CurrentTakePatch,
   now = Date.now(),
 ): CurrentTake {
+  // CHANGED: v5.9.0 — per-kind stamp merge with `null` = delete (trim apply).
+  // WHY: also closes a latent hazard — the old object spread let an explicitly
+  //      undefined patch value clobber a real stamp; skipped now.
+  const artifacts = { ...take.artifacts };
+  if (patch.artifacts) {
+    for (const kind of Object.keys(patch.artifacts) as TakeArtifactKind[]) {
+      const stamp = patch.artifacts[kind];
+      if (stamp === null) delete artifacts[kind];
+      else if (stamp) artifacts[kind] = stamp;
+    }
+  }
   const next: CurrentTake = {
     ...take,
     status: patch.status ?? take.status,
     lastUpdated: now,
     meta: { ...take.meta, ...patch.meta },
-    artifacts: { ...take.artifacts, ...patch.artifacts },
+    artifacts,
   };
   // v5.6.0 — voice stamp is atomic (replace); edits merge per-field.
   if (patch.voice) next.voice = patch.voice;

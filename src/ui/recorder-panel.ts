@@ -32,7 +32,6 @@ import {
 import { openDesignStudioWindow } from '@/src/ui/design-studio/open-design-studio';
 import {
   getTakeManager,
-  isNewerTakeThan,
   isTransientTakeStatus,
   takeArtifactMatchesStore,
   takeFreshnessMs,
@@ -721,17 +720,36 @@ export class RecorderPanel {
     try {
       const take = await getTakeManager().getCurrentTake();
       if (!take) return;
+      // Keep the first post-capture id. Later stamp bumps must not re-anchor
+      // freshness — they are the same take, not a Studio supersession.
+      if (this.localTakeAnchor?.takeId === take.id) return;
       this.localTakeAnchor = { takeId: take.id, freshnessMs: takeFreshnessMs(take) };
     } catch {
       // Non-blocking — promotion falls back to authoritative TakeManager reads.
     }
   }
 
+  /**
+   * True only when TakeManager holds a *different* take than the one this panel
+   * just recorded (e.g. Studio re-record). Same-take artifact stamps (baseMp4,
+   * lastUpdated bumps) must NOT win — promoting would dispose the session and
+   * abort the still-running Vosk fork (no transcript, no scaffold).
+   */
   private shouldPreferTakeOverLocalSession(take: CurrentTake): boolean {
     if (this.currentState.phase !== 'stopped') return false;
     const anchor = this.localTakeAnchor;
-    if (!anchor) return true;
-    return isNewerTakeThan(take, anchor.freshnessMs) || take.id !== anchor.takeId;
+    // BUG FIX: Reddit-tab transcript killed by attach-mode promote after local stop
+    // Fix: null anchor used to return true → race with async captureLocalTakeAnchor
+    //      disposed the session mid-transcribe. Until the anchor lands, treat only
+    //      Studio-sourced takes as supersessions (local Reddit captures are source
+    //      'reddit' — their own stamp updates must keep the session alive).
+    // Sync: maybePromoteNewerTake transient + ready branches both call this.
+    if (!anchor) return take.source === 'studio';
+    // BUG FIX: same-take baseMp4 stamp looked "newer" and aborted Vosk
+    // Fix: only a different take id displaces the local stopped session.
+    //      Freshness alone is wrong — recordArtifact bumps savedAt/lastUpdated
+    //      on the take we just recorded, which is not a Studio supersession.
+    return take.id !== anchor.takeId;
   }
 
   /** ready/baked promoted before background stamps baseMp4/bakedMp4 into the snapshot. */
@@ -789,15 +807,21 @@ export class RecorderPanel {
     if (this.isLocalCaptureActive()) return;
     if (!this.composer || !document.contains(this.composer)) return;
 
+    const localStoppedWithMp4 =
+      this.currentState.phase === 'stopped' && Boolean(this.currentState.mp4Blob);
+
     if (take && isTransientTakeStatus(take.status)) {
       // BUG FIX: Reddit panel stuck on legacy mic UI while Studio captures
       // Fix: promote even when the local session is still at mic-ready (not only 'stopped').
+      // BUG FIX: post-stop same-take 'processing' window must not kill Vosk
+      // Fix: after local stop, take status can lag at 'processing' until ready
+      //      promotion lands. Disposing here aborted the parallel transcribe fork.
+      if (localStoppedWithMp4 && !this.shouldPreferTakeOverLocalSession(take)) {
+        return;
+      }
       this.promoteToAttachFromRecord(take, 'busy');
       return;
     }
-
-    const localStoppedWithMp4 =
-      this.currentState.phase === 'stopped' && Boolean(this.currentState.mp4Blob);
 
     if (take && this.isTakeArtifactPending(take)) {
       if (!localStoppedWithMp4 || this.shouldPreferTakeOverLocalSession(take)) {
@@ -868,7 +892,10 @@ export class RecorderPanel {
     this.unsubscribe = this.session.subscribe((state) => {
       this.currentState = state;
       this.render(state);
-      if (state.phase === 'stopped') {
+      // CHANGED: anchor as soon as processing starts (not only on 'stopped').
+      // WHY: baseMp4 can stamp + fire TakeManager before the stopped-handler's
+      //      async getCurrentTake resolves — early id capture closes that race.
+      if (state.phase === 'processing' || state.phase === 'stopped') {
         void this.captureLocalTakeAnchor();
       }
     });

@@ -1,10 +1,10 @@
 # Project History — Reddit Voice Notes
 
-**Living milestone index.** Updated **2026-07-10** · Current milestone: **v5.8.0 — Timeline Visual Subtitle Editor** · Stable: **v5.8.0**.
+**Living milestone index.** Updated **2026-07-11** · Current milestone: **v5.9.0 — Atomic Trim Apply** · Stable: **v5.9.0**.
 
 This is the go-to orientation doc: it indexes every major milestone and points to both the **living** documents (current work) and their **archived** history. Read this first when you need to know "what happened before the current feature branch?" — then follow a pointer into [`archive/`](../archive/) only if you need the full detail.
 
-- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — v5.8.0 + v5.6.0–v5.7.0 handoff context.
+- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — v5.9.0 + v5.8.0 context.
 - **Archived progress logs:** [`claude-progress-pre-v5.8.0.md`](../archive/progress/claude-progress-pre-v5.8.0.md) (v5.7.0 → v5.4.0) · [`claude-progress-pre-v5.4.0.md`](../archive/progress/claude-progress-pre-v5.4.0.md) (v5.3.10 → v1.0.0 MVP).
 - **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map v2.3, extension-points v1.5, hardening backlog v2.3, ADRs 0001–0005.
 
@@ -16,6 +16,7 @@ Newest first. **Tag** = git tag on `main`. Docs marked *(archived)* live under [
 
 | Version | Date | Focus / outcome | Notes |
 |---------|------|-----------------|-------|
+| **v5.9.0** | 2026-07-11 | **Atomic Trim Apply** — Apply trim materializes the v5.8 intent: shorter `baseMp4`, cue shift (preview=apply, both transcript copies), H6 re-stamp with `bakedMp4`/`baseRecording` dropped (re-bake + voice lock). Post-QA: Reddit panel transcription promote fix; fractional trim OUT. **Tagged `v5.9.0`**. | [`release-notes-v5.9.0.md`](release-notes-v5.9.0.md), [`v5.9.0-trim-apply-roadmap.md`](v5.9.0-trim-apply-roadmap.md) |
 | **v5.8.0** | 2026-07-10 | **Timeline Visual Subtitle Editor (Phase 3 trim UI)** — flat cue-list modal replaced by a DOM timeline editor: draggable/resizable cue bars, stage-mode + log-zoom + minimap, waveform lane, hysteresis snap + guides, keyboard/undo/multi-select, on-bar smart suggestions, and non-destructive ✂ trim **intent** via `planTrim`. Backend (v5.6/v5.7) unchanged; atomic trim apply deferred. **Tagged `v5.8.0`**. | [`release-notes-v5.8.0.md`](release-notes-v5.8.0.md), [`v5.8.0-trim-ui-visual-subtitle-editor.md`](v5.8.0-trim-ui-visual-subtitle-editor.md), [`v5.8.0-scope.md`](v5.8.0-scope.md) |
 | **v5.7.0** | 2026-07-08 | **Partial re-bake splice (Phase 2b)** — cue edits re-encode only keyframe-aligned dirty GOPs from the clean base; self-verifying kept-region pixel-equality gate (the avcC hazard); `experimental.partialRebakeSplice` **default-on** after AVC+VP9 single-machine QA. **Tagged `v5.7.0`**. | [`release-notes-v5.7.0.md`](release-notes-v5.7.0.md), [`v5.6.0-audio-decoupling.md`](v5.6.0-audio-decoupling.md) §4.2/§13, [ADR-0005](architecture/adr/0005-partial-rebake-splice.md) |
 | **v5.6.0** | 2026-07-08 | **Audio decoupling & voice re-apply** — `TakeVoiceStamp`, Dulcet II re-render, stream-copy remux (visuals bit-exact); editing backend scaffolds (timeline, dirty tracker, partial-rebake planner, trim backend). **Tagged `v5.6.0`**. | [`release-notes-v5.6.0.md`](release-notes-v5.6.0.md), [`v5.6.0-audio-decoupling.md`](v5.6.0-audio-decoupling.md), [ADR-0004](architecture/adr/0004-audio-decoupling-voice-reapply.md) |

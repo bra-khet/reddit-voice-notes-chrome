@@ -188,6 +188,44 @@ check('empty patch only bumps lastUpdated', () => {
   assert.deepEqual(merged.artifacts, take.artifacts);
 });
 
+// v5.9.0 — trim apply drops bakedMp4/baseRecording stamps in the SAME write as
+// the new base stamp (roadmap §4 step 7): null = delete, mirroring edits patch.
+check('artifacts patch: null deletes a stamp; add + delete ride one patch', () => {
+  const take = parseCurrentTake(
+    validTake({
+      artifacts: {
+        baseRecording: { savedAt: NOW - 45_000, byteLength: 1_000_000, durationSeconds: 42 },
+        baseMp4: { savedAt: NOW - 31_000, byteLength: 2_000_000, durationSeconds: 42 },
+        bakedMp4: { savedAt: NOW - 20_000, byteLength: 3_000_000, durationSeconds: 42 },
+      },
+    }),
+  );
+  const merged = mergeTakePatch(
+    take,
+    {
+      artifacts: {
+        baseMp4: { savedAt: NOW, byteLength: 900_000, durationSeconds: 30 },
+        bakedMp4: null,
+        baseRecording: null,
+      },
+    },
+    NOW,
+  );
+  assert.equal(merged.artifacts.baseMp4.byteLength, 900_000); // replaced
+  assert.equal('bakedMp4' in merged.artifacts, false); // deleted
+  assert.equal('baseRecording' in merged.artifacts, false); // deleted
+  // Deleting an absent stamp is a no-op, and the original take is untouched.
+  assert.equal(take.artifacts.bakedMp4.byteLength, 3_000_000);
+  const again = mergeTakePatch(merged, { artifacts: { bakedMp4: null } }, NOW);
+  assert.equal('bakedMp4' in again.artifacts, false);
+});
+
+check('artifacts patch: explicit undefined no longer clobbers a real stamp', () => {
+  const take = parseCurrentTake(validTake());
+  const merged = mergeTakePatch(take, { artifacts: { baseMp4: undefined } }, NOW);
+  assert.equal(merged.artifacts.baseMp4.byteLength, 2_000_000); // preserved
+});
+
 console.log('takeFreshnessMs');
 
 check('takeFreshnessMs picks the latest stamp', () => {

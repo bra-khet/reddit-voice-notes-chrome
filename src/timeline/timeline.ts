@@ -136,6 +136,10 @@ export const TRIM_MIN_DURATION_SECONDS = 1;
  * when no valid range survives (inverted, out of bounds, or shorter than the
  * minimum). A full-span result (0 → duration) also returns null — trimming
  * nothing is not an edit.
+ *
+ * OUT at (or past) the clip end keeps the true duration — floor-snapping the
+ * end of a non-frame-aligned clip would otherwise shave a partial frame and
+ * turn a "keep everything" request into a silent micro-trim.
  */
 export function clampTrimRange(
   range: { inSeconds: number; outSeconds: number },
@@ -145,10 +149,18 @@ export function clampTrimRange(
   if (!Number.isFinite(range.inSeconds) || !Number.isFinite(range.outSeconds)) return null;
 
   const inSnapped = Math.max(0, snapTimeToFrame(range.inSeconds, timeline.fps));
-  const outSnapped = Math.min(
-    timeline.durationSeconds,
-    snapTimeToFrame(range.outSeconds, timeline.fps),
-  );
+  // BUG FIX: trim full-span / tail keep broken on fractional clip lengths
+  // Fix: when the request reaches the clip end, preserve durationSeconds
+  //      instead of floor-snapping below it (e.g. 13.529s @ 24fps → 13.5s).
+  // Sync: subtitle-timeline-editor setTrimMode default OUT = clip duration;
+  //       planTrim / applyTrimToCurrentTake use the same gate.
+  const outAtClipEnd = range.outSeconds >= timeline.durationSeconds - 1e-6;
+  const outSnapped = outAtClipEnd
+    ? timeline.durationSeconds
+    : Math.min(
+        timeline.durationSeconds,
+        Math.max(0, snapTimeToFrame(range.outSeconds, timeline.fps)),
+      );
 
   if (outSnapped - inSnapped < minDurationSeconds - 1e-6) return null;
   if (inSnapped <= 1e-6 && outSnapped >= timeline.durationSeconds - 1e-6) return null;

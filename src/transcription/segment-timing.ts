@@ -6,13 +6,14 @@ export function normalizeSegmentSeconds(value: number): number {
 }
 
 // BUG FIX: phantom OOB badge on the last cue from floored recording duration
-// Fix: meta.durationSeconds is Math.floor'd to a whole second in
-//      voice-recorder.ts (drops up to ~0.999s), while Vosk's final cue end keeps
-//      sub-second precision — so a legit last cue read as OOB. Tolerance raised
-//      0.25 → 1.25s = 1.0s floor-truncation budget + 0.25s genuine cue slack.
-// Sync: voice-recorder.ts:300 (Math.floor on elapsedSeconds is the source of the
-//       <1s truncation this absorbs). If that floor is ever made sub-second,
-//       this can drop back toward 0.25.
+// Fix: live recorder tick is Math.floor'd for MM:SS display; legacy takes
+//      stamped that floor into meta.durationSeconds (drops up to ~0.999s)
+//      while Vosk's final cue end keeps sub-second precision — so a legit last
+//      cue read as OOB. Tolerance 1.25s = 1.0s floor-truncation budget + 0.25s
+//      genuine cue slack. New takes stamp wall-clock sub-second duration at
+//      stop (voice-recorder stopRecording); keep the budget for old takes.
+// Sync: voice-recorder.ts (live floor + stop-time precise stamp),
+//       resolveClipDurationSeconds (trim uses max(meta, decoded) for legacy).
 const OOB_TOLERANCE_SECONDS = 1.25;
 
 /** True when a cue end extends past the known clip length (burn-in will clip it). */

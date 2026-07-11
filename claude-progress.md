@@ -11,6 +11,53 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
+## v5.9.0 — Atomic Trim Apply — **SHIPPED / TAGGED `v5.9.0` (2026-07-11)**
+
+**Branch:** merged `feature/v5.9.0-trim-apply` → `main` · **Package:** `5.9.0` · **Push:** deferred (user pushes)
+**Authoritative design (as-built §10):** [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) · **Release notes:** [`docs/release-notes-v5.9.0.md`](docs/release-notes-v5.9.0.md)
+
+**Goal:** make v5.8.0's inert `edits.trim` intent actually cut — `applyTrimToMp4` wired to artifacts, automatic cue shift, H6 re-stamp. Completes the v5.6→v5.9 editing arc.
+
+### Phase 0 — alignment + cue-shift helper (2026-07-11) — **DONE**
+
+Roadmap verified claim-by-claim against live code; **four gaps folded in** (commit `7dd88be`): §3H dual-copy transcript shift (`rvnSessionTranscript` keeps original+edited — shifting only the working copy would let "revert" restore pre-trim times) + undo-stack reset · §3I baseRecording stamp cleared on apply (voice re-apply would desync full-length raw audio under the short video — voice locks in, honest clean-audio failure) · §3C corrected ("cue shift makes partial re-bake safe" was wrong-but-lucky: `computePartialRebakePlan`'s duration guard forces the full composite; `BAKED_MP4_READY_KEY` must NOT fire — no baked bytes) · §3G no-restore reality (single-slot stores) → two-click confirm. Placement: orchestrator in NEW `trim-apply.ts` (keeps `trim.ts` Node-bundleable), `shiftCuesForTrim` in `trim.ts` mirroring `projectCueThroughTrim` **exactly** (half-open, 1e-6 epsilon, NO cue-time frame-snap — preview=apply). `test-timeline` **10 → 16** (commit `bc9aab3`).
+
+### Phase 1 — orchestrator + Apply UI (2026-07-11) — **DONE (automated)**
+
+Commit `c2354e1`:
+- **`src/editing/trim-apply.ts`** (NEW, parallels `voice-reapply.ts`): H6 base verify (mismatch demotes stamp) → `planTrim` gate vs the base **store meta** duration → mediabunny trim (progress) → dual transcript shift in memory (LIVE draft is the edited source) → superseded guard → commit-last: `saveLastBaseMp4` + `replaceSessionTranscriptResults` + ONE `updateCurrentTake` (`expectId`): new stamp · duration · `edits.trim=null` · `bakedMp4`/`baseRecording` stamp **deletes** · `baked→ready` · honest note.
+- **`take-manager.ts`**: `CurrentTakePatch.artifacts` accepts `null` = delete (atomic add+drop in one write; also fixes explicit-undefined clobber). Tests **31 → 33**.
+- **`session-transcript-db.ts`**: `replaceSessionTranscriptResults` (both copies; keeps jobId/capturedAt/error/isScaffolded; stamps confirmedAt).
+- **`subtitle-timeline-editor.ts`**: **Apply trim** in the trim strip — two-click confirm (armed = negate palette, `Cut N.Ns — confirm`; marker edit / Esc disarms, capture-phase so the modal never closes under a pending confirm), `Cutting… N%`, markers inert mid-apply. New dep `onApplyTrim`.
+- **`subtitle-segment-editor.ts`**: host impl — `captureActiveDraft` → orchestrator → full re-seed (voskOriginal/edited/savedBaseline/drafts) · undo cleared · caches invalidated · `resetView` · re-render/notify · `onSaveEdits` re-invoked **fire-and-forget** (awaiting would paint stale veils before trim-mode exit) · `loadRecordingSource` picks up trimmed audio via the fresh stamp cache key.
+
+### Phase 2 — docs + release prep (2026-07-11) — **DONE; QA HANDOFF**
+
+Baked-consumer sweep: all four `loadLastBakedMp4` readers safe post-stamp-drop (Download per-stamp H6; voice-reapply skips absent baked leg AND dies first at cleared baseRecording; background relay gated panel-side; splice duration-guarded) — no code needed. Docs: **architecture-map v2.5** (changelog, `edits.trim` consumed, confidence row, carry-forward) · **extension-points v1.7** (trim-apply entry, preview=APPLY, voice-lock + full-composite gotchas) · release notes · version bump **5.8.0 → 5.9.0** (package.json + lockfile + `src/utils/version.ts` — the v5.8 drift lesson) · TODO/progress refresh.
+
+**Verify (release sweep):** timeline **16** · take-manager **33** · dirty **11** · splice **36** · partial-rebake **13** · geometry **48** · waveform-peaks **10** · take-deck **12** · browser-composite-plan **17** · `npm run build` PASS @ 5.9.0 · `tsc` clean (3 documented pre-existing).
+
+### Real-browser QA + post-QA fixes (2026-07-11) — **PASS → merge/tag**
+
+User sign-off (Windows/Chrome) covers roadmap §7 / release-notes table:
+
+| Row | Verdict |
+|-----|---------|
+| Apply happy path (duration + cues vs ghosts) | **PASS** |
+| Bake after apply = full composite + subs on new timeline | **PASS** |
+| Change Voice after apply | **PASS (accepted UX)** — button grays out + same re-record path as no-valid-clip; no desync. Not trim-specific copy (design note for later UI; no code change) |
+| Revert / Ctrl+Z honesty | **PASS** |
+| Deck / Download / attach trimmed base | **PASS** |
+| 1s min keep + all-cues-removed | **PASS** |
+| Recovery after apply + close | **PASS** |
+| Editor + untrimmed voice re-apply regression | **PASS** |
+
+**Post-QA commits on the feature branch:** Reddit panel same-take attach promote aborting transcription (`751da08`); trim OUT forced to whole-second floored meta (`24066bc` — stop stamps precise duration; trim uses max(meta, decoded); `clampTrimRange` keeps true clip end).
+
+**Merge:** `feature/v5.9.0-trim-apply` → `main` · **Tag:** `v5.9.0`.
+
+---
+
 ## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **TAGGED** `v5.8.0`
 
 **Branch:** merged `feature/v5.8.0-trim-ui-visual-subtitle-editor` → `main` (2026-07-10) · **Package:** `5.8.0` · **Push:** deferred (user pushes)

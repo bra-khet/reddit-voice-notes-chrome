@@ -493,6 +493,19 @@ export class VoiceRecorderSession {
     if (this.capTimeoutId) clearTimeout(this.capTimeoutId);
     this.capTimeoutId = null;
 
+    // BUG FIX: trim OUT forced to whole second (floored recorder meta)
+    // Fix: live tick stays Math.floor for MM:SS display, but at stop we stamp
+    // wall-clock sub-second length into meta/relays so trim/OOB match real media.
+    // Sync: segment-timing.ts OOB_TOLERANCE (still covers legacy floored takes),
+    //       subtitle-segment-editor clipDurationForPlayback (max meta, decoded).
+    if (!options?.stoppedAtCap && this.startedAt > 0) {
+      const precise = Math.min(
+        MAX_RECORDING_SECONDS,
+        Math.max(this.elapsedSeconds, (Date.now() - this.startedAt) / 1000),
+      );
+      this.elapsedSeconds = precise;
+    }
+
     const recorder = this.mediaRecorder;
     this.mediaRecorder = null;
 

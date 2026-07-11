@@ -7,16 +7,19 @@
  * sample-accurate, stream-copying where the codec allows and re-encoding only
  * what it must.
  *
- * DELIBERATELY NOT WIRED to artifact mutation in this branch: applying a trim
- * to baseMp4/bakedMp4 also shifts every subtitle cue and the take duration,
- * which needs its own QA gate (design doc §7 Phase 3). The backend contract —
- * validate, store intent, produce a trimmed container — is complete here.
+ * v5.9.0 — artifact wiring lives in trim-apply.ts (applyTrimToCurrentTake),
+ * kept OUT of this module so scripts/test-timeline.mjs can keep bundling it
+ * without the storage/preferences graph. This module stays: the planTrim gate,
+ * intent CRUD, the mediabunny container trim, and the pure cue shift.
  *
- * planTrim is pure (Node-tested via scripts/test-timeline.mjs).
+ * planTrim + shiftCuesForTrim are pure (Node-tested via scripts/test-timeline.mjs).
  *
  * Sync: timeline.ts (clampTrimRange / TrimRange), take-manager.ts
- *       (TakeTrimEdit + edits patch), voice-reapply-plan.ts (stage naming
- *       convention if trim ever gains chronos stages)
+ *       (TakeTrimEdit + edits patch), trim-apply.ts (the v5.9.0 consumer),
+ *       ui/design-studio/timeline-geometry.ts projectCueThroughTrim (the ghost
+ *       PREVIEW math shiftCuesForTrim must mirror — preview = apply),
+ *       voice-reapply-plan.ts (stage naming convention if trim ever gains
+ *       chronos stages)
  */
 
 import {
@@ -85,6 +88,48 @@ export async function loadTrimIntent(): Promise<TrimRange | null> {
 /** Clear any pending trim intent. */
 export async function clearTrimIntent(): Promise<void> {
   await getTakeManager().updateCurrentTake({ edits: { trim: null } });
+}
+
+// ─── Cue shift (v5.9.0 — roadmap §3B) ────────────────────────────────────────
+
+/** Structural cue shape — TranscriptSegment satisfies it; extra fields survive. */
+export interface ShiftableCue {
+  start: number;
+  end: number;
+}
+
+/**
+ * Same epsilon as timeline-geometry's TRIM_EPSILON: a zero-length survivor is
+ * a removed cue, and float dust must not resurrect it.
+ */
+const CUE_SHIFT_EPSILON = 1e-6;
+
+/**
+ * Project cues onto the post-trim timeline: keep the overlap with [in, out),
+ * shifted by -inSeconds. Cues fully outside the kept window are dropped;
+ * partial overlaps are clamped. MIRRORS projectCueThroughTrim (the ghost-bar
+ * preview) exactly — half-open overlap, inverted spans normalized, and NO
+ * frame-snapping: cue times were never frame-aligned, and snapping here would
+ * move bars relative to the preview users saw. Pure; input order preserved.
+ */
+export function shiftCuesForTrim<T extends ShiftableCue>(
+  cues: readonly T[],
+  range: TrimRange,
+): T[] {
+  const shifted: T[] = [];
+  for (const cue of cues) {
+    const start = Math.min(cue.start, cue.end);
+    const end = Math.max(cue.start, cue.end);
+    const keptStart = Math.max(start, range.inSeconds);
+    const keptEnd = Math.min(end, range.outSeconds);
+    if (keptEnd - keptStart <= CUE_SHIFT_EPSILON) continue;
+    shifted.push({
+      ...cue,
+      start: keptStart - range.inSeconds,
+      end: keptEnd - range.inSeconds,
+    });
+  }
+  return shifted;
 }
 
 export interface ApplyTrimOptions {
