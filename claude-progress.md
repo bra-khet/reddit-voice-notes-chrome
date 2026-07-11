@@ -10,10 +10,10 @@ This is the **living** progress file — focused on the **current milestone (v5.
 
 The full prior content is intact in the archive so this file stays small and actionable. Add new session entries above the older milestone sections; run `/docs-archiving` (Refresh) after the next milestone.
 
-## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **IN PROGRESS**
+## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **TAGGED** `v5.8.0`
 
-**Branch:** `feature/v5.8.0-trim-ui-visual-subtitle-editor` (from `main` @ `1a8f370`) · **Package:** still `5.7.0` (bump at release) · **Push:** deferred
-**Authoritative design:** [`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`](docs/v5.8.0-trim-ui-visual-subtitle-editor.md) · **Scope card:** [`docs/v5.8.0-scope.md`](docs/v5.8.0-scope.md)
+**Branch:** merged `feature/v5.8.0-trim-ui-visual-subtitle-editor` → `main` (2026-07-10) · **Package:** `5.8.0` · **Push:** deferred (user pushes)
+**Authoritative design (as-built):** [`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`](docs/v5.8.0-trim-ui-visual-subtitle-editor.md) · **Scope card:** [`docs/v5.8.0-scope.md`](docs/v5.8.0-scope.md) · **Release notes:** [`docs/release-notes-v5.8.0.md`](docs/release-notes-v5.8.0.md)
 
 **Goal:** replace the flat cue-list modal with a timeline-centric visual editor (draggable/resizable bars, playhead scrub, on-bar suggestion highlighting) that keeps EVERY current semiotic affordance and wires edits into the already-live dirty→partial-rebake pipeline (v5.7.0, default-on). Backend is done; this phase is the surface.
 
@@ -148,12 +148,21 @@ User (Windows/Chrome, Design Studio, recorded take with known clip duration). Ex
 
 **Honesty contract confirmed with user:** Save = `edits.trim` on the take only. Revert path today = **Clear** (media never left the original state). When apply ships later, QA becomes: keep duration matches bake/download + cue shift + restore story for pre-apply artifacts.
 
-### Next — Sprint 10 (wire + verify + release)
+### Sprint 10 — wire + verify + release (2026-07-10) — **DONE · TAGGED `v5.8.0`**
 
-**Scope (do not expand unless user asks):** honest parent-integration check, full verify sweep, release notes, package bump **5.7.0 → 5.8.0**, TODO/progress close-out, full v5.8.0 branch QA/sign-off gate. **Not** in Sprint 10 by default: wiring `applyTrimToMp4` into artifacts/cues/H6 (separate follow-up after tag).
+Release path only (per the Sprint-9 handoff note — no `applyTrimToMp4` wiring).
+
+- **Integration check:** branch diff vs `main` confirms `subtitle-controls.ts` (the `SegmentEditorHandle` mount) untouched — §3F contract preserved verbatim; no message/storage-layer files changed; `trim.ts` +7 (additive read helper) and `segment-cue-player.ts` +10 (additive `getDecodedBuffer`) are the only non-UI src changes.
+- **Version bump:** package.json + lockfile **5.7.0 → 5.8.0**; caught **stale `src/utils/version.ts`** still at `5.6.0` (missed in the v5.7.0 release; manifest reads package.json so shipped builds were unaffected) → now `5.8.0`. Built manifest verified `5.8.0`.
+- **Release notes:** [`docs/release-notes-v5.8.0.md`](docs/release-notes-v5.8.0.md) — headline, what-shipped by area (stage/zoom/feel/waveform · parity/keyboard/undo/multi-select · smart · trim intent), fixes (R1, List scrollbar, waveform contrast, BUG-037, version drift), unchanged contracts, per-sprint QA table, verify commands, deferred list.
+- **Docs close-out:** design doc + scope card headers flipped to **SHIPPED (as-built)**; scope card's stale "cividis cyan" suggestion wording corrected to the authoritative §4.1 amber (matches the doc-§8 fix from Sprint 8).
+- **Full verify sweep (release):** geometry **48** · waveform-peaks **10** · timeline **10** · dirty-tracker **11** · splice-plan **36** · partial-rebake **13** · take-manager **31** · browser-composite-plan **17** · take-deck **12** · `npm run build` PASS @ 5.8.0 · `tsc` clean (3 documented pre-existing).
+- **Merged** `feature/v5.8.0-trim-ui-visual-subtitle-editor` → `main` + tag **`v5.8.0`** (2026-07-10). **Push deferred** (user pushes `main` + tags).
+
+**Follow-ups (own branches):** atomic trim **apply** (`applyTrimToMp4` + cue shift + H6 re-stamp + its own QA gate) · optional `/docs-archiving` Refresh now that the milestone closed.
 
 ```bash
-git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev
+git checkout main && npm install && npm run dev
 node scripts/test-timeline-geometry.mjs && npm run build && npx tsc --noEmit
 ```
 

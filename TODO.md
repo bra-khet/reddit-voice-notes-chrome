@@ -1,9 +1,9 @@
 # TODO
 
-## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **IN PROGRESS**
+## v5.8.0 — Phase 3 Trim UI: Timeline Visual Subtitle Editor — **TAGGED** `v5.8.0`
 
-**Design:** [`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`](docs/v5.8.0-trim-ui-visual-subtitle-editor.md) (authoritative) · **Scope:** [`docs/v5.8.0-scope.md`](docs/v5.8.0-scope.md)
-**Branch:** `feature/v5.8.0-trim-ui-visual-subtitle-editor` (from `main` @ `1a8f370`) · **Package:** `5.7.0` (bump at release)
+**Design (as-built):** [`docs/v5.8.0-trim-ui-visual-subtitle-editor.md`](docs/v5.8.0-trim-ui-visual-subtitle-editor.md) (authoritative) · **Scope:** [`docs/v5.8.0-scope.md`](docs/v5.8.0-scope.md) · **Release notes:** [`docs/release-notes-v5.8.0.md`](docs/release-notes-v5.8.0.md)
+**Merged:** `feature/v5.8.0-trim-ui-visual-subtitle-editor` → `main` (2026-07-10) · **Package:** `5.8.0` · **Push:** deferred (user pushes)
 
 Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: DOM-not-canvas, timeline-primary + List toggle, `SegmentEditorHandle` preserved, frame-snap via `timeline.ts` (I11), no new seam, Cividis palette.
 
@@ -18,18 +18,17 @@ Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: D
 | 7 | semiotic parity (LONG/OOB pills, fit-status, split, delete, add-at-playhead, keyboard + undo/redo + multi-select) | **done** (`b0afad9`) — QA **PASS** |
 | 8 | smart integration: on-bar suggestion halo/priority dot + one-click minimal fix + pre-contextualized Smart Adjust + validate-all onto bars | **done** (`7dafb30` + List-scrollbar fix `a5a2a3f`) — QA **PASS** |
 | 9 | **trim hooks** (§10): ✂ Trim mode — in/out markers + veils + ghost shift-preview + overhang warnings + Save/Clear intent via `planTrim` + polish/a11y/perf | **done** (`0260e9a`) — QA **PASS** |
-| 10 | wire + verify + release (notes, version bump, full v5.8.0 QA sign-off) | **next** |
+| 10 | wire + verify + release: verify sweep, release notes, bump `5.7.0`→`5.8.0` (+ stale `version.ts` catch-up), docs close-out, merge + tag | **done** (2026-07-10) |
 
 *Ladder revised 2026-07-09 (Sprint-3 QA → design doc §16 "Stage" refinement addendum): zoom/layout/feel/waveform land before parity so later sprints build on the real surface.*
 
-**Verify:** `node scripts/test-timeline-geometry.mjs` (48) · `node scripts/test-waveform-peaks.mjs` (10) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
-**QA:** Sprints 3–**9** real-browser **PASS** (Windows/Chrome). Sprint 8 full sign-off 2026-07-10; **Sprint 9 full sign-off 2026-07-10** (trim hooks — intent-only). **BUG-037 fixed:** Vite no longer watches `.ignore/` (Explorer paste EBUSY crash).
+**QA:** Sprints 3–9 real-browser **PASS** (Windows/Chrome; per-sprint sign-offs 2026-07-09/10, Sprint 9 confirmed bake unchanged — trim is intent-only). **BUG-037 fixed:** Vite no longer watches `.ignore/` (Explorer paste EBUSY crash).
 
-**Sprint 9 QA (signed off):** ✂ Trim on Timeline transport (needs extension reload after pull; disabled without clip duration). Markers seed 0/clip or from stored intent; In/Out drag, veils, ghosts, Keep/Δ readout, Save/Clear all behave as designed. **Save** stores `edits.trim` and survives modal close/reopen; **Clear** drops intent. **Bake does not change duration or cut media** — confirmed by user (e.g. ~20s clip trimmed to ~15s keep → intent retained, bake still full length). No Apply button this phase (atomic apply = follow-up after v5.8.0; Sprint 10 = release packaging, not trim-apply). Revert today = **Clear** (clip never left original state).
+**Then (follow-up, own branch):** atomic trim **apply** — `applyTrimToMp4` artifact integration + automatic cue/transcript shift + H6 re-stamp, with its own QA gate. Stored `edits.trim` intent is inert until then.
 
-**Next agent (Sprint 10):** release path only — verify sweep, release notes, package bump `5.7.0` → `5.8.0`, TODO/progress close-out, full branch QA/sign-off gate. Do **not** implement `applyTrimToMp4` artifact integration in Sprint 10 unless scope is explicitly expanded.
+**Verify:** `node scripts/test-timeline-geometry.mjs` (48) · `test-waveform-peaks.mjs` (10) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31, browser-composite-plan 17, take-deck 12) · `npm run build` · `npx tsc --noEmit` (3 documented pre-existing)
 
-**Restore:** `git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev`
+**Restore:** `git checkout main && npm install && npm run dev`
 
 ## v5.7.0 — Partial Re-bake Splice (Phase 2b) — **TAGGED** `v5.7.0`
 
