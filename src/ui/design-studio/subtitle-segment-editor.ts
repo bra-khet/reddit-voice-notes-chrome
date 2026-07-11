@@ -390,8 +390,12 @@ export function mountSubtitleSegmentEditor(
       all.add(selectedSegmentIndex);
       return [...all].sort((a, b) => a - b);
     },
-    // Same clip reference the OOB check uses, so OOB bars align with the clip-end marker.
-    getClipDurationSeconds: () => clipDurationForOob(),
+    // BUG FIX: trim OUT forced to whole second (floored recorder meta)
+    // Fix: use playback duration (max meta, decoded) so clip-end + trim bounds
+    //      match the waveform/timecode, not the floored take meta. List OOB
+    //      badges still use clipDurationForOob + 1.25s tolerance for legacy.
+    // Sync: onSaveTrimIntent / onApplyTrim duration gate; voice-recorder stop stamp.
+    getClipDurationSeconds: () => clipDurationForPlayback() ?? clipDurationForOob(),
     // CHANGED: v5.8.0 Sprint 7 — multi-select: plain replaces, toggle = Ctrl-click,
     // range = Shift-click from the primary. Primary always drives the inspector.
     onSelect: (index, opts) => {
@@ -526,7 +530,9 @@ export function mountSubtitleSegmentEditor(
     // marker view-state; persistence flows through the existing planTrim gate.
     getSavedTrimIntent: () => savedTrimIntent,
     onSaveTrimIntent: async (inSeconds, outSeconds) => {
-      const duration = clipDurationForOob();
+      // Same duration source as the trim markers (not OOB/meta-only) so planTrim
+      // does not re-clamp OUT back to a floored whole second.
+      const duration = clipDurationForPlayback() ?? clipDurationForOob();
       if (duration === null) return { ok: false, error: 'No clip duration available.' };
       const plan = planTrim({ inSeconds, outSeconds }, duration, TIMELINE_DEFAULT_FPS);
       if (!plan.ok) return { ok: false, error: plan.error };
@@ -560,6 +566,9 @@ export function mountSubtitleSegmentEditor(
         const outcome = await applyTrimToCurrentTake({
           requested: { inSeconds, outSeconds },
           fps: TIMELINE_DEFAULT_FPS,
+          // Prefer decoded-aware length so apply's planTrim gate matches the markers
+          // (store meta alone can still be a legacy whole-second floor).
+          clipDurationSeconds: clipDurationForPlayback() ?? clipDurationForOob() ?? undefined,
           editedResult: draftEdited,
           onProgress,
         });

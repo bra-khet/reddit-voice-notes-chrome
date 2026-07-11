@@ -69,6 +69,12 @@ export interface TrimApplyOptions {
   requested: { inSeconds: number; outSeconds: number };
   fps: number;
   /**
+   * Best-known media length from the editor (typically max(meta, decoded)).
+   * When present and longer than base store meta, planTrim uses it so a legacy
+   * whole-second-floored stamp cannot force the OUT marker below real audio.
+   */
+  clipDurationSeconds?: number;
+  /**
    * The LIVE draft as an edited TranscriptResult. Preview = apply: the ghost
    * bars project the open draft, so the shift must consume it too (the store's
    * editedResult may be stale against unsaved modal edits). Null falls back to
@@ -156,7 +162,18 @@ export async function applyTrimToCurrentTake(
   }
 
   // The SAME gate Save-intent uses — apply never trusts raw marker positions.
-  const plan = planTrim(options.requested, base.meta.durationSeconds, options.fps);
+  // BUG FIX: trim OUT forced to whole second (floored recorder meta)
+  // Fix: plan against max(store meta, editor clip length) so legacy floored
+  //      stamps cannot clamp OUT below decoded/waveform length.
+  // Sync: subtitle-segment-editor onSaveTrimIntent / getClipDurationSeconds.
+  const editorClip =
+    typeof options.clipDurationSeconds === 'number' &&
+    Number.isFinite(options.clipDurationSeconds) &&
+    options.clipDurationSeconds > 0
+      ? options.clipDurationSeconds
+      : 0;
+  const durationGate = Math.max(base.meta.durationSeconds, editorClip);
+  const plan = planTrim(options.requested, durationGate, options.fps);
   if (!plan.ok) {
     throw new TrimApplyError('invalid-range', plan.error);
   }

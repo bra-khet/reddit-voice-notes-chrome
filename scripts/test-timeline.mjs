@@ -153,6 +153,28 @@ check('out point clamps to clip end', () => {
   assert.equal(range.outSeconds, 60);
 });
 
+check('full-span on non-frame-aligned duration is still rejected (no micro-trim)', () => {
+  // 13.529s @ 24fps is not on a frame boundary; floor-snapping OUT would yield
+  // 13.5s and falsely look like a real trim of ~29ms.
+  const fractional = createTimeline(13.529, 24);
+  assert.equal(
+    clampTrimRange({ inSeconds: 0, outSeconds: 13.529 }, fractional),
+    null,
+  );
+  assert.equal(
+    clampTrimRange({ inSeconds: 0, outSeconds: 500 }, fractional),
+    null,
+  );
+});
+
+check('out past clip end keeps true duration when head is trimmed', () => {
+  const fractional = createTimeline(13.529, 24);
+  const range = clampTrimRange({ inSeconds: 1, outSeconds: 13.529 }, fractional);
+  assert.notEqual(range, null);
+  assert.equal(range.outSeconds, 13.529);
+  assert.equal(range.inSeconds, snapTimeToFrame(1, 24));
+});
+
 console.log('planTrim gate');
 
 check('planTrim accepts, snaps, and reports honest errors', () => {
