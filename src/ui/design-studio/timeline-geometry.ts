@@ -659,3 +659,44 @@ export function minimapPxToSeconds(
   const clamped = Math.max(0, Math.min(minimapWidthPx, px));
   return (clamped / minimapWidthPx) * clipDurationSeconds;
 }
+
+// ─── Trim projection (v5.8.0 Sprint 9, design §10) ──────────────────────────
+// The cue-shift PREVIEW math: given a trim [in, out), where does a cue land on
+// the post-trim timeline, and does it overhang the kept region? Pure — the
+// authoritative trim gate stays clampTrimRange/planTrim (timeline.ts / trim.ts);
+// this only projects for the visual layer.
+
+/** A trim span in clip seconds (same shape as timeline.ts TrimRange). */
+export interface TrimSpanLike {
+  inSeconds: number;
+  outSeconds: number;
+}
+
+export type TrimOverhang = 'none' | 'clipped' | 'removed';
+
+export interface TrimProjection {
+  /** none = fully kept · clipped = partially outside (will be cut short) ·
+      removed = entirely outside the kept region (disappears on apply). */
+  overhang: TrimOverhang;
+  /** The surviving span in POST-TRIM seconds (t=0 is the new clip start);
+      null when the cue is removed. */
+  ghost: { start: number; end: number } | null;
+}
+
+const TRIM_EPSILON = 1e-6;
+
+/** Project a cue through a trim: overhang classification + post-trim ghost span. */
+export function projectCueThroughTrim(cue: CueSpanLike, trim: TrimSpanLike): TrimProjection {
+  const start = Math.min(cue.start, cue.end);
+  const end = Math.max(cue.start, cue.end);
+  const keptStart = Math.max(start, trim.inSeconds);
+  const keptEnd = Math.min(end, trim.outSeconds);
+  if (keptEnd - keptStart <= TRIM_EPSILON) {
+    return { overhang: 'removed', ghost: null };
+  }
+  const clipped = start < trim.inSeconds - TRIM_EPSILON || end > trim.outSeconds + TRIM_EPSILON;
+  return {
+    overhang: clipped ? 'clipped' : 'none',
+    ghost: { start: keptStart - trim.inSeconds, end: keptEnd - trim.inSeconds },
+  };
+}

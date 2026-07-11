@@ -70,6 +70,7 @@ const {
   generateRulerTicksInWindow,
   minimapLens,
   minimapPxToSeconds,
+  projectCueThroughTrim,
 } = geom;
 
 let checks = 0;
@@ -473,6 +474,54 @@ check('minimapLens maps the window onto the strip; px→seconds inverts', () => 
   near(lens.widthPx, 100, 'lens width');
   near(minimapPxToSeconds(40, 10, 200), 2, 'strip px → seconds');
   near(minimapPxToSeconds(9999, 10, 200), 10, 'clamped');
+});
+
+console.log('trim projection (cue-shift preview, §10)');
+
+const TRIM = { inSeconds: 4, outSeconds: 12 };
+
+check('fully-kept cue: no overhang, ghost shifted left by inSeconds', () => {
+  const p = projectCueThroughTrim({ start: 6, end: 9 }, TRIM);
+  assert.equal(p.overhang, 'none');
+  near(p.ghost.start, 2, 'ghost start = 6 − 4');
+  near(p.ghost.end, 5, 'ghost end = 9 − 4');
+});
+
+check('cue exactly spanning the kept region is none, ghost = whole new clip', () => {
+  const p = projectCueThroughTrim({ start: 4, end: 12 }, TRIM);
+  assert.equal(p.overhang, 'none');
+  near(p.ghost.start, 0, 'starts at new clip zero');
+  near(p.ghost.end, 8, 'ends at new clip end');
+});
+
+check('cue straddling the in point is clipped; ghost starts at 0', () => {
+  const p = projectCueThroughTrim({ start: 2, end: 6 }, TRIM);
+  assert.equal(p.overhang, 'clipped');
+  near(p.ghost.start, 0, 'kept part begins at new clip start');
+  near(p.ghost.end, 2, 'kept part is [4,6) → 2s');
+});
+
+check('cue straddling the out point is clipped; ghost ends at the new clip end', () => {
+  const p = projectCueThroughTrim({ start: 10, end: 15 }, TRIM);
+  assert.equal(p.overhang, 'clipped');
+  near(p.ghost.start, 6, '10 − 4');
+  near(p.ghost.end, 8, 'clamped at out − in');
+});
+
+check('cue entirely outside (either side, incl. touching a boundary) is removed', () => {
+  assert.equal(projectCueThroughTrim({ start: 0, end: 3 }, TRIM).overhang, 'removed');
+  assert.equal(projectCueThroughTrim({ start: 13, end: 15 }, TRIM).overhang, 'removed');
+  // Half-open semantics: ending exactly at the in point keeps nothing.
+  const touching = projectCueThroughTrim({ start: 1, end: 4 }, TRIM);
+  assert.equal(touching.overhang, 'removed');
+  assert.equal(touching.ghost, null);
+});
+
+check('inverted cue span is normalized before projecting', () => {
+  const p = projectCueThroughTrim({ start: 9, end: 6 }, TRIM);
+  assert.equal(p.overhang, 'none');
+  near(p.ghost.start, 2, 'normalized start');
+  near(p.ghost.end, 5, 'normalized end');
 });
 
 rmSync(outdir, { recursive: true, force: true });

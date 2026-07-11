@@ -48,6 +48,13 @@ import {
 } from '@/src/utils/text-metrics';
 import { mountSmartAdjustModal } from '@/src/ui/design-studio/smart-adjust-modal';
 import {
+  clearTrimIntent,
+  loadTrimIntent,
+  planTrim,
+  storeTrimIntent,
+} from '@/src/editing/trim';
+import type { TrimRange } from '@/src/timeline/timeline';
+import {
   mountSubtitleTimelineEditor,
   renderSubtitleTimelineEditorShell,
   TIMELINE_DEFAULT_FPS,
@@ -363,6 +370,9 @@ export function mountSubtitleSegmentEditor(
   // it for batch nudge/delete/zoom-to-selection. Cleared by structural edits.
   const selectedSegmentExtras = new Set<number>();
   let viewMode: 'timeline' | 'list' = 'timeline';
+  // CHANGED: v5.8.0 Sprint 9 — session cache of the take's stored trim intent
+  // (design §10). Loaded async on modal open; Save/Clear keep it in sync.
+  let savedTrimIntent: TrimRange | null = null;
 
   const cuePlayer = createSegmentCuePlayer();
   // CHANGED: v5.3 — per-cue delete affordance (nav-chip + chevron-X asset).
@@ -511,6 +521,30 @@ export function mountSubtitleSegmentEditor(
       return true;
     },
     onOpenSmartAdjust: (index) => openSmartAdjustMenu(index),
+    // CHANGED: v5.8.0 Sprint 9 — trim intent (design §10): the component owns
+    // marker view-state; persistence flows through the existing planTrim gate.
+    getSavedTrimIntent: () => savedTrimIntent,
+    onSaveTrimIntent: async (inSeconds, outSeconds) => {
+      const duration = clipDurationForOob();
+      if (duration === null) return { ok: false, error: 'No clip duration available.' };
+      const plan = planTrim({ inSeconds, outSeconds }, duration, TIMELINE_DEFAULT_FPS);
+      if (!plan.ok) return { ok: false, error: plan.error };
+      try {
+        await storeTrimIntent(plan.range);
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
+      savedTrimIntent = plan.range;
+      return { ok: true, range: plan.range };
+    },
+    onClearTrimIntent: async () => {
+      try {
+        await clearTrimIntent();
+      } catch {
+        return; // storage write failed — keep the cache so Clear stays offered
+      }
+      savedTrimIntent = null;
+    },
   });
 
   interface CaptionMetrics extends CaptionMetricsContext {
@@ -1469,6 +1503,11 @@ export function mountSubtitleSegmentEditor(
       segmentsEl.querySelector<HTMLTextAreaElement>('[data-segment-text]')?.focus();
     }
     void loadRecordingSource();
+    // CHANGED: v5.8.0 Sprint 9 — pull any stored trim intent so the ✂ Trim
+    // markers seed from it (they read the cache when the user toggles the mode).
+    void loadTrimIntent().then((intent) => {
+      savedTrimIntent = intent;
+    });
   }
 
   function closeModal(): void {

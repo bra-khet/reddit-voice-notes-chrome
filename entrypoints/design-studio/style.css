@@ -3413,3 +3413,184 @@ details[open] .wf-why__summary::before {
   outline-offset: 1px;
 }
 
+/* ── v5.8.0 Sprint 9 — trim mode (design §10): markers, veils, ghosts, intent ── */
+
+/* ✂ Trim toggle — pressed state on the shared transport-button language. */
+.studio__cue-timeline-zoom-btn--on {
+  background: var(--studio-surface-raised);
+  border-color: var(--studio-amber-dim);
+  color: var(--studio-text);
+}
+
+/* Trim strip — readout + Save/Clear, visible only while trim mode is on. */
+.studio__cue-timeline-trimbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 184, 77, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 184, 77, 0.05);
+}
+
+.studio__cue-timeline-trimbar[hidden] {
+  display: none;
+}
+
+.studio__cue-timeline-trim-readout {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--studio-warning);
+}
+
+.studio__cue-timeline-trim-status {
+  font-size: 0.7rem;
+  color: var(--studio-text-muted);
+}
+
+.studio__cue-timeline-trim-status[data-trim-state='saved'] {
+  color: var(--studio-violet-confirm);
+}
+
+.studio__cue-timeline-trim-status[data-trim-state='error'] {
+  color: var(--studio-negate-text);
+}
+
+.studio__cue-timeline-trim-save,
+.studio__cue-timeline-trim-clear {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.studio__cue-timeline-trim-save {
+  border: 1px solid var(--studio-amber-action-edge, #9a7210);
+  background: var(--studio-amber-action, #d4a020);
+  color: #0a0014;
+  font-weight: 700;
+}
+
+.studio__cue-timeline-trim-save:disabled,
+.studio__cue-timeline-trim-clear:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.studio__cue-timeline-trim-clear {
+  border: 1px solid var(--studio-hairline-strong);
+  background: transparent;
+  color: var(--studio-text-muted);
+}
+
+.studio__cue-timeline-trim-save:focus-visible,
+.studio__cue-timeline-trim-clear:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+/* Cut-region veils — everything outside [in, out) dims under warning stripes.
+   pointer-events none: cue drags and marker grabs pass straight through. */
+.studio__cue-timeline-trim-veil {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 184, 77, 0.07) 0 6px,
+      transparent 6px 12px
+    ),
+    rgba(10, 0, 20, 0.55);
+  pointer-events: none;
+}
+
+/* In/out markers — full-height warning line with a grabbable ✂ flag seated at
+   the bottom of the track (§10 "overhang" affordance, kept inside the clipping
+   lanes). The whole marker is the grab target, widened by hit slop. */
+.studio__cue-timeline-trim-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--studio-warning);
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 5;
+}
+
+.studio__cue-timeline-trim-marker::after {
+  content: '';
+  position: absolute;
+  inset: 0 -8px; /* invisible hit slop — same trick as the cue trim handles */
+}
+
+.studio__cue-timeline-trim-marker:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio__cue-timeline-trim-flag {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--studio-warning);
+  color: #0a0014;
+  font-family: var(--studio-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Ghost bars — each surviving cue previewed at its POST-trim position (visual
+   only, drawn UNDER the real bars: the ghost layer is the track's first child). */
+.studio__cue-timeline-trim-ghosts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.studio__cue-timeline-trim-ghost {
+  position: absolute;
+  top: 8px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px dashed var(--studio-amber-dim);
+  border-radius: 6px;
+  background: rgba(201, 166, 61, 0.06);
+}
+
+/* Overhang cues (§4.1 row: outside/past the kept region) — amber warning
+   outline with a subtle breathing pulse; outline (not box-shadow) so it stacks
+   cleanly with the suggestion halo and the grab-lift shadow. */
+.studio__cue-bar--trim-overhang {
+  outline: 1px dashed var(--studio-warning);
+  outline-offset: 2px;
+  animation: studio-trim-overhang-pulse 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes studio-trim-overhang-pulse {
+  from {
+    outline-color: var(--studio-warning);
+  }
+  to {
+    outline-color: rgba(255, 184, 77, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio__cue-bar--trim-overhang {
+    animation: none;
+  }
+}
+

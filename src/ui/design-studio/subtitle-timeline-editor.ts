@@ -30,6 +30,13 @@
  * Shift-click range; batch nudge/delete), and gesture-level undo snapshots
  * via deps.onEditGestureStart (host owns the modal-session undo/redo stack).
  *
+ * Sprint 9 (design §10): non-destructive trim mode — draggable/keyboardable
+ * in/out markers (cue-edge magnetism, frame snap, min-keep clamp), veils over
+ * the cut regions, ghost bars previewing each cue's POST-trim position
+ * (projectCueThroughTrim), amber overhang warnings on cues outside the kept
+ * region, and Save/Clear intent through the host (planTrim gate → edits.trim).
+ * Trim state is view-local; only an explicit Save persists anything.
+ *
  * Substrate: DOM + CSS transforms (design §3B). Geometry/constraints are the
  * pure timeline-geometry.ts; frame math is timeline.ts (preview=bake, I11).
  *
@@ -40,6 +47,7 @@
 import type { TranscriptSegment } from '@/src/transcription/types';
 import { cueTextIsBlank, formatCueTimestamp, stripScaffoldPlaceholder } from '@/src/transcription/transcript-editing';
 import { segmentHasOutOfBoundsEnd } from '@/src/transcription/segment-timing';
+import { TRIM_MIN_DURATION_SECONDS } from '@/src/timeline/timeline';
 import {
   MIN_BAR_WIDTH_PX,
   clampWindow,
@@ -54,6 +62,7 @@ import {
   minimapLens,
   minimapPxToSeconds,
   panWindow,
+  projectCueThroughTrim,
   resolveSnap,
   resolveSnapSticky,
   sliderToZoomFactor,
@@ -182,6 +191,18 @@ export interface TimelineEditorDeps {
   onApplyMinimalFix(index: number): boolean;
   /** Open the existing Smart Adjust modal, pre-contextualized to this cue. */
   onOpenSmartAdjust(index: number): void;
+  // ── Trim intent (design §10 — non-destructive, this phase stores intent only) ─
+  /** Stored trim intent on the current take (null when none) — seeds the markers. */
+  getSavedTrimIntent(): { inSeconds: number; outSeconds: number } | null;
+  /** Validate (planTrim gate) + persist. ok:true carries the frame-snapped range. */
+  onSaveTrimIntent(
+    inSeconds: number,
+    outSeconds: number,
+  ): Promise<
+    { ok: true; range: { inSeconds: number; outSeconds: number } } | { ok: false; error: string }
+  >;
+  /** Clear any stored trim intent from the take. */
+  onClearTrimIntent(): Promise<void>;
 }
 
 export interface TimelineEditorHandle {
@@ -225,8 +246,29 @@ export function renderSubtitleTimelineEditorShell(): string {
             aria-label="Subtitle cue timeline"
             tabindex="0"
           >
+            <div class="studio__cue-timeline-trim-ghosts" data-timeline-trim-ghosts aria-hidden="true"></div>
             <div class="studio__cue-timeline-playhead" data-timeline-playhead hidden></div>
             <div class="studio__cue-timeline-snap-guide" data-timeline-snap-guide hidden></div>
+            <div class="studio__cue-timeline-trim-veil" data-timeline-trim-veil="in" aria-hidden="true" hidden></div>
+            <div class="studio__cue-timeline-trim-veil" data-timeline-trim-veil="out" aria-hidden="true" hidden></div>
+            <div
+              class="studio__cue-timeline-trim-marker studio__cue-timeline-trim-marker--in"
+              data-timeline-trim-marker="in"
+              role="slider"
+              tabindex="0"
+              aria-label="Trim in point"
+              aria-orientation="horizontal"
+              hidden
+            ><span class="studio__cue-timeline-trim-flag">✂ In</span></div>
+            <div
+              class="studio__cue-timeline-trim-marker studio__cue-timeline-trim-marker--out"
+              data-timeline-trim-marker="out"
+              role="slider"
+              tabindex="0"
+              aria-label="Trim out point"
+              aria-orientation="horizontal"
+              hidden
+            ><span class="studio__cue-timeline-trim-flag">✂ Out</span></div>
           </div>
           <div class="studio__cue-timeline-minimap" data-timeline-minimap aria-hidden="true" hidden>
             <div class="studio__cue-timeline-minimap-heat" data-timeline-minimap-heat></div>
@@ -250,6 +292,14 @@ export function renderSubtitleTimelineEditorShell(): string {
             title="Add a cue at the playhead (at the end when no playhead is set)"
             aria-label="Add a cue at the playhead"
           >+ Cue</button>
+          <button
+            type="button"
+            class="studio__cue-timeline-zoom-btn studio__cue-timeline-zoom-btn--wide"
+            data-timeline-trim-toggle
+            title="Set non-destructive trim in/out points"
+            aria-label="Toggle trim mode"
+            aria-pressed="false"
+          >✂ Trim</button>
           <span class="studio__cue-timeline-transport-spacer"></span>
           <button
             type="button"
@@ -296,6 +346,23 @@ export function renderSubtitleTimelineEditorShell(): string {
           >+</button>
           <span class="studio__cue-timeline-zoom-readout" data-timeline-zoom-readout>1.0×</span>
         </div>
+        <div class="studio__cue-timeline-trimbar" data-timeline-trimbar hidden>
+          <span class="studio__cue-timeline-trim-readout" data-timeline-trim-readout></span>
+          <span class="studio__cue-timeline-trim-status" data-timeline-trim-status></span>
+          <span class="studio__cue-timeline-transport-spacer"></span>
+          <button
+            type="button"
+            class="studio__cue-timeline-trim-save"
+            data-timeline-trim-save
+            title="Store this trim on the take (non-destructive — nothing is cut yet)"
+          >Save trim</button>
+          <button
+            type="button"
+            class="studio__cue-timeline-trim-clear"
+            data-timeline-trim-clear
+            title="Remove the stored trim intent"
+          >Clear</button>
+        </div>
       </div>
       <div class="studio__cue-timeline-rail">
         <p class="studio__cue-timeline-rail-hint popup__field-desc" data-timeline-rail-hint>
@@ -341,6 +408,17 @@ export function mountSubtitleTimelineEditor(
   const zoomReadoutEl = container.querySelector<HTMLElement>('[data-timeline-zoom-readout]')!;
   const addBtn = container.querySelector<HTMLButtonElement>('[data-timeline-add]')!;
   const liveEl = container.querySelector<HTMLElement>('[data-timeline-live]')!;
+  const trimToggleBtn = container.querySelector<HTMLButtonElement>('[data-timeline-trim-toggle]')!;
+  const trimBarEl = container.querySelector<HTMLElement>('[data-timeline-trimbar]')!;
+  const trimReadoutEl = container.querySelector<HTMLElement>('[data-timeline-trim-readout]')!;
+  const trimStatusEl = container.querySelector<HTMLElement>('[data-timeline-trim-status]')!;
+  const trimSaveBtn = container.querySelector<HTMLButtonElement>('[data-timeline-trim-save]')!;
+  const trimClearBtn = container.querySelector<HTMLButtonElement>('[data-timeline-trim-clear]')!;
+  const trimGhostsEl = container.querySelector<HTMLElement>('[data-timeline-trim-ghosts]')!;
+  const trimVeilInEl = container.querySelector<HTMLElement>('[data-timeline-trim-veil="in"]')!;
+  const trimVeilOutEl = container.querySelector<HTMLElement>('[data-timeline-trim-veil="out"]')!;
+  const trimMarkerInEl = container.querySelector<HTMLElement>('[data-timeline-trim-marker="in"]')!;
+  const trimMarkerOutEl = container.querySelector<HTMLElement>('[data-timeline-trim-marker="out"]')!;
 
   /** Window-relative viewport — ALL sec↔px mapping goes through this (§16.2). */
   let wv: WindowViewport = {
@@ -367,6 +445,17 @@ export function mountSubtitleTimelineEditor(
   /** Consecutive ↑/↓ repeats — accelerates the nudge step when held (§6.4). */
   let nudgeRepeatCount = 0;
   let liveToggle = false;
+  // ── Trim mode state (design §10 — view state only; intent persists via deps) ─
+  let trimMode = false;
+  /** Live marker positions (seconds). Non-null exactly while trim mode is on. */
+  let trimRange: { inSeconds: number; outSeconds: number } | null = null;
+  let trimSaveState: 'idle' | 'saving' | 'saved' | 'error' = 'idle';
+  let trimErrorText = '';
+  let trimDrag: {
+    edge: 'in' | 'out';
+    pointerId: number;
+    origSeconds: number;
+  } | null = null;
   /** Waveform source cache — pyramid computed once per decoded buffer (§16.5). */
   let peaksBuffer: AudioBuffer | null = null;
   let peaksChannel: Float32Array | null = null;
@@ -416,6 +505,14 @@ export function mountSubtitleTimelineEditor(
     if (deps.getCueFitState(index)?.overflow) classes.push('studio__cue-bar--long');
     // §8: amber attention halo + priority dot when a smart fix is suggested.
     if (deps.getCueSuggestion(index)) classes.push('studio__cue-bar--suggested');
+    // §10: cue outside (or extending past) the pending trim's kept region.
+    if (trimMode && trimRange) {
+      const projection = projectCueThroughTrim(
+        { start: segment.start, end: segment.end },
+        trimRange,
+      );
+      if (projection.overhang !== 'none') classes.push('studio__cue-bar--trim-overhang');
+    }
     if (deps.isPlayingIndex(index)) classes.push('studio__cue-bar--playing');
     if (drag && drag.index === index) classes.push('studio__cue-bar--grabbed');
     return classes.join(' ');
@@ -841,6 +938,7 @@ export function mountSubtitleTimelineEditor(
       trackEl.querySelectorAll('[data-cue-index]').forEach((node) => node.remove());
       minimapEl.hidden = true;
       waveformLaneEl.hidden = true;
+      renderTrim(); // trim mode is clip-level — keep its chrome honest with 0 cues
       renderInspector(segments);
       updateTransport();
       return;
@@ -860,6 +958,7 @@ export function mountSubtitleTimelineEditor(
     renderRuler();
     renderBars(segments, clipCache);
     renderClipEndMarker(clipCache);
+    renderTrim();
     renderInspector(segments);
     renderMinimap(segments);
     paintWaveform();
@@ -961,6 +1060,11 @@ export function mountSubtitleTimelineEditor(
   /** Drag-path snap: hysteresis hold + guide side effects (inspector keeps snapValue). */
   function snapDrag(raw: number, neighborSeconds: number[], shift: boolean): number {
     if (!drag) return raw;
+    // §10: pending trim boundaries join the strong magnets — a cue edge locked
+    // to a trim point needs the same deliberate hysteresis pull to escape.
+    if (trimMode && trimRange) {
+      neighborSeconds = [...neighborSeconds, trimRange.inSeconds, trimRange.outSeconds];
+    }
     const neighborTol = windowPxDeltaToSeconds(NEIGHBOR_MAGNET_PX, wv);
     const softTol = windowPxDeltaToSeconds(SOFT_MAGNET_PX, wv);
     const softTicks = tickSecondsCache.filter((t) => Math.abs(t - raw) <= softTol);
@@ -983,6 +1087,229 @@ export function mountSubtitleTimelineEditor(
     drag.activeSnap = res.active;
     updateSnapGuide(res);
     return res.seconds;
+  }
+
+  // ── Trim mode (design §10 — non-destructive in/out markers + shift preview) ─
+
+  /** Trim needs an honest clip duration; without one the mode stays unavailable. */
+  function trimClipDuration(): number | null {
+    return deps.getClipDurationSeconds();
+  }
+
+  function positionTrimMarker(el: HTMLElement, seconds: number): void {
+    const px = windowSecondsToPx(seconds, wv);
+    if (px < -1 || px > wv.trackWidthPx + 1) {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.style.transform = `translateX(${px.toFixed(2)}px)`;
+  }
+
+  function updateTrimMarkerAria(el: HTMLElement, seconds: number, clip: number): void {
+    el.setAttribute('aria-valuemin', '0');
+    el.setAttribute('aria-valuemax', String(round2(clip)));
+    el.setAttribute('aria-valuenow', String(round2(seconds)));
+    el.setAttribute('aria-valuetext', formatTimecode(seconds));
+  }
+
+  /** Position markers/veils/ghosts + refresh readout, buttons, and overhang
+      classes — targeted (marker drags never trigger a full render). */
+  function renderTrim(): void {
+    const clip = trimClipDuration();
+    trimToggleBtn.disabled = clip === null && !trimMode;
+    trimToggleBtn.setAttribute('aria-pressed', trimMode ? 'true' : 'false');
+    trimToggleBtn.classList.toggle('studio__cue-timeline-zoom-btn--on', trimMode);
+    trimBarEl.hidden = !trimMode;
+
+    const active = trimMode && trimRange !== null && wv.trackWidthPx > 0;
+    if (!active || !trimRange) {
+      trimMarkerInEl.hidden = true;
+      trimMarkerOutEl.hidden = true;
+      trimVeilInEl.hidden = true;
+      trimVeilOutEl.hidden = true;
+      trimGhostsEl.innerHTML = '';
+      trackEl
+        .querySelectorAll('.studio__cue-bar--trim-overhang')
+        .forEach((el) => el.classList.remove('studio__cue-bar--trim-overhang'));
+      return;
+    }
+
+    const { inSeconds, outSeconds } = trimRange;
+    const width = wv.trackWidthPx;
+    positionTrimMarker(trimMarkerInEl, inSeconds);
+    positionTrimMarker(trimMarkerOutEl, outSeconds);
+    const ariaClip = clip ?? fullDurationSeconds;
+    updateTrimMarkerAria(trimMarkerInEl, inSeconds, ariaClip);
+    updateTrimMarkerAria(trimMarkerOutEl, outSeconds, ariaClip);
+
+    // Veils dim everything OUTSIDE the kept region (px clamped to the window).
+    const clampPx = (px: number): number => Math.max(0, Math.min(width, px));
+    const inPx = clampPx(windowSecondsToPx(inSeconds, wv));
+    const zeroPx = clampPx(windowSecondsToPx(0, wv));
+    trimVeilInEl.hidden = inPx - zeroPx <= 0;
+    if (!trimVeilInEl.hidden) {
+      trimVeilInEl.style.left = `${zeroPx.toFixed(2)}px`;
+      trimVeilInEl.style.width = `${(inPx - zeroPx).toFixed(2)}px`;
+    }
+    const outPx = clampPx(windowSecondsToPx(outSeconds, wv));
+    const endPx = clampPx(windowSecondsToPx(fullDurationSeconds, wv));
+    trimVeilOutEl.hidden = endPx - outPx <= 0;
+    if (!trimVeilOutEl.hidden) {
+      trimVeilOutEl.style.left = `${outPx.toFixed(2)}px`;
+      trimVeilOutEl.style.width = `${(endPx - outPx).toFixed(2)}px`;
+    }
+
+    // Ghosts: each surviving cue previewed at its POST-TRIM position (drawn on
+    // the same axis — t=0 is where the trimmed clip will start). Overhang
+    // classes ride the same pass so marker drags stay in sync without renders.
+    const segments = deps.getSegments();
+    const ghostHtml: string[] = [];
+    segments.forEach((segment, index) => {
+      const projection = projectCueThroughTrim(
+        { start: segment.start, end: segment.end },
+        trimRange!,
+      );
+      barElAt(index)?.classList.toggle(
+        'studio__cue-bar--trim-overhang',
+        projection.overhang !== 'none',
+      );
+      if (!projection.ghost) return;
+      const leftPx = windowSecondsToPx(projection.ghost.start, wv);
+      const rightPx = windowSecondsToPx(projection.ghost.end, wv);
+      if (rightPx < -200 || leftPx > width + 200) return; // off-window cull
+      ghostHtml.push(
+        `<div class="studio__cue-timeline-trim-ghost" style="transform:translateX(${leftPx.toFixed(2)}px);width:${Math.max(2, rightPx - leftPx).toFixed(2)}px"></div>`,
+      );
+    });
+    trimGhostsEl.innerHTML = ghostHtml.join('');
+
+    // Readout + save/clear states. Δ is the removed duration (vs the clip).
+    const keep = outSeconds - inSeconds;
+    const delta = clip !== null ? keep - clip : 0;
+    trimReadoutEl.textContent = `Keep ${keep.toFixed(1)}s · Δ ${delta < 0 ? '−' : '+'}${Math.abs(delta).toFixed(1)}s`;
+    const fullSpan = clip !== null && inSeconds <= 1e-6 && outSeconds >= clip - 1e-6;
+    const tooShort = keep < TRIM_MIN_DURATION_SECONDS - 1e-6;
+    trimSaveBtn.disabled =
+      fullSpan || tooShort || trimSaveState === 'saving' || trimSaveState === 'saved';
+    trimClearBtn.disabled = trimSaveState === 'saving' || deps.getSavedTrimIntent() === null;
+    trimStatusEl.dataset.trimState = trimSaveState;
+    trimStatusEl.textContent =
+      trimSaveState === 'saving'
+        ? 'Saving…'
+        : trimSaveState === 'saved'
+          ? 'Saved — stored on the take, nothing cut yet'
+          : trimSaveState === 'error'
+            ? trimErrorText
+            : fullSpan
+              ? 'Move a marker to trim something'
+              : tooShort
+                ? `Keep at least ${TRIM_MIN_DURATION_SECONDS}s`
+                : '';
+  }
+
+  function setTrimMode(on: boolean): void {
+    if (on === trimMode) return;
+    if (on) {
+      const clip = trimClipDuration();
+      if (clip === null) return; // toggle is disabled without a clip duration
+      const saved = deps.getSavedTrimIntent();
+      trimRange = saved
+        ? {
+            inSeconds: Math.max(0, Math.min(saved.inSeconds, clip)),
+            outSeconds: Math.max(0, Math.min(saved.outSeconds, clip)),
+          }
+        : { inSeconds: 0, outSeconds: clip };
+      trimSaveState = saved ? 'saved' : 'idle';
+      trimErrorText = '';
+      trimMode = true;
+      announce('Trim mode on — drag the in and out markers');
+    } else {
+      trimMode = false;
+      trimRange = null;
+      trimDrag = null;
+      trimSaveState = 'idle';
+      trimErrorText = '';
+      announce('Trim mode off');
+    }
+    render();
+  }
+
+  function onTrimToggleClick(): void {
+    setTrimMode(!trimMode);
+  }
+
+  function onTrimSaveClick(): void {
+    if (!trimRange || trimSaveBtn.disabled) return;
+    trimSaveState = 'saving';
+    renderTrim();
+    void deps.onSaveTrimIntent(trimRange.inSeconds, trimRange.outSeconds).then((result) => {
+      if (!trimMode || !trimRange) return; // mode left while the write was in flight
+      if (result.ok) {
+        trimRange = { ...result.range }; // adopt the authoritative frame-snapped range
+        trimSaveState = 'saved';
+        announce('Trim intent saved');
+      } else {
+        trimSaveState = 'error';
+        trimErrorText = result.error;
+        announce(`Trim not saved — ${result.error}`);
+      }
+      renderTrim();
+    });
+  }
+
+  function onTrimClearClick(): void {
+    if (trimClearBtn.disabled) return;
+    trimSaveState = 'saving';
+    renderTrim();
+    void deps.onClearTrimIntent().then(() => {
+      if (!trimMode) return;
+      trimSaveState = 'idle';
+      trimErrorText = '';
+      announce('Trim intent cleared');
+      renderTrim();
+    });
+  }
+
+  /** Apply a marker drag/nudge value: cue-edge magnetism (unless Shift), frame
+      snap, then clamp so in/out never cross or leave [0, clip]. */
+  function applyTrimEdge(edge: 'in' | 'out', rawSeconds: number, magnetize: boolean): void {
+    if (!trimRange) return;
+    const clip = trimClipDuration() ?? fullDurationSeconds;
+    const cueEdges: number[] = [];
+    for (const segment of deps.getSegments()) {
+      cueEdges.push(segment.start, segment.end);
+    }
+    const snapped = snapValue(rawSeconds, magnetize ? cueEdges : [], !magnetize);
+    if (edge === 'in') {
+      trimRange.inSeconds = Math.max(
+        0,
+        Math.min(snapped, trimRange.outSeconds - TRIM_MIN_DURATION_SECONDS),
+      );
+    } else {
+      trimRange.outSeconds = Math.min(
+        clip,
+        Math.max(snapped, trimRange.inSeconds + TRIM_MIN_DURATION_SECONDS),
+      );
+    }
+    if (trimSaveState === 'saved' || trimSaveState === 'error') {
+      trimSaveState = 'idle';
+      trimErrorText = '';
+    }
+    renderTrim();
+  }
+
+  function cancelTrimDrag(): void {
+    if (!trimDrag || !trimRange) return;
+    if (trimDrag.edge === 'in') trimRange.inSeconds = trimDrag.origSeconds;
+    else trimRange.outSeconds = trimDrag.origSeconds;
+    try {
+      trackEl.releasePointerCapture(trimDrag.pointerId);
+    } catch {
+      // ignore
+    }
+    trimDrag = null;
+    renderTrim();
   }
 
   // ── Auto-pan (drag a bar against the window edge to scroll the view) ────────
@@ -1032,6 +1359,22 @@ export function mountSubtitleTimelineEditor(
 
   function onTrackPointerDown(event: PointerEvent): void {
     const target = event.target as HTMLElement;
+    // §10: trim markers are track children — their drag wins over bar hits.
+    const markerEl = target.closest<HTMLElement>('[data-timeline-trim-marker]');
+    if (markerEl && trimMode && trimRange) {
+      const edge = markerEl.dataset.timelineTrimMarker === 'out' ? 'out' : 'in';
+      trimDrag = {
+        edge,
+        pointerId: event.pointerId,
+        origSeconds: edge === 'in' ? trimRange.inSeconds : trimRange.outSeconds,
+      };
+      try {
+        trackEl.setPointerCapture(event.pointerId);
+      } catch {
+        // ignore
+      }
+      return;
+    }
     const barEl = target.closest<HTMLElement>('[data-cue-index]');
     if (!barEl) return;
     const index = Number(barEl.dataset.cueIndex);
@@ -1109,9 +1452,22 @@ export function mountSubtitleTimelineEditor(
     deps.onCommitTiming(drag.index, start, end);
     updateBarDom(drag.index);
     updateInspectorFields(drag.index);
+    // §10: keep the shift preview live — the dragged cue's ghost and overhang
+    // state must follow the gesture, not reconcile at pointer-up.
+    if (trimMode && trimRange) renderTrim();
   }
 
   function onTrackPointerMove(event: PointerEvent): void {
+    if (trimDrag && event.pointerId === trimDrag.pointerId) {
+      const rect = trackEl.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      applyTrimEdge(
+        trimDrag.edge,
+        windowPxToSeconds(event.clientX - rect.left, wv),
+        !event.shiftKey,
+      );
+      return;
+    }
     if (!drag || event.pointerId !== drag.pointerId) return;
     const dx = event.clientX - drag.startClientX;
     const dy = event.clientY - drag.startClientY;
@@ -1137,6 +1493,20 @@ export function mountSubtitleTimelineEditor(
   }
 
   function onTrackPointerUp(event: PointerEvent): void {
+    if (trimDrag && event.pointerId === trimDrag.pointerId) {
+      trimDrag = null;
+      try {
+        trackEl.releasePointerCapture(event.pointerId);
+      } catch {
+        // ignore
+      }
+      if (trimRange) {
+        announce(
+          `Trim ${formatTimecode(trimRange.inSeconds)} to ${formatTimecode(trimRange.outSeconds)}`,
+        );
+      }
+      return;
+    }
     // Modifier-click selection resolves on release (only if it never became a drag).
     if (pendingSelect && event.pointerId === pendingSelect.pointerId) {
       const { index, mode } = pendingSelect;
@@ -1188,10 +1558,11 @@ export function mountSubtitleTimelineEditor(
 
   // Capture phase so a drag-cancel Esc never reaches the host's modal-close handler.
   function onDocKeyDown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape' || !drag) return;
+    if (event.key !== 'Escape' || (!drag && !trimDrag)) return;
     event.preventDefault();
     event.stopPropagation();
-    cancelDrag();
+    if (trimDrag) cancelTrimDrag();
+    else cancelDrag();
   }
 
   // ── Inspector editing ─────────────────────────────────────────────────────
@@ -1530,6 +1901,23 @@ export function mountSubtitleTimelineEditor(
   }
 
   function onTrackKeyDown(event: KeyboardEvent): void {
+    // §10: a focused trim marker owns the keyboard — ←/→ nudges a frame
+    // (Shift ×10), and cue shortcuts (Space/Del/…) never fire from a marker.
+    const markerEl = (event.target as HTMLElement).closest?.<HTMLElement>(
+      '[data-timeline-trim-marker]',
+    );
+    if (markerEl && trimMode && trimRange) {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const edge = markerEl.dataset.timelineTrimMarker === 'out' ? 'out' : 'in';
+      const frame = 1 / Math.max(1, deps.getFps());
+      const step = (event.shiftKey ? 10 : 1) * frame * (event.key === 'ArrowRight' ? 1 : -1);
+      const current = edge === 'in' ? trimRange.inSeconds : trimRange.outSeconds;
+      applyTrimEdge(edge, current + step, false);
+      const moved = edge === 'in' ? trimRange.inSeconds : trimRange.outSeconds;
+      announce(`Trim ${edge} at ${formatTimecode(moved)}`);
+      return;
+    }
     const segments = deps.getSegments();
     if (segments.length === 0) return;
     const primary = deps.getSelectedIndex();
@@ -1606,6 +1994,9 @@ export function mountSubtitleTimelineEditor(
   zoomInBtn.addEventListener('click', onZoomIn);
   zoomSliderEl.addEventListener('input', onZoomSlider);
   addBtn.addEventListener('click', onAddClick);
+  trimToggleBtn.addEventListener('click', onTrimToggleClick);
+  trimSaveBtn.addEventListener('click', onTrimSaveClick);
+  trimClearBtn.addEventListener('click', onTrimClearClick);
   trackEl.addEventListener('keydown', onTrackKeyDown);
   inspectorEl.addEventListener('focusin', onInspectorFocusIn);
   document.addEventListener('keydown', onDocKeyDown, true);
@@ -1622,6 +2013,13 @@ export function mountSubtitleTimelineEditor(
       userWindow = null;
       lensDrag = null;
       pendingSelect = null;
+      // Trim mode is modal-session view state — a fresh take starts clean
+      // (any STORED intent still seeds the markers on the next toggle).
+      trimMode = false;
+      trimRange = null;
+      trimDrag = null;
+      trimSaveState = 'idle';
+      trimErrorText = '';
       setPlayheadSeconds(null);
     },
     refreshCueState(index: number): void {
@@ -1658,6 +2056,9 @@ export function mountSubtitleTimelineEditor(
       zoomInBtn.removeEventListener('click', onZoomIn);
       zoomSliderEl.removeEventListener('input', onZoomSlider);
       addBtn.removeEventListener('click', onAddClick);
+      trimToggleBtn.removeEventListener('click', onTrimToggleClick);
+      trimSaveBtn.removeEventListener('click', onTrimSaveClick);
+      trimClearBtn.removeEventListener('click', onTrimClearClick);
       trackEl.removeEventListener('keydown', onTrackKeyDown);
       inspectorEl.removeEventListener('focusin', onInspectorFocusIn);
     },
