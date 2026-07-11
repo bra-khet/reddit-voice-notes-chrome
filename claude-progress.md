@@ -118,7 +118,20 @@ Screenshots `.ignore/QA-5.8.0/img/sprint8-1-revised.png` + `sprint8-2.png`:
 
 **BUG-037 (fixed same day):** pasting a PNG into `.ignore/…` crashed `wxt` on Windows (`EBUSY` on Vite FSWatcher). Dev-only; `wxt.config.ts` now ignores `.ignore` / `terminals` / `agent-tools` / `mcps`. See `docs/bug-archive.md` BUG-037.
 
-**Next — Sprint 9 (trim hooks + polish, design §10):** draggable in/out markers on the timeline + cue-shift **preview** (ghosting) + overhang warning + "Save trim intent" via `planTrim`/`edits.trim` (intent only — atomic apply stays deferred); then a11y/reduced-motion/perf polish pass. Then 10 (wire + verify + release).
+**Sprint 8 QA close-out (2026-07-10):** user confirmed **full PASS** — Sprint 8 + the List-scrollbar fix, all remaining checklist items included.
+
+### Sprint 9 — trim hooks + polish (2026-07-10) — **DONE (automated); real-browser QA pending**
+
+Design §10 — **non-destructive trim**: markers are view state; only an explicit Save stores intent (`edits.trim` via the existing `planTrim` gate). Atomic apply stays a follow-up — nothing is cut this phase.
+
+- **`timeline-geometry.ts`** (+6 tests → **48**) — pure `projectCueThroughTrim`: overhang classification (`none|clipped|removed`) + the cue-shift preview math (surviving span in post-trim seconds; half-open semantics, inverted spans normalized).
+- **`subtitle-timeline-editor.ts`** — **✂ Trim** transport toggle (disabled without an honest clip duration) → trim mode: full-height warning **markers** with ✂ In/Out flags · **veils** (warning stripes over dimmed ground) on the cut regions · **ghost bars** previewing every surviving cue at its post-trim position (under the real bars; live during both marker AND cue drags via targeted `renderTrim` — never a full render per pointermove) · **overhang cues** get a dashed amber outline + breathing pulse (reduced-motion → static; outline not shadow, stacks with the suggestion halo). Marker drags: cue-edge magnetism (Shift disables) + frame snap + min-keep clamp; **Esc cancels**; keyboard — markers are `role=slider`, ←/→ nudges a frame (Shift ×10) with `aria-value*` + announcements. **Pending trim boundaries join the strong snap magnets for cue drags** — a cue edge locked to a trim point needs the deliberate hysteresis pull to escape (§10 locked feel, reusing `resolveSnapSticky`). Trim strip: mono readout (`Keep N.Ns · Δ −N.Ns`) + **Save trim / Clear** with an honest status line; Save adopts the authoritative frame-snapped range `planTrim` returns.
+- **`trim.ts`** — additive `loadTrimIntent()` (reads `edits.trim` off the current take). **`subtitle-segment-editor.ts`** — trim deps: session cache of stored intent (loaded async on modal open) + `onSaveTrimIntent` through `planTrim` (validation errors surface in the strip) + `onClearTrimIntent`.
+- **Polish pass (§12 row 9):** a11y audit of the new surface (sliders/pressed states/announcements/aria-hidden chrome), reduced-motion guard on the only new animation, all trim updates targeted. Windowizing stays un-built per §3B.1 (no profiling evidence demands it).
+
+**Verify:** geometry **48** · waveform-peaks **10** · regression (timeline 10, dirty 11, splice 36, partial-rebake 13, take-manager 31) · build PASS · tsc clean (3 pre-existing). Commit `0260e9a`.
+
+**Next — Sprint 10 (wire + verify + release):** honest parent-integration check, full verify sweep, release notes, version bump 5.7.0 → 5.8.0, TODO/progress close-out, user QA sign-off gate.
 
 ```bash
 git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev

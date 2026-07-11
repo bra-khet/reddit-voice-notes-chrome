@@ -16,14 +16,14 @@ Visual timeline cue editor over the live v5.6/v5.7 editing backend. Committed: D
 | 5 | **feel pass** (§16.3–16.4): short-cue ears, hysteresis snap + guides, grab-lift/spring, playhead cap, Esc-cancel, auto-pan, minimap selected-highlight | **done** (`a382d74`) — QA **PASS** |
 | 6 | **waveform lane** (§16.5): pure peaks leaf + canvas + fallback | **done** (`905e718` + contrast fix `300bd84`) |
 | 7 | semiotic parity (LONG/OOB pills, fit-status, split, delete, add-at-playhead, keyboard + undo/redo + multi-select) | **done** (`b0afad9`) — QA **PASS** |
-| 8 | smart integration: on-bar suggestion halo/priority dot + one-click minimal fix + pre-contextualized Smart Adjust + validate-all onto bars | **done** (`7dafb30` + List-scrollbar fix `a5a2a3f`) |
-| 9 | trim hooks (in/out markers + cue-shift preview + intent) + polish/a11y/perf | next |
-| 10 | wire + verify + release (notes, version bump, QA sign-off) | pending |
+| 8 | smart integration: on-bar suggestion halo/priority dot + one-click minimal fix + pre-contextualized Smart Adjust + validate-all onto bars | **done** (`7dafb30` + List-scrollbar fix `a5a2a3f`) — QA **PASS** |
+| 9 | **trim hooks** (§10): ✂ Trim mode — in/out markers + veils + ghost shift-preview + overhang warnings + Save/Clear intent via `planTrim` + polish/a11y/perf | **done** (`0260e9a`) |
+| 10 | wire + verify + release (notes, version bump, QA sign-off) | next |
 
 *Ladder revised 2026-07-09 (Sprint-3 QA → design doc §16 "Stage" refinement addendum): zoom/layout/feel/waveform land before parity so later sprints build on the real surface.*
 
-**Verify:** `node scripts/test-timeline-geometry.mjs` (42) · `node scripts/test-waveform-peaks.mjs` (10) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
-**QA:** Sprints 3–7 real-browser **PASS** (incl. waveform contrast fix). **Sprint 8 (partial, 2026-07-10):** on-bar halo/dots + inspector callout + Smart Adjust from callout (re-splice recommended on top) **confirmed** (`sprint8-1-revised.png`, `sprint8-2.png`). ⚡ Apply **correctly absent** when no word-shift proposal — not a defect. **Still pending:** one-word-shift ⚡ path, OOB drag, Validate-all→bars, List scrollbar, eared-dot, type-to-clear. **BUG-037 fixed:** Vite no longer watches `.ignore/` (Explorer paste EBUSY crash).
+**Verify:** `node scripts/test-timeline-geometry.mjs` (48) · `node scripts/test-waveform-peaks.mjs` (10) · regression (timeline 10, segment-dirty-tracker 11, splice-plan 36, partial-rebake-plan 13, take-manager 31) · `npm run build` · `npx tsc --noEmit`
+**QA:** Sprints 3–8 real-browser **PASS** (incl. waveform contrast fix + List-scrollbar fix; Sprint 8 full sign-off 2026-07-10). **BUG-037 fixed:** Vite no longer watches `.ignore/` (Explorer paste EBUSY crash). **Pending — Sprint 9 (trim):** ✂ Trim toggle enters trim mode (disabled when no clip duration); markers seed at 0/clip — or at the stored intent when one exists; dragging ✂ In/Out snaps to cue edges (Shift = fine) and can't cross (1s minimum keep); cut regions dim under warning stripes; ghost bars preview where each surviving cue lands after the cut (shift left by the in-point) and update live while dragging a marker OR a cue; cues outside/past the kept region pulse an amber dashed outline (static under reduced-motion); dragging a cue edge onto a trim marker sticks and needs a deliberate pull to escape; readout shows Keep/Δ; **Save trim** disabled at full span or <1s keep (status says why), stores intent, status turns "Saved" and survives modal close/reopen (markers re-seed from it); **Clear** removes it; Esc mid-marker-drag reverts; keyboard — Tab reaches markers, ←/→ nudges a frame (Shift ×10) with announcements; a saved trim changes NOTHING in the baked output (intent only).
 
 **Restore:** `git checkout feature/v5.8.0-trim-ui-visual-subtitle-editor && npm install && npm run dev`
 
