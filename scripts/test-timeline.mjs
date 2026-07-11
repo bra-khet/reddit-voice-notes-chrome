@@ -38,7 +38,7 @@ const {
   uniformSegments,
 } = await bundle('src/timeline/timeline.ts', 'timeline.mjs');
 
-const { planTrim } = await bundle('src/editing/trim.ts', 'trim.mjs');
+const { planTrim, shiftCuesForTrim } = await bundle('src/editing/trim.ts', 'trim.mjs');
 
 let checks = 0;
 function check(name, fn) {
@@ -166,6 +166,82 @@ check('planTrim accepts, snaps, and reports honest errors', () => {
 
   const badClip = planTrim({ inSeconds: 1, outSeconds: 12 }, 0, 24);
   assert.equal(badClip.ok, false);
+});
+
+console.log('shiftCuesForTrim (v5.9.0 — mirrors the ghost-bar preview)');
+
+check('shifts overlapping cues by exactly -inSeconds; preserves extra fields', () => {
+  const cues = [
+    { start: 12, end: 14, text: 'kept whole' },
+    { start: 20, end: 21.5, text: 'also kept' },
+  ];
+  const shifted = shiftCuesForTrim(cues, { inSeconds: 10, outSeconds: 30 });
+  assert.deepEqual(shifted, [
+    { start: 2, end: 4, text: 'kept whole' },
+    { start: 10, end: 11.5, text: 'also kept' },
+  ]);
+});
+
+check('drops fully-outside cues, including exact-boundary touches (half-open)', () => {
+  const cues = [
+    { start: 0, end: 5, text: 'before' },
+    { start: 8, end: 10, text: 'ends exactly at in' },
+    { start: 30, end: 32, text: 'starts exactly at out' },
+    { start: 40, end: 45, text: 'after' },
+  ];
+  assert.deepEqual(shiftCuesForTrim(cues, { inSeconds: 10, outSeconds: 30 }), []);
+});
+
+check('clamps partial overlaps to the kept window', () => {
+  const cues = [
+    { start: 8, end: 12, text: 'straddles in' },
+    { start: 28, end: 35, text: 'straddles out' },
+    { start: 5, end: 40, text: 'straddles both' },
+  ];
+  const shifted = shiftCuesForTrim(cues, { inSeconds: 10, outSeconds: 30 });
+  assert.deepEqual(shifted, [
+    { start: 0, end: 2, text: 'straddles in' },
+    { start: 18, end: 20, text: 'straddles out' },
+    { start: 0, end: 20, text: 'straddles both' },
+  ]);
+  // Every survivor fits the new duration.
+  const newDuration = 20;
+  for (const cue of shifted) {
+    assert.ok(cue.start >= 0 && cue.end <= newDuration + 1e-9);
+  }
+});
+
+check('normalizes inverted spans (same as projectCueThroughTrim)', () => {
+  const shifted = shiftCuesForTrim(
+    [{ start: 14, end: 12, text: 'inverted' }],
+    { inSeconds: 10, outSeconds: 30 },
+  );
+  assert.deepEqual(shifted, [{ start: 2, end: 4, text: 'inverted' }]);
+});
+
+check('trim removing every cue returns empty; input order preserved otherwise', () => {
+  assert.deepEqual(
+    shiftCuesForTrim([{ start: 0, end: 9, text: 'x' }], { inSeconds: 10, outSeconds: 30 }),
+    [],
+  );
+  const order = shiftCuesForTrim(
+    [
+      { start: 25, end: 26, text: 'b' },
+      { start: 11, end: 12, text: 'a' },
+    ],
+    { inSeconds: 10, outSeconds: 30 },
+  );
+  assert.deepEqual(order.map((cue) => cue.text), ['b', 'a']);
+});
+
+check('frame-snapped planTrim range composes: shift lands inside frame math', () => {
+  // The realistic pipeline: planTrim snaps the range, then cues shift by the
+  // SNAPPED in point — never the raw request.
+  const plan = planTrim({ inSeconds: 2.03, outSeconds: 30.99 }, 60, 24);
+  assert.equal(plan.ok, true);
+  const [cue] = shiftCuesForTrim([{ start: 5, end: 6, text: 'c' }], plan.range);
+  assert.equal(cue.start, 5 - plan.range.inSeconds);
+  assert.equal(cue.end, 6 - plan.range.inSeconds);
 });
 
 rmSync(outdir, { recursive: true, force: true });
