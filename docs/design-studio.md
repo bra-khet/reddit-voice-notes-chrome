@@ -919,7 +919,7 @@ reddit.com).
 
 - `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md` (Phase 2 as-built)
 - `claude-progress.md` v5.4.0
-- `docs/release-notes-v5.4.0.md`
+- `archive/docs/release-notes-v5.4.0.md`
 - `docs/architecture/architecture-map.md` (take lifecycle + studio capture)
 
 The original "optional" vision is now the default path; Reddit tab remains for quick attach + legacy capture. Pipeline at stop is unchanged and unified.

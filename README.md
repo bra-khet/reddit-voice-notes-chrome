@@ -31,13 +31,15 @@ extension (or paste one back out). It's a self-contained Vite app in
 
 ## Status
 
-**Current `main` v5.4.0 — Design Studio First** (2026-07-06) — the Design Studio is now the standalone recording suite. Record (with live WYSIWYG canvas), edit, caption, bake, and export entirely in one place; your work survives tab closes via the Take lifecycle. Reddit is the convenient one-click publish target (attach mode for finished or never-baked takes). WebCodecs per-chunk overlay bake is production default (sub-real-time rich subtitles). Crash-safe artifact stamps (H6). Full release notes: `docs/release-notes-v5.4.0.md`.
+**Current `main` v5.8.0 — Timeline Visual Subtitle Editor** (2026-07-10) — the subtitle cue editor is now a visual timeline: draggable/resizable cue bars over a waveform lane, stage-mode zoom + minimap, keyboard nudge / undo / multi-select, on-bar smart suggestions, and non-destructive ✂ trim intent. It rides the editing-suite backend from v5.6.0–v5.7.0 (clean-audio voice re-apply + partial re-bake splice, so cue edits re-encode only the changed regions). Design Studio remains the standalone recording suite (live WYSIWYG capture, Take lifecycle, Reddit attach). Full release notes: `docs/release-notes-v5.8.0.md`.
 
-**v5.3.10** — WebCodecs Per-Chunk Encoding backbone.  
-**v5.2.0 — Voice QoL** — character lock + clipboard (on v5.0.0 Dulcet II).  
+**v5.7.0** — Partial re-bake splice: cue edits re-encode only the changed keyframe-aligned regions (default-on).  
+**v5.6.0** — Audio decoupling + voice re-apply (visuals bit-exact) + editing/timeline backend.  
+**v5.5.0 / v5.5.1** — Browser-side full composite (mediabunny); FFmpeg alphamerge wall eliminated.  
+**v5.4.0** — Design Studio First: standalone recording suite + Take lifecycle.  
 **v5.0.0 — Dulcet II** — graph-native DSP voice engine.
 
-Previous: **v4.0.0** (Eloquent I — subtitles + v4 Studio), **v3.x** (voice + UX). See `docs/HISTORY.md` + `docs/release-notes-v5.4.0.md`. Architecture: `docs/architecture/`.
+Previous: **v4.0.0** (Eloquent I — subtitles + v4 Studio), **v3.x** (voice + UX). See `docs/HISTORY.md`. Architecture: `docs/architecture/`.
 
 ### What's new in v4.0 (Eloquent I)
 

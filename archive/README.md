@@ -2,6 +2,7 @@
 
 > **Immutable historical layer. Do not edit files in here.**
 > Initialized **2026-07-06** at the **v5.4.0 (Design Studio First)** milestone via the `/docs-archiving` skill.
+> Extended **2026-07-10** (first Refresh) at the **v5.8.0 (Timeline Visual Subtitle Editor)** milestone — added `progress/claude-progress-pre-v5.8.0.md` and archived the v5.3.9 → v5.5.1 release notes.
 
 This directory is the **raw/verbose history** tier of the project's two-tier documentation model:
 
@@ -19,7 +20,8 @@ Root-level session and branch progress logs, superseded by the slimmed living `c
 
 | File | What it is |
 |------|-----------|
-| `claude-progress-pre-v5.4.0.md` | **Full** session progress log (v5.3.10 → v1.0.0 MVP) as it stood at v5.4.0. The living root `claude-progress.md` keeps only v5.4.0 + the v5.3.10 handoff. |
+| `claude-progress-pre-v5.8.0.md` | **Full** editing-suite-arc progress log (v5.7.0 → v5.4.0, incl. v5.5.x / v5.3.10 handoff) as it stood entering v5.8.0. Added by the 2026-07-10 Refresh. |
+| `claude-progress-pre-v5.4.0.md` | **Full** session progress log (v5.3.10 → v1.0.0 MVP) as it stood at v5.4.0. Together with `claude-progress-pre-v5.8.0.md` this is the complete pre-v5.8.0 history; the living root `claude-progress.md` keeps v5.8.0 + the v5.6.0/v5.7.0 handoff. |
 | `dulcet-branch.md` | v3 voice-effects (Dulcet) branch phase plan. |
 | `eloquent-branch.md` | v4 subtitle (Eloquent) branch phase plan. |
 | `pretty-branch.md` | v2 personalization (pretty) branch phase plan — bar style / background origin. |
@@ -29,7 +31,7 @@ Shipped release notes and resolved handoff/checkpoint docs. **Design docs for sh
 
 | File(s) | What it is |
 |---------|-----------|
-| `release-notes-v3.1.0.md` … `release-notes-v5.3.8.md` (12) | Per-version release notes for shipped tags v3.1.0, v3.7.0, v4.0.0, v5.0.0, and v5.3.0–v5.3.8. (v5.3.9 / v5.3.10 / v5.4.0 notes remain living.) |
+| `release-notes-v3.1.0.md` … `release-notes-v5.5.1.md` (17) | Per-version release notes for shipped tags v3.1.0, v3.7.0, v4.0.0, v5.0.0, and v5.3.0 → v5.5.1. (v5.6.0 / v5.7.0 / v5.8.0 notes remain living — the current editing-suite arc.) |
 | `eloquent-4-handoff.md` | Resolved v4 subtitle-bake QA handoff (BUG-025…032). |
 | `eloquent-profile-checkpoint.md` | **Historical** profile bug-cluster audit (superseded for semantics). |
 | `eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint. |
