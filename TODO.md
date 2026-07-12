@@ -32,4 +32,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-Living docs updated in-place for v5.10.0 — **map v2.7 · extension-points v1.9 · hardening backlog v2.5 · ADRs 0001–0005** (no new seam/context/store/message at ship). Top hardening: **H13** acknowledged artifact persistence (High/S), then **H8** recovery voice provenance (Med/S); H12 is resolved. Full `/architecture-hardening` refresh deferred (post docs-archiving #3). Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**Incremental refresh complete (2026-07-12)** for v5.9→v5.10 — **map v2.8 · extension-points v1.10 · hardening backlog v2.6 · ADRs 0001–0005**. No new seam/context/store/message. Top open: **H13** acknowledged artifact persistence (High/S — partial bounds pre-check at trim raw leg only), then **H8** recovery voice provenance (Med/S); H12 resolved. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

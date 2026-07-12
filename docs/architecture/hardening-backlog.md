@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.5 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.9.0`
+**Version:** v2.6 · **Updated:** 2026-07-12 · **Reflects:** `main` @ tagged `v5.10.0` (QA PASS)
 **Status:** Ranked hardening items for the current standalone editing suite. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
+**Changelog:** v2.6 (2026-07-12) — incremental refresh after **v5.10.0 raw-WebM trim** real-browser QA PASS. No new hardening item; product follow-up "raw-WebM trim" is **SHIPPED**. **H13 still OPEN** with **partial progress**: `last-recording-db.ts` exports `LAST_RECORDING_MIN/MAX_BYTES` and `trim-apply.ts` pre-checks before stamping (I19) — base/baked save acknowledgment is unchanged. **R16** extended: when the raw leg succeeds the commit window may include a fourth store (`rvnLastRecording`). H8/H10 unchanged. v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -16,12 +16,12 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | H6 | Artifact-stamp verification at take consumption points | **High** | S | **Resolved (2026-07-06)** |
 | H7 | Doc drift: `webCodecsBake` default + storage map | High (cheap) | XS | **Resolved (2026-07-06)** |
 | H11 | Concurrent Studio recordings vs single-slot take | Med-Low | — | **Resolved — user QA, no code needed (2026-07-06)** |
-| H13 | Artifact-store writes must acknowledge persistence before stamps/signals | **High** | S | **Open — next hardening sprint** |
+| H13 | Artifact-store writes must acknowledge persistence before stamps/signals | **High** | S | **Open — partial at trim raw leg (v5.10 bounds pre-check); base/baked still silent** |
 | H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **Open — not subsumed by TakeVoiceStamp** |
 | H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **Resolved (2026-07-11) — direct runtime broadcast** |
 | H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
 | H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **SHIPPED** — browser full composite merged v5.5.0, **default-on since v5.5.1** (two-machine QA PASS). ADR-0003 Accepted. Partial-splice (v5.7.0) cuts re-bakes further |
-| — | v5.7 splice avcC · v5.8 two-view · v5.9 trim commit window | — | — | **Mitigated / monitored** — I16 (R14), `captureActiveDraft` (R15), superseded guard + H6 (R16) |
+| — | v5.7 splice avcC · v5.8 two-view · v5.9–v5.10 trim multi-store window | — | — | **Mitigated / monitored** — I16 (R14), `captureActiveDraft` (R15), superseded guard + H6 + raw-leg demote (R16) |
 | H5 | Binary transport / 3:00 cap restoration (BUG-001 deferred) | Low | XL | Deferred (carried) |
 | — | Vosk model re-download (~40 MB/session, BUG-013) | Low | L | Accepted tradeoff (carried) |
 
@@ -113,18 +113,23 @@ so resumed base MP4s were saved with duration 0.
   snapshot; a multi-take voice-history store; blocking recovery when a legacy draft lacks
   provenance. The normalized config is small JSON, not a blob.
 
-## H13 — Artifact-store writes must acknowledge persistence before stamps/signals (OPEN)
+## H13 — Artifact-store writes must acknowledge persistence before stamps/signals (OPEN — partial progress v5.10)
 
 - **Item / class it kills:** false-success artifact publication — callers claim a fresh
   base/baked MP4 even though the single-slot IDB rejected or failed the write, causing a
   stale blob behind a new stamp/signal and delayed, confusing H6 demotion.
+- **Partial progress (v5.10.0, not a full close):** `last-recording-db.ts` exports
+  `LAST_RECORDING_MIN_BYTES` / `LAST_RECORDING_MAX_BYTES`; `trim-apply.ts` refuses to
+  stamp a trimmed WebM outside those bounds and demotes to `rawAudio: 'dropped'` instead
+  (map I19). This is a **caller-side pre-check at one choke point**, not the general
+  store-return-meta contract. Base/baked saves and other callers remain unchanged.
 - **Evidence:** `saveLastBakedMp4` returns `void` without writing for blobs `<256` or
   `>30 MB`; `saveLastBaseMp4` does the same outside `256..25 MB` and catches/logs IDB
   failures without rethrowing. Callers then publish success: `subtitle-bake.ts` fires
   `BAKED_MP4_READY_KEY` + `updateFromBake`; `background.ts` records `baseMp4` after the
-  awaited save; `voice-reapply.ts` and `trim-apply.ts` manufacture new stamps after save.
-  R13 already named the baked-size instance; the full-pass audit found the class spans
-  every artifact mutation.
+  awaited save; `voice-reapply.ts` and `trim-apply.ts` still manufacture base stamps after
+  save (recording path is the only pre-checked leg). R13 already named the baked-size
+  instance; the full-pass audit found the class spans every artifact mutation.
 - **Invariant it protects:** I15/state ownership — a take stamp and ready signal must
   describe bytes that were durably persisted, never merely intended.
 - **Surgical change:** make base/baked save functions reject invalid sizes and IDB errors
@@ -238,7 +243,7 @@ direct-runtime/content-tab split is intentional and working.
 
 ---
 
-## Risk register — WebCodecs / canvas / splice / trim paths (through v5.9.0)
+## Risk register — WebCodecs / canvas / splice / trim paths (through v5.10.0)
 
 | # | Risk | Likelihood | Impact | Mitigation in place | Residual action |
 |---|------|-----------|--------|--------------------|-----------------|
@@ -257,7 +262,7 @@ direct-runtime/content-tab split is intentional and working.
 | R13 | Base/baked store cap or IDB error silently leaves the previous artifact while callers publish success | Low (caps usually safe) | Bake/trim/re-apply appears successful; later H6 demotes or old bytes survive | Bitrates keep normal outputs under caps; H6 protects stamp-aware reads | **H13 open:** acknowledged persisted meta; fail before any stamp/signal |
 | R14 | A splice's re-encoded GOP uses a fresh encoder whose avcC / sample-description differs from the kept AVC packets → corrupt decode across the boundary | Med | Garbled frames at the splice seam | **Self-verifying** `verifySpliceKeptFrames` decodes kept-region anchors and requires pixel-equality with the original → any mismatch throws → full composite (I16); VP9 keyframes are self-contained | Second-machine encoder variance may raise the *full-fallback* rate (never a wrong pixel); collect splice logs from a 2nd machine |
 | R15 | Timeline/List two-view edits desync — an edit in one view lost because the other's stale DOM is read on Apply (dirty-state collapse) | Med | Silent loss of a cue edit | `captureActiveDraft()` reads the List DOM only when List is active; Timeline writes straight to `modalDraft` (Sprint-3 fix, QA PASS) | Any NEW view onto the cue draft must route through the same capture discipline — the review checklist for editor changes |
-| R16 | Another take begins during trim apply's final three-store commit; base write is H6-safe but the single-slot transcript has no `takeId` ownership | Low | New take may briefly inherit shifted cues from the prior take; trim caller may report success after `expectId` returns null | Long transform happens before a superseded guard; remaining race is only base-save → transcript-save → take-patch window; H6 prevents wrong base adoption | Keep explicit; if concurrency expands or reproduces, add transcript ownership/CAS. Do not invent cross-database transactions preemptively |
+| R16 | Another take begins during trim apply's final multi-store commit; base (and optional raw WebM) writes are H6-safe but the single-slot transcript has no `takeId` ownership | Low | New take may briefly inherit shifted cues from the prior take; trim caller may report success after `expectId` returns null | Long transform happens before a superseded guard; remaining race is base-save → (optional recording-save) → transcript-save → take-patch; H6 prevents wrong base/recording adoption; raw-leg size pre-check avoids unpersistable stamps (I19) | Keep explicit; if concurrency expands or reproduces, add transcript ownership/CAS. Do not invent cross-database transactions preemptively |
 
 ---
 
@@ -284,14 +289,16 @@ direct-runtime/content-tab split is intentional and working.
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.5 (2026-07-11), main @ tagged v5.9.0.
+Hardening backlog v2.6 (2026-07-12), main @ tagged v5.10.0 (QA PASS).
 DONE: H6 stamp verification; H7 doc drift; H9 browser composite default-on;
-H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast.
-OPEN HIGH: H13 — base/baked store writes must return persisted meta or throw before stamps/signals.
+H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast;
+raw-WebM trim product follow-up (v5.10.0) SHIPPED + QA PASS.
+OPEN HIGH: H13 — base/baked store writes must return persisted meta or throw before stamps/signals
+  (partial: recording-store bounds export + trim raw-leg pre-check only).
 OPEN MED: H8 — interrupted recovery uses resume-time voice; TakeVoiceStamp does not subsume it.
 DEFERRED: H10 fallback observability (user decision); H5 binary/cap restoration.
 Mitigated risks: R14 splice avcC by I16; R15 List/Timeline draft by captureActiveDraft.
-New v5.9 risk R16: narrow three-store trim commit window; H6 protects base, transcript lacks takeId.
-Atomic trim QA PASS; next product candidates are raw-WebM trim and v6 visual maturity.
+R16: narrow 3–4 store trim commit window; H6 protects base/recording; transcript lacks takeId.
+Editing arc closed; next product candidate: v6 visual maturity (unscoped).
 No new ADR/context/message/store is required by this refresh.
 ```

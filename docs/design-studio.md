@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through **v5.10.0** (2026-07-12 QA PASS). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.7, seams v1.9, backlog v2.5.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.8, seams v1.10, backlog v2.6.
 
 ---
 
@@ -998,5 +998,5 @@ Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shif
 State: TakeManager owns rvn.take.current; blobs remain in H6-verified single-slot IDB stores.
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
 Open: H13 persisted-write acknowledgment, H8 recovery voice provenance, v6 visual maturity.
-Read docs/architecture/architecture-map.md v2.7 before changing cross-context behavior.
+Read docs/architecture/architecture-map.md v2.8 before changing cross-context behavior.
 ```

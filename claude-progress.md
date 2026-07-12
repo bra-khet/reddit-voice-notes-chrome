@@ -23,7 +23,7 @@ Authoritative references:
 - As-built design: [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md) §10
 - Release notes: [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md)
 - Prior leg (atomic MP4 apply): [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md); notes *(archived)* [`archive/docs/release-notes-v5.9.0.md`](archive/docs/release-notes-v5.9.0.md)
-- Architecture: [`docs/architecture/README.md`](docs/architecture/README.md) — map **v2.7**, extension-points **v1.9**, backlog **v2.5**, ADRs 0001–0005 (full re-run deferred; user will refresh arch docs separately)
+- Architecture: [`docs/architecture/README.md`](docs/architecture/README.md) — map **v2.8**, extension-points **v1.10**, backlog **v2.6**, ADRs 0001–0005
 - Full shipped ledger: [`docs/HISTORY.md`](docs/HISTORY.md)
 
 **Verify (at ship):** timeline **22** · take-manager **34** · Node sweep green · `npm run build` PASS @ 5.10.0 · `tsc` = 3 documented pre-existing. **No post-QA code fixes.**
@@ -41,6 +41,8 @@ Authoritative references:
 
 1. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9 (also listed in v5.10 roadmap deferred).
 2. Architecture **H13** (persist-before-stamp — v5.10 added a bounds pre-check at the trim raw leg only; general contract still open) and **H8** (recovery voice provenance).
-3. Optional: `/architecture-hardening` pass when ready (user deferred after this refresh).
+### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE**
+
+Map **v2.8** · extension-points **v1.10** · backlog **v2.6**. Re-verified raw-WebM trim against code after QA PASS; confidence High (single machine); H13 still open (partial at trim raw leg); no new ADR/context/message/store. Carry-forward blocks updated in all three living arch docs + README.
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. Start any implementation as its own sprint/branch.

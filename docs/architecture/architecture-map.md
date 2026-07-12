@@ -1,11 +1,12 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v2.7 · **Reflects branch/tag:** `feature/v5.10.0-raw-trim-apply` @ `v5.10.0` · **Updated:** 2026-07-11
+**Version:** v2.8 · **Reflects branch/tag:** `main` @ tagged `v5.10.0` (QA PASS 2026-07-12) · **Updated:** 2026-07-12
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v2.8` (2026-07-12) — **incremental four-phase refresh** of the v5.9.0 → v5.10.0 delta on `main` after real-browser QA PASS. No new context, message family, storage class, writer, or ADR. Spot-checked `planRawTrimLeg` / `applyTrimToWebM` / `trim-apply.ts` raw-leg commit + exported `LAST_RECORDING_MIN/MAX_BYTES` against code; re-confirmed zero `MSG_TRIM*` / `MSG_SPLICE*` in `types.ts`. Upgraded **Raw-WebM trim** confidence from "QA gate open" → **High (single machine)** with the 2026-07-12 checklist (incl. honest raw-leg fallback + accepted IDB-nuke/reload observation). Trace E cites living release notes; I18/I19 notes dual QA legs; R16 extended to the optional `rvnLastRecording` write; H13 remains open with a **partial** trim-raw-leg bounds pre-check. Extension-points **v1.10** · hardening backlog **v2.6**.
 - `v2.7` (2026-07-11) — additive: **v5.10.0 raw-WebM trim** closes the v5.9 §3I voice-lock follow-up. The trim apply now runs a raw-recording leg: pure `planRawTrimLeg(stamp, storeMeta)` (`'skip' | 'drop-stamp' | 'trim'`, H6 vocabulary) gates `applyTrimToWebM` (mediabunny `WebMOutputFormat`, **audio-only** — the VP8 canvas track is discarded because every post-trim `baseRecording` consumer is an audio consumer and a trim start > 0 forces a whole-clip video re-encode in mediabunny), and the fresh `baseRecording` stamp rides the SAME `updateCurrentTake` write as the base stamp — post-trim voice re-apply / Change Voice work again (`voice-reapply.ts` unchanged; the Voice panel re-enables emergently off the surviving stamp + `savedAt` poll). Raw-leg failure of any kind (no stamp, H6 mismatch, conversion error, result outside `last-recording-db.ts`'s now-exported persistability bounds — H13 pre-check) demotes to the v5.9 stamp-drop outcome and never fails the trim. Trim outcome flag `voiceLocked` → tri-state `rawAudio`. No new context/message/storage-key/writer. Design + as-built: `docs/v5.10.0-raw-trim-apply-roadmap.md`.
 - `v2.6` (2026-07-11) — full four-phase hardening refresh on tagged `v5.9.0`: re-verified all six contexts, the `types.ts` wire, storage owners, the primary browser-composite bake, Studio-direct progress delivery, recovery, and atomic trim apply. Corrected the data-flow diagram (browser composite paints directly; it does **not** consume the dual-IVF overlay), take state machine, flagship money path, stale QA/confidence text, and canonical-doc pointers. Added I18 + Trace E for preview=APPLY trim semantics. Phase 3: H12 resolved by code inspection; H8 remains open because interrupted drafts have no completed `TakeVoiceStamp`; new H13 scopes fail-loud/acknowledged artifact-store writes; R16 records the residual cross-store trim-commit race. No new context, message family, storage class, writer, or ADR.
 - `v2.5` (2026-07-11) — additive: **v5.9.0 atomic trim APPLY** closes the v2.4 "next feature" note. `edits.trim` intent is no longer inert: `src/editing/trim-apply.ts` (NEW module, structurally parallel to `voice-reapply.ts`; kept out of `trim.ts` so `test-timeline.mjs` bundles the pure logic without the storage graph) materializes a trim — H6-verified base → mediabunny container trim → pure `shiftCuesForTrim` (mirrors the ghost-preview math `projectCueThroughTrim`; **both** session-transcript copies shift so revert can't resurrect pre-trim times) → superseded guard → commit-last: new base stamp + `meta.durationSeconds` + intent clear + **`bakedMp4`/`baseRecording` stamp deletes** (baked: next bake is a forced full composite via `computePartialRebakePlan`'s duration guard; baseRecording: raw audio no longer matches the timeline — voice locked in, re-apply fails honestly through the clean-audio door) + status `baked → ready`, all one `updateCurrentTake` (`expectId`). Enabling take-manager evolution: `CurrentTakePatch.artifacts` accepts `null` = stamp delete (mirrors the edits patch; closes the explicit-`undefined`-clobber hazard). No new context/message/storage-key/writer. Design + as-built: `docs/v5.9.0-trim-apply-roadmap.md`.
@@ -36,7 +37,7 @@ Verified against `wxt.config.ts` `manifest.content_security_policy` (2026-07-06 
 
 **Sandbox CSP detail (BUG-010/011/013):** `sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; worker-src blob: 'self'; child-src blob: 'self'` — Vosk needs `unsafe-eval` for Emscripten and `worker-src blob:` for blob workers. Full CSP archaeology: `docs/transcription-architecture.md`.
 
-**v5.9.0 full-pass note:** no execution context has been added since v5.4.0. Studio-native recording runs `VoiceRecorderSession` on the extension page; transcode/transcribe still cross the existing background→offscreen boundary, while browser composite, partial splice, voice re-apply orchestration, and trim apply stay in the Studio page. The WebCodecs encode loop remains worker-portable but page-local (ADR-0001).
+**v5.9–v5.10 note:** no execution context has been added since v5.4.0. Studio-native recording runs `VoiceRecorderSession` on the extension page; transcode/transcribe still cross the existing background→offscreen boundary, while browser composite, partial splice, voice re-apply orchestration, and trim apply (MP4 + raw WebM legs) stay in the Studio page. The WebCodecs encode loop remains worker-portable but page-local (ADR-0001).
 
 ---
 
@@ -218,6 +219,8 @@ The single canvas in `waveform.ts` (`canvas.captureStream`) is the video-track s
 
 **Atomic trim apply (v5.9.0) extends preview=bake to preview=APPLY.** Ghost bars use `projectCueThroughTrim`; destructive apply uses `shiftCuesForTrim` with the same half-open overlap and epsilon, consumes the live modal draft, shifts both persisted transcript copies, and clears modal undo. The next bake uses the shorter H6-stamped base and is forced through the full-composite path because `computePartialRebakePlan` rejects a duration change (I18).
 
+**Raw-WebM trim (v5.10.0) restores post-trim voice freedom without a new fidelity surface.** The raw capture is cut with the same trim range (audio-only Opus WebM); a successful save re-stamps `baseRecording` so the clean-audio door and Voice panel re-enable emergently. Failure demotes to the v5.9 honest lock. Persistability bounds are pre-checked before any stamp is published (I19 — partial H13 at this choke point only).
+
 ### 3.2 Effect composition
 
 Compositing order (bottom → top) in the final MP4 — unchanged:
@@ -250,7 +253,7 @@ Adding a fourth visual layer still changes compositing order → explicit ADR re
 
 **Deliberate non-message:** the take lifecycle. `MSG_TAKE_*` placeholders were scaffolded and then **removed** — storage IS the sync channel (ADR-0002).
 
-**Also deliberately non-message (the v5.6→v5.8 editing arc):** ~5 k lines of editing/splice/timeline code added **zero** new `MSG_` family (grep-verified in `types.ts` — no `MSG_SPLICE/TIMELINE/TRIM/WAVEFORM/CUE`). Partial-splice execution is in-page (`composite-splice.ts` — no relay hop, it runs where the bake already runs); the timeline editor is a Design Studio surface over the existing edit/dirty/trim seams; trim is the `edits.trim` **storage** intent (via `planTrim` → `mergeTakeEdits`). Reach for a pipeline only when there is cross-context work-with-progress to relay — none of these are.
+**Also deliberately non-message (the v5.6→v5.10 editing arc):** the full editing suite (dirty tracking, partial splice, timeline UI, atomic MP4 trim, raw-WebM trim) added **zero** new `MSG_` family (grep-verified in `types.ts` — no `MSG_SPLICE/TIMELINE/TRIM/WAVEFORM/CUE`). Partial-splice and both trim legs are in-page Studio work; trim intent remains `edits.trim` storage (via `planTrim` → `mergeTakeEdits`). Reach for a pipeline only when there is cross-context work-with-progress to relay — none of these are.
 
 **Studio progress delivery (H12 resolved):** extension-page clients install `runtime.onMessage` listeners in the same transcode/burn-in clients as content-script callers. Background identifies the extension-page sender URL and records `*SkipTabRelayByJobId`; the offscreen broadcast reaches Studio directly, while background relays to `tabs.sendMessage` only for Reddit content-script jobs. No late-bound Reddit-tab fallback participates in a normal Studio job (`background.ts` `registerTranscodeTab` / `relayTranscodeBroadcast`; `transcoder.ts` `onBroadcast`).
 
@@ -295,8 +298,8 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | I15 | Artifact stamps let consumers detect a snapshot whose blobs moved on (stamp `savedAt` ≈ store meta `savedAt`, `byteLength` equal when both present) | state | `takeArtifactMatchesStore()` (`take-manager.ts`) at all three consumption sites: `studio-take-recovery.ts` resume, `recorder-panel.ts` attach, `current-take-status.ts` Download — H6, Node-tested | High |
 | I16 | A partial re-bake splice is adopted only if it *cannot* lie: `validateSpliceOutput` proves kept + reencoded == output == expected packet count (≤1-frame drift) AND `verifySpliceKeptFrames` proves the copied kept-region frames decode pixel-identical to the original (mean Δ ≤ 1.5, peak ≤ 24) — any miss throws → full composite; `executed:'partial'` only on a verified splice | composition | `splice-plan.ts` `validateSpliceOutput`, `composite-fidelity.ts` `verifySpliceKeptFrames`, `partial-rebake-coordinator.ts` `coordinateRebake` — Node-tested (`test-splice-plan` 36, `test-partial-rebake-plan` 13) | High (single machine) |
 | I17 | Timeline cue-time edits quantize through `timeline.ts` `snapTimeToFrame`, so an edited cue boundary lands on the same frame grid the overlay paints at (I11) — edited preview timing == bake timing | preview↔bake | `timeline-geometry.ts:21` (sole import; every snap path delegates) — Node-tested (`test-timeline-geometry` 48) | High |
-| I18 | Trim ghost preview and destructive apply use the same half-open cue projection; apply consumes the live draft, shifts both transcript copies, and clears undo so pre-trim cue times cannot return | preview↔bake, state | `timeline-geometry.ts` `projectCueThroughTrim`; `trim.ts` `shiftCuesForTrim`; `trim-apply.ts`; `subtitle-segment-editor.ts` — Node-tested (`test-timeline` 22) + real-browser QA | High (single machine) |
-| I19 | A `baseRecording` stamp published by trim apply always describes bytes the store can hold: the raw leg pre-checks the trimmed blob against `last-recording-db.ts`'s exported persistability bounds and demotes to an honest stamp drop otherwise (never a lying stamp) | state | `trim-apply.ts` raw-leg guard + `planRawTrimLeg` (`trim.ts`) — Node-tested (`test-timeline` 22: leg truth table) | High (browser conversion itself = QA gate) |
+| I18 | Trim ghost preview and destructive apply use the same half-open cue projection; apply consumes the live draft, shifts both transcript copies, and clears undo so pre-trim cue times cannot return | preview↔bake, state | `timeline-geometry.ts` `projectCueThroughTrim`; `trim.ts` `shiftCuesForTrim`; `trim-apply.ts`; `subtitle-segment-editor.ts` — Node-tested (`test-timeline` 22) + real-browser QA (v5.9 + v5.10) | High (single machine) |
+| I19 | A `baseRecording` stamp published by trim apply always describes bytes the store can hold: the raw leg pre-checks the trimmed blob against `last-recording-db.ts`'s exported persistability bounds and demotes to an honest stamp drop otherwise (never a lying stamp). Post-trim voice re-apply is available only when that stamp survives | state | `trim-apply.ts` raw-leg guard + `planRawTrimLeg` (`trim.ts`) — Node-tested (`test-timeline` 22: leg truth table) + real-browser QA PASS 2026-07-12 (happy path + store-mismatch fallback) | High (single machine) |
 
 ---
 
@@ -347,7 +350,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 5. Host re-seeds every draft/baseline, clears undo, reloads the clip/waveform, and fits the shorter view. The Voice panel's `savedAt`-keyed poll picks up the trimmed recording and **"Apply voice to current take" re-enables** — Change Voice / re-apply run unchanged (`voice-reapply.ts` resolves the trimmed WebM through the same clean-audio H6 door; rendered audio matches the trimmed video duration, no desync).
 6. The next subtitle bake sees a duration change, so `computePartialRebakePlan` returns null and the full chain runs against the trimmed clean base (with whatever voice the user last applied). Download/attach resolve the trimmed base until that bake completes.
 
-**Code verified at:** `trim-apply.ts`, `trim.ts` (`applyTrimToWebM`, `planRawTrimLeg`), `last-recording-db.ts` bounds, `clean-audio-source.ts`, `voice-controls.ts` `refreshApplyAvailability`/`loadRecordingSource`, `session-transcript-db.ts` `replaceSessionTranscriptResults`, `subtitle-segment-editor.ts` `onApplyTrim`, `subtitle-bake.ts` duration guard; v5.9 leg real-browser QA in `archive/docs/release-notes-v5.9.0.md`, v5.10 raw leg QA gate in `docs/v5.10.0-raw-trim-apply-roadmap.md` §7.
+**Code verified at:** `trim-apply.ts`, `trim.ts` (`applyTrimToWebM`, `planRawTrimLeg`), `last-recording-db.ts` bounds, `clean-audio-source.ts`, `voice-controls.ts` `refreshApplyAvailability`/`loadRecordingSource`, `session-transcript-db.ts` `replaceSessionTranscriptResults`, `subtitle-segment-editor.ts` `onApplyTrim`, `subtitle-bake.ts` duration guard. **Real-browser QA:** v5.9 leg in [`archive/docs/release-notes-v5.9.0.md`](../archive/docs/release-notes-v5.9.0.md); **v5.10 raw leg all PASS 2026-07-12** in [`docs/release-notes-v5.10.0.md`](../release-notes-v5.10.0.md) (gate = roadmap §7).
 
 ---
 
@@ -367,21 +370,23 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | Composite stage performance | **High (resolved)** | The ~43 s FFmpeg x264 composite wall is **eliminated** on the primary path — browser-side composite shipped v5.5.0, **default-on since v5.5.1** (ADR-0003 Accepted; two-machine QA PASS). Partial-splice re-bakes (v5.7.0) cut it further by re-encoding only dirty GOPs |
 | Partial re-bake splice execution (v5.7.0) | **High (single machine)** | Real-browser QA PASS 2026-07-08 — AVC (C1) + VP9 (C2), happy path + honest fallbacks + a forced fidelity reject; the avcC hazard is self-verifying (I16). Residual: second-machine encoder variance → more *full* fallbacks only, never a wrong pixel |
 | Timeline visual subtitle editor (v5.8.0) | **High** | Sprints 3–9 real-browser QA PASS (Windows/Chrome, 2026-07-09/10); pure geometry/waveform Node-tested (`test-timeline-geometry` 48, `test-waveform-peaks` 10); frame-snap delegates to `timeline.ts` (I17). Trim intent → **atomic apply shipped v5.9.0** (row below) |
-| Atomic trim apply (v5.9.0) | **High (single machine)** | Node: timeline 16 + take-manager 33; real-browser QA PASS for duration/cue parity, full post-apply bake, voice lock, revert/undo, recovery, Download/attach, and regressions (2026-07-11) |
-| Raw-WebM trim + post-trim voice re-apply (v5.10.0) | **Med-High (browser QA gate open)** | Node: timeline 22 (planRawTrimLeg truth table) + take-manager 34 (dual-stamp one-write patch); orchestrator reuses the QA'd v5.9 commit shape; mediabunny conversion path (WebCodecs) is browser-only — §7 of the v5.10 roadmap is the real-browser gate (trim → Change Voice → re-bake, no desync) |
-| Artifact-store write acknowledgment | **Low** | `saveLastBaseMp4`/`saveLastBakedMp4` can return without persisting on size rejection (base also swallows IDB errors), while callers may still stamp/signal success. H6 catches later mismatch only when a stamp-aware consumer runs; H13 scopes the fail-loud contract |
+| Atomic trim apply (v5.9.0) | **High (single machine)** | Node: timeline 16→22 + take-manager 33→34; real-browser QA PASS for duration/cue parity, full post-apply bake, voice lock (now fallback-only), revert/undo, recovery, Download/attach, and regressions (2026-07-11); reconfirmed under v5.10 suite |
+| Raw-WebM trim + post-trim voice re-apply (v5.10.0) | **High (single machine)** | Node: timeline 22 (`planRawTrimLeg` truth table) + take-manager 34 (dual-stamp one-write). **Real-browser QA PASS 2026-07-12:** post-trim Change Voice / re-apply / bake, edges, recovery, deck/Download/attach, raw-leg store-mismatch → honest lock, regressions. Accepted non-defect: manual DevTools IDB nuke of `rvnLastRecording` needs extension reload to recreate open path. No post-QA code fixes. As-built: `docs/v5.10.0-raw-trim-apply-roadmap.md` §10 |
+| Artifact-store write acknowledgment | **Low (partial at trim raw leg)** | Base/baked saves can still return without persisting on size rejection (base also swallows IDB errors) while callers may stamp/signal. **v5.10 partial:** `LAST_RECORDING_MIN/MAX_BYTES` exported; trim raw leg pre-checks before stamping (I19). H13 still open for the general base/baked contract |
 | Vosk model caching | **Low (accepted)** | ~40 MB re-download per session; BUG-013 tradeoff stands |
 | Demo site (`demo/`) parity with v5.4.0 | **Low (out of scope)** | No capture pipeline there; explicitly deferred |
 
 **Open questions:**
-1. Should H13 make store saves return authoritative persisted metadata, or only throw on rejection/failure? Returning metadata best prevents callers from manufacturing `Date.now()` stamps, but touches more call sites.
-2. Does the v5.9 trim commit need transcript ownership (`takeId` on the session record) before concurrency grows? Today the pre-commit guard + H6 protect the base, but a different take beginning during the final multi-store write window could still observe a shifted single-slot transcript (R16).
+1. Should H13 make store saves return authoritative persisted metadata, or only throw on rejection/failure? Returning metadata best prevents callers from manufacturing `Date.now()` stamps, but touches more call sites. (v5.10 only closed the *size* half for the recording store at the trim choke point.)
+2. Does the trim commit need transcript ownership (`takeId` on the session record) before concurrency grows? Today the pre-commit guard + H6 protect the base (and re-stamped recording when the raw leg runs), but a different take beginning during the final multi-store write window could still observe a shifted single-slot transcript (R16).
 
-**Resolved this pass:** Studio-job progress is direct `runtime.onMessage` with tab-relay suppression (H12); overlay alpha calibration is cached once per session by codec+dimensions+fps, while the content-dependent browser-composite decode probe runs per bake/input.
+**Resolved this pass (v2.8):** raw-WebM trim real-browser QA gate closed (PASS); confidence ledger and Trace E citations updated. Prior: Studio-job progress is direct `runtime.onMessage` with tab-relay suppression (H12); overlay alpha calibration is cached once per session by codec+dimensions+fps.
 
 ---
 
 ## 7. Self-critique (Phase 2)
+
+**Verified in the v2.8 incremental pass (2026-07-12, `main` @ tagged `v5.10.0` QA PASS):** the v5.9→v5.10 delta only — `planRawTrimLeg` H6 vocabulary (`skip`/`drop-stamp`/`trim`); `applyTrimToWebM` audio-only contract; `trim-apply.ts` raw-leg order (plan → convert → bounds check → demote-on-fail never fails MP4 trim) and same-write stamp patch; exported `LAST_RECORDING_MIN/MAX_BYTES` (256 B–18 MB); zero new `MSG_` families in `types.ts`; Trace E steps match the shipped release notes + roadmap §7/§10. **Not re-walked line-by-line:** Vosk internals, full timeline pointer UI, composite-splice packet assembly (boundary contracts unchanged since v2.6). **Doc-vs-code:** map confidence still said "QA gate open" after PASS → fixed this version. **Coupling note (updated):** trim "commit-last" now may touch **four** stores when the raw leg succeeds (`rvnLastBaseMp4`, `rvnLastRecording`, `rvnSessionTranscript`, `rvn.take.current`) — still independently transactional; H6 + honest stamp drop cover the audio/base artifacts; transcript ownership remains R16.
 
 **Verified in the v2.6 full pass (2026-07-11, `main` @ `v5.9.0`):** CSP and six-context inventory (`wxt.config.ts`); every `MSG_*` family/query/signal in `types.ts`; `rvn.take.current` subscription/write contract; Studio capture fork; extension-page direct progress delivery and all three skip-tab-relay maps; current prefs defaults; primary browser composite vs dual-IVF/MediaRecorder/drawtext fallback ownership; partial-splice gate; H6 consumers; recovery; atomic trim source/transform/commit/host-refresh path; all single-slot store save contracts. Two money paths were re-walked from code (Trace A and E), not inferred from earlier docs.
 
@@ -402,7 +407,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 - `take-manager.ts` header promises stamp cross-checking by consumers; no consumer does it → **filed as H6** (code change, not doc change — the contract is right, the implementation is missing).
 - v1 map referenced ADR stub `adr/0001-voice-recorder-prefs-transcriptconfig.md` that was never created; the number was then used by the WebCodecs ADR → stub question absorbed into this refresh (the `transcriptConfig` optionality concern did not recur in 5.3.x; dropped without a stub).
 
-**Coupling that surprised:** atomic trim is called “commit-last,” but the commit spans three independently transactional stores (`rvnLastBaseMp4`, `rvnSessionTranscript`, `rvn.take.current`). H6 makes a partially written base fail safe for stamp-aware consumers, but the transcript has no take ownership. This is a narrow race, not evidence of a shipped failure; it is explicit as R16 instead of hidden behind the word atomic.
+**Coupling that surprised:** atomic trim is called “commit-last,” but the commit spans three (or four, when the raw leg trims `rvnLastRecording`) independently transactional stores. H6 makes a partially written base/recording fail safe for stamp-aware consumers, but the transcript has no take ownership. This is a narrow race, not evidence of a shipped failure; it is explicit as R16 instead of hidden behind the word atomic.
 
 **If I changed X, what breaks?**
 - Write `rvn.take.current` outside TakeManager → dual-writer races, deck/panel desync (the exact class Phase-0 centralization removed).
@@ -429,8 +434,8 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA gate/result |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | **Raw-WebM trim as-built (v5.10.0):** Phase 0 closed the storage-API-name gap (`saveLastRecording`, not the planning draft's `saveLastBaseRecording`) and the H13 posture (exported bounds pre-check); §10 is the as-built log, §7 the real-browser QA gate |
 | `docs/architecture/adr/` | ADR-0001 WebCodecs backbone · ADR-0002 TakeManager storage sync · ADR-0003 composite-stage elimination (**Accepted**) · ADR-0004 audio decoupling / voice re-apply · ADR-0005 partial re-bake splice (**Accepted**, default-on) |
-| `docs/architecture/extension-points.md` | Seam registry (v1.9) |
-| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.5) |
+| `docs/architecture/extension-points.md` | Seam registry (v1.10) |
+| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.6) |
 | `src/messaging/types.ts` | Wire registry — authoritative message constants |
 | `src/session/take-manager.ts` | Take lifecycle contract (header doc is authoritative) |
 
@@ -440,18 +445,18 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3/WXT), feature/v5.10.0-raw-trim-apply @ v5.10.0. Map v2.7 (2026-07-11).
+Repo: Reddit Voice Notes (Chrome MV3/WXT), main @ tagged v5.10.0 (QA PASS 2026-07-12). Map v2.8.
 Contexts (6): content / background SW / offscreen FFmpeg / Vosk sandbox / Design Studio / popup.
 Spine:
   preview=bake: direct shared painter on browser composite; timeline frame-snap I17; trim preview=APPLY I18.
   composition: bg→bars in capture; subtitles post-base. Full default = browser decode→paint→encode; FFmpeg tiers persist.
-  messages: types.ts has 3 pipelines + idempotent query + chunked relays; Studio progress is direct runtime broadcast (H12 resolved).
+  messages: types.ts has 3 pipelines + idempotent query + chunked relays; Studio progress is direct runtime broadcast (H12).
   state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; trim cuts base + raw WebM (audio-only,
-  re-stamped or honestly dropped — I19), clears the baked stamp, and forces full re-bake; voice re-apply survives trim.
-Editing arc: v5.6 audio/edits → v5.7 verified GOP splice → v5.8 timeline → v5.9 atomic trim (QA PASS) → v5.10 raw-WebM trim.
-Hardening v2.5: H13 OPEN (store writes must acknowledge persistence; v5.10 adds a bounds pre-check at the trim raw leg);
-H8 OPEN (recovery uses resume-time voice); H10 deferred.
-Risks: R14 splice avcC mitigated by I16; R15 two-view draft; R16 narrow trim multi-store race (unchanged by v5.10).
-Extension points v1.9. ADRs 0001–0005 Accepted; no new ADR/context/message/store in v5.9/v5.10.
-Read docs/architecture/architecture-map.md then run /architecture-hardening resume.
+  re-stamped or honestly dropped — I19), clears the baked stamp, forces full re-bake; post-trim voice re-apply works.
+Editing arc CLOSED: v5.6 audio → v5.7 splice → v5.8 timeline → v5.9 atomic trim → v5.10 raw-WebM trim (both QA PASS).
+Hardening v2.6: H13 OPEN (general base/baked persist-before-stamp; partial bounds pre-check at trim raw leg);
+H8 OPEN (recovery resume-time voice); H10 deferred.
+Risks: R14 I16; R15 two-view draft; R16 trim multi-store window (3–4 stores).
+Extension points v1.10. ADRs 0001–0005 Accepted; no new ADR/context/message/store in v5.9/v5.10.
+Next product: v6.0 visual maturity (unscoped). Read architecture-map.md then /architecture-hardening resume.
 ```
