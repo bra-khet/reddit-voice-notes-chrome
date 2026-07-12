@@ -31,8 +31,9 @@ extension (or paste one back out). It's a self-contained Vite app in
 
 ## Status
 
-**Current `main` v5.8.0 — Timeline Visual Subtitle Editor** (2026-07-10) — the subtitle cue editor is now a visual timeline: draggable/resizable cue bars over a waveform lane, stage-mode zoom + minimap, keyboard nudge / undo / multi-select, on-bar smart suggestions, and non-destructive ✂ trim intent. It rides the editing-suite backend from v5.6.0–v5.7.0 (clean-audio voice re-apply + partial re-bake splice, so cue edits re-encode only the changed regions). Design Studio remains the standalone recording suite (live WYSIWYG capture, Take lifecycle, Reddit attach). Full release notes: `docs/release-notes-v5.8.0.md`.
+**Current `main` v5.9.0 — Atomic Trim Apply** (2026-07-11) — **Apply trim** now makes the previewed cut real: it creates a shorter base MP4, shifts subtitle cues onto the new timeline, re-stamps the Take atomically, and invalidates stale baked/raw-audio artifacts so the next bake is correct. This completes the v5.6.0–v5.9.0 editing arc: clean-audio voice re-apply, partial re-bake splice, the visual timeline editor, and atomic trim apply. Design Studio remains the standalone recording suite (live WYSIWYG capture, Take lifecycle, Reddit attach). Full release notes: `docs/release-notes-v5.9.0.md`.
 
+**v5.8.0** — Timeline visual subtitle editor with waveform, stage zoom, keyboard/undo/multi-select, smart suggestions, and trim preview.
 **v5.7.0** — Partial re-bake splice: cue edits re-encode only the changed keyframe-aligned regions (default-on).  
 **v5.6.0** — Audio decoupling + voice re-apply (visuals bit-exact) + editing/timeline backend.  
 **v5.5.0 / v5.5.1** — Browser-side full composite (mediabunny); FFmpeg alphamerge wall eliminated.  

@@ -9,7 +9,7 @@ Trim actually cuts: **Apply trim** → shorter `baseMp4` + cue shift (both trans
 
 ## ▶ Next (open) — post-v5.9 candidates
 
-`/docs-archiving` Refresh #2 · trimming the raw capture WebM (restores post-trim voice changes) · unique “voice locked after trim” copy if a UI rework wants it (current gray-out is correct) · **v6.0 "Polish & Visual Maturity"** arc (roadmap §9).
+Trimming the raw capture WebM (restores post-trim voice changes) · unique “voice locked after trim” copy if a UI rework wants it (current gray-out is correct) · **v6.0 "Polish & Visual Maturity"** arc (roadmap §9).
 
 ## Shipped ledger
 
@@ -18,9 +18,9 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 | Version | Focus | More |
 |---------|-------|------|
 | **v5.9.0** | Atomic trim apply — **tagged** | [notes](docs/release-notes-v5.9.0.md) |
-| **v5.8.0** | Timeline visual subtitle editor | [notes](docs/release-notes-v5.8.0.md) |
-| **v5.7.0** | Partial re-bake splice (Phase 2b) — default-on | [notes](docs/release-notes-v5.7.0.md) |
-| **v5.6.0** | Audio decoupling + voice re-apply + editing/timeline backend | [notes](docs/release-notes-v5.6.0.md) |
+| **v5.8.0** | Timeline visual subtitle editor | [notes](archive/docs/release-notes-v5.8.0.md) |
+| **v5.7.0** | Partial re-bake splice (Phase 2b) — default-on | [notes](archive/docs/release-notes-v5.7.0.md) |
+| **v5.6.0** | Audio decoupling + voice re-apply + editing/timeline backend | [notes](archive/docs/release-notes-v5.6.0.md) |
 | **v5.5.0 / v5.5.1** | Browser-side full composite + default-on | [HISTORY](docs/HISTORY.md) |
 | **v5.4.0** | Design Studio First (standalone suite + Take lifecycle) | [HISTORY](docs/HISTORY.md) |
 | **≤ v5.3.10** | WebCodecs backbone → v1.0.0 MVP | [HISTORY](docs/HISTORY.md) / `archive/` |

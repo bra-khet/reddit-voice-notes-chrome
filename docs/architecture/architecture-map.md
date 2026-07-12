@@ -1,6 +1,6 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v2.5 · **Reflects branch/tag:** `feature/v5.9.0-trim-apply` (v5.9.0 pre-release) · **Updated:** 2026-07-11
+**Version:** v2.5 · **Reflects branch/tag:** `main` @ `v5.9.0` · **Updated:** 2026-07-11
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.

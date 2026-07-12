@@ -1,3 +1,5 @@
+> **ARCHIVED DOCUMENT — do not edit.** Captured **2026-07-11** after the v5.9.0 milestone by `/docs-archiving` Refresh #2. This shipped release record is indexed from [`docs/HISTORY.md`](../../docs/HISTORY.md).
+
 # Release notes — v5.8.0 **Timeline Visual Subtitle Editor** (Phase 3 Trim UI)
 
 **Tag:** `v5.8.0` · **Date:** 2026-07-10  

@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.8.0` · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.9.0` · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,8 +12,8 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: contexts, diagrams (take lifecycle + **re-bake splice sub-path**), first-class concerns, invariants I1–I17, confidence ledger, money-path traces (incl. cue-edit → splice) | v2.4 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: voice effects, subtitle effects, fonts, message pipelines (v2), storage, theme, Studio surfaces, live-mic preview, overlay encoding backbone, take lifecycle (H6), Studio capture host, audio editing / voice re-apply, **partial re-bake splice**, **timeline cue editor** | v1.6 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: contexts, diagrams (take lifecycle + **re-bake splice sub-path**), first-class concerns, invariants I1–I17, confidence ledger, money-path traces (incl. cue-edit → splice and atomic trim apply) | v2.5 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: voice effects, subtitle effects, fonts, message pipelines (v2), storage, theme, Studio surfaces, live-mic preview, overlay encoding backbone, take lifecycle (H6), Studio capture host, audio editing / voice re-apply, **partial re-bake splice**, **timeline cue editor**, and **atomic trim apply** | v1.7 |
 | [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening items (H6/H7/H9/H11 resolved; H8/H12 carried; H10 deferred) + **risk register** for the WebCodecs / canvas / splice paths | v2.4 |
 | `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) (Accepted, v5.3.10) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) (Accepted, v5.4.0) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) (Accepted, v5.5.0) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) (Accepted, v5.6.0) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) (Accepted, v5.7.0 — execution behind flag, **default on**) | — |
 
@@ -32,6 +32,7 @@ This directory holds the **living, versioned** architecture index for the extens
 | `docs/5.3.10-webcodecs-per-chunk-encoding.md` | WebCodecs backbone as-built (§0) |
 | `docs/v5.6.0-audio-decoupling.md` | Audio decoupling + editing/timeline backend + partial-splice contract (§4.2, §13) |
 | `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline visual subtitle editor as-built (v5.8.0) |
+| `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built (v5.9.0) |
 | `src/session/take-manager.ts` (header) | Take lifecycle contract |
 | `claude-progress.md` | Session timeline + release tags |
 
