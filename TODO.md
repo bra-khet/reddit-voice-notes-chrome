@@ -1,17 +1,15 @@
 # TODO
 
-## Current: v5.10.0 — Raw Trim Apply — **CODE COMPLETE / TAGGED `v5.10.0` (2026-07-11); real-browser QA gate OPEN**
+## Current: v5.10.0 — Raw Trim Apply — **SHIPPED · real-browser QA PASS (2026-07-12) · tagged `v5.10.0`**
 
 **Design (as-built):** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md) · **Release notes:** [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md)  
 **Package:** `5.10.0` · **Push:** deferred (user pushes)
 
-Trim keeps the voice: **Apply trim** now also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice work** in the subtitle editor. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean.
-
-**⚠ Before pushing / distributing:** run the real-browser QA checklist in [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md) (focus: trim → Change Voice → audition → re-bake, no desync; raw-leg fallback).
+Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice** work. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean. Real-browser checklist **all PASS** (incl. raw-leg store-mismatch fallback).
 
 ## ▶ Next — **v6.0 "Polish & Visual Maturity"** (unscoped)
 
-Background / bar-style refresh + accumulated micro-interactions/a11y from the v5 arc ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9). Run `/docs-archiving` Refresh #3 after v5.10.0 QA sign-off.
+Background / bar-style refresh + accumulated micro-interactions/a11y from the v5 arc ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9). Optional: run `/docs-archiving` Refresh #3 to archive through v5.10.0.
 
 **Also open (lower priority):** architecture **H13** (acknowledged store writes — v5.10 added a bounds pre-check at the trim raw leg only) · **H8** (recovery voice provenance).
 
@@ -21,7 +19,7 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 | Version | Focus | More |
 |---------|-------|------|
-| **v5.10.0** | Raw WebM trim — post-trim voice re-apply — **tagged** (QA gate open) | [notes](docs/release-notes-v5.10.0.md) |
+| **v5.10.0** | Raw WebM trim — post-trim voice re-apply — **QA PASS · tagged** | [notes](docs/release-notes-v5.10.0.md) |
 | **v5.9.0** | Atomic trim apply — **tagged** | [notes](docs/release-notes-v5.9.0.md) |
 | **v5.8.0** | Timeline visual subtitle editor | [notes](archive/docs/release-notes-v5.8.0.md) |
 | **v5.7.0** | Partial re-bake splice (Phase 2b) — default-on | [notes](archive/docs/release-notes-v5.7.0.md) |

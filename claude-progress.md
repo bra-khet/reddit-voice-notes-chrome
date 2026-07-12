@@ -24,7 +24,7 @@ Authoritative references:
 - Architecture: [`docs/architecture/README.md`](docs/architecture/README.md) — map v2.6, extension-points v1.8, backlog v2.5, ADRs 0001–0005
 - Full shipped ledger: [`docs/HISTORY.md`](docs/HISTORY.md)
 
-## v5.10.0 — Raw Trim Apply (2026-07-11) — **CODE COMPLETE, TAGGED; real-browser QA gate OPEN**
+## v5.10.0 — Raw Trim Apply (2026-07-11 code · **2026-07-12 real-browser QA PASS**) — **SHIPPED / TAGGED**
 
 **As-built:** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md) §10 · **Release notes:** [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md) · **Package:** `5.10.0` · merged `feature/v5.10.0-raw-trim-apply` → `main`, tag `v5.10.0` (push deferred).
 
@@ -34,11 +34,11 @@ Phase 0 gap worth remembering: the planning doc named a nonexistent `saveLastBas
 
 **Verify:** timeline **22** · take-manager **34** · full Node regression sweep green · `npm run build` PASS @ 5.10.0 · `tsc` = 3 documented pre-existing. Docs: map **v2.7**, extension-points **v1.9**, Trace E extended, I19 added.
 
-**⚠ Open gate:** real-browser QA (release notes checklist — trim → Change Voice → audition → re-bake, no desync; raw-leg fallback; regressions) before push/distribution.
+**Real-browser QA (2026-07-12):** **all PASS** — happy-path post-trim Change Voice / re-apply / bake; edges (1s keep, boundary cues, recovery, deck/Download/attach); regressions; **raw-leg fallback** (DevTools wipe of `rvnLastRecording` → trim still succeeds, voice locks honestly). Accepted note: after a manual IDB nuke, full extension reload recreates the DB open path — QA-only, not a product defect. **No post-QA code fixes.**
 
 ### Other open work
 
-1. Run `/docs-archiving` **Refresh #3** after v5.10.0 QA sign-off.
+1. Optional: run `/docs-archiving` **Refresh #3** to archive through v5.10.0.
 2. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9.
 3. Architecture **H13** (persist-before-stamp — v5.10 added a bounds pre-check at the trim raw leg only; the general contract is still open) and **H8** (recovery voice provenance).
 

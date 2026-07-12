@@ -45,21 +45,27 @@ node scripts/test-voice-reapply-plan.mjs && node scripts/test-segment-editor-cli
 npm run build && npx tsc --noEmit       # PASS / clean (3 documented pre-existing)
 ```
 
-## Real-browser QA gate — **OPEN (run before push / distribution)**
+## Real-browser QA sign-off — **PASS (2026-07-12)**
 
-The mediabunny conversion path is WebCodecs (browser-only); automated gates cover everything else. Gate = roadmap §7. Suggested evidence dir: `.ignore/QA-5.10.0/`.
+Windows / Chrome, single machine. Gate = roadmap §7. Evidence: `.ignore/QA-5.10.0/` (gitignored). Automated Node suite + build/tsc already green at tag (timeline 22 · take-manager 34).
 
 | Check | Result |
 |-------|--------|
-| Trim 10s from start/middle/end of a ~60s clip → duration + cue positions vs ghosts | — |
-| **Change Voice / re-apply after apply** (character swap, intensity, Turbo) → audition + bake, no desync, correct length | — |
-| Trimmed recording line in Voice panel (duration/KB/savedAt update) | — |
-| Bake after apply + voice change → full composite, subs + new voice on new timeline | — |
-| 1s minimal keep · trim removing all cues · cues at exact boundaries | — |
-| Recovery after apply + close + re-open editor | — |
-| Deck / Download / attach serve trimmed base (and baked after re-bake) | — |
-| Raw-leg fallback: force a store mismatch → trim succeeds, voice locks honestly (v5.9 behavior) | — |
-| v5.9 trim, partial-splice, browser composite, pre-trim voice re-apply regression | — |
+| Trim 10s from start/middle/end of a ~60s clip → duration + cue positions vs ghosts | **PASS** |
+| **Change Voice / re-apply after apply** (character swap, intensity, Turbo) → audition + bake, no desync, correct length | **PASS** |
+| Trimmed recording line in Voice panel (duration/KB/savedAt update) | **PASS** |
+| Bake after apply + voice change → full composite, subs + new voice on new timeline | **PASS** |
+| 1s minimal keep · trim removing all cues · cues at exact boundaries | **PASS** |
+| Recovery after apply + close + re-open editor | **PASS** |
+| Deck / Download / attach serve trimmed base (and baked after re-bake) | **PASS** |
+| Raw-leg fallback: force a store mismatch → trim succeeds, voice locks honestly (v5.9 behavior) | **PASS** — DevTools delete of `rvnLastRecording` → Apply trim still succeeds; Change Voice / re-apply unavailable (honest lock). See note below. |
+| v5.9 trim, partial-splice, browser composite, pre-trim voice re-apply regression | **PASS** |
+
+### QA observation (accepted — not a product defect)
+Forcing the raw-leg fallback by **manually deleting** the `rvnLastRecording` IndexedDB database in DevTools is a QA-only procedure. After that nuke, a subsequent take could appear storable while voice re-apply still prompted re-record until a **full extension reload** recreated the database open path. Normal users never delete extension IDB by hand; reload restores a healthy store. **No code change.**
+
+### Post-QA code fixes
+None. Docs-only sign-off on already-merged `main` @ `v5.10.0`.
 
 ## Deferred (explicitly out)
 - Full video-track editing / visual trim of the raw WebM (audio-only is the whole need).
