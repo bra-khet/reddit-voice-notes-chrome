@@ -13,7 +13,16 @@ Background / bar-style refresh + accumulated micro-interactions/a11y from the v5
 
 **Also open (lower priority):** architecture **H8** (recovery voice provenance). Optional `/architecture-hardening` when ready.
 
-**H13 — RESOLVED IN CODE (2026-07-12, branch `feature/h13-persist-before-stamp`, awaiting item 7 re-QA + merge):** persist-before-stamp remains green. H13 QA item 7 exposed **BUG-038**: closing the initiating tab dropped a successful Vosk COMPLETE because transcript save/timeout lived in that page. Background now owns terminal transcript persistence + a 125 s watchdog; cancelled/superseded jobs cannot publish. Node: artifact stores **28** · transcribe failure/completion **12** · build PASS · tsc still 2 pre-existing. **Merge gate:** rerun checklist item 7 close/reopen and confirm transcript (or terminal scaffold) arrives.
+## Hardening closed on main (2026-07-12) — **no version bump**
+
+**Branch:** `feature/h13-persist-before-stamp` → **merged to `main`**. Hardening only (not a release). Stable remains **v5.10.0**.
+
+| Item | Outcome |
+|------|---------|
+| **H13** persist-before-stamp | **RESOLVED + browser QA PASS** — `saveLast*` throw on size/IDB failure, return meta; four choke points stamp only from meta. Node **28/28**. |
+| **H14 / BUG-038** tab-close transcript | **RESOLVED + browser QA PASS** — background owns terminal transcript commit + 125 s watchdog; initiating tab may close without dropping success/scaffold. Node **12/12**. |
+
+**Verify:** artifact-store writes 28 · transcribe-failure 12 · take-manager 34 · timeline 22 · build PASS · tsc 2 pre-existing. Push of `main` / tags remains user-owned.
 
 ## Shipped ledger
 
@@ -34,4 +43,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**H13 + BUG-038 code complete (2026-07-12)** — **map v2.10 · extension-points v1.12 · hardening backlog v2.8 · ADRs 0001–0005**. Persist-before-stamp remains enforced; transcribe terminal ownership now survives tab teardown. No new context/store/key/message family/UI. Remaining gate: item 7 browser re-QA. Open architecture: **H8** recovery voice provenance (Med/S); H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS)** — **map v2.11 · extension-points v1.12 · hardening backlog v2.9 · ADRs 0001–0005**. Persist-before-stamp enforced; background owns terminal transcript delivery after tab close. No new context/store/key/message family/UI. **Open:** **H8** recovery voice provenance (Med/S); **H10** deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

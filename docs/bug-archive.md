@@ -1082,7 +1082,7 @@ Vosk itself succeeded. The offscreen worker emitted `MSG_TRANSCRIBE_COMPLETE`, b
 - `scripts/test-transcribe-failure.mjs` — 12/12 (tabless success, timeout scaffold, inference scaffold, cancellation suppression, invalid-payload rejection).
 - `npm run build` — PASS.
 - `npm run compile` — only the same 2 documented pre-existing Studio errors.
-- Real-browser H13 item 7 re-run remains the merge gate.
+- **Real-browser H13 item 7 re-run — PASS (2026-07-12):** transcript (or terminal scaffold) survives closing the initiating tab mid-processing and reopening Studio; cases that previously left Pending forever now deliver. Merged to `main` with H13 (no version bump).
 
 ### Related files
 

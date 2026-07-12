@@ -338,7 +338,7 @@ See `archive/progress/eloquent-branch.md` for full phase plan, `docs/design-stud
 ## Resume in a new chat (carry-forward)
 
 ```
-Transcription/subtitle architecture refreshed through H13 QA hardening on v5.10.0.
+Transcription/subtitle architecture refreshed through H13 + H14/BUG-038 on v5.10.0 (browser QA PASS, merged).
 Vosk: extension page decodes PCM → null-origin sandbox → blob worker; MEMFS per session.
 Capture: Studio or Reddit forks raw-clone STT from offscreen FFmpeg transcode; queues are independent.
 BUG-038: background owns terminal transcript persistence + 125s watchdog; tab close cannot drop success/timeout.
@@ -346,5 +346,5 @@ Default bake: clean base decode → shared painter at exact PTS → Canvas2D ble
 Fallbacks: dual-IVF+FFmpeg → MediaRecorder+FFmpeg → drawtext; all remain supported.
 Eligible re-bakes use verified dirty-GOP splice (I16); any miss runs the full ladder.
 Timeline cue timing is frame-exact (I17); trim preview=APPLY shifts both transcript copies (I18).
-Read docs/architecture/architecture-map.md v2.10 before changing contexts, stores, or pipelines.
+Read docs/architecture/architecture-map.md v2.11 before changing contexts, stores, or pipelines.
 ```

@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.8 · **Updated:** 2026-07-12 · **Reflects:** `feature/h13-persist-before-stamp` on top of tagged `v5.10.0`
+**Version:** v2.9 · **Updated:** 2026-07-12 · **Reflects:** `main` @ tagged `v5.10.0` + H13/H14 hardening (browser QA PASS, merged)
 **Status:** Ranked hardening items for the current standalone editing suite. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.8 (2026-07-12) — **H14 / BUG-038 RESOLVED in code:** terminal transcription persistence and timeout moved from the disposable initiating page to a background job context; success/failure commits precede the ready signal, 125 s watchdog survives tab close, and cancelled/superseded/late jobs cannot publish. `test-transcribe-failure.mjs` 12/12; build PASS; H13 item 7 browser re-run pending. No retry UI/new family/store/key. v2.7 (2026-07-12) — **H13 RESOLVED** in a dedicated sprint: all three single-slot artifact save functions (`saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording`) now throw on unpersistable size + IDB failure and return the authoritative persisted meta; the four mutation choke points (background relay ×3 sites, subtitle bake, voice re-apply, trim apply) stamp/signal only from that meta. New Node suite `test-artifact-store-writes.mjs` (28). R13 mitigation updated; trim raw leg's IDB-failure half of I19 closed. No schema/message/key/UI change; H6 reads untouched. v2.6 (2026-07-12) — incremental refresh after **v5.10.0 raw-WebM trim** real-browser QA PASS. No new hardening item; product follow-up "raw-WebM trim" is **SHIPPED**. **H13 still OPEN** with **partial progress**: `last-recording-db.ts` exports `LAST_RECORDING_MIN/MAX_BYTES` and `trim-apply.ts` pre-checks before stamping (I19) — base/baked save acknowledgment is unchanged. **R16** extended: when the raw leg succeeds the commit window may include a fourth store (`rvnLastRecording`). H8/H10 unchanged. v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
+**Changelog:** v2.9 (2026-07-12) — **H14 / BUG-038 fully closed:** real-browser H13 item 7 re-run **PASS** (transcript/scaffold survives tab close); branch merged to `main` with H13; **no version bump**. Confidence High for the tab-close money path. v2.8 (2026-07-12) — **H14 / BUG-038 RESOLVED in code:** terminal transcription persistence and timeout moved from the disposable initiating page to a background job context; success/failure commits precede the ready signal, 125 s watchdog survives tab close, and cancelled/superseded/late jobs cannot publish. `test-transcribe-failure.mjs` 12/12; build PASS; H13 item 7 browser re-run was then pending. No retry UI/new family/store/key. v2.7 (2026-07-12) — **H13 RESOLVED** in a dedicated sprint: all three single-slot artifact save functions (`saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording`) now throw on unpersistable size + IDB failure and return the authoritative persisted meta; the four mutation choke points (background relay ×3 sites, subtitle bake, voice re-apply, trim apply) stamp/signal only from that meta. New Node suite `test-artifact-store-writes.mjs` (28). R13 mitigation updated; trim raw leg's IDB-failure half of I19 closed. No schema/message/key/UI change; H6 reads untouched. v2.6 (2026-07-12) — incremental refresh after **v5.10.0 raw-WebM trim** real-browser QA PASS. No new hardening item; product follow-up "raw-WebM trim" is **SHIPPED**. **H13 still OPEN** with **partial progress**: `last-recording-db.ts` exports `LAST_RECORDING_MIN/MAX_BYTES` and `trim-apply.ts` pre-checks before stamping (I19) — base/baked save acknowledgment is unchanged. **R16** extended: when the raw leg succeeds the commit window may include a fourth store (`rvnLastRecording`). H8/H10 unchanged. v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -17,7 +17,7 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | H7 | Doc drift: `webCodecsBake` default + storage map | High (cheap) | XS | **Resolved (2026-07-06)** |
 | H11 | Concurrent Studio recordings vs single-slot take | Med-Low | — | **Resolved — user QA, no code needed (2026-07-06)** |
 | H13 | Artifact-store writes must acknowledge persistence before stamps/signals | **High** | S | **Resolved (2026-07-12)** |
-| H14 | Transcribe terminal state must survive initiating-tab teardown (BUG-038) | **High** | S | **Resolved in code (2026-07-12); browser QA pending** |
+| H14 | Transcribe terminal state must survive initiating-tab teardown (BUG-038) | **High** | S | **Resolved (2026-07-12) · browser QA PASS · merged** |
 | H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **Open — not subsumed by TakeVoiceStamp** |
 | H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **Resolved (2026-07-11) — direct runtime broadcast** |
 | H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
@@ -180,14 +180,14 @@ is the user QA gate before merge/tag.
 
 </details>
 
-## H14 — Transcribe terminal state must survive initiating-tab teardown (RESOLVED IN CODE 2026-07-12)
+## H14 — Transcribe terminal state must survive initiating-tab teardown (RESOLVED 2026-07-12 · browser QA PASS)
 
 - **Item / class it kills:** disposable terminal owner — accepted background/offscreen work completes, but the only consumer that can persist success/failure and emit timeout lived in a closable page.
 - **Evidence:** H13 QA item 7 + local logs: offscreen `Transcribe job finished` with 2 segments / 59 chars while Studio never received a row or timeout. BUG-026/032/034 show this relay boundary has repeated race history.
 - **Invariant it protects:** I20/messages+state — after ACK, every non-cancelled terminal outcome must land in `rvnSessionTranscript` before the ready signal regardless of initiating-tab lifetime.
 - **Surgical change:** optional `durationSeconds` on `TranscribeStartRequest`; background job context + 125 s watchdog; pure terminal normalizer; background IDB commit; fail-loud transcript save; page becomes an observer/local cache only.
 - **Blast radius:** transcribe START/COMPLETE lifecycle, background relay, session transcript writer. No new context, message family, store, key, take writer, or visual surface.
-- **Verification hook:** `test-transcribe-failure.mjs` 12/12; production build PASS; real-browser H13 item 7 close/reopen re-run.
+- **Verification:** `test-transcribe-failure.mjs` 12/12; production build PASS; **real-browser H13 item 7 close/reopen PASS (2026-07-12)** — transcript survives tab teardown; merged to `main` with H13 (no version bump).
 - **Out of scope / Non-goals:** no user Retry button, Vosk model/cache changes, transcript/take schema ownership, or transcode recovery refactor. Retry was rejected because Vosk succeeded; it would duplicate healthy work while leaving the owner defect intact.
 
 ## H9 — Composite-stage elimination (Accepted — browser-side full composite via ADR-0003)
@@ -335,14 +335,14 @@ direct-runtime/content-tab split is intentional and working.
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.8 (2026-07-12), feature/h13-persist-before-stamp on tagged v5.10.0.
+Hardening backlog v2.9 (2026-07-12), main @ tagged v5.10.0 + H13/H14 merged (no version bump).
 DONE: H6 stamp verification; H7 doc drift; H9 browser composite default-on;
 H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast;
 H13 persist-before-stamp — all three saveLast* throw on size/IDB failure and return
   persisted meta; four choke points stamp/signal only from it; H6 reads untouched;
-  test-artifact-store-writes.mjs 28; real-browser regression = user QA gate pre-merge.
+  test-artifact-store-writes.mjs 28; browser QA PASS.
 H14 / BUG-038 — background terminal transcript persistence + 125s watchdog; Node 12/12,
-  build PASS; real-browser H13 item 7 close/reopen re-run remains the merge gate.
+  build PASS; real-browser H13 item 7 close/reopen PASS (transcript survives).
 OPEN MED: H8 — interrupted recovery uses resume-time voice; TakeVoiceStamp does not subsume it.
 DEFERRED: H10 fallback observability (user decision); H5 binary/cap restoration.
 Mitigated risks: R13 by H13; R14 splice avcC by I16; R15 List/Timeline draft by captureActiveDraft; R17 by H14.

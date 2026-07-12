@@ -999,7 +999,7 @@ browser-composite subtitle bake with verified partial splice, atomic trim + raw 
 Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18; rawAudio tri-state.
 State: TakeManager owns rvn.take.current; blobs remain in H6-verified single-slot IDB stores.
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
-H13 + BUG-038 code complete: persisted artifacts are acknowledged; background owns terminal transcript delivery after tab close (browser item 7 re-test pending).
+H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
 Open: H8 recovery voice provenance, v6 visual maturity.
-Read docs/architecture/architecture-map.md v2.10 before changing cross-context behavior.
+Read docs/architecture/architecture-map.md v2.11 before changing cross-context behavior.
 ```
