@@ -1,3 +1,5 @@
+> **ARCHIVED DOCUMENT — do not edit.** Captured **2026-07-12** after the v5.10.0 milestone by /docs-archiving Refresh #3. This shipped release record is indexed from [docs/HISTORY.md](../../docs/HISTORY.md).
+
 # Release notes — v5.9.0 **Trim Apply** (atomic clip trimming)
 
 **Tag:** `v5.9.0` · **Date:** 2026-07-11  

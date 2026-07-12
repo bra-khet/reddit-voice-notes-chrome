@@ -347,7 +347,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 5. Host re-seeds every draft/baseline, clears undo, reloads the clip/waveform, and fits the shorter view. The Voice panel's `savedAt`-keyed poll picks up the trimmed recording and **"Apply voice to current take" re-enables** — Change Voice / re-apply run unchanged (`voice-reapply.ts` resolves the trimmed WebM through the same clean-audio H6 door; rendered audio matches the trimmed video duration, no desync).
 6. The next subtitle bake sees a duration change, so `computePartialRebakePlan` returns null and the full chain runs against the trimmed clean base (with whatever voice the user last applied). Download/attach resolve the trimmed base until that bake completes.
 
-**Code verified at:** `trim-apply.ts`, `trim.ts` (`applyTrimToWebM`, `planRawTrimLeg`), `last-recording-db.ts` bounds, `clean-audio-source.ts`, `voice-controls.ts` `refreshApplyAvailability`/`loadRecordingSource`, `session-transcript-db.ts` `replaceSessionTranscriptResults`, `subtitle-segment-editor.ts` `onApplyTrim`, `subtitle-bake.ts` duration guard; v5.9 leg real-browser QA in `release-notes-v5.9.0.md`, v5.10 raw leg QA gate in `docs/v5.10.0-raw-trim-apply-roadmap.md` §7.
+**Code verified at:** `trim-apply.ts`, `trim.ts` (`applyTrimToWebM`, `planRawTrimLeg`), `last-recording-db.ts` bounds, `clean-audio-source.ts`, `voice-controls.ts` `refreshApplyAvailability`/`loadRecordingSource`, `session-transcript-db.ts` `replaceSessionTranscriptResults`, `subtitle-segment-editor.ts` `onApplyTrim`, `subtitle-bake.ts` duration guard; v5.9 leg real-browser QA in `archive/docs/release-notes-v5.9.0.md`, v5.10 raw leg QA gate in `docs/v5.10.0-raw-trim-apply-roadmap.md` §7.
 
 ---
 

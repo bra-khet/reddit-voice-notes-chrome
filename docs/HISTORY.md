@@ -1,12 +1,12 @@
 # Project History — Reddit Voice Notes
 
-**Living milestone index.** Updated **2026-07-12** · Current milestone: **v5.10.0 — Raw Trim Apply (QA PASS)** · Stable: **v5.10.0**.
+**Living milestone index.** Updated **2026-07-12** · Current milestone: **v5.10.0 — Raw Trim Apply (QA PASS)** · Stable: **v5.10.0** · Docs-archiving: **Refresh #3 complete**.
 
 This is the go-to orientation doc: it indexes every major milestone and points to both the **living** documents (current work) and their **archived** history. Read this first when you need to know "what happened before the current feature branch?" — then follow a pointer into [`archive/`](../archive/) only if you need the full detail.
 
-- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — v5.10.0 shipped + open work (v6.0, H13/H8).
-- **Archived progress logs:** [`claude-progress-through-v5.9.0.md`](../archive/progress/claude-progress-through-v5.9.0.md) (v5.8.0 → v5.9.0) · [`claude-progress-pre-v5.8.0.md`](../archive/progress/claude-progress-pre-v5.8.0.md) (v5.7.0 → v5.4.0) · [`claude-progress-pre-v5.4.0.md`](../archive/progress/claude-progress-pre-v5.4.0.md) (v5.3.10 → v1.0.0 MVP).
-- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map v2.7, extension-points v1.9, hardening backlog v2.5, ADRs 0001–0005.
+- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — post-v5.10.0 open work (v6.0, H13/H8).
+- **Archived progress logs:** [`claude-progress-through-v5.10.0.md`](../archive/progress/claude-progress-through-v5.10.0.md) (v5.9.0 → v5.10.0) · [`claude-progress-through-v5.9.0.md`](../archive/progress/claude-progress-through-v5.9.0.md) (v5.8.0 → v5.9.0) · [`claude-progress-pre-v5.8.0.md`](../archive/progress/claude-progress-pre-v5.8.0.md) (v5.7.0 → v5.4.0) · [`claude-progress-pre-v5.4.0.md`](../archive/progress/claude-progress-pre-v5.4.0.md) (v5.3.10 → v1.0.0 MVP).
+- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map v2.7, extension-points v1.9, hardening backlog v2.5, ADRs 0001–0005 *(full re-run deferred after this refresh)*.
 - **Next planned (unshipped):** the **v6.0 "Polish & Visual Maturity"** arc ([`v5.9.0-trim-apply-roadmap.md`](v5.9.0-trim-apply-roadmap.md) §9) — background / bar-style refresh + v5-arc micro-interactions; unscoped until a design doc opens.
 
 ---
@@ -18,7 +18,7 @@ Newest first. **Tag** = git tag on `main`. Docs marked *(archived)* live under [
 | Version | Date | Focus / outcome | Notes |
 |---------|------|-----------------|-------|
 | **v5.10.0** | 2026-07-11 (code) · **2026-07-12 QA** | **Raw Trim Apply** — the raw capture WebM is trimmed with the base MP4 (audio-only, sample-accurate Opus via mediabunny) and `baseRecording` re-stamped in the same atomic apply, so **post-trim voice re-apply / Change Voice work again** (v5.9's voice lock is now only the honest fallback when the raw leg can't run). Zero UI code — the Voice panel re-enables emergently. **Real-browser QA PASS**; **tagged `v5.10.0`** (push deferred). | [`release-notes-v5.10.0.md`](release-notes-v5.10.0.md), [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) |
-| **v5.9.0** | 2026-07-11 | **Atomic Trim Apply** — Apply trim materializes the v5.8 intent: shorter `baseMp4`, cue shift (preview=apply, both transcript copies), H6 re-stamp with `bakedMp4`/`baseRecording` dropped (re-bake + voice lock). Post-QA: Reddit panel transcription promote fix; fractional trim OUT. **Tagged `v5.9.0`**. | [`release-notes-v5.9.0.md`](release-notes-v5.9.0.md), [`v5.9.0-trim-apply-roadmap.md`](v5.9.0-trim-apply-roadmap.md) |
+| **v5.9.0** | 2026-07-11 | **Atomic Trim Apply** — Apply trim materializes the v5.8 intent: shorter `baseMp4`, cue shift (preview=apply, both transcript copies), H6 re-stamp with `bakedMp4`/`baseRecording` dropped (re-bake + voice lock). Post-QA: Reddit panel transcription promote fix; fractional trim OUT. **Tagged `v5.9.0`**. | [`release-notes-v5.9.0.md`](../archive/docs/release-notes-v5.9.0.md) *(archived)*; living: [`v5.9.0-trim-apply-roadmap.md`](v5.9.0-trim-apply-roadmap.md) |
 | **v5.8.0** | 2026-07-10 | **Timeline Visual Subtitle Editor (Phase 3 trim UI)** — flat cue-list modal replaced by a DOM timeline editor: draggable/resizable cue bars, stage-mode + log-zoom + minimap, waveform lane, hysteresis snap + guides, keyboard/undo/multi-select, on-bar smart suggestions, and non-destructive ✂ trim **intent** via `planTrim`. Backend (v5.6/v5.7) unchanged; atomic trim apply deferred. **Tagged `v5.8.0`**. | [`release-notes-v5.8.0.md`](../archive/docs/release-notes-v5.8.0.md) *(archived)*; living: [`v5.8.0-trim-ui-visual-subtitle-editor.md`](v5.8.0-trim-ui-visual-subtitle-editor.md), [`v5.8.0-scope.md`](v5.8.0-scope.md) |
 | **v5.7.0** | 2026-07-08 | **Partial re-bake splice (Phase 2b)** — cue edits re-encode only keyframe-aligned dirty GOPs from the clean base; self-verifying kept-region pixel-equality gate (the avcC hazard); `experimental.partialRebakeSplice` **default-on** after AVC+VP9 single-machine QA. **Tagged `v5.7.0`**. | [`release-notes-v5.7.0.md`](../archive/docs/release-notes-v5.7.0.md) *(archived)*; living: [`v5.6.0-audio-decoupling.md`](v5.6.0-audio-decoupling.md) §4.2/§13, [ADR-0005](architecture/adr/0005-partial-rebake-splice.md) |
 | **v5.6.0** | 2026-07-08 | **Audio decoupling & voice re-apply** — `TakeVoiceStamp`, Dulcet II re-render, stream-copy remux (visuals bit-exact); editing backend scaffolds (timeline, dirty tracker, partial-rebake planner, trim backend). **Tagged `v5.6.0`**. | [`release-notes-v5.6.0.md`](../archive/docs/release-notes-v5.6.0.md) *(archived)*; living: [`v5.6.0-audio-decoupling.md`](v5.6.0-audio-decoupling.md), [ADR-0004](architecture/adr/0004-audio-decoupling-voice-reapply.md) |
@@ -71,7 +71,8 @@ Living documents carry a short **Archive Notice** and link into the archive only
 | Design Studio semantics, preview=bake, storage map | [`design-studio.md`](design-studio.md) |
 | Vosk / transcription / overlay bake paths | [`transcription-architecture.md`](transcription-architecture.md) |
 | Engineering principles & save pathways | [`engineering-principles.md`](engineering-principles.md) |
-| Voice DSP (Dulcet II, in progress) | [`v5-development-roadmap.md`](v5-development-roadmap.md), [`dsp-foundation-design.md`](dsp-foundation-design.md) |
+| Voice DSP (Dulcet II) | [`v5-development-roadmap.md`](v5-development-roadmap.md), [`dsp-foundation-design.md`](dsp-foundation-design.md) |
+| Latest ship (raw trim + post-trim voice) | [`release-notes-v5.10.0.md`](release-notes-v5.10.0.md), [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) |
 | Open issues / future ideas | [`deferred-issues.md`](deferred-issues.md), [`future-ideas.md`](future-ideas.md) |
 | Bug history (`BUG-###`) | [`bug-archive.md`](bug-archive.md) |
 
@@ -80,3 +81,5 @@ Living documents carry a short **Archive Notice** and link into the archive only
 ## Maintenance
 
 Run `/docs-archiving` in **Refresh** mode after the next milestone (tag or major feature). It will snapshot the then-current progress into a new dated `archive/progress/…` file, re-slim the living `claude-progress.md`, repoint any newly-archived references, and add a row to this table. See the skill's Refresh mode for the exact steps.
+
+**Refresh history:** #1 @ v5.8.0 (2026-07-10) · #2 @ v5.9.0 (2026-07-11) · **#3 @ v5.10.0 (2026-07-12)** — progress through v5.10.0 archived; release notes through v5.9.0 archived; living notes = v5.10.0 only.

@@ -1,9 +1,9 @@
 # Design Studio — semantic framework & architecture reference
 
-**Status:** Canonical source of truth for Design Studio behavior, refreshed through **v5.9.0** (2026-07-11). The v3.7 shell history remains below; current capture/edit/bake/trim semantics win.
+**Status:** Canonical source of truth for Design Studio behavior, refreshed through **v5.10.0** (2026-07-12 QA PASS). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
-**Stable tag:** `v5.9.0` · **Restore:** `git checkout v5.9.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.6, seams v1.8, backlog v2.5.
+**Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.7, seams v1.9, backlog v2.5.
 
 ---
 
@@ -153,7 +153,7 @@ pagehide
 
 **Never** put image blobs or transcript cue text in `rvnUserPrefs`.
 
-**Take lifecycle (v5.4→v5.9):** `rvn.take.current` is a snapshot only — blobs stay in the single-slot IDB stores above, referenced by H6-verified `TakeArtifactStamp`s. Additive `voice` provenance and `edits.trim` intent also live in the snapshot. Trim apply replaces the base stamp and deletes stale baked/raw-audio stamps in one TakeManager patch; no `MSG_TAKE_*` family exists (ADR-0002). Artifact stores must persist successfully before callers publish stamps/signals (architecture backlog H13).
+**Take lifecycle (v5.4→v5.10):** `rvn.take.current` is a snapshot only — blobs stay in the single-slot IDB stores above, referenced by H6-verified `TakeArtifactStamp`s. Additive `voice` provenance and `edits.trim` intent also live in the snapshot. Trim apply replaces the base stamp, drops `bakedMp4`, and either re-stamps `baseRecording` (raw WebM cut succeeded) or deletes it (honest v5.9 lock) in one TakeManager patch; no `MSG_TAKE_*` family exists (ADR-0002). Artifact stores must persist successfully before callers publish stamps/signals (architecture backlog H13; v5.10 adds a bounds pre-check on the trim raw leg only).
 
 ### 3.3 Preview = output guarantee
 
@@ -176,7 +176,7 @@ Bottom → top:
 2. **Bars** — waveform + glow/effects (canvas capture at 24 fps on Reddit).
 3. **Subtitles** — post-`base.mp4` composite, never in the live capture RAF. Default: in-page VideoDecoder → shared painter blend → VideoEncoder+mux. Permanent fallbacks: dual-IVF+FFmpeg, MediaRecorder+FFmpeg, then drawtext.
 
-Voice effects apply to the **audio track**, not as a visual layer. Re-apply renders from H6-verified raw WebM and stream-copy remuxes audio under existing video. Atomic trim shortens the base and intentionally drops the raw-audio stamp, locking the carried voice until raw-WebM trim exists.
+Voice effects apply to the **audio track**, not as a visual layer. Re-apply renders from H6-verified raw WebM and stream-copy remuxes audio under existing video. Atomic trim shortens the base and, when possible, trims the raw WebM too (audio-only) so voice re-apply stays available; if the raw leg cannot run, the stamp drops and voice locks honestly (v5.9 fallback).
 
 ### 3.5 Dirty-state taxonomy
 
@@ -466,7 +466,8 @@ Design Studio
   ├─ Poll/load session transcript (Pending → Ready / Timed out / No speech / Failed / Scaffolded)
   ├─ Edit cues in shared List/Timeline draft → Confirm & save (IDB)
   ├─ Style controls → prefs (live preview overlay)
-  ├─ Optional Apply trim → shorter base + both cue copies shift + stale stamps clear
+  ├─ Optional Apply trim → shorter base + both cue copies shift + baked stamp clear
+  │    └─ raw WebM cut when H6-matched (else drop baseRecording → voice lock)
   └─ Bake/re-bake
        ├─ eligible edit → verified partial GOP splice
        └─ full: browser composite (default) → dual-IVF/MediaRecorder FFmpeg fallbacks → drawtext
@@ -496,7 +497,7 @@ The modal has two lossless views over the same host-owned `modalDraft`: **Timeli
 
 **Bake guard:** If panel dirty, bake shows unsaved dialog — Save & bake / Edit transcript / Cancel.
 
-**Timeline + trim (v5.8→v5.9):** cue drags/resizes/nudges frame-snap through `timeline.ts`; the waveform uses the same decoded buffer as cue playback. Trim mode previews the kept window with markers/veils/ghost bars. Save stores non-destructive `edits.trim`; two-click **Apply trim** consumes the live draft, cuts the base, shifts both transcript copies, clears undo, and forces the next subtitle bake to be full.
+**Timeline + trim (v5.8→v5.10):** cue drags/resizes/nudges frame-snap through `timeline.ts`; the waveform uses the same decoded buffer as cue playback. Trim mode previews the kept window with markers/veils/ghost bars. Save stores non-destructive `edits.trim`; two-click **Apply trim** consumes the live draft, cuts the base (and the raw WebM when H6-matched), shifts both transcript copies, clears undo, forces the next subtitle bake to be full, and keeps post-trim voice re-apply available when the raw leg succeeds.
 
 **Scaffolding mode (v5.3):** when delivery status ∈ {`no-speech`, `failed`, `scaffolded`} the editor shows a magenta "Scaffolding mode" banner + **Scaffold** badge and preserves empty timed slots through edits (`normalizeEditedTranscriptResult(..., { keepEmptyTimedSegments })`) — empty slots bake to nothing (skipped by `usableSegments`). Filling a slot and saving clears the red state (delivery re-resolves to `ready`). Empty slots use a soft hyphen (`­`, U+00AD) so they survive `.trim()`-based emptiness filters; everything blank-aware uses `cueTextIsBlank` / `stripScaffoldPlaceholder`.
 
@@ -542,7 +543,7 @@ Progress/failure from offscreen must reach Reddit tab via `relay-registry.ts` se
 | `src/utils/text-metrics.ts` | Canvas width measurer + greedy word grouping (Smart Split / overflow badge) |
 | `subtitle-bake.ts` / `subtitle-canvas-bake.ts` | Splice gate + full browser/FFmpeg fallback ladder |
 | `src/composite/browser-composite.ts` / `composite-splice.ts` | Default full composite + verified partial re-bake |
-| `src/editing/trim-apply.ts` / `trim.ts` | H6 base mutation + preview-identical cue shift |
+| `src/editing/trim-apply.ts` / `trim.ts` | H6 base + raw WebM mutation + preview-identical cue shift |
 | `src/ffmpeg/burnin-client.ts` / `subtitle-burnin.ts` | Offscreen FFmpeg composite/drawtext fallbacks |
 | `src/storage/session-transcript-db.ts` | Dual-copy transcript persistence + destructive re-base on trim |
 
@@ -897,6 +898,8 @@ reddit.com).
 | `docs/v5.6.0-audio-decoupling.md` | Voice provenance/re-apply + edit/splice contracts |
 | `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline editor as-built |
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
+| `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
+| `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |
 | `archive/docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
 | `archive/docs/release-notes-v3.7.0.md` | v3.7 v4 UI shell (hero, cards, sub-panels, preview bezel) |
@@ -988,12 +991,12 @@ src/workflow/
 ## Resume in a new chat (carry-forward)
 
 ```
-Design Studio canonical semantics refreshed through tagged v5.9.0.
+Design Studio canonical semantics refreshed through tagged v5.10.0 (QA PASS 2026-07-12).
 Primary surface: native capture + live canvas, voice audition/re-apply, List/Timeline cues,
-browser-composite subtitle bake with verified partial splice, atomic trim, take deck/download.
-Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18.
+browser-composite subtitle bake with verified partial splice, atomic trim + raw WebM cut, take deck/download.
+Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18; rawAudio tri-state.
 State: TakeManager owns rvn.take.current; blobs remain in H6-verified single-slot IDB stores.
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
-Open: H13 persisted-write acknowledgment, H8 recovery voice provenance, raw-WebM trim, v6 visual maturity.
-Read docs/architecture/architecture-map.md v2.6 before changing cross-context behavior.
+Open: H13 persisted-write acknowledgment, H8 recovery voice provenance, v6 visual maturity.
+Read docs/architecture/architecture-map.md v2.7 before changing cross-context behavior.
 ```

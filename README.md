@@ -31,8 +31,9 @@ extension (or paste one back out). It's a self-contained Vite app in
 
 ## Status
 
-**Current `main` v5.9.0 — Atomic Trim Apply** (2026-07-11) — **Apply trim** now makes the previewed cut real: it creates a shorter base MP4, shifts subtitle cues onto the new timeline, re-stamps the Take atomically, and invalidates stale baked/raw-audio artifacts so the next bake is correct. This completes the v5.6.0–v5.9.0 editing arc: clean-audio voice re-apply, partial re-bake splice, the visual timeline editor, and atomic trim apply. Design Studio remains the standalone recording suite (live WYSIWYG capture, Take lifecycle, Reddit attach). Full release notes: `docs/release-notes-v5.9.0.md`.
+**Current `main` v5.10.0 — Raw Trim Apply** (code 2026-07-11 · **real-browser QA PASS 2026-07-12**) — **Apply trim** cuts the raw capture WebM with the base MP4 (audio-only, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write, so **post-trim voice re-apply / Change Voice work again**. Raw-leg failure demotes honestly to the v5.9 voice lock. Completes the v5.6.0–v5.10.0 editing arc: clean-audio voice re-apply → partial re-bake splice → visual timeline editor → atomic trim → raw-WebM trim. Design Studio remains the standalone recording suite. Full release notes: [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md).
 
+**v5.9.0** — Atomic trim apply: shorter base MP4, cue shift (preview=apply), H6 re-stamp; post-trim voice was locked until v5.10.  
 **v5.8.0** — Timeline visual subtitle editor with waveform, stage zoom, keyboard/undo/multi-select, smart suggestions, and trim preview.
 **v5.7.0** — Partial re-bake splice: cue edits re-encode only the changed keyframe-aligned regions (default-on).  
 **v5.6.0** — Audio decoupling + voice re-apply (visuals bit-exact) + editing/timeline backend.  
