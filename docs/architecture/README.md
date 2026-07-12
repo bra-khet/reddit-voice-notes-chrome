@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.9.0` · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-11 · **Reflects:** `main` @ tagged `v5.9.0` · **Full pass:** map v2.6 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,9 +12,9 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: contexts, diagrams (take lifecycle + **re-bake splice sub-path**), first-class concerns, invariants I1–I17, confidence ledger, money-path traces (incl. cue-edit → splice and atomic trim apply) | v2.5 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: voice effects, subtitle effects, fonts, message pipelines (v2), storage, theme, Studio surfaces, live-mic preview, overlay encoding backbone, take lifecycle (H6), Studio capture host, audio editing / voice re-apply, **partial re-bake splice**, **timeline cue editor**, and **atomic trim apply** | v1.7 |
-| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening items (H6/H7/H9/H11 resolved; H8/H12 carried; H10 deferred) + **risk register** for the WebCodecs / canvas / splice paths | v2.4 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I18, confidence ledger, and five money-path traces through atomic trim | v2.6 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: voice/subtitle/font, message/query, storage, Studio/capture, browser/fallback composite, take/audio editing, verified splice, timeline, and atomic trim | v1.8 |
+| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H13 persistence acknowledgment + H8 recovery voice open; H12 resolved; H10 deferred; risks through v5.9 trim | v2.5 |
 | `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) (Accepted, v5.3.10) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) (Accepted, v5.4.0) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) (Accepted, v5.5.0) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) (Accepted, v5.6.0) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) (Accepted, v5.7.0 — execution behind flag, **default on**) | — |
 
 ---
@@ -23,8 +23,8 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | Doc | Owns |
 |-----|------|
-| `docs/design-studio.md` | Studio semantics, preview=bake, dirty layers, storage map (§3.2 incl. `rvn.take.current`), outbound index (§12) |
-| `docs/transcription-architecture.md` | Vosk sandbox CSP stack, canvas overlay + WebCodecs bake paths, strategy/fallback table |
+| `docs/design-studio.md` | Studio semantics through v5.9: native capture, preview=bake, timeline/trim, dirty layers, storage map, outbound index |
+| `docs/transcription-architecture.md` | Vosk sandbox CSP stack + current browser-composite / FFmpeg fallback bake ladder |
 | `docs/engineering-principles.md` | Semantic health, save pathways, ImageDB, pipeline-native effects |
 | `docs/bug-archive.md` | `BUG-###` history (Phase-3 raw material) |
 | `docs/v4-development-principles.md` | Branch model, compositing, WASM queues, sprint hygiene |
@@ -48,6 +48,7 @@ This directory holds the **living, versioned** architecture index for the extens
 - A bug class from `docs/bug-archive.md` recurs — indicates a systemic gap.
 - Before any major refactor (prefs, relay, offscreen lifecycle, TakeManager writers).
 - Before pushing / tagging a release: confirm map version reflects the tag.
+- Any artifact save function changing caps/error behavior: re-check H13's persist-before-stamp contract.
 
 ## Version policy
 
@@ -62,3 +63,16 @@ This directory holds the **living, versioned** architecture index for the extens
 - Each diagram has one sentence above (what it shows + what to verify it against) and the invariant(s) it encodes below.
 - Every living doc ends with a carry-forward block for cold-session re-seeding.
 - All ADRs use `adr/NNNN-short-title.md` (zero-padded, incrementing — 0006 is next).
+
+## Resume in a new chat (carry-forward)
+
+```
+architecture-hardening resume.
+Repo: Reddit Voice Notes, main @ tagged v5.9.0. Architecture map v2.6.
+Six contexts unchanged; primary subtitle bake is direct browser composite, with permanent FFmpeg fallbacks.
+Editing arc ends at atomic trim: preview=APPLY, dual cue shift, stale baked/raw-audio stamps cleared.
+Open hardening: H13 acknowledged artifact persistence (High/S); H8 recovery voice provenance (Med/S).
+H12 Studio progress delivery is resolved as direct runtime broadcast + tab-relay suppression.
+Risks: R14 verified splice, R15 two-view draft, R16 narrow trim multi-store commit window.
+Read architecture-map.md, extension-points.md v1.8, hardening-backlog.md v2.5.
+```

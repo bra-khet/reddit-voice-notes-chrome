@@ -21,7 +21,7 @@ Authoritative references:
 
 - As-built design: [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §10
 - Release notes: [`docs/release-notes-v5.9.0.md`](docs/release-notes-v5.9.0.md)
-- Architecture: [`docs/architecture/README.md`](docs/architecture/README.md) — map v2.5, extension-points v1.7, backlog v2.4, ADRs 0001–0005
+- Architecture: [`docs/architecture/README.md`](docs/architecture/README.md) — map v2.6, extension-points v1.8, backlog v2.5, ADRs 0001–0005
 - Full shipped ledger: [`docs/HISTORY.md`](docs/HISTORY.md)
 
 ## Open work
@@ -29,5 +29,14 @@ Authoritative references:
 1. **Trim the raw capture WebM** so post-trim voice changes can be restored without desynchronizing audio and video.
 2. Consider unique **voice locked after trim** copy only if the current gray-out UX is reworked; present behavior is correct.
 3. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9.
+
+## Architecture hardening — full v5.9.0 refresh (2026-07-11)
+
+All four `/architecture-hardening` phases completed against `main` @ tagged `v5.9.0`. Living artifacts: map **v2.6**, extension points **v1.8**, backlog **v2.5**; canonical Studio/transcription owners were corrected in place. No new context, message family, store, writer, or ADR.
+
+- **H13 OPEN (High/S):** base/baked store writes must return persisted metadata or throw before callers publish stamps/signals.
+- **H8 OPEN (Med/S):** interrupted recovery still uses resume-time voice; `TakeVoiceStamp` lands only after successful transcode and does not subsume this.
+- **H12 RESOLVED:** Studio pipeline progress is the direct offscreen runtime broadcast; background skip-tab maps suppress only the Reddit relay duplicate.
+- **R16:** atomic trim's final base/transcript/take writes span independent stores; the superseded guard + H6 protect the base, while transcript ownership remains a narrow concurrency risk to monitor.
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. Start any implementation as its own sprint/branch; re-run `/architecture-hardening` before a major refactor or a new execution context, message family, storage class, or pipeline.

@@ -1,21 +1,21 @@
 # Design Studio — semantic framework & architecture reference
 
-**Status:** Canonical source of truth for Design Studio behavior (v3.7.0 / `eloquent`, 2026-06-23).  
+**Status:** Canonical source of truth for Design Studio behavior, refreshed through **v5.9.0** (2026-07-11). The v3.7 shell history remains below; current capture/edit/bake/trim semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
-**Stable tag:** `v3.7.0` · **Restore:** `git checkout v3.7.0 && npm install && npm run dev`  
-**Prior stable:** `v3.6.0` (subtitle pipeline; pre–v4 UI shell)
+**Stable tag:** `v5.9.0` · **Restore:** `git checkout v5.9.0 && npm install && npm run dev`
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.6, seams v1.8, backlog v2.5.
 
 ---
 
 ## 1. Product framing
 
-Design Studio is the **primary product surface** of Reddit Voice Notes. The Reddit recorder is the capture and delivery shell; Studio is where users personalize clips, preview output, edit transcripts, and bake captions.
+Design Studio is the **primary product surface** of Reddit Voice Notes: native capture, personalization, preview, transcript/timeline editing, voice re-apply, subtitle bake, trim apply, and download. The Reddit recorder remains a quick capture surface and the native composer attach target.
 
 Treat Design Studio as a **self-contained suite** (extension-origin app) that:
 
 - Owns all clip-appearance state and preview fidelity.
 - Persists named profiles and custom styles.
-- Orchestrates voice-effect preview and subtitle edit→bake workflows.
+- Orchestrates capture, voice-effect preview/re-apply, subtitle edit→bake, partial re-bake, and atomic trim workflows.
 - Pushes live prefs to the recorder via `chrome.storage.local` — no separate “apply” step.
 
 Future UI refreshes must preserve the **semantic contracts** in this document even when layout, components, or styling change.
@@ -27,17 +27,17 @@ The extension's UX is framed as a deliberate 3-phase creative workflow. Use this
 | Phase | Tab | Description |
 |-------|-----|-------------|
 | **Phase 1: Design** | Design Studio | Choose clip style, voice effects, background, subtitle style. |
-| **Phase 2: Capture** | Reddit tab | Record voice inside the comment composer. |
+| **Phase 2: Capture** | Design Studio or Reddit tab | Record natively in Studio (primary) or inside the composer (quick path). |
 | **Phase 3: Polish & Bake** | Design Studio | Review/edit subtitles, bake captions into MP4, finalize. |
 
 **Shared state key:** `rvn.workflow.phase` in `chrome.storage.local` (`'design' | 'capture' | 'polish'`). This carries the user's *intent* phase cross-tab. Authoritative recording/transcript state remains in IDB and subtitle controls as before.
 
 **Phase transitions (automatic):**
-- Design Studio "Switch to Reddit" CTA → sets `'capture'`
-- Recorder panel recording stops → sets `'polish'`
+- Studio/Reddit Record entry → sets `'capture'`
+- Either recorder surface stopping → sets `'polish'`
 - Banner auto-promotes to Phase 3 UI when `hasSessionRecording()` is true, regardless of stored phase
 
-**Helpful one-liner for UI copy:** "Recording happens inside Reddit for a native feel. Design and post-production happen here in the Studio for full controls and real-time preview."
+**Helpful one-liner for UI copy:** "Design, record, edit, and finish in Studio—or use Reddit for quick capture and final attachment."
 
 ### 1.1 Entry points
 
@@ -55,7 +55,7 @@ Opening from Reddit uses `MSG_OPEN_DESIGN_STUDIO` → background `tabs.create` (
 |----------|-------|
 | Origin | `chrome-extension://<id>` (extension page) |
 | CSP | `extension_pages` — `script-src 'self' 'wasm-unsafe-eval'`; **no** `unsafe-eval` |
-| WASM in Studio | **None** — FFmpeg/Vosk run in offscreen doc only |
+| Heavy media in Studio | Browser composite / splice / remux use mediabunny + WebCodecs in page; voice audition/re-apply lazy-loads ffmpeg.wasm. Capture transcode and Vosk remain background→offscreen/sandbox pipelines |
 | IndexedDB | Extension-origin stores (`rvnImageDb`, `rvnLastRecording`, `rvnSessionTranscript`, etc.) |
 | Reddit page | Content script cannot read extension IDB; relays via background |
 
@@ -146,27 +146,27 @@ pagehide
 | `chrome.storage.local` | `rvn.workflow.phase` | 3-phase intent: `'design' \| 'capture' \| 'polish'` | Workflow banner (boot + listener) | Banner CTA, recorder stop |
 | `chrome.storage.local` | `rvn.take.current` | v5.4.0 current-take snapshot: status/source/meta + artifact stamps — **never blobs** | Current Take deck + recovery (boot + `storage.onChanged` via TakeManager subscription) | TakeManager only (`src/session/take-manager.ts`): recorder-session transitions, background artifact stamps, bake promotion |
 | IndexedDB | `rvnImageDb` | Personal background blobs | Direct (extension origin) | Upload/delete UI |
-| IndexedDB | `rvnLastRecording` | Last WebM for voice preview | Voice controls | — (recorder relay) |
+| IndexedDB | `rvnLastRecording` | Last raw capture WebM (`baseRecording`) | Voice controls, recovery, timeline audio source | — (capture relay/background) |
 | IndexedDB | `rvnSessionTranscript` | Vosk + edited transcript | Subtitle controls | Confirm & save |
-| IndexedDB | `rvnLastBaseMp4` | Transcoded base for bake | Bake | — (recorder relay) |
-| IndexedDB | `rvnLastBakedMp4` | Burned MP4 output | — | Bake |
+| IndexedDB | `rvnLastBaseMp4` | Clean/current base MP4 for bake | Bake, trim apply, voice re-apply | Capture relay/background; trim and voice mutation orchestrators |
+| IndexedDB | `rvnLastBakedMp4` | Burned/composited MP4 output | Partial splice, voice re-apply, Download | Bake / re-apply |
 
 **Never** put image blobs or transcript cue text in `rvnUserPrefs`.
 
-**Take lifecycle (v5.4.0):** `rvn.take.current` is a snapshot only — blobs stay in the single-slot IDB stores above, referenced by `TakeArtifactStamp` freshness stamps. The authoritative contract (writers, stale-transient demotion, stamp semantics) is the header of `src/session/take-manager.ts`; cross-context sync is `storage.onChanged`, deliberately **not** a message family (ADR-0002 in `docs/architecture/adr/`).
+**Take lifecycle (v5.4→v5.9):** `rvn.take.current` is a snapshot only — blobs stay in the single-slot IDB stores above, referenced by H6-verified `TakeArtifactStamp`s. Additive `voice` provenance and `edits.trim` intent also live in the snapshot. Trim apply replaces the base stamp and deletes stale baked/raw-audio stamps in one TakeManager patch; no `MSG_TAKE_*` family exists (ADR-0002). Artifact stores must persist successfully before callers publish stamps/signals (architecture backlog H13).
 
 ### 3.3 Preview = output guarantee
 
-The **single** Live preview canvas uses `renderThemePreview()` with the same inputs the recorder canvas uses for video pixels:
+The **single** Live preview canvas uses `renderThemePreview()` with the same inputs the recorder canvas uses for capture pixels. During Studio-native recording, the hero receives the actual `WaveformRenderer` canvas that `captureStream()` encodes—zero-copy WYSIWYG.
 
 - Resolved theme + `designOverrides`
 - `barAlignment`
 - Personal background id + layout (Studio reads ImageDB directly)
-- Subtitle overlay options from `subtitleControls.getPreviewOptions()`
+- Subtitle overlay options from `subtitleControls.getPreviewOptions()`; offline bake reuses `createOverlayFramePainter`
 
 Animated preview (bokeh, sparkle) runs at 12 fps RAF unless `shouldReduceMotion(prefs)`.
 
-**Invariant:** If it appears in Live preview, the export path must be able to reproduce it — either in the canvas transcode (`base.mp4`) or the subtitle burn-in pass (`final.mp4`).
+**Invariant:** If it appears in Live preview, the export path must reproduce it—either in the captured base canvas or the post-base subtitle painter/fallback. Timeline cue edits snap to the painter frame grid (I17). Trim ghosts and destructive apply share the same cue projection, so trim preview = applied result (I18).
 
 ### 3.4 Compositing layers (final MP4)
 
@@ -174,9 +174,9 @@ Bottom → top:
 
 1. **Background** — theme gradient/SVG/bokeh + optional personal image.
 2. **Bars** — waveform + glow/effects (canvas capture at 24 fps on Reddit).
-3. **Subtitles** — FFmpeg drawtext burn-in on `base.mp4` (never in canvas RAF).
+3. **Subtitles** — post-`base.mp4` composite, never in the live capture RAF. Default: in-page VideoDecoder → shared painter blend → VideoEncoder+mux. Permanent fallbacks: dual-IVF+FFmpeg, MediaRecorder+FFmpeg, then drawtext.
 
-Voice effects apply to the **audio track** in the transcode pass (`-af`), not as a visual layer.
+Voice effects apply to the **audio track**, not as a visual layer. Re-apply renders from H6-verified raw WebM and stream-copy remuxes audio under existing video. Atomic trim shortens the base and intentionally drops the raw-audio stamp, locking the carried voice until raw-WebM trim exists.
 
 ### 3.5 Dirty-state taxonomy
 
@@ -431,7 +431,7 @@ authoritative path (`resolveVoiceGraph` → `processAudioWithGraph` → one shar
 **Panel id:** `data-studio-panel="subtitles"`  
 **Summary:** `formatSubtitleSummary` — e.g. `On · bottom · 22px` or `Off`.
 
-This section is the largest integrated subsystem: prefs + session IDB + offscreen Vosk + FFmpeg burn-in + recorder relay.
+This section is the largest integrated subsystem: prefs + dual-copy session IDB + offscreen Vosk + List/Timeline editor + browser/FFmpeg bake ladder + partial splice + atomic trim.
 
 ### 7.1 Controls inventory
 
@@ -458,16 +458,19 @@ This section is the largest integrated subsystem: prefs + session IDB + offscree
 ### 7.2 End-to-end pipeline
 
 ```
-stopRecording() [Reddit]
+stopRecording() [Studio or Reddit]
   ├─ transcode → base.mp4 → mp4Blob + relay to rvnLastBaseMp4
   └─ fork transcribe (if subtitles on) → Vosk → relay to rvnSessionTranscript
 
 Design Studio
   ├─ Poll/load session transcript (Pending → Ready / Timed out / No speech / Failed / Scaffolded)
-  ├─ Edit cues in modal → Apply to preview → Confirm & save (IDB)
+  ├─ Edit cues in shared List/Timeline draft → Confirm & save (IDB)
   ├─ Style controls → prefs (live preview overlay)
-  └─ Bake → MSG_BURNIN_* → offscreen FFmpeg drawtext → rvnLastBakedMp4
-       └─ BAKED_MP4_READY_KEY → recorder applyBakedMp4()
+  ├─ Optional Apply trim → shorter base + both cue copies shift + stale stamps clear
+  └─ Bake/re-bake
+       ├─ eligible edit → verified partial GOP splice
+       └─ full: browser composite (default) → dual-IVF/MediaRecorder FFmpeg fallbacks → drawtext
+            └─ rvnLastBakedMp4 + BAKED_MP4_READY_KEY + take='baked'
 ```
 
 Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not block the progress bar.
@@ -477,6 +480,8 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 **Delivery status taxonomy** (`TranscriptDeliveryStatus` in `subtitle-segment-editor.ts`): `idle · pending · ready · timeout · failed · no-speech · scaffolded`. The last three short-circuit the 120 s pending timer.
 
 ### 7.3 Segment editor (YouTube-style)
+
+The modal has two lossless views over the same host-owned `modalDraft`: **Timeline** (default professional surface) and **List** (legacy precise form). `captureActiveDraft()` reads List DOM only while List is active; Timeline writes directly to the draft. This is the source-of-truth invariant behind multi-select, undo/redo, waveform, smart suggestions, and trim.
 
 | State | Location | Meaning |
 |-------|----------|---------|
@@ -491,6 +496,8 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 **Bake guard:** If panel dirty, bake shows unsaved dialog — Save & bake / Edit transcript / Cancel.
 
+**Timeline + trim (v5.8→v5.9):** cue drags/resizes/nudges frame-snap through `timeline.ts`; the waveform uses the same decoded buffer as cue playback. Trim mode previews the kept window with markers/veils/ghost bars. Save stores non-destructive `edits.trim`; two-click **Apply trim** consumes the live draft, cuts the base, shifts both transcript copies, clears undo, and forces the next subtitle bake to be full.
+
 **Scaffolding mode (v5.3):** when delivery status ∈ {`no-speech`, `failed`, `scaffolded`} the editor shows a magenta "Scaffolding mode" banner + **Scaffold** badge and preserves empty timed slots through edits (`normalizeEditedTranscriptResult(..., { keepEmptyTimedSegments })`) — empty slots bake to nothing (skipped by `usableSegments`). Filling a slot and saving clears the red state (delivery re-resolves to `ready`). Empty slots use a soft hyphen (`­`, U+00AD) so they survive `.trim()`-based emptiness filters; everything blank-aware uses `cueTextIsBlank` / `stripScaffoldPlaceholder`.
 
 **Cue actions (v5.3):**
@@ -502,9 +509,9 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 | Aspect | Preview | Bake |
 |--------|---------|------|
-| Text | `getPreviewOptions()` — flat `previewText()` today* | Per-segment `textfile=` drawtext |
-| Style | `subtitle-effects.ts` layering | `subtitle-burnin.ts` same layer order |
-| Glow/border/backdrop | Canvas overlay (`single` ring) | FFmpeg drawtext duplicates (`single`/`min` ring) |
+| Text/timing | Segment player + Timeline use the current cue draft | Shared painter evaluates the same cues at decoded frame PTS; drawtext uses per-cue `textfile=` only as last fallback |
+| Style | `subtitle-effects.ts` + preview canvas | Primary browser composite uses `createOverlayFramePainter`; fallback tiers declare reduced parity |
+| Glow/border/backdrop | Canvas painter | Same painter on primary path; bounded drawtext duplicates on final fallback |
 
 **Subtitle effects (v3.6.1+):** Drop shadow removed (theme glow covers contrast). Glow modes: **halo** (soft, opacity slider) or **border** (solid 1 px ring, no alpha). **Special hue** is one shared `specialHue` field for both text and glow when either selects `special`.
 
@@ -515,11 +522,9 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 
 Border mode ignores ring density (fixed 8-neighbour ring).
 
-**Burn-in filtergraph budget (BUG-035):** `buildBurnInStrategies` builds tiers `drawtext-glow` → `drawtext-glow-min` → `drawtext-plain`, dedupes, and keeps those within `MAX_BURNIN_DRAWTEXT_LAYERS = 64` (richest-in-budget first). `burnInWithStrategies` reloads a fresh wasm instance per tier, so a tier that still OOMs degrades instead of hard-failing. Halo now bakes for ~10 cues instead of crashing/dropping at 4. Empty scaffold slots are excluded from the graph.
+**Drawtext fallback budget (BUG-035):** `buildBurnInStrategies` builds tiers `drawtext-glow` → `drawtext-glow-min` → `drawtext-plain`, dedupes, and keeps those within `MAX_BURNIN_DRAWTEXT_LAYERS = 64`. This is fallback behavior; rich default bakes use the shared canvas painter and do not build a per-cue drawtext graph.
 
 **Rainbow removed (v5.3):** the former `specialHueRainbow` animated hue (and its bake-time 0.25 s `fontcolor` slicing) is gone — low value and the dominant drawtext multiplier. Bake colors are static per cue.
-
-\*Segment-aware timed preview on canvas is **open** (eloquent-4b) — preview may lag bake until implemented.
 
 ### 7.5 Offscreen relay (BUG-032)
 
@@ -530,14 +535,16 @@ Progress/failure from offscreen must reach Reddit tab via `relay-registry.ts` se
 | File | Role |
 |------|------|
 | `subtitle-controls.ts` | Panel orchestration, bake, prefs debounce, delivery-status resolve |
-| `subtitle-segment-editor.ts` | Cue list, modal, badges, scaffold/Smart Split/delete actions |
+| `subtitle-segment-editor.ts` | Host-owned draft, List/Timeline switch, undo, suggestions, trim apply orchestration |
+| `subtitle-timeline-editor.ts` / `timeline-geometry.ts` / `waveform-peaks.ts` | Visual timeline UI + pure frame/snap/trim/waveform math |
 | `src/transcription/transcript-editing.ts` | Pure cue helpers: scaffold, `splitSegmentIntoChunks`, blank/soft-hyphen |
 | `src/transcription/transcribe-failure.ts` | Classify Vosk outcome → failure type (graceful failure) |
 | `src/utils/text-metrics.ts` | Canvas width measurer + greedy word grouping (Smart Split / overflow badge) |
-| `subtitle-bake.ts` | Load base MP4, call burn-in client |
-| `src/ffmpeg/burnin-client.ts` | MSG_BURNIN_* client |
-| `src/ffmpeg/subtitle-burnin.ts` | drawtext strategies, layer budget + degradation chain |
-| `src/storage/session-transcript-db.ts` | Transcript persistence (`error`, `isScaffolded`) |
+| `subtitle-bake.ts` / `subtitle-canvas-bake.ts` | Splice gate + full browser/FFmpeg fallback ladder |
+| `src/composite/browser-composite.ts` / `composite-splice.ts` | Default full composite + verified partial re-bake |
+| `src/editing/trim-apply.ts` / `trim.ts` | H6 base mutation + preview-identical cue shift |
+| `src/ffmpeg/burnin-client.ts` / `subtitle-burnin.ts` | Offscreen FFmpeg composite/drawtext fallbacks |
+| `src/storage/session-transcript-db.ts` | Dual-copy transcript persistence + destructive re-base on trim |
 
 ---
 
@@ -585,11 +592,15 @@ Chips are HTML fragments built in `studio-section-summaries.ts` — not plain te
 |------------------|-----------|---------|
 | `MSG_OPEN_DESIGN_STUDIO` | Recorder → background | Open studio tab |
 | `onUserPreferencesChanged` | storage → recorder | Live theme/voice/alignment |
-| `MSG_BURNIN_*` | Studio → offscreen | Subtitle bake |
-| `MSG_TRANSCRIBE_*` | Recorder → offscreen | Parallel STT (not Studio-initiated) |
+| `MSG_TRANSCODE_*` / `MSG_TRANSCRIBE_*` | Studio or Reddit → offscreen | Shared capture conversion + parallel raw-audio STT |
+| `MSG_BURNIN_*` | Studio → offscreen | FFmpeg subtitle fallback tiers (default browser composite bypasses it) |
+| `MSG_QUERY_TRANSCODE_INFLIGHT` | Studio → background | Idempotent recovery query |
+| `rvn.take.current` + `storage.onChanged` | TakeManager ↔ all contexts | Lifecycle/artifact/voice/edit state; deliberately not a message family |
 | `LAST_RECORDING_READY_KEY` | Recorder → storage | Voice preview refresh |
 | `SESSION_TRANSCRIPT_READY_KEY` | Background → storage | Transcript poll |
 | `BAKED_MP4_READY_KEY` | Studio → storage | Recorder apply captioned MP4 |
+
+Studio pipeline clients receive offscreen progress directly on `runtime.onMessage`; background `*SkipTabRelayByJobId` maps prevent a duplicate `tabs.sendMessage` to Reddit (architecture H12, resolved).
 
 ---
 
@@ -854,14 +865,13 @@ reddit.com).
 
 | Item | Section | Notes |
 |------|---------|-------|
-| 3-phase workflow banner | Shell | `workflow-phase-banner.ts` wired; `rvn.workflow.phase` key live |
-| Segment-aware canvas preview | Subtitles | `previewText()` flat today |
-| Rainbow speed / slice fineness | Subtitles | Tunable `RAINBOW_CYCLES_PER_SECOND` + `RAINBOW_BAKE_SLICE_SECONDS`; user slider optional |
-| In-Studio recording | Shell / Voice | **Shipped v5.4.0** (Design Studio First) — native capture host + live WYSIWYG in hero; Reddit is attach/output target. See claude-progress + architecture map. |
+| Trim raw capture WebM | Voice / Timeline | Restores post-trim voice re-apply; current v5.9 behavior intentionally locks voice by clearing `baseRecording` stamp |
+| Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
+| Recovery voice provenance | Capture / Recovery | Architecture H8: interrupted draft resumes with current prefs because completion stamp does not exist yet |
+| v6 visual maturity | Shell / Background | Theme/background/elevation/reduced-motion audit after the functional editing arc |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
-| Chunked base-MP4 relay | Subtitles | If large-clip bake fails |
 | Legacy `transcriptConfig` on profiles | Subtitles / Profile | Update profile once embeds style |
 | ~~Section tabs vs `<details>`~~ | Shell | **Done v3.7** — hero + 1×4 cards + sub-panels |
 | ~~Unified sub-panel exit guard~~ | Shell | **Done v3.7** — `studio-subpanel-guard.ts` |
@@ -883,6 +893,10 @@ reddit.com).
 | `archive/docs/eloquent-4-handoff.md` | Subtitle bake QA, BUG-025…032 |
 | `docs/eloquent-profile-handoff.md` | Prefs race rules, BUG-021…024 |
 | `docs/transcription-architecture.md` | Vosk sandbox CSP stack (Studio §7 integration) |
+| `docs/v5.5.0-browser-composite-migration.md` | Default in-page subtitle composite and fallbacks |
+| `docs/v5.6.0-audio-decoupling.md` | Voice provenance/re-apply + edit/splice contracts |
+| `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline editor as-built |
+| `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/bug-archive.md` | Full bug write-ups |
 | `archive/docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
 | `archive/docs/release-notes-v3.7.0.md` | v3.7 v4 UI shell (hero, cards, sub-panels, preview bezel) |
@@ -900,7 +914,7 @@ reddit.com).
 
 ### 13.1 Temporal subtitle effects (tack-ons)
 
-> **Note (v5.3):** the shipped rainbow pulse was **removed** (low value, dominant drawtext multiplier — see §7.4 / BUG-035). The rainbow-slice rows below are retained as historical reference should expressive/temporal color ever be revisited via a different burn path.
+> **Historical note:** rainbow pulse was removed in v5.3. Segment-aware cue preview/timeline shipped in v5.8, and the default bake now uses the shared painter. The rows below are retained only as design history for future temporal effects.
 
 | Direction | Bake fidelity | Cost |
 |-----------|---------------|------|
@@ -909,7 +923,7 @@ reddit.com).
 | Coarser slices / max-slice cap | Choppier but safer on long clips | Fewer filters |
 | ASS/libass with `\t()` color tags | Smooth per-frame hue possible | New burn path + wasm libass risk (BUG-025 removed this) |
 | Canvas subtitle pass in `base.mp4` | Matches preview exactly | Subtitles in capture layer — breaks “subs are post-transcode burn-in” invariant unless architecture shifts |
-| Segment-aware preview timing | Preview matches cue windows | `previewText()` + segment clock (eloquent-4b) |
+| Segment-aware preview timing | **Shipped v5.8** | Timeline/segment player over the shared cue draft |
 
 **Hard limit today:** expressive `fontcolor` in **drawtext** on the **ffmpeg.wasm** burn path. Not a hard limit on the **product** — alternate burn strategies can exist — but any new path must pass BUG-025/028/031-style validation.
 
@@ -956,7 +970,11 @@ src/ui/design-studio/
   voice-controls.ts
   subtitle-controls.ts
   subtitle-segment-editor.ts
+  subtitle-timeline-editor.ts
   subtitle-bake.ts
+  studio-recorder.ts
+  studio-take-recovery.ts
+  current-take-status.ts
   radial-knob.ts
 ```
 
@@ -966,3 +984,16 @@ src/workflow/
 ```
 
 **Supersedes (semantics only, not history):** scattered Studio layout/behavior notes in branch plans, handoffs, and checkpoints. Those docs remain authoritative for bug timelines, commit chains, and sprint QA. When a older doc disagrees with this file on *current* Studio behavior, **this file wins**.
+
+## Resume in a new chat (carry-forward)
+
+```
+Design Studio canonical semantics refreshed through tagged v5.9.0.
+Primary surface: native capture + live canvas, voice audition/re-apply, List/Timeline cues,
+browser-composite subtitle bake with verified partial splice, atomic trim, take deck/download.
+Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18.
+State: TakeManager owns rvn.take.current; blobs remain in H6-verified single-slot IDB stores.
+Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
+Open: H13 persisted-write acknowledgment, H8 recovery voice provenance, raw-WebM trim, v6 visual maturity.
+Read docs/architecture/architecture-map.md v2.6 before changing cross-context behavior.
+```

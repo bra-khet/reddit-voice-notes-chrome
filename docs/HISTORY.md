@@ -6,7 +6,7 @@ This is the go-to orientation doc: it indexes every major milestone and points t
 
 - **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — post-v5.9.0 baseline and open work.
 - **Archived progress logs:** [`claude-progress-through-v5.9.0.md`](../archive/progress/claude-progress-through-v5.9.0.md) (v5.8.0 → v5.9.0) · [`claude-progress-pre-v5.8.0.md`](../archive/progress/claude-progress-pre-v5.8.0.md) (v5.7.0 → v5.4.0) · [`claude-progress-pre-v5.4.0.md`](../archive/progress/claude-progress-pre-v5.4.0.md) (v5.3.10 → v1.0.0 MVP).
-- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map v2.5, extension-points v1.7, hardening backlog v2.4, ADRs 0001–0005.
+- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — full v5.9 pass: map v2.6, extension-points v1.8, hardening backlog v2.5, ADRs 0001–0005.
 
 ---
 

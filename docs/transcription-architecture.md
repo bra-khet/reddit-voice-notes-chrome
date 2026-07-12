@@ -1,6 +1,6 @@
-# Transcription architecture (eloquent / v4)
+# Transcription & subtitle-bake architecture
 
-Design audit for client-side Vosk STT in a Chrome MV3 extension (2026). Read before changing the transcription pipeline.
+**Status:** Canonical Vosk/CSP and subtitle-bake reference, refreshed through tagged **v5.9.0** (2026-07-11). Read before changing transcription, overlay painting, composite strategy, partial splice, or trim/cue ownership.
 
 **Design Studio integration (Subtitles section):** `docs/design-studio.md` §7 — edit→confirm→bake UX, session IDB, and preview vs export fidelity.
 
@@ -44,13 +44,13 @@ Each hop has **different** rules — fixes for one layer do not transfer.
 
 **Viability (eloquent-0):** Yes, with the patched sandbox + blob-worker path above. It is **not** drop-in vosk-browser; each null-origin sharp edge needs an explicit build-time or protocol patch. Long-term, extension-origin offscreen + different Vosk packaging may be cleaner if IDBFS caching or worker ergonomics become requirements.
 
-## Layer model (compositing — unchanged from v4 design)
+## Layer model (current through v5.9)
 
 Bottom → top in final MP4:
 
 1. Background (canvas)
 2. Audio bars (canvas)
-3. Subtitles (FFmpeg burn-in pass — eloquent-3+)
+3. Subtitles (post-base composite; default browser decode→shared painter→encode/mux, FFmpeg fallbacks retained)
 
 STT reads **raw audio** from cloned WebM (not voice-modulated export).
 
@@ -83,7 +83,7 @@ STT reads **raw audio** from cloned WebM (not voice-modulated export).
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-Parallel future path (eloquent-1):
+Current capture fork (Studio or Reddit):
 
 ```
 stopRecording()
@@ -93,7 +93,7 @@ stopRecording()
   └─ transcribeWebmBlob(webmClone)    → transcript [enqueueTranscribeJob]
 ```
 
-**Never** run FFmpeg and Vosk concurrently until memory is profiled (~32 MB FFmpeg heap + ~40 MB model).
+Transcode and transcription dispatch concurrently but execute through independent serialized offscreen queues; STT never blocks recorder completion. Offscreen creation/dispatch is itself serialized to avoid the cold-start race in BUG-034.
 
 ## Memory & worker isolation
 
@@ -178,28 +178,32 @@ forkTranscribeWebm() resolves (applied | fallback | timeout)
 
 Pure modules are unit-tested without a framework via esbuild bundle + `node:assert`: `test-scaffold.mjs`, `test-transcribe-failure.mjs`, `test-smart-split.mjs`, `test-burnin-budget.mjs`, `test-bake-segments.mjs`, `test-bake-chronos.mjs`, `test-canvas-render-perf-guard.mjs`, `test-overlay-lab-segments.mjs`.
 
-## Subtitle burn-in render paths (eloquent-3+)
+## Subtitle bake and composite paths (eloquent-3 → v5.9)
 
-Production has **two** bake families:
+Production has a default rich path plus permanent fallbacks:
 
-1. **`drawtext-font` + bundled `DejaVuSans.ttf`** (`subtitle-burnin.ts`) — default / fallback; budgeted **degradation chain** (see below).
-2. **Canvas overlay + cheap composite** (v5.3.4) — offline Canvas 2D → transparent WebM → `normalizeOverlayWebmForComposite` → single `overlay=0:0` FFmpeg filter. No per-cue drawtext layer explosion.
+1. **Browser full composite (default since v5.5.1)** — decode clean base in Studio, invoke `createOverlayFramePainter` directly at every decoded frame PTS, Canvas2D blend, VideoEncoder + mediabunny mux. No overlay IVF/WebM and no FFmpeg hop.
+2. **Verified partial re-bake splice (eligible re-bakes, default on since v5.7.0)** — copy kept packets from prior bake, re-composite dirty GOPs from clean base, then prove kept-region pixels match; any miss runs the full ladder.
+3. **FFmpeg rich fallbacks** — dual-IVF WebCodecs overlay + alphamerge, then MediaRecorder overlay (parallel→serial + normalize) + overlay composite.
+4. **`drawtext-font` fallback** — bundled DejaVu TTF with bounded degradation chain.
 
 Historical `subtitles-srt` (libass) was removed in BUG-030.
 
-### Canvas overlay path (v5.3.4)
+### Shared-painter rich subtitle path (v5.3.4 foundation; v5.5 default executor)
 
-**When selected:** `shouldPreferCanvasOverlay()` in `subtitle-burnin.ts` auto-picks canvas when `useCanvasOverlay` is set, when `subtitleStyleHasCanvasOnlyEffects()` (dual border, hue rotate, text gradient/wave), or when glow is enabled and cue count exceeds `CANVAS_OVERLAY_AUTO_CUE_THRESHOLD` (6). Production bake runs in Design Studio (`subtitle-bake.ts` → `subtitle-canvas-bake.ts`); drawtext tiers remain fallback when overlay bytes are absent or render perf guard aborts.
+**When selected:** `shouldPreferCanvasOverlay()` chooses the rich painter for canvas-only effects or sufficiently complex styles. Production bake runs in Design Studio (`subtitle-bake.ts` → `subtitle-canvas-bake.ts`). `experimental.browserComposite` defaults on, so the first attempt paints directly into decoded base frames; overlay-byte encoders run only after probe/error fallback.
 
-**Pipeline (Design Studio tab — needs `document`, `MediaRecorder`, `FontFace`):**
+**Default pipeline (Design Studio tab):**
 
 ```
 prepareSegmentsForSubtitleBake()     [transcript-editing.ts — shared with drawtext]
-  → renderSubtitleOverlay()        [subtitle-overlay-renderer.ts — 30 fps paint + capture]
-  → normalizeOverlayWebmForComposite() [overlay-webm-finalize.ts — libvpx yuva420p pre-pass]
-  → runSubtitleBurnIn(useCanvasOverlay, canvasOverlayBytes) [ffmpeg-runner / offscreen or in-tab]
-       filter: [1:v]format=yuva420p[ol];[0:v][ol]overlay=0:0:shortest=1[vout]
+  → renderBrowserComposite()       [browser-composite.ts]
+       base MP4 decode → createOverlayFramePainter at exact base PTS
+       → Canvas2D source-over blend → VideoEncoder → audio passthrough → MP4 mux
+  → validate frame/packet count + duration → rvnLastBakedMp4
 ```
+
+Fallback after browser probe/error: WebCodecs dual-IVF → FFmpeg alphamerge; then MediaRecorder overlay → normalize → FFmpeg overlay; then drawtext.
 
 **Rich effects live in canvas only** — `subtitle-effects.ts` exports `resolveCanvasOverlayGlowHex`, `buildCanvasOverlayHaloLayerSpecs`, text gradient helpers, etc. Drawtext uses simpler `resolveGlowColorHex` + `buildGlowLayerSpecs` (static rings, no hue rotate / dual border / gradient wave). **Sync rule:** any new subtitle visual effect must declare whether it is canvas-only (`subtitleStyleHasCanvasOnlyEffects`) or needs drawtext parity.
 
@@ -250,7 +254,7 @@ resolveParallelChunkCount()        [overlay-chunk-planner.ts — duration/cores/
 
 **Normalize (MediaRecorder paths only, v5.3.9.1):** concat stitches only; `normalizeOverlayWebmForComposite` runs afterward for serial and parallel MediaRecorder paths. **WebCodecs path (v5.3.10):** normalize **eliminated** — dual IVF streams are composite-ready by construction; `alphamerge` runs inside the burn-in graph. QA (2026-07-05): WebCodecs 60 s bake **46–50 s** sub-real-time vs legacy **228–310 s**.
 
-#### WebCodecs overlay encode (v5.3.10) — **preferred fast path**
+#### WebCodecs overlay encode (v5.3.10) — **first FFmpeg-composite fallback**
 
 ```
 plan chunks (same v5.3.9 planner)
@@ -261,7 +265,7 @@ plan chunks (same v5.3.9 planner)
   → NO normalize stage
 ```
 
-**Gating + fallback chain (combined):** `experimental.webCodecsBake` (default **true** since v5.4.0 `bd7d60a` — opt-out only via `resolveOverlayBakeEncoder` in `user-preferences.ts`, one-time migration flips the stored v5.3.10 rollout `false`; `undefined`/`true` → `'auto'`) → capability + alpha-luma calibration probe → WebCodecs orchestrator (`subtitle-overlay-webcodecs.ts`) → on failure: `experimental.parallelBake` MediaRecorder path (parallel → serial) → perf guard → drawtext. Alphamerge tier failure does **not** fall to drawtext directly — retries full MediaRecorder pipeline first.
+**Gating + fallback chain (combined):** `experimental.browserComposite` defaults to browser decode→direct painter→encode/mux. On probe/error fallback, `experimental.webCodecsBake` (default true) runs the capability + session-cached alpha-luma calibration probe → dual-IVF orchestrator → FFmpeg alphamerge. Any non-abort failure retries the full MediaRecorder path (parallel → serial → normalize → FFmpeg overlay), then the perf/error fallback is drawtext. Alphamerge failure never jumps directly to drawtext.
 
 | Module | Role |
 |--------|------|
@@ -282,6 +286,9 @@ plan chunks (same v5.3.9 planner)
 | `src/encoding/*` | v5.3.10: IVF mux/concat, WebCodecs dual encoder, calibration probe, segment model |
 | `subtitle-overlay-webcodecs.ts` | v5.3.10 WebCodecs orchestrator (planner reuse, dual IVF output) |
 | `overlay-alphamerge-args.ts` | v5.3.10 pure composite arg builder (alphamerge tiers) |
+| `src/composite/browser-composite.ts` | v5.5+ default direct-painter composite (decode/blend/encode/mux) |
+| `src/composite/composite-splice.ts` / `composite-fidelity.ts` | v5.7+ verified dirty-GOP re-bake |
+| `src/editing/trim-apply.ts` | v5.9 base cut + dual-copy cue shift; next bake forced full |
 
 | Capability | `drawtext` + bundled TTF | Canvas overlay (v5.3.4) | `subtitles` + SRT/ASS (libass) |
 |------------|--------------------------|-------------------------|--------------------------------|
@@ -318,5 +325,22 @@ Full bug timeline: `docs/bug-archive.md` BUG-025, BUG-028, BUG-030, BUG-031, BUG
 | v5.3.5 Cue-stable cache | `ImageBitmap` LRU cache per cue/phase; timing JSON v2; 32 phase buckets | **Done** (`v5.3.5`) |
 | v5.3.9 Parallel chunked bake | Concurrent paced chunk captures + stream-copy concat + normalize; auto-gated, serial fallback | **Done** (`v5.3.9`) |
 | v5.3.10 WebCodecs encode | Dual VP8 IVF + alphamerge composite; normalize eliminated on fast path | **Done** (`v5.3.10`) |
+| v5.5.0 / v5.5.1 Browser composite | Direct base decode + shared-painter blend + encode/mux; default on | **Done** |
+| v5.7.0 Partial re-bake | Verified dirty-GOP splice with full fallback | **Done** |
+| v5.8.0 Timeline editor | Shared cue draft, frame-snap, waveform, trim preview/intent | **Done** |
+| v5.9.0 Atomic trim | Shorter base + both transcript copies shifted; stale stamps dropped; full next bake | **Done / QA PASS** |
 
 See `archive/progress/eloquent-branch.md` for full phase plan, `docs/design-studio.md` for Studio semantics, `docs/v5.3.4-subtitle-canvas-overlay.md` for canvas overlay phase spec, and `docs/5.3.5-cue-stable-overlay-caching-design.md` for cache design + QA record.
+
+## Resume in a new chat (carry-forward)
+
+```
+Transcription/subtitle architecture refreshed through tagged v5.9.0.
+Vosk: extension page decodes PCM → null-origin sandbox → blob worker; MEMFS per session.
+Capture: Studio or Reddit forks raw-clone STT from offscreen FFmpeg transcode; queues are independent.
+Default bake: clean base decode → shared painter at exact PTS → Canvas2D blend → encode/mux in Studio.
+Fallbacks: dual-IVF+FFmpeg → MediaRecorder+FFmpeg → drawtext; all remain supported.
+Eligible re-bakes use verified dirty-GOP splice (I16); any miss runs the full ladder.
+Timeline cue timing is frame-exact (I17); trim preview=APPLY shifts both transcript copies (I18).
+Read docs/architecture/architecture-map.md v2.6 before changing contexts, stores, or pipelines.
+```

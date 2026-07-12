@@ -1,11 +1,12 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v2.5 · **Reflects branch/tag:** `main` @ `v5.9.0` · **Updated:** 2026-07-11
+**Version:** v2.6 · **Reflects branch/tag:** `main` @ `v5.9.0` · **Updated:** 2026-07-11
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v2.6` (2026-07-11) — full four-phase hardening refresh on tagged `v5.9.0`: re-verified all six contexts, the `types.ts` wire, storage owners, the primary browser-composite bake, Studio-direct progress delivery, recovery, and atomic trim apply. Corrected the data-flow diagram (browser composite paints directly; it does **not** consume the dual-IVF overlay), take state machine, flagship money path, stale QA/confidence text, and canonical-doc pointers. Added I18 + Trace E for preview=APPLY trim semantics. Phase 3: H12 resolved by code inspection; H8 remains open because interrupted drafts have no completed `TakeVoiceStamp`; new H13 scopes fail-loud/acknowledged artifact-store writes; R16 records the residual cross-store trim-commit race. No new context, message family, storage class, writer, or ADR.
 - `v2.5` (2026-07-11) — additive: **v5.9.0 atomic trim APPLY** closes the v2.4 "next feature" note. `edits.trim` intent is no longer inert: `src/editing/trim-apply.ts` (NEW module, structurally parallel to `voice-reapply.ts`; kept out of `trim.ts` so `test-timeline.mjs` bundles the pure logic without the storage graph) materializes a trim — H6-verified base → mediabunny container trim → pure `shiftCuesForTrim` (mirrors the ghost-preview math `projectCueThroughTrim`; **both** session-transcript copies shift so revert can't resurrect pre-trim times) → superseded guard → commit-last: new base stamp + `meta.durationSeconds` + intent clear + **`bakedMp4`/`baseRecording` stamp deletes** (baked: next bake is a forced full composite via `computePartialRebakePlan`'s duration guard; baseRecording: raw audio no longer matches the timeline — voice locked in, re-apply fails honestly through the clean-audio door) + status `baked → ready`, all one `updateCurrentTake` (`expectId`). Enabling take-manager evolution: `CurrentTakePatch.artifacts` accepts `null` = stamp delete (mirrors the edits patch; closes the explicit-`undefined`-clobber hazard). No new context/message/storage-key/writer. Design + as-built: `docs/v5.9.0-trim-apply-roadmap.md`.
 - `v2.4` (2026-07-11) — additive refresh for the v5.7.0 + v5.8.0 editing-suite arc (now on `main`; picks up v5.5.0/v5.5.1 browser-composite default-on in passing). **v5.7.0 partial-rebake splice EXECUTION** shipped — supersedes the v2.3 "planner only, execution deferred" note: a re-bake whose dirty cues cover a small enough fraction re-encodes only keyframe-aligned dirty GOPs from the **CLEAN base** and copies clean packets bit-exact, gated by a self-verifying kept-region pixel-equality check (the avcC hazard) → honest full fallback on any miss. Pure `src/editing/splice-plan.ts`; browser `src/composite/composite-splice.ts` + `composite-fidelity.ts`; wired via `coordinateRebake` (injected `executePartialSplice`, AbortError propagates) + `bakeWithOptionalSplice` in `subtitle-bake.ts`; flag `experimental.partialRebakeSplice` **default ON**; ADR-0005 (Accepted). New I16. **v5.8.0 timeline visual subtitle editor** — the flat cue-list modal became a DOM+CSS-transform timeline surface (`subtitle-timeline-editor.ts` + pure leaves `timeline-geometry.ts` one-import / `waveform-peaks.ts` zero-import): added **no** new execution context, message family, storage key, or take writer (extension-points § Timeline cue editor). Cue-time edits frame-snap through `timeline.ts` `snapTimeToFrame` (I11 consumer → new I17); non-destructive ✂ trim writes the existing `edits.trim` intent via the `planTrim` gate (atomic apply still deferred). Surface internals stay owned by `docs/design-studio.md`. Also fixed pre-existing staleness (carry-forward block was still v2.1; §8 pointers were extension-points v1.3 / backlog v2.0 / ADR-0003 "stub").
 - `v2.3` (2026-07-07) — v5.6.0 audio decoupling (branch `feature/5.6.0-audio-decoupling`, ADR-0004): additive `voice`/`edits` fields on the take snapshot (provenance: which voice the baked audio carries; non-destructive trim intent); new page-local audio suite `src/audio/*` (H6-gated clean-audio door over the raw `baseRecording` WebM, Dulcet II re-render, mediabunny stream-copy audio-replace remux — visuals bit-exact, NO new message family); editing/timeline primitives `src/editing/*` + `src/timeline/*` (dirty tracking, keyframe-grid partial-rebake PLANNER — execution deferred to Phase 2b, trim backend). Contract doc: `docs/v5.6.0-audio-decoupling.md`; seam: extension-points v1.5. (Header version also catches up: the v2.2 entry below shipped without bumping the v2.1 header.)
@@ -29,12 +30,12 @@ Verified against `wxt.config.ts` `manifest.content_security_policy` (2026-07-06 
 | Background SW | ext, `wasm-unsafe-eval` | no | yes | relay registry, offscreen lifecycle, artifact stamping, orphan-transcode persistence, chunked blob serving | `entrypoints/background.ts` |
 | Offscreen doc | ext, `wasm-unsafe-eval` | no | yes | FFmpeg transcode + subtitle burn-in/composite (WASM) | `entrypoints/offscreen/main.ts` |
 | Manifest sandbox | opaque/null, `unsafe-eval` + `worker-src blob:` | **yes** | **no** | Vosk STT (Emscripten + blob workers) | `public/vosk-sandbox.html` |
-| Design Studio | ext page | no | yes | **primary product surface**: styling, preview, transcript edit (**timeline cue editor + ✂ trim intent**, v5.8.0), **native capture (getUserMedia)**, overlay render + WebCodecs encode, bake orchestration (incl. partial-rebake splice), take deck | `entrypoints/design-studio/` |
+| Design Studio | ext page | no | yes | **primary product surface**: styling, preview, transcript edit (**timeline cue editor + atomic trim apply**), **native capture (getUserMedia)**, browser composite / fallback overlay encode, partial-rebake splice, voice re-apply, take deck | `entrypoints/design-studio/` |
 | Popup | ext page | no | yes | quick settings | `entrypoints/popup/` |
 
 **Sandbox CSP detail (BUG-010/011/013):** `sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; worker-src blob: 'self'; child-src blob: 'self'` — Vosk needs `unsafe-eval` for Emscripten and `worker-src blob:` for blob workers. Full CSP archaeology: `docs/transcription-architecture.md`.
 
-**v5.4.0 note:** no new execution context was added. Studio-native recording runs `VoiceRecorderSession` unmodified on the extension page; the entire downstream (relays, transcribe fork, transcode client) is `runtime.sendMessage`-based and works identically from either surface (`claude-progress.md` v5.4.0 Phase 2). The WebCodecs encode loop also runs in the Studio page (OffscreenCanvas, worker-portable but not yet in a worker — ADR-0001).
+**v5.9.0 full-pass note:** no execution context has been added since v5.4.0. Studio-native recording runs `VoiceRecorderSession` on the extension page; transcode/transcribe still cross the existing background→offscreen boundary, while browser composite, partial splice, voice re-apply orchestration, and trim apply stay in the Studio page. The WebCodecs encode loop remains worker-portable but page-local (ADR-0001).
 
 ---
 
@@ -52,7 +53,7 @@ flowchart LR
   subgraph ext["chrome-extension:// pages"]
     BG["background SW<br/>relay + stamps + blob serving"]
     OFF["offscreen doc<br/>FFmpeg WASM"]
-    DS["Design Studio<br/>capture / edit / encode / bake"]
+    DS["Design Studio<br/>capture / edit / composite / trim"]
     POP["popup<br/>settings"]
   end
   subgraph sbx["null-origin sandbox"]
@@ -94,25 +95,28 @@ flowchart TD
   TC --> BASE[(rvnLastBaseMp4)]
   TR --> SESS[(rvnSessionTranscript)]
   SESS --> EDIT["Studio: segment edit<br/>Confirm & save"]
+  BASE --> APPLY["optional Apply trim (v5.9)<br/>cut base + shift both cue copies<br/>drop stale baked/raw-audio stamps"]
+  EDIT --> APPLY
+  APPLY --> BAKE
   BASE --> BAKE
   EDIT --> BAKE{{"subtitle bake<br/>strategy selection"}}
-  BAKE -- "primary (default on)" --> WC["paint (shared painter)<br/>dual VP8 VideoEncoder → IVF<br/>pure-TS concat"]
-  BAKE -- "fallback 1/2" --> MR["MediaRecorder capture<br/>(parallel → serial)<br/>concat + normalize"]
-  BAKE -- "last resort" --> DT["FFmpeg drawtext"]
-  BAKE -. "re-bake, dirty cues only<br/>(v5.7.0, default on)" .-> SPL["partial splice<br/>re-encode dirty GOPs from CLEAN base<br/>keep clean packets bit-exact<br/>+ kept-region fidelity gate"]
-  SPL -. "fidelity miss / plan=full / no prior bake" .-> WC
+  BAKE -. "eligible re-bake<br/>(v5.7+, default on)" .-> SPL["partial splice<br/>re-encode dirty GOPs from CLEAN base<br/>keep prior packets + fidelity gate"]
   SPL --> BAKED
-  WC --> COMP["browser composite (v5.5+ per ADR-0003)<br/>VideoDecoder + canvas blend (painter)<br/>+ VideoEncoder + mux (audio passthru)"]
-  MR --> COMP2["FFmpeg composite<br/>WebM overlay"]
-  COMP --> BAKED[(rvnLastBakedMp4)]
-  COMP2 --> BAKED
+  BAKE -- "full rich primary (default on)" --> BC["browser composite<br/>decode base → shared painter blend<br/>→ VideoEncoder + mux"]
+  BAKE -- "fallback 1" --> WC["dual IVF overlay encode<br/>WebCodecs + pure-TS concat"]
+  BAKE -- "fallback 2" --> MR["MediaRecorder overlay<br/>parallel → serial + normalize"]
+  WC --> FFC["FFmpeg overlay composite"]
+  MR --> FFC
+  BAKE -- "last resort" --> DT["FFmpeg drawtext"]
+  BC --> BAKED[(rvnLastBakedMp4)]
+  FFC --> BAKED
   DT --> BAKED
   BAKED --> DECK["Studio: Download MP4<br/>(Current Take deck)"]
   BAKED --> SIG{{"rvn.bakedMp4.ready + take to baked"}}
   SIG --> ATTACH["Reddit attach mode:<br/>chunked fetch (store: baked|base)<br/>→ attachMp4ToComposer"]
 ```
 
-**Invariants encoded:** Transcribe always consumes the raw clone (STT timing independent of voice effect). Every capture surface funnels into the same stop path — blobs are written **only at stop** (discard/error-while-recording restores the prior take snapshot without touching stores). The bake fallback order is `webcodecs → mediarecorder-parallel → serial → drawtext`; only *constructed* (WebCodecs) streams skip normalize (ADR-0001). **Primary webcodecs path composite moved to browser (ADR-0003):** for successful rich bakes the alphamerge/x264 step (and its offscreen burn-in relay) is replaced by in-page VideoDecoder + shared painter blend + VideoEncoder + mux; output still lands in rvnLastBakedMp4 with identical stamps. Fallback paths retain the FFmpeg composite contract.
+**Invariants encoded:** Transcribe always consumes the raw clone (STT timing independent of voice effect). Every capture surface funnels into the same stop path — blobs are written **only at stop**. Atomic trim consumes the H6-verified base and live cue draft, then drops stale baked/raw-audio stamps; it adds no context or wire. The full-bake fallback order is `browser composite → dual-IVF WebCodecs + FFmpeg composite → MediaRecorder parallel/serial + FFmpeg composite → drawtext`; the browser path paints directly from cues and never builds overlay IVF streams. Only constructed WebCodecs streams skip normalize (ADR-0001/0003). Partial-splice misses delegate to that full chain.
 
 ### 2.3 State machine — take lifecycle (NEW, the v5.4.0 spine)
 
@@ -127,6 +131,8 @@ stateDiagram-v2
   processing --> draft: cancel / error during processing
   ready --> baked: updateFromBake (Studio bake completes)
   baked --> baked: re-bake with new style
+  ready --> ready: Apply trim (new base; clear raw-audio stamp)
+  baked --> ready: Apply trim (new base; clear baked + raw-audio stamps)
   recording --> draft: reader finds stale transient (>2 min)
   processing --> draft: reader finds stale transient (>2 min)
   draft --> processing: recovery auto-resume (WebM in IDB, no baseMp4, no inflight job)
@@ -138,6 +144,7 @@ stateDiagram-v2
 - **Stop-time blob-write:** blobs land in IDB only at stop; a discarded recording restores the stashed prior take intact (this is what makes Reddit "Record new here" safe while a Studio take is attachable).
 - **Stale-transient demotion is read-side:** `normalizeStaleTake` demotes `recording`/`processing` snapshots older than `STALE_TRANSIENT_MS` (2 min) to `draft` *when read* — no daemon required, correct under MV3 SW death.
 - **Recovery is serialized and queue-aware:** `studio-take-recovery.ts` chains recovery ops and asks the background (`MSG_QUERY_TRANSCODE_INFLIGHT`) before resuming, so a still-running offscreen transcode is never doubled.
+- **Trim apply is a capability demotion:** a baked take returns to `ready` because the baked bytes and raw capture no longer describe the shortened timeline; a ready take stays ready with a fresh base stamp and locked-in voice.
 
 ### 2.4 State machine — offscreen job lifecycle (carried from v1.1)
 
@@ -162,7 +169,7 @@ stateDiagram-v2
 
 ### 2.5 Pipeline sequence + relay hop (transcode, representative)
 
-Burn-in differs: Design Studio initiates and `runtime.onMessage` replaces `tabs.sendMessage`. Studio-initiated *transcode* (native capture) also skips the tab hop — the client lives on an extension page (see §7 open question on the exact mechanism).
+Burn-in differs: Design Studio initiates and `runtime.onMessage` replaces `tabs.sendMessage`. The same is true for Studio-initiated native-capture transcode: `transcoder.ts` listens to the offscreen broadcast on `runtime.onMessage`, while `registerTranscodeTab` marks extension-page senders in `transcodeSkipTabRelayByJobId` so background does not duplicate the event through a Reddit tab. H12 is resolved by this code path.
 
 ```mermaid
 sequenceDiagram
@@ -208,6 +215,8 @@ The single canvas in `waveform.ts` (`canvas.captureStream`) is the video-track s
 
 **Timeline cue editor (v5.8.0) is a new I11 consumer, not a new fidelity surface.** The visual editor edits cue *timing*; every drag / resize / nudge quantizes through `timeline.ts` `snapTimeToFrame` (the painter's own global-PTS expression) — `timeline-geometry.ts` is a one-import leaf that owns no frame math of its own (`timeline-geometry.ts:21`). An edited cue boundary therefore lands on the same frame grid the bake paints at, so preview timing == bake timing by construction (I17). The waveform lane reads the *same* decoded `AudioBuffer` the ▶ preview plays (`getDecodedBuffer()` on `segment-cue-player.ts` — zero extra decode) and is time-aligned to the ruler, so it can't imply a cue sits where the bake won't put it.
 
+**Atomic trim apply (v5.9.0) extends preview=bake to preview=APPLY.** Ghost bars use `projectCueThroughTrim`; destructive apply uses `shiftCuesForTrim` with the same half-open overlap and epsilon, consumes the live modal draft, shifts both persisted transcript copies, and clears modal undo. The next bake uses the shorter H6-stamped base and is forced through the full-composite path because `computePartialRebakePlan` rejects a duration change (I18).
+
 ### 3.2 Effect composition
 
 Compositing order (bottom → top) in the final MP4 — unchanged:
@@ -218,7 +227,7 @@ Compositing order (bottom → top) in the final MP4 — unchanged:
 
 **Voice effect** applies to the audio track via `-af`/`-filter_complex` in the transcode pass (graph-native, `resolveVoiceGraph` → `buildStylizedGraph`) — not a visual layer.
 
-**Invariant (reworded in v2.0, refined ADR-0003):** *Subtitles are always a post-`base.mp4` composite pass on the export; they never enter the live capture stream.* For the **primary WebCodecs + browser-composite path (ADR-0003)** the executor is now browser-side (VideoDecoder + shared painter blend + VideoEncoder + mux) rather than an FFmpeg offscreen hop; the MediaRecorder and drawtext fallback paths retain the FFmpeg composite. The overlay's pixels remain canvas-painted. The "no canvas subtitles" rule from v1 applies to the capture RAF, not to the offline overlay render. — `src/ffmpeg/subtitle-burnin.ts`; `src/ui/design-studio/subtitle-canvas-bake.ts`; ADR-0003.
+**Invariant (reworded in v2.0, refined ADR-0003):** *Subtitles are always a post-`base.mp4` composite pass on the export; they never enter the live capture stream.* The primary browser-composite executor decodes the base and invokes the shared painter directly at each decoded frame PTS, then VideoEncoder+mux produces the MP4. It does **not** first render dual-IVF overlay streams. Those streams, MediaRecorder overlays, and drawtext are permanent FFmpeg-backed fallback tiers. The "no canvas subtitles" rule applies to the live capture RAF, not the offline painter. — `browser-composite.ts`; `subtitle-canvas-bake.ts`; ADR-0003.
 
 **Re-bake splice sub-path (v5.7.0, default on).** A *re*-bake whose dirty cues cover a bounded fraction (`coordinateRebake` plan `partial`) re-encodes only the keyframe-aligned dirty GOPs from the **CLEAN base** MP4 (the baked frames there still carry the old burned-in subtitle) and copies the untouched packets bit-exact from the prior baked MP4 — the two inputs `renderCompositeSplice` requires (`composite-splice.ts:328/338-339`). Structural honesty is `validateSpliceOutput` (kept + reencoded == output == expected packet count, ≤1-frame drift); pixel honesty across the splice boundary is the **kept-region pixel-equality fidelity gate** `verifySpliceKeptFrames` (`composite-fidelity.ts:133`, called at `composite-splice.ts:533`) — the single defense against an avcC/sample-description mismatch corrupting the copied AVC packets (I16). Any miss (scan-gate reject, plan `full`, fidelity miss, no prior bake) → `runFullComposite` honestly; `executed:'partial'` is reported *only* on a verified splice; AbortError propagates (never a silent full re-render).
 
@@ -234,13 +243,15 @@ Adding a fourth visual layer still changes compositing order → explicit ADR re
 |----------|--------------|--------|-----------|-------|
 | Transcode | `MSG_TRANSCODE_START` | FFmpeg (offscreen) | Content script **or Studio** (v5.4.0) | Optional voice graph; `voiceEffectFallback` on fail |
 | Transcribe | `MSG_TRANSCRIBE_START` | Vosk (sandbox via offscreen) | Content script or Studio | Raw WebM clone; parallel fork |
-| Burn-in | `MSG_BURNIN_START` | FFmpeg (offscreen) | Design Studio | Composite/drawtext; skip tab relay. **Primary webcodecs path (ADR-0003) bypasses this entirely** (in-page browser composite); fallbacks continue to use it. |
+| Burn-in | `MSG_BURNIN_START` | FFmpeg (offscreen) | Design Studio | Composite/drawtext; skip tab relay. **Primary browser-composite path (ADR-0003) bypasses this entirely**; fallbacks continue to use it. |
 
 **Non-pipeline message kinds (v5.4.0):** `MSG_QUERY_TRANSCODE_INFLIGHT` is a simple query/response (no ACK/PROGRESS lifecycle) used by Studio recovery. This is a *second message shape* — keep queries idempotent and side-effect-free so they stay safe to call from recovery chains (extension-points § Message pipelines v2).
 
 **Deliberate non-message:** the take lifecycle. `MSG_TAKE_*` placeholders were scaffolded and then **removed** — storage IS the sync channel (ADR-0002).
 
 **Also deliberately non-message (the v5.6→v5.8 editing arc):** ~5 k lines of editing/splice/timeline code added **zero** new `MSG_` family (grep-verified in `types.ts` — no `MSG_SPLICE/TIMELINE/TRIM/WAVEFORM/CUE`). Partial-splice execution is in-page (`composite-splice.ts` — no relay hop, it runs where the bake already runs); the timeline editor is a Design Studio surface over the existing edit/dirty/trim seams; trim is the `edits.trim` **storage** intent (via `planTrim` → `mergeTakeEdits`). Reach for a pipeline only when there is cross-context work-with-progress to relay — none of these are.
+
+**Studio progress delivery (H12 resolved):** extension-page clients install `runtime.onMessage` listeners in the same transcode/burn-in clients as content-script callers. Background identifies the extension-page sender URL and records `*SkipTabRelayByJobId`; the offscreen broadcast reaches Studio directly, while background relays to `tabs.sendMessage` only for Reddit content-script jobs. No late-bound Reddit-tab fallback participates in a normal Studio job (`background.ts` `registerTranscodeTab` / `relayTranscodeBroadcast`; `transcoder.ts` `onBroadcast`).
 
 **Relay:** `src/messaging/relay-registry.ts` — `browser.storage.session` survives SW restarts; `clearAllRelayTabs()` on SW boot; connection-failure cleanup in all three relay broadcast functions (backlog v1 H4). Fragile ordering: broadcast COMPLETE/failure before deleting the tab entry (BUG-032).
 
@@ -283,22 +294,23 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | I15 | Artifact stamps let consumers detect a snapshot whose blobs moved on (stamp `savedAt` ≈ store meta `savedAt`, `byteLength` equal when both present) | state | `takeArtifactMatchesStore()` (`take-manager.ts`) at all three consumption sites: `studio-take-recovery.ts` resume, `recorder-panel.ts` attach, `current-take-status.ts` Download — H6, Node-tested | High |
 | I16 | A partial re-bake splice is adopted only if it *cannot* lie: `validateSpliceOutput` proves kept + reencoded == output == expected packet count (≤1-frame drift) AND `verifySpliceKeptFrames` proves the copied kept-region frames decode pixel-identical to the original (mean Δ ≤ 1.5, peak ≤ 24) — any miss throws → full composite; `executed:'partial'` only on a verified splice | composition | `splice-plan.ts` `validateSpliceOutput`, `composite-fidelity.ts` `verifySpliceKeptFrames`, `partial-rebake-coordinator.ts` `coordinateRebake` — Node-tested (`test-splice-plan` 36, `test-partial-rebake-plan` 13) | High (single machine) |
 | I17 | Timeline cue-time edits quantize through `timeline.ts` `snapTimeToFrame`, so an edited cue boundary lands on the same frame grid the overlay paints at (I11) — edited preview timing == bake timing | preview↔bake | `timeline-geometry.ts:21` (sole import; every snap path delegates) — Node-tested (`test-timeline-geometry` 48) | High |
+| I18 | Trim ghost preview and destructive apply use the same half-open cue projection; apply consumes the live draft, shifts both transcript copies, and clears undo so pre-trim cue times cannot return | preview↔bake, state | `timeline-geometry.ts` `projectCueThroughTrim`; `trim.ts` `shiftCuesForTrim`; `trim-apply.ts`; `subtitle-segment-editor.ts` — Node-tested (`test-timeline` 16) + real-browser QA | High (single machine) |
 
 ---
 
 ## 5. Money-path traces (Phase 2)
 
-### Trace A — Studio-native take, WebCodecs bake, Reddit attach (the v5.4.0 flagship path)
+### Trace A — Studio-native take, browser-composite bake, Reddit attach (current flagship path)
 
 1. Studio deck Record → `mountRecorder({hostContext:'studio'})` (`recorder-host.ts`) → `VoiceRecorderSession` with `takeSource:'studio'` → `beginTake` stashes prior snapshot, take → `recording`
 2. `onLiveCanvas` hands the WaveformRenderer canvas into the hero monitor (`.studio__preview-canvas--live`); theme RAF paused (`auditionActive` guard); style edits hot-swap live
 3. Stop ■ → take → `processing`; WebM written; fork: clone → `MSG_TRANSCRIBE_START`, main → `MSG_TRANSCODE_START` (both `runtime.sendMessage` — identical to Reddit capture)
 4. Background: transcode completes → relays IDB writes → stamps `baseRecording`/`baseMp4` artifacts → take → `ready`
 5. Transcript arrives (`rvn.sessionTranscript.ready`) → segment edit → Confirm & save
-6. Bake: `subtitle-bake.ts` → `resolveOverlayBakeEncoder` → `'auto'` → calibration probe OK → `subtitle-overlay-webcodecs.ts`: chunk plan → shared painter → dual VP8 `VideoEncoder` → IVF concat (pure TS) → `MSG_BURNIN_START` with `buildWebCodecsOverlayStrategies` (alphamerge tiers) → `rvnLastBakedMp4` → `updateFromBake` → take → `baked`
+6. Bake: `subtitle-bake.ts` → optional splice gate misses on a first/full bake → `bakeWithCanvasOverlay` with `composite:'browser'` → `renderBrowserComposite`: mediabunny decodes the base, `createOverlayFramePainter` paints directly at each decoded frame PTS, Canvas2D blends, VideoEncoder+mux emits the MP4. No overlay-IVF or `MSG_BURNIN_*` hop occurs on this primary path. `saveLastBakedMp4` + `BAKED_MP4_READY_KEY` + `updateFromBake` promote the take to `baked`; any browser-path failure falls through to the permanent FFmpeg tiers.
 7. Reddit composer opened → `RecorderPanel.open()` sees completed take → **attach mode** ("Current Studio Take" card) → `MSG_GET_BAKED_MP4_META/_CHUNK` (`store:'baked'`) → `attachMp4ToComposer` → workflow → `'design'`
 
-**Code verified at:** `recorder-host.ts:1-50`, `take-manager.ts` (types/constants), `user-preferences.ts:148-191`, `studio-take-recovery.ts:24-70`, `baked-mp4-blob.ts:1-5`; steps 4/6 internals from `claude-progress.md` v5.4.0 + `transcription-architecture.md` §WebCodecs (not re-read line-by-line — see §7).
+**Code verified at:** `recorder-host.ts`, `voice-recorder.ts` stop fork, `background.ts` direct-runtime/relay split, `subtitle-bake.ts`, `subtitle-canvas-bake.ts`, `browser-composite.ts`, `take-manager.ts`, and `recorder-panel.ts` attach H6 gate (v2.6 session).
 
 ### Trace B — mid-processing Studio tab close → recovery (QA checklist #4)
 
@@ -324,36 +336,51 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 **Code verified at:** `subtitle-bake.ts:121/188/200/263/301/360`, `partial-rebake-coordinator.ts:174-196`, `composite-splice.ts:328/338-339/533`, `composite-fidelity.ts:133`, `timeline-geometry.ts:21/272-285` (this session).
 
+### Trace E — trim preview → atomic apply → full re-bake (v5.9.0)
+
+1. Timeline trim mode projects every cue through `projectCueThroughTrim`; `captureActiveDraft()` makes the active List/Timeline draft authoritative.
+2. Two-click **Apply trim** calls `applyTrimToCurrentTake`: read current take → H6-verify `baseMp4` → validate the frame-snapped range with the same `planTrim` gate Save uses.
+3. `applyTrimToMp4` produces a new in-memory MP4; `shiftCuesForTrim` applies the ghost-preview overlap math independently to stored original cues and the live edited draft.
+4. Superseded-take guard passes → commit block writes the shorter base and both shifted transcript copies → one `updateCurrentTake(expectId)` publishes the new base stamp/duration, clears `edits.trim`, deletes `bakedMp4`/`baseRecording` stamps, and demotes `baked → ready`.
+5. Host re-seeds every draft/baseline, clears undo, reloads the clip/waveform, and fits the shorter view. Voice re-apply is now honestly unavailable because no matching raw-audio stamp exists.
+6. The next subtitle bake sees a duration change, so `computePartialRebakePlan` returns null and the full chain runs against the trimmed clean base. Download/attach resolve the trimmed base until that bake completes.
+
+**Code verified at:** `trim-apply.ts`, `trim.ts`, `session-transcript-db.ts` `replaceSessionTranscriptResults`, `subtitle-segment-editor.ts` `onApplyTrim`, `subtitle-bake.ts` duration guard, and real-browser QA in `release-notes-v5.9.0.md`.
+
 ---
 
 ## 6. Confidence ledger (Phase 2)
 
 | Subsystem | Confidence | Evidence / notes |
 |-----------|-----------|------------------|
-| Transcode / transcribe / drawtext pipelines (BUG-001–035) | **High** | Years of fixes documented; stable through v5.4.0 QA |
-| TakeManager pure core (parse/merge/stale/freshness) | **High** | Node-tested (`test-take-manager.mjs` 14/14); pure helpers isolated from `browser.*` |
+| Transcode / transcribe / drawtext pipelines (BUG-001–035) | **High** | Mature failure/cancel/semantic-progress contract; unchanged through v5.9.0 and release regression sweep |
+| TakeManager pure core (parse/merge/stale/freshness/null-delete) | **High** | Node-tested (`test-take-manager.mjs` 33); pure helpers isolated from `browser.*` |
 | Studio-native capture + live canvas | **High** | User QA checklist 1–11 PASS (2026-07-06); zero-copy contract structural |
-| WebCodecs encode + alphamerge composite | **High (single machine)** | QA PASS 2026-07-05, 8–10× render speedup, visual parity; calibration `white=234, black=17, limited` on ONE machine — cross-hardware variance untested |
+| WebCodecs dual-IVF + FFmpeg composite fallback | **High (single machine)** | QA PASS 2026-07-05, 8–10× render speedup; session-cached alpha calibration (`codec+dimensions+fps`) gates this fallback tier |
 | Recovery paths (tab-close, orphan transcode, inflight query) | **Med-High** | QA #4 PASS; stamp cross-check now guards the resume path (H6); remaining: async branch coverage, H8 voice provenance |
 | Artifact stamp contract | **High** | I15 — `takeArtifactMatchesStore` enforced at all three consumers, 6 Node checks (H6, 2026-07-06) |
-| Studio-initiated transcode progress relay mechanism | **Med** | Works (QA PASS) but the no-tab relay path (`sender.tab` undefined for extension pages) not re-read — H12, v5.4.x verify |
+| Studio-initiated transcode progress delivery | **High** | H12 resolved: `transcoder.ts` listens on `runtime.onMessage`; `transcodeSkipTabRelayByJobId` suppresses only the content-tab duplicate for extension-page senders |
 | Concurrent Studio recordings / dual-writer take races | **High** | User QA 2026-07-06: overlapping recordings capture correctly, processing serializes, first take downloadable (and downloads) while second processes; Reddit panel syncs as designed. Known accepted edge: transient window between the two completions where the status display shows the *second* take's length while the first is the downloadable one — display-only, self-corrects on second completion (backlog H11) |
 | MediaRecorder fallback health (post-default-flip) | **Med (accepted)** | Fallback chain tested pre-flip; observability instrumentation deferred by user decision (H10) — watch-symptom: unexplained multi-minute bakes |
 | Composite stage performance | **High (resolved)** | The ~43 s FFmpeg x264 composite wall is **eliminated** on the primary path — browser-side composite shipped v5.5.0, **default-on since v5.5.1** (ADR-0003 Accepted; two-machine QA PASS). Partial-splice re-bakes (v5.7.0) cut it further by re-encoding only dirty GOPs |
 | Partial re-bake splice execution (v5.7.0) | **High (single machine)** | Real-browser QA PASS 2026-07-08 — AVC (C1) + VP9 (C2), happy path + honest fallbacks + a forced fidelity reject; the avcC hazard is self-verifying (I16). Residual: second-machine encoder variance → more *full* fallbacks only, never a wrong pixel |
 | Timeline visual subtitle editor (v5.8.0) | **High** | Sprints 3–9 real-browser QA PASS (Windows/Chrome, 2026-07-09/10); pure geometry/waveform Node-tested (`test-timeline-geometry` 48, `test-waveform-peaks` 10); frame-snap delegates to `timeline.ts` (I17). Trim intent → **atomic apply shipped v5.9.0** (row below) |
-| Atomic trim apply (v5.9.0) | **Med — automated-verified, real-browser QA pending** | Node: `test-timeline` 16 (shift mirrors ghost preview incl. boundary drops), `test-take-manager` 33 (stamp null-delete patch); build + tsc clean. Pending the §7 roadmap QA gate: duration/cue-shift/full-composite-after-apply, voice-lock honesty, revert honesty, attach/Download on the trimmed base |
+| Atomic trim apply (v5.9.0) | **High (single machine)** | Node: timeline 16 + take-manager 33; real-browser QA PASS for duration/cue parity, full post-apply bake, voice lock, revert/undo, recovery, Download/attach, and regressions (2026-07-11) |
+| Artifact-store write acknowledgment | **Low** | `saveLastBaseMp4`/`saveLastBakedMp4` can return without persisting on size rejection (base also swallows IDB errors), while callers may still stamp/signal success. H6 catches later mismatch only when a stamp-aware consumer runs; H13 scopes the fail-loud contract |
 | Vosk model caching | **Low (accepted)** | ~40 MB re-download per session; BUG-013 tradeoff stands |
 | Demo site (`demo/`) parity with v5.4.0 | **Low (out of scope)** | No capture pipeline there; explicitly deferred |
 
 **Open questions:**
-1. How does transcode PROGRESS reach a Studio-initiated job? (`rememberRelayTab` with no `sender.tab` → late-bind fallback? runtime broadcast?) Verify in `background.ts` before building anything on it. (H12, v5.4.x)
-2. ~~Do two simultaneously open Studio sessions fight over `rvn.take.current`?~~ **Resolved by user QA 2026-07-06** — concurrent recordings work end-to-end; only a transient length-display edge remains (see confidence ledger + backlog H11).
-3. Does the calibration probe re-run per bake or cache per session — and what happens on a hardware/driver change mid-session?
+1. Should H13 make store saves return authoritative persisted metadata, or only throw on rejection/failure? Returning metadata best prevents callers from manufacturing `Date.now()` stamps, but touches more call sites.
+2. Does the v5.9 trim commit need transcript ownership (`takeId` on the session record) before concurrency grows? Today the pre-commit guard + H6 protect the base, but a different take beginning during the final multi-store write window could still observe a shifted single-slot transcript (R16).
+
+**Resolved this pass:** Studio-job progress is direct `runtime.onMessage` with tab-relay suppression (H12); overlay alpha calibration is cached once per session by codec+dimensions+fps, while the content-dependent browser-composite decode probe runs per bake/input.
 
 ---
 
 ## 7. Self-critique (Phase 2)
+
+**Verified in the v2.6 full pass (2026-07-11, `main` @ `v5.9.0`):** CSP and six-context inventory (`wxt.config.ts`); every `MSG_*` family/query/signal in `types.ts`; `rvn.take.current` subscription/write contract; Studio capture fork; extension-page direct progress delivery and all three skip-tab-relay maps; current prefs defaults; primary browser composite vs dual-IVF/MediaRecorder/drawtext fallback ownership; partial-splice gate; H6 consumers; recovery; atomic trim source/transform/commit/host-refresh path; all single-slot store save contracts. Two money paths were re-walked from code (Trace A and E), not inferred from earlier docs.
 
 **Verified in the v2.5 session (2026-07-11, v5.9.0 branch):** the entire trim-apply integration surface read directly during Phase 0/1 — `trim.ts` backend + `shiftCuesForTrim` vs `projectCueThroughTrim` (semantics mirrored, epsilon matched); `computePartialRebakePlan`'s `durationSeconds !== ` guard in `subtitle-bake.ts:129` (the post-apply full-composite safety); all four `loadLastBakedMp4` consumers H6-safe after a stamp drop (Download per-stamp check, voice-reapply skips absent baked leg + dies at cleared baseRecording, background relay gated panel-side, splice duration-guarded); `session-transcript-db.ts` dual-copy model (the §3H revert hazard); `mergeTakePatch` null-delete evolution Node-tested.
 
@@ -361,14 +388,18 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 **Verified in the v2.3 session:** CSP table vs `wxt.config.ts`; wire constants vs `types.ts` + `background-blob.ts` + `baked-mp4-blob.ts`; TakeManager types/constants/exports read directly; `studio-take-recovery.ts` read; `user-preferences.ts` default-flip confirmed at lines 148–191/329; `recorder-host.ts` contract read; storage map extended in `design-studio.md` §3.2; stale doc fixed in `transcription-architecture.md` §gating.
 
-**Carried forward, NOT re-verified line-by-line this session:** offscreen job-queue state machine (§2.4) and `isMeaningfulProgress` internals; `burnInSkipTabRelayByJobId` mechanics; `subtitle-canvas-bake.ts` strategy-selection code (trusted from `transcription-architecture.md` + extension-points, both current); `persistOrphanStudioTranscodeResult` in `background.ts` (trusted from progress notes).
+**Carried forward, NOT re-verified line-by-line this session:** Vosk sandbox inference internals after the parent/worker trust boundary; the full 2k-line timeline pointer/keyboard UI; codec packet assembly internals inside `composite-splice.ts`. Their boundary contracts and tests were checked; implementation detail remains owned by the canonical subsystem docs/ADRs.
 
 **Doc-vs-code disagreements found (and fixed or filed):**
+- `architecture-map.md` Trace A and its data-flow diagram routed the default rich bake through dual-IVF + `MSG_BURNIN_START`; code has defaulted to direct in-page browser composite since v5.5.1 → **fixed in v2.6**.
+- `design-studio.md` and `transcription-architecture.md` still described Reddit-only capture, flat subtitle preview, and FFmpeg as the normal composite → **canonical owners refreshed in place**; no duplicate architecture doc created.
+- `extension-points.md` said trim intent had no consumer immediately before its v5.9 preview=APPLY paragraph → **fixed in v1.8**.
+- `hardening-backlog.md` still called v5.9 QA pending, H12 unverified, and H8 possibly subsumed → **corrected in v2.5**; H13/R16 record the newly verified persistence/commit gaps.
 - `transcription-architecture.md` said `webCodecsBake` default false; code says true since `bd7d60a` → **fixed this session**.
 - `take-manager.ts` header promises stamp cross-checking by consumers; no consumer does it → **filed as H6** (code change, not doc change — the contract is right, the implementation is missing).
 - v1 map referenced ADR stub `adr/0001-voice-recorder-prefs-transcriptconfig.md` that was never created; the number was then used by the WebCodecs ADR → stub question absorbed into this refresh (the `transcriptConfig` optionality concern did not recur in 5.3.x; dropped without a stub).
 
-**Coupling that surprised:** recovery couples Studio ↔ background through *three* channels at once (storage snapshot, `MSG_QUERY_TRANSCODE_INFLIGHT`, and the orphan-persistence path) — correctness depends on their ordering agreeing. It works, but any future edit to one channel must consider the other two; this is the most fragile new seam in v5.4.0.
+**Coupling that surprised:** atomic trim is called “commit-last,” but the commit spans three independently transactional stores (`rvnLastBaseMp4`, `rvnSessionTranscript`, `rvn.take.current`). H6 makes a partially written base fail safe for stamp-aware consumers, but the transcript has no take ownership. This is a narrow race, not evidence of a shipped failure; it is explicit as R16 instead of hidden behind the word atomic.
 
 **If I changed X, what breaks?**
 - Write `rvn.take.current` outside TakeManager → dual-writer races, deck/panel desync (the exact class Phase-0 centralization removed).
@@ -376,6 +407,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 - Mark any captured stream composite-ready → v5.3.9.1 regression class (I12).
 - Skip the calibration probe "because VP8 is always limited-range" → wrong alpha on hardware that encodes full-range (I13).
 - Add a `MSG_TAKE_*` message family "for consistency" → two sync channels for one datum; ADR-0002 explains why storage won.
+- Treat `saveLast*Mp4()` resolution as proof of persistence without an acknowledgment contract → a rejected/failed store write can still publish a success signal or stamp (H13).
 
 ---
 
@@ -391,9 +423,11 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | `docs/5.3.10-webcodecs-per-chunk-encoding.md` §0 | WebCodecs backbone as-built |
 | `docs/v5.6.0-audio-decoupling.md` | Audio decoupling + editing/timeline backend + **partial-splice contract** (§4.2 as-built, §13 QA checklist) |
 | `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline visual subtitle editor as-built (the v5.8.0 Studio surface — SHIPPED) |
+| `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA gate/result |
+| `docs/v5.10.0-raw-trim-apply-roadmap.md` | **Planning only / unshipped:** proposed raw-WebM trim extension to restore post-trim voice changes. Re-verify its storage API names, H13 acknowledgment rule, and R16 transcript ownership before implementation |
 | `docs/architecture/adr/` | ADR-0001 WebCodecs backbone · ADR-0002 TakeManager storage sync · ADR-0003 composite-stage elimination (**Accepted**) · ADR-0004 audio decoupling / voice re-apply · ADR-0005 partial re-bake splice (**Accepted**, default-on) |
-| `docs/architecture/extension-points.md` | Seam registry (v1.6) |
-| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.4) |
+| `docs/architecture/extension-points.md` | Seam registry (v1.8) |
+| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.5) |
 | `src/messaging/types.ts` | Wire registry — authoritative message constants |
 | `src/session/take-manager.ts` | Take lifecycle contract (header doc is authoritative) |
 
@@ -403,17 +437,16 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3 / WXT). Branch: feature/v5.9.0-trim-apply (main @ v5.8.0; tags local; push deferred). Map: v2.5 (2026-07-11).
-Contexts (6, unchanged since v5.4.0): content(reddit) / background(SW) / offscreen(FFmpeg) / sandbox(Vosk) / Design-Studio(capture+encode+edit+bake) / popup.
+Repo: Reddit Voice Notes (Chrome MV3/WXT), main @ tagged v5.9.0. Map v2.6 (2026-07-11).
+Contexts (6): content / background SW / offscreen FFmpeg / Vosk sandbox / Design Studio / popup.
 Spine:
-  preview=bake: shared overlay painter (createOverlayFramePainter) under every encoder; timeline cue edits frame-snap via timeline.ts (I17); browser composite default-on (ADR-0003); drawtext = last fallback
-  effect composition: bg→bars→subs (post-base.mp4). Re-bake splice (v5.7.0, default ON): dirty GOPs re-encoded from CLEAN base, kept packets bit-exact, kept-region fidelity gate (I16) → honest full fallback
-  message contracts: types.ts 3 pipelines + query kind + chunked blob relays (store: baked|base). v5.6→v5.9 added NO new MSG family; take lifecycle stays storage (ADR-0002)
-  state ownership: rvn.take.current via TakeManager only (stamps H6-verified; v5.9.0 patch accepts null = stamp delete); experimental.partialRebakeSplice default ON; edits.trim = planTrim-gated intent, CONSUMED by trim-apply.ts (v5.9.0)
-Editing suite: v5.6.0 backend (timeline/dirty-tracker/coordinator/trim) → v5.7.0 splice EXECUTION (composite-splice + splice-plan + composite-fidelity) → v5.8.0 timeline UI (subtitle-timeline-editor + pure timeline-geometry/waveform-peaks) → v5.9.0 atomic trim APPLY (trim-apply.ts: H6 base mutate + dual-copy cue shift + baked/baseRecording stamp drop = voice locked in; post-apply bake full-composites via the duration guard). No new seam.
-Hardening: H6 shipped; H9 SHIPPED (browser composite default-on v5.5.1); H8+H12 open v5.x patches; H10 deferred. Risks: R14 splice avcC (mitigated by I16), R15 timeline two-view source-of-truth.
-Open questions: Studio-job progress relay (H12); calibration-probe caching; splice second-machine encoder variance; is H8 subsumed by v5.6.0 TakeVoiceStamp? (verify).
-v5.9.0 gate: real-browser QA per docs/v5.9.0-trim-apply-roadmap.md §7 (user signs off before merge/tag).
-Backlog: hardening-backlog.md v2.4. Extension-points v1.7. ADRs 0001-0005 all Accepted (0005 default-on).
+  preview=bake: direct shared painter on browser composite; timeline frame-snap I17; trim preview=APPLY I18.
+  composition: bg→bars in capture; subtitles post-base. Full default = browser decode→paint→encode; FFmpeg tiers persist.
+  messages: types.ts has 3 pipelines + idempotent query + chunked relays; Studio progress is direct runtime broadcast (H12 resolved).
+  state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; trim clears baked/raw-audio stamps and forces full re-bake.
+Editing arc: v5.6 audio/edits → v5.7 verified GOP splice → v5.8 timeline → v5.9 atomic trim (QA PASS).
+Hardening v2.5: H13 OPEN (store writes must acknowledge persistence); H8 OPEN (recovery uses resume-time voice); H10 deferred.
+Risks: R14 splice avcC mitigated by I16; R15 two-view draft; R16 narrow trim multi-store race.
+Extension points v1.8. ADRs 0001–0005 Accepted; no new ADR/context/message/store in v5.9.
 Read docs/architecture/architecture-map.md then run /architecture-hardening resume.
 ```

@@ -9,7 +9,7 @@ Trim actually cuts: **Apply trim** → shorter `baseMp4` + cue shift (both trans
 
 ## ▶ Next (open) — post-v5.9 candidates
 
-Trimming the raw capture WebM (restores post-trim voice changes) · unique “voice locked after trim” copy if a UI rework wants it (current gray-out is correct) · **v6.0 "Polish & Visual Maturity"** arc (roadmap §9).
+[Trimming the raw capture WebM](docs/v5.10.0-raw-trim-apply-roadmap.md) (planning only; restores post-trim voice changes) · unique “voice locked after trim” copy if a UI rework wants it (current gray-out is correct) · **v6.0 "Polish & Visual Maturity"** arc (roadmap §9).
 
 ## Shipped ledger
 
@@ -29,4 +29,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-Last full `/architecture-hardening` pass at v5.4.0; docs refreshed through v5.9.0 — **map v2.5 · extension-points v1.7 · hardening backlog v2.4 · ADRs 0001–0005**. Re-run before the next major refactor or on a new execution context / message-pipeline family / storage class (triggers in [`docs/architecture/README.md`](docs/architecture/README.md)). Ranked items + risk register: [`docs/architecture/hardening-backlog.md`](docs/architecture/hardening-backlog.md).
+Full `/architecture-hardening` pass completed at tagged v5.9.0 — **map v2.6 · extension-points v1.8 · hardening backlog v2.5 · ADRs 0001–0005**. Top hardening: **H13** acknowledged artifact persistence (High/S), then **H8** recovery voice provenance (Med/S); H12 is resolved. Re-run before the next major refactor or on a new execution context / message family / storage class (triggers in [`docs/architecture/README.md`](docs/architecture/README.md)).

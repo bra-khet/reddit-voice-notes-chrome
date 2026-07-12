@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.7 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.9.0`
+**Version:** v1.8 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.9.0`
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.7 — **atomic trim APPLY** shipped (v5.9.0): the audio-editing seam's "artifact integration still deferred" caveat is lifted — new `trim-apply.ts` orchestrator entry (H6 base mutate, dual-copy cue shift via `shiftCuesForTrim`/`replaceSessionTranscriptResults`, stamp null-delete take patch, voice-lock + full-composite-after-apply gotchas); timeline cue editor seam's trim note updated (Apply strip control, preview=apply). NO new seam. v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.8 — full v5.9 audit: corrected the subtitle/bake seam to show direct browser composite as primary (dual-IVF is fallback), documented Studio-direct runtime progress (H12 resolved), added the fail-loud artifact-store write rule (H13), and removed the last inert-trim sentence. No new seam. v1.7 — **atomic trim APPLY** shipped (v5.9.0): the audio-editing seam's "artifact integration still deferred" caveat is lifted — new `trim-apply.ts` orchestrator entry (H6 base mutate, dual-copy cue shift via `shiftCuesForTrim`/`replaceSessionTranscriptResults`, stamp null-delete take patch, voice-lock + full-composite-after-apply gotchas); timeline cue editor seam's trim note updated (Apply strip control, preview=apply). NO new seam. v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -35,12 +35,11 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 ## Subtitle effects — v1
 
 - **Add a style/effect field:** `src/transcription/types.ts` (`SubtitleStyleConfig`).
-- **Preview path:** `src/ui/design-studio/subtitle-controls.ts` + `src/transcription/subtitle-preview.ts` + `src/transcription/subtitle-effects.ts`.
-- **Bake path:** `src/ffmpeg/subtitle-burnin.ts` (drawtext strategies + `temporalizeDrawtextColor`).
-- **Preview=bake?** YES, with documented quantization where FFmpeg drawtext is static per filter instance.
-  - Animated colors → time-sliced static layers (`temporalizeDrawtextColor` / `RAINBOW_BAKE_SLICE_SECONDS`).
-  - Font rendering → same DejaVu TTF files: FontFace API for canvas (RVN-* family names via `preview-font-loader.ts`), FreeType WASM FS for bake (`BURNIN_FONT_FS_PATH`).
-- **Sync points:** style field ↔ `subtitle-preview.ts` render ↔ `subtitle-burnin.ts` drawtext ↔ `studio-section-summaries.ts` chip.
+- **Preview path:** `subtitle-controls.ts` + `subtitle-preview.ts` / segment player + `subtitle-effects.ts`; the timeline is an editing surface over the same cue draft.
+- **Primary bake path:** `browser-composite.ts` calls `createOverlayFramePainter` directly at decoded base-frame PTS, blends in Canvas2D, then VideoEncoder+mux writes the MP4. Add rich visual effects to the shared painter first.
+- **Fallback bake paths:** dual-IVF WebCodecs overlay → FFmpeg alphamerge; MediaRecorder overlay → FFmpeg composite; final `subtitle-burnin.ts` drawtext tier. A new effect must declare its behavior on every tier or explicitly trigger a richer tier.
+- **Preview=bake?** YES on the primary shared-painter path. Drawtext fallback is a documented approximation with the same bundled DejaVu TTF, static colors, and bounded glow layers.
+- **Sync points:** style field ↔ preview/painter ↔ fallback declarations (`subtitleStyleHasCanvasOnlyEffects` / drawtext) ↔ `studio-section-summaries.ts` chip.
 - **Gotchas:**
   - Use `textfile=` for cue text — commas/apostrophes break `-vf` chain (BUG-031).
   - No silent libass fallback — `burnInLogIndicatesFailure` must reject failed burns; do not add a fallback that exits 0 with no visible subs (BUG-025/028/030).
@@ -59,6 +58,7 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Add a query (v2, new kind):** a plain request/response with no lifecycle — reference: `MSG_QUERY_TRANSCODE_INFLIGHT` (v5.4.0 recovery). Queries must be **idempotent and side-effect-free** so recovery chains can call them safely; do not grow a query into a pipeline — if it needs PROGRESS, it's a pipeline.
 - **Background relay:** add `register<Name>Tab` / `relay<Name>Broadcast` / `relay<Name>Failure` in `entrypoints/background.ts`; add to `rememberRelayTab` / `forgetRelayTab` via `src/messaging/relay-registry.ts`.
 - **Design Studio receiver:** decide tab-relay vs `runtime.onMessage` — if Design Studio is the consumer, use `burnInSkipTabRelayByJobId` pattern (extension page, not content script).
+- **Studio-direct progress (H12 resolved):** transcode/transcribe/burn-in clients on extension pages listen to the original offscreen `runtime.onMessage` broadcast. Background marks extension-page initiators in the matching `*SkipTabRelayByJobId` map and suppresses only `tabs.sendMessage`; the late-bound Reddit-tab fallback is for content-script jobs, not normal Studio delivery.
 - **Chunked blob relays (v2):** `MSG_GET_BAKED_MP4_META/_CHUNK` accept `store: 'baked' | 'base'` (default `'baked'`, backward compatible); background keeps a per-store byte cache. Adding a new fetchable store means extending that union, not a new message pair.
 - **Offscreen handler:** add to `entrypoints/offscreen/main.ts` job queue.
 - **Sync points:**
@@ -73,6 +73,7 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **New large/structured datum:** new `src/storage/*-db.ts` IDB module + relay if a content script needs access (content scripts cannot read extension IDB — they get bytes via chunked background relay).
 - **New cross-context signal:** `rvn.<x>.ready` key + poll/listener pattern (see `rvn.sessionTranscript.ready` as reference).
 - **Rule:** never put image blobs or transcript cue text in `rvnUserPrefs` — size, quota, and relay semantics all break.
+- **Persist-before-publish rule (H13):** a blob-store save must fail loudly or return authoritative persisted metadata. Callers must not manufacture a stamp, fire `*.ready`, or report success merely because a `Promise<void>` resolved; size rejection and IDB failure are not success. Keep the order: persist → receive/verify meta → publish stamp/signal.
 
 ## Theme / background / canvas flair — v1
 
@@ -121,6 +122,8 @@ the timeline, a **painter** draws any global frame, an **encoder strategy**
 turns painted frames into encoded segments, a **stitcher** joins them, and the
 composite consumes the result. Two encoder strategies exist; both sit on the
 same paint seam.
+
+**Current default (ADR-0003):** browser full composite bypasses those overlay-segment encoders entirely — it decodes the clean base, calls the same painter directly at each base-frame PTS, blends, encodes, and muxes in page. The dual-IVF and MediaRecorder segment strategies below are permanent fallback seams, not prerequisites of the default path.
 
 - **The paint seam (encoder-agnostic):** `createOverlayFramePainter` in
   `src/transcription/subtitle-overlay-renderer.ts` — paints the overlay's
@@ -306,6 +309,10 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
     stamp (the raw WebM no longer matches the timeline), so a later re-apply
     fails honestly at the clean-audio door ("re-record to change the voice") —
     never desynced audio. Trimming the raw WebM is its own follow-up if wanted.
+    `docs/v5.10.0-raw-trim-apply-roadmap.md` sketches that follow-up but is
+    planning-only: implementation must reuse the existing `last-recording-db.ts`
+    seam, preserve the H6 superseded-take guard, and obey H13's acknowledged-
+    persistence rule before publishing a replacement raw-recording stamp.
   - **Post-apply bakes are FULL composites by construction** —
     `computePartialRebakePlan` nulls on any duration change; never "fix" that
     guard without replacing what it protects.
@@ -386,7 +393,8 @@ the existing edit / dirty-tracking / trim seams. Canonical as-built:
   the ruler so it can't imply a cue lands where the bake won't.
 - **Trim:** ✂ mode writes the non-destructive `edits.trim` intent through the existing `planTrim`
   gate (`src/editing/trim.ts` `loadTrimIntent`/`storeTrimIntent`) → TakeManager `mergeTakeEdits`.
-  **View-state + intent only** — no atomic apply consumes it yet.
+  v5.9.0 consumes it through `applyTrimToCurrentTake`: H6 base cut + live-draft/baseline cue shift +
+  one take patch that clears intent and stale baked/raw-audio stamps.
 - **Preview=bake?** YES for cue timing (frame-snap, I17). **YES for trim since v5.9.0
   (preview=APPLY):** the ghost bars project the live draft through `projectCueThroughTrim`,
   and `shiftCuesForTrim` reproduces that math on apply — the host passes the LIVE draft
@@ -413,20 +421,16 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.7 (2026-07-11), feature/v5.9.0-trim-apply.
-Seams: voice effects v5 (graph-native) · subtitle effects v1 · font pipeline v1 ·
-message pipelines v2 (pipeline + query kinds; store: baked|base relay param) ·
-storage v1 · theme/canvas v1 · Studio surfaces v1 · voice live-mic preview v1 ·
-overlay encoding backbone v1 (painter seam; webcodecs→mediarecorder→serial→drawtext;
-flags default TRUE) · take lifecycle v1 (storage sync, ADR-0002; takeArtifactMatchesStore
-MANDATORY before adopting blobs — H6; voice/edits snapshot fields) · Studio capture host v1
-(onLiveCanvas zero-copy) · audio editing & voice re-apply v1 (ADR-0004: raw WebM invariant
-source; TakeVoiceStamp provenance; stream-copy remux) · partial re-bake splice v1 (v5.7.0,
-ADR-0005: dirty GOPs re-encoded from CLEAN base, kept-region fidelity gate I16, default ON) ·
-timeline cue editor v1 (v5.8.0: DOM timeline over existing seams — NO new msg/store/writer;
-pure timeline-geometry/waveform-peaks leaves; frame-snap via timeline.ts → I17).
-v5.9.0 trim APPLY rides the audio-editing seam (trim-apply.ts): H6 base mutate + dual-copy cue
-shift; drops bakedMp4/baseRecording stamps (voice locked in); post-apply bakes full-composite.
+Extension points v1.8 (2026-07-11), main @ tagged v5.9.0.
+Seams: voice v5 · subtitle/font v1 · messages v2 · storage v1 · theme/Studio/live-mic v1 ·
+overlay backbone v1 · take lifecycle v1 · capture host v1 · audio editing/re-apply v1 ·
+partial splice v1 · timeline editor v1. No new seam/context/store/message in v5.9.
+Default subtitle bake: browser decodes base → shared painter → encode/mux directly.
+Fallbacks: dual-IVF+FFmpeg → MediaRecorder+FFmpeg → drawtext.
+Studio pipeline progress is the offscreen runtime broadcast; skip-tab maps suppress duplicates.
+Take state syncs through rvn.take.current (ADR-0002); H6 is mandatory before blob adoption.
+Trim apply: H6 base cut + live/baseline cue shift + intent/stale-stamp clear; next bake is full.
+Storage rule: persist and receive authoritative success/meta before publishing stamps/signals (H13).
 Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
 one-shot question → query message. New editing UI → reuse the edit/dirty/trim seams, don't add a wire.
 ```

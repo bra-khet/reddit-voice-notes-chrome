@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.4 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.8.0`
-**Status:** Ranked hardening items for the v5.4.x standalone-suite direction. Each item cites
+**Version:** v2.5 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.9.0`
+**Status:** Ranked hardening items for the current standalone editing suite. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14 (self-verifying, not an open item). v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → new risk R15 (handled by `captureActiveDraft`; the review checklist for new cue-draft views). **No new OPEN hardening item** from the v5.5→v5.8 arc; H8/H12 remain the carried v5.x patches (H8 may now be subsumable by v5.6.0 `TakeVoiceStamp` — verify before scoping). v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite` (behind `experimental.browserComposite`, default false; Phase 0 QA gate user-owned before default flip). New R13 (30 MB baked-store cap vs composite bitrate). v2.2 (2026-07-07) — H9 decision recorded: browser-side full composite accepted via ADR-0003 (user directive: performance + extensibility over preview pixel fidelity; v5.3.10 primitives leveraged). Summary table + risk register updated; new R9–R12. v2.1 (2026-07-06) — triage + H6 implemented (user directive): H6 **resolved** (stamp verification shipped + tested), H11 **resolved** (user QA — concurrent recordings work; minor transient display note), H10 **deferred** (user decision), H8/H12 re-filed as v5.4.x patches, H9 stays decision-first (ADR-0003). v2.0 (2026-07-06) — full refresh post-v5.4.0; risk register. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
+**Changelog:** v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -16,11 +16,12 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | H6 | Artifact-stamp verification at take consumption points | **High** | S | **Resolved (2026-07-06)** |
 | H7 | Doc drift: `webCodecsBake` default + storage map | High (cheap) | XS | **Resolved (2026-07-06)** |
 | H11 | Concurrent Studio recordings vs single-slot take | Med-Low | — | **Resolved — user QA, no code needed (2026-07-06)** |
-| H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **v5.4.x patch** |
-| H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **v5.4.x patch** |
+| H13 | Artifact-store writes must acknowledge persistence before stamps/signals | **High** | S | **Open — next hardening sprint** |
+| H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **Open — not subsumed by TakeVoiceStamp** |
+| H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **Resolved (2026-07-11) — direct runtime broadcast** |
 | H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
 | H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **SHIPPED** — browser full composite merged v5.5.0, **default-on since v5.5.1** (two-machine QA PASS). ADR-0003 Accepted. Partial-splice (v5.7.0) cuts re-bakes further |
-| — | v5.7.0 splice avcC hazard · v5.8.0 timeline two-view | — | — | **Mitigated by design** — fidelity gate I16 (→ R14) + `captureActiveDraft` (→ R15); no open work, see risk register |
+| — | v5.7 splice avcC · v5.8 two-view · v5.9 trim commit window | — | — | **Mitigated / monitored** — I16 (R14), `captureActiveDraft` (R15), superseded guard + H6 (R16) |
 | H5 | Binary transport / 3:00 cap restoration (BUG-001 deferred) | Low | XL | Deferred (carried) |
 | — | Vosk model re-download (~40 MB/session, BUG-013) | Low | L | Accepted tradeoff (carried) |
 
@@ -84,28 +85,60 @@ so resumed base MP4s were saved with duration 0.
   overlay-backbone gotcha updated; ADR-0001 left untouched (immutable record — its
   "follow-ups: flip default after QA" is now satisfied and noted here).
 
-## H8 — Recovery re-transcode uses resume-time voice prefs (v5.4.x patch)
+## H8 — Recovery re-transcode uses resume-time voice prefs (OPEN)
 
 - **Item / class it kills:** silent semantic drift — a draft recovered after tab close is
   re-transcoded with `prefs.voiceEffect` *as of resume time*
   (`studio-take-recovery.ts:62-68`), not the effect active at capture. If the user changed
   voice settings between capture and recovery, the resumed MP4 sounds different from what
   they recorded, with no indication.
-- **Evidence:** `studio-take-recovery.ts:62-68` (`loadUserPreferences()` at resume);
-  `CurrentTakeMeta` has no voice provenance field.
+- **Evidence (re-verified v5.9.0):** `studio-take-recovery.ts` loads
+  `prefs.voiceEffect` immediately before resume transcode. v5.6 added
+  `CurrentTake.voice: TakeVoiceStamp`, but capture writes it only with the successful
+  `ready` promotion (`voice-recorder.ts`); the interrupted draft this path handles has
+  not completed that promotion and normally has no voice stamp. Recovery also ignores
+  the transcode outcome's voice stamp/fallback. Therefore v5.6 did **not** subsume H8.
 - **Invariant it protects:** preview↔bake — what was auditioned at capture is what the
   take produces.
-- **Surgical change:** stamp the resolved voice-intent key (the existing id-free
-  `voiceEffectUserIntentKey`) into `CurrentTakeMeta` at `beginTake`; on resume, compare
-  with current prefs — if different, surface a one-line deck note ("Voice settings changed
-  since capture — applied current settings") rather than blocking. ~15 lines.
+- **Surgical change:** add an optional JSON-safe `captureVoiceIntent` (normalized config +
+  id-free intent key) to take metadata at `beginTake`; recovery uses that config for the
+  resumed transcode and promotes the returned `TakeVoiceStamp` with `ready`. Pre-v5.10
+  drafts without the field keep today's current-prefs behavior plus an honest note. Keep
+  parsing additive and dependency-free in TakeManager. One focused sprint.
 - **Blast radius:** `voice-recorder.ts` (one meta field), `studio-take-recovery.ts`,
   deck note rendering. Snapshot field is optional → forward/backward compatible.
 - **Verification hook:** capture with effect A → close mid-processing → switch to effect B
   → reopen → note appears; `test-take-manager.mjs` parse round-trip with the new field.
-- **Out of scope / Non-goals:** re-rendering with capture-time settings automatically
-  (would require persisting the full graph snapshot per take — not warranted for a
-  single-slot session tool); blocking recovery on mismatch.
+- **Out of scope / Non-goals:** storing auxiliary FFmpeg inputs or rendered audio in the
+  snapshot; a multi-take voice-history store; blocking recovery when a legacy draft lacks
+  provenance. The normalized config is small JSON, not a blob.
+
+## H13 — Artifact-store writes must acknowledge persistence before stamps/signals (OPEN)
+
+- **Item / class it kills:** false-success artifact publication — callers claim a fresh
+  base/baked MP4 even though the single-slot IDB rejected or failed the write, causing a
+  stale blob behind a new stamp/signal and delayed, confusing H6 demotion.
+- **Evidence:** `saveLastBakedMp4` returns `void` without writing for blobs `<256` or
+  `>30 MB`; `saveLastBaseMp4` does the same outside `256..25 MB` and catches/logs IDB
+  failures without rethrowing. Callers then publish success: `subtitle-bake.ts` fires
+  `BAKED_MP4_READY_KEY` + `updateFromBake`; `background.ts` records `baseMp4` after the
+  awaited save; `voice-reapply.ts` and `trim-apply.ts` manufacture new stamps after save.
+  R13 already named the baked-size instance; the full-pass audit found the class spans
+  every artifact mutation.
+- **Invariant it protects:** I15/state ownership — a take stamp and ready signal must
+  describe bytes that were durably persisted, never merely intended.
+- **Surgical change:** make base/baked save functions reject invalid sizes and IDB errors
+  and return the authoritative persisted meta (`savedAt`, byteLength, duration). Update
+  the four mutation choke points (background relay, subtitle bake, voice re-apply, trim
+  apply) to stamp/signal only from that returned meta. Add pure size-gate tests plus one
+  injected write-failure test; keep existing H6 reads unchanged.
+- **Blast radius:** storage modules + four callers in background/Studio; no schema,
+  message, key, UI-layout, or container change. Failure copy already exists at callers.
+- **Verification hook:** Node size-boundary tests; forced IDB rejection must leave the old
+  stamp/signal untouched; release regression for bake, voice re-apply, trim, attach.
+- **Out of scope / Non-goals:** multi-slot history, transactional IDB across databases,
+  content hashing, quota management UI, or changing bitrate/caps. This hardens the success
+  contract; it does not redesign storage.
 
 ## H9 — Composite-stage elimination (Accepted — browser-side full composite via ADR-0003)
 
@@ -181,19 +214,20 @@ download. Once the second finishes it correctly takes precedence. Transient,
 display-only, self-corrects — logged here so a future session doesn't re-diagnose it as
 data corruption (it is not; blobs and downloads resolve correctly throughout).
 
-## H12 — Studio-job progress relay mechanism (v5.4.x patch — verify + document)
+## H12 — Studio-job progress relay mechanism (RESOLVED 2026-07-11)
 
-- **Item / class it kills:** building future features on an unverified assumption. Studio-
-  initiated transcode works (QA PASS), but *how* PROGRESS reaches an extension page with
-  no `sender.tab` (late-bind fallback? runtime broadcast? skip-relay registry?) was not
-  re-read this session — and the relay registry's late-bind fallback targets "active
-  Reddit tab", which is wrong for a Studio job if that's the path taken.
-- **Evidence:** architecture map §6 open question 1; `relay-registry.ts` late-bind note
-  (v1 map); v5.4.0 Phase 2 "transcode client is runtime.sendMessage-based".
-- **Surgical change:** read `background.ts` `rememberRelayTab`/broadcast paths for the
-  no-tab case; document the answer in architecture-map §3.3 (one paragraph); fix only if
-  the late-bind fallback can misroute Studio progress to a Reddit tab.
-- **Out of scope / Non-goals:** relay refactor; unifying pipeline transports.
+**Resolution:** no code change required. `transcoder.ts` installs a
+`browser.runtime.onMessage` listener in the initiating Studio page. Offscreen
+PROGRESS/COMPLETE broadcasts therefore reach Studio directly. `background.ts`
+`registerTranscodeTab` recognizes `chrome-extension://` / `moz-extension://` senders and
+sets `transcodeSkipTabRelayByJobId`; `relayTranscodeBroadcast` skips only the
+`tabs.sendMessage` copy while still performing completion cleanup/orphan persistence.
+Burn-in and transcribe use the same `*SkipTabRelayByJobId` pattern. A normal Studio tab
+has `sender.tab.id`, so the no-tab active-Reddit late-bind branch is not its delivery path.
+
+**Documented in:** architecture map v2.6 §2.5/§3.3 and extension-points v1.8.
+**Out of scope / Non-goals:** transport unification or relay refactoring; the existing
+direct-runtime/content-tab split is intentional and working.
 
 ## Carried deferrals
 
@@ -204,11 +238,11 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 
 ---
 
-## Risk register — WebCodecs / canvas / splice paths (through v5.8.0)
+## Risk register — WebCodecs / canvas / splice / trim paths (through v5.9.0)
 
 | # | Risk | Likelihood | Impact | Mitigation in place | Residual action |
 |---|------|-----------|--------|--------------------|-----------------|
-| R1 | Alpha luma calibration differs on other hardware/drivers (probe measured `white=234, black=17, limited` on ONE machine) | Med | Wrong alpha → visible matte fringing | Probe is per-path gate (I13); any failure → MediaRecorder fallback | H10 surfaces when it fires; collect timing JSONs from a second machine before pushing the tag |
+| R1 | Alpha luma calibration differs on hardware/drivers (fallback overlay tier) | Med | Wrong alpha → visible matte fringing | Real encode→decode calibration is cached per codec+dimensions+fps for the session (I13); failure → MediaRecorder | Accepted fallback-tier residual; H10 would surface fallback cause if revived |
 | R2 | Premultiply round-trip precision at very low alpha (glow tails) | Low | Subtle edge halos on dark backgrounds | QA-passed on rich-effects clips 2026-07-05 | Keep the compare harness in Overlay Lab; re-check after any FFmpeg core upgrade |
 | R3 | `VideoEncoder` VP8 support removed/altered by a Chrome release | Low | Whole fast path dark → silent 5–6× slowdown | Capability probe + full fallback chain | Accepted residual — H10 deferred by user decision; symptom to watch: multi-minute bakes with no explanation |
 | R4 | MediaRecorder fallback path rots now that it's off the hot path | Med | Fallback fires and *also* fails → drawtext-only quality | v5.3.9 tests still in suite (`test-chunk-planner`, `test-overlay-concat-args`) | Add "force MediaRecorder" to the periodic QA sweep (Lab toggle exists) |
@@ -220,9 +254,10 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 | R10 | Audio passthrough mux drifts timing or loses channels vs FFmpeg | Low | A/V desync or corrupt baked MP4 | Sample-accurate demux + same PTS math as planner; harness duration + alignment asserts | Duration/container validation in bake tests + harness |
 | R11 | VideoDecoder/Encoder capability or perf varies widely vs FFmpeg path | Med | Slow/failed bakes on some hardware (silent fallback risk) | Extend existing probe to decode+encode roundtrip; full fallback chain; honest surfacing | **Two-machine capability matrix PASS (v5.5.0 QA); default-on v5.5.1.** Residual = long-tail hardware → honest fallback |
 | R12 | New dep + composite surface increases maintenance / breakage surface | Low | Future Chrome/dep breakage | Small tree-shaken dep (mediabunny **1.50.6 pinned exact**); all core logic (painter/segments) in-repo; FFmpeg composite path is permanent fallback | ~~Pin dep~~ done; "force legacy composite" Lab toggle **shipped** (browser-composite toggle OFF) |
-| R13 | 30 MB `rvnLastBakedMp4` cap silently drops oversized composite output (`saveLastBakedMp4` returns without saving; take stamp would still update) | Low (bitrate pinned) | Bake "succeeds" but Download/attach serve the PREVIOUS artifact | Composite video bitrate pinned 1.5 Mbps (`composite-plan.ts`, ≈24.5 MB worst case at 2:00 cap incl. AAC); pre-encode size-estimate warning; Node test asserts ≥10% headroom | Verify real output size at the 2:00 cap during Phase 0 QA; consider a save-failure surface for ALL bake paths (pre-existing class) |
+| R13 | Base/baked store cap or IDB error silently leaves the previous artifact while callers publish success | Low (caps usually safe) | Bake/trim/re-apply appears successful; later H6 demotes or old bytes survive | Bitrates keep normal outputs under caps; H6 protects stamp-aware reads | **H13 open:** acknowledged persisted meta; fail before any stamp/signal |
 | R14 | A splice's re-encoded GOP uses a fresh encoder whose avcC / sample-description differs from the kept AVC packets → corrupt decode across the boundary | Med | Garbled frames at the splice seam | **Self-verifying** `verifySpliceKeptFrames` decodes kept-region anchors and requires pixel-equality with the original → any mismatch throws → full composite (I16); VP9 keyframes are self-contained | Second-machine encoder variance may raise the *full-fallback* rate (never a wrong pixel); collect splice logs from a 2nd machine |
 | R15 | Timeline/List two-view edits desync — an edit in one view lost because the other's stale DOM is read on Apply (dirty-state collapse) | Med | Silent loss of a cue edit | `captureActiveDraft()` reads the List DOM only when List is active; Timeline writes straight to `modalDraft` (Sprint-3 fix, QA PASS) | Any NEW view onto the cue draft must route through the same capture discipline — the review checklist for editor changes |
+| R16 | Another take begins during trim apply's final three-store commit; base write is H6-safe but the single-slot transcript has no `takeId` ownership | Low | New take may briefly inherit shifted cues from the prior take; trim caller may report success after `expectId` returns null | Long transform happens before a superseded guard; remaining race is only base-save → transcript-save → take-patch window; H6 prevents wrong base adoption | Keep explicit; if concurrency expands or reproduces, add transcript ownership/CAS. Do not invent cross-database transactions preemptively |
 
 ---
 
@@ -249,16 +284,14 @@ data corruption (it is not; blobs and downloads resolve correctly throughout).
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.4 (2026-07-11), main @ v5.8.0.
-DONE: H6 stamp verification SHIPPED; H7 doc drift fixed; H11 closed by user QA;
-H9 SHIPPED — browser full composite default-on since v5.5.1 (two-machine QA PASS;
-~43 s x264 wall gone on the primary path). v5.7.0 partial-splice execution: avcC
-hazard mitigated BY CONSTRUCTION via the kept-region fidelity gate (I16) = R14.
-v5.8.0 timeline two-view source-of-truth = R15 (handled by captureActiveDraft).
-OPEN (carried v5.x patches): H8 recovery voice-prefs provenance — MAY be subsumed by
-v5.6.0 TakeVoiceStamp, VERIFY before scoping; H12 verify Studio-job progress relay.
-DEFERRED: H10 fallback observability (user decision).
-Risks live: R1 (now fallback-tier only — browser composite has no alphamerge), R14
-splice avcC (mitigated), R15 timeline two-view. NO new OPEN item from the v5.5–v5.8 arc.
-Next feature likely: atomic trim APPLY (edits.trim intent is INERT until then) — own branch + QA.
+Hardening backlog v2.5 (2026-07-11), main @ tagged v5.9.0.
+DONE: H6 stamp verification; H7 doc drift; H9 browser composite default-on;
+H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast.
+OPEN HIGH: H13 — base/baked store writes must return persisted meta or throw before stamps/signals.
+OPEN MED: H8 — interrupted recovery uses resume-time voice; TakeVoiceStamp does not subsume it.
+DEFERRED: H10 fallback observability (user decision); H5 binary/cap restoration.
+Mitigated risks: R14 splice avcC by I16; R15 List/Timeline draft by captureActiveDraft.
+New v5.9 risk R16: narrow three-store trim commit window; H6 protects base, transcript lacks takeId.
+Atomic trim QA PASS; next product candidates are raw-WebM trim and v6 visual maturity.
+No new ADR/context/message/store is required by this refresh.
 ```
