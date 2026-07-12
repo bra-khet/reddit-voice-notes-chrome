@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.6 · **Updated:** 2026-07-12 · **Reflects:** `main` @ tagged `v5.10.0` (QA PASS)
+**Version:** v2.7 · **Updated:** 2026-07-12 · **Reflects:** `feature/h13-persist-before-stamp` on top of tagged `v5.10.0`
 **Status:** Ranked hardening items for the current standalone editing suite. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.6 (2026-07-12) — incremental refresh after **v5.10.0 raw-WebM trim** real-browser QA PASS. No new hardening item; product follow-up "raw-WebM trim" is **SHIPPED**. **H13 still OPEN** with **partial progress**: `last-recording-db.ts` exports `LAST_RECORDING_MIN/MAX_BYTES` and `trim-apply.ts` pre-checks before stamping (I19) — base/baked save acknowledgment is unchanged. **R16** extended: when the raw leg succeeds the commit window may include a fourth store (`rvnLastRecording`). H8/H10 unchanged. v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
+**Changelog:** v2.7 (2026-07-12) — **H13 RESOLVED** in a dedicated sprint: all three single-slot artifact save functions (`saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording`) now throw on unpersistable size + IDB failure and return the authoritative persisted meta; the four mutation choke points (background relay ×3 sites, subtitle bake, voice re-apply, trim apply) stamp/signal only from that meta. New Node suite `test-artifact-store-writes.mjs` (28). R13 mitigation updated; trim raw leg's IDB-failure half of I19 closed. No schema/message/key/UI change; H6 reads untouched. v2.6 (2026-07-12) — incremental refresh after **v5.10.0 raw-WebM trim** real-browser QA PASS. No new hardening item; product follow-up "raw-WebM trim" is **SHIPPED**. **H13 still OPEN** with **partial progress**: `last-recording-db.ts` exports `LAST_RECORDING_MIN/MAX_BYTES` and `trim-apply.ts` pre-checks before stamping (I19) — base/baked save acknowledgment is unchanged. **R16** extended: when the raw leg succeeds the commit window may include a fourth store (`rvnLastRecording`). H8/H10 unchanged. v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -16,7 +16,7 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | H6 | Artifact-stamp verification at take consumption points | **High** | S | **Resolved (2026-07-06)** |
 | H7 | Doc drift: `webCodecsBake` default + storage map | High (cheap) | XS | **Resolved (2026-07-06)** |
 | H11 | Concurrent Studio recordings vs single-slot take | Med-Low | — | **Resolved — user QA, no code needed (2026-07-06)** |
-| H13 | Artifact-store writes must acknowledge persistence before stamps/signals | **High** | S | **Open — partial at trim raw leg (v5.10 bounds pre-check); base/baked still silent** |
+| H13 | Artifact-store writes must acknowledge persistence before stamps/signals | **High** | S | **Resolved (2026-07-12)** |
 | H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **Open — not subsumed by TakeVoiceStamp** |
 | H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **Resolved (2026-07-11) — direct runtime broadcast** |
 | H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
@@ -113,7 +113,39 @@ so resumed base MP4s were saved with duration 0.
   snapshot; a multi-take voice-history store; blocking recovery when a legacy draft lacks
   provenance. The normalized config is small JSON, not a blob.
 
-## H13 — Artifact-store writes must acknowledge persistence before stamps/signals (OPEN — partial progress v5.10)
+## H13 — Artifact-store writes must acknowledge persistence before stamps/signals (RESOLVED 2026-07-12)
+
+**Resolution:** implemented exactly as scoped, on `feature/h13-persist-before-stamp`. All
+three single-slot artifact save functions — `saveLastBaseMp4`, `saveLastBakedMp4`,
+`saveLastRecording` — now **throw** on an unpersistable size (bounds exported:
+`LAST_BASE_MP4_MIN/MAX_BYTES`, `LAST_BAKED_MP4_MIN/MAX_BYTES`, joining the v5.10
+`LAST_RECORDING_MIN/MAX_BYTES`), **propagate** IDB failures, and **return the authoritative
+persisted meta** (`savedAt` / `byteLength` / `mimeType` / `durationSeconds`; non-finite
+duration normalized to 0 so stamps stay JSON-safe). The four mutation choke points
+stamp/signal only from that returned meta:
+1. `background.ts` — `MSG_SAVE_LAST_BASE_MP4` + `MSG_SAVE_LAST_RECORDING` handlers (a failed
+   save now yields `ok:false`, no stamp, no `LAST_RECORDING_READY` fire) and
+   `persistOrphanStudioTranscodeResult` (no stamp/`ready` promotion on failure),
+2. `subtitle-bake.ts` — `BAKED_MP4_READY_KEY` + take promotion publish only from the returned
+   meta, carried through the new optional `TakeBakeResult.savedAt` into `updateFromBake`,
+3. `voice-reapply.ts` — both commit stamps built from returned metas,
+4. `trim-apply.ts` — base stamp from returned meta; a raw-leg **save** failure (the
+   IDB-failure half I19's size pre-check could not cover) now demotes to the honest v5.9
+   stamp-drop and never fails the trim.
+On any failure the OLD stamp keeps describing the OLD record (IDB transactions roll back),
+so **H6 verification of the prior artifact still passes — reads unchanged**. Stamps built
+from returned meta now match store `savedAt` exactly instead of within the 5 s tolerance.
+**Bonus fix in the touched region:** the orphan-persist path passed `number | undefined`
+into `saveLastBaseMp4` (one of the 3 documented pre-existing `tsc` errors) — closed.
+**Verified:** new `scripts/test-artifact-store-writes.mjs` **28/28** (size boundaries ×3
+stores, meta-authority vs the written record, stamp-from-meta passes
+`takeArtifactMatchesStore`, injected IDB write-failure rejects AND leaves the prior
+record + stamp verifiable); full Node sweep green (take-manager 34, timeline 22, take-deck
+12, all others unchanged); `tsc` improved 3 → 2 pre-existing; `npm run build` PASS.
+Real-browser release regression (bake / voice re-apply / trim apply / attach / recovery)
+is the user QA gate before merge/tag.
+
+<details><summary>Original scoping (for the record)</summary>
 
 - **Item / class it kills:** false-success artifact publication — callers claim a fresh
   base/baked MP4 even though the single-slot IDB rejected or failed the write, causing a
@@ -144,6 +176,8 @@ so resumed base MP4s were saved with duration 0.
 - **Out of scope / Non-goals:** multi-slot history, transactional IDB across databases,
   content hashing, quota management UI, or changing bitrate/caps. This hardens the success
   contract; it does not redesign storage.
+
+</details>
 
 ## H9 — Composite-stage elimination (Accepted — browser-side full composite via ADR-0003)
 
@@ -259,7 +293,7 @@ direct-runtime/content-tab split is intentional and working.
 | R10 | Audio passthrough mux drifts timing or loses channels vs FFmpeg | Low | A/V desync or corrupt baked MP4 | Sample-accurate demux + same PTS math as planner; harness duration + alignment asserts | Duration/container validation in bake tests + harness |
 | R11 | VideoDecoder/Encoder capability or perf varies widely vs FFmpeg path | Med | Slow/failed bakes on some hardware (silent fallback risk) | Extend existing probe to decode+encode roundtrip; full fallback chain; honest surfacing | **Two-machine capability matrix PASS (v5.5.0 QA); default-on v5.5.1.** Residual = long-tail hardware → honest fallback |
 | R12 | New dep + composite surface increases maintenance / breakage surface | Low | Future Chrome/dep breakage | Small tree-shaken dep (mediabunny **1.50.6 pinned exact**); all core logic (painter/segments) in-repo; FFmpeg composite path is permanent fallback | ~~Pin dep~~ done; "force legacy composite" Lab toggle **shipped** (browser-composite toggle OFF) |
-| R13 | Base/baked store cap or IDB error silently leaves the previous artifact while callers publish success | Low (caps usually safe) | Bake/trim/re-apply appears successful; later H6 demotes or old bytes survive | Bitrates keep normal outputs under caps; H6 protects stamp-aware reads | **H13 open:** acknowledged persisted meta; fail before any stamp/signal |
+| R13 | Base/baked store cap or IDB error silently leaves the previous artifact while callers publish success | ~~Low~~ **Mitigated** | Bake/trim/re-apply appears successful; later H6 demotes or old bytes survive | **H13 shipped 2026-07-12:** saves throw on size/IDB failure and return persisted meta; all four choke points stamp/signal only from it — a failed write reaches the caller's existing failure surface and the old stamp stays H6-valid | Closed — bitrate pins (composite-plan) keep normal outputs under caps; watch for new save callers bypassing the returned meta |
 | R14 | A splice's re-encoded GOP uses a fresh encoder whose avcC / sample-description differs from the kept AVC packets → corrupt decode across the boundary | Med | Garbled frames at the splice seam | **Self-verifying** `verifySpliceKeptFrames` decodes kept-region anchors and requires pixel-equality with the original → any mismatch throws → full composite (I16); VP9 keyframes are self-contained | Second-machine encoder variance may raise the *full-fallback* rate (never a wrong pixel); collect splice logs from a 2nd machine |
 | R15 | Timeline/List two-view edits desync — an edit in one view lost because the other's stale DOM is read on Apply (dirty-state collapse) | Med | Silent loss of a cue edit | `captureActiveDraft()` reads the List DOM only when List is active; Timeline writes straight to `modalDraft` (Sprint-3 fix, QA PASS) | Any NEW view onto the cue draft must route through the same capture discipline — the review checklist for editor changes |
 | R16 | Another take begins during trim apply's final multi-store commit; base (and optional raw WebM) writes are H6-safe but the single-slot transcript has no `takeId` ownership | Low | New take may briefly inherit shifted cues from the prior take; trim caller may report success after `expectId` returns null | Long transform happens before a superseded guard; remaining race is base-save → (optional recording-save) → transcript-save → take-patch; H6 prevents wrong base/recording adoption; raw-leg size pre-check avoids unpersistable stamps (I19) | Keep explicit; if concurrency expands or reproduces, add transcript ownership/CAS. Do not invent cross-database transactions preemptively |
@@ -289,16 +323,16 @@ direct-runtime/content-tab split is intentional and working.
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.6 (2026-07-12), main @ tagged v5.10.0 (QA PASS).
+Hardening backlog v2.7 (2026-07-12), feature/h13-persist-before-stamp on tagged v5.10.0.
 DONE: H6 stamp verification; H7 doc drift; H9 browser composite default-on;
 H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast;
-raw-WebM trim product follow-up (v5.10.0) SHIPPED + QA PASS.
-OPEN HIGH: H13 — base/baked store writes must return persisted meta or throw before stamps/signals
-  (partial: recording-store bounds export + trim raw-leg pre-check only).
+H13 persist-before-stamp — all three saveLast* throw on size/IDB failure and return
+  persisted meta; four choke points stamp/signal only from it; H6 reads untouched;
+  test-artifact-store-writes.mjs 28; real-browser regression = user QA gate pre-merge.
 OPEN MED: H8 — interrupted recovery uses resume-time voice; TakeVoiceStamp does not subsume it.
 DEFERRED: H10 fallback observability (user decision); H5 binary/cap restoration.
-Mitigated risks: R14 splice avcC by I16; R15 List/Timeline draft by captureActiveDraft.
+Mitigated risks: R13 by H13; R14 splice avcC by I16; R15 List/Timeline draft by captureActiveDraft.
 R16: narrow 3–4 store trim commit window; H6 protects base/recording; transcript lacks takeId.
 Editing arc closed; next product candidate: v6 visual maturity (unscoped).
-No new ADR/context/message/store is required by this refresh.
+No new ADR/context/message/store was required by H13.
 ```

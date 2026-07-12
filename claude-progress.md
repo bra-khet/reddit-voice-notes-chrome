@@ -30,6 +30,25 @@ Authoritative references:
 
 **QA note (accepted, not a defect):** manual DevTools delete of `rvnLastRecording` can leave the open path stale until a full extension reload — normal users never nuke IDB by hand.
 
+## H13 hardening sprint (2026-07-12) — **CODE COMPLETE · user QA gates merge**
+
+**Branch:** `feature/h13-persist-before-stamp` (on tagged `v5.10.0`) · **Scope:** backlog H13 only.
+
+Persist-before-stamp contract shipped: `saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording` now **throw** on unpersistable size (all bounds exported: `LAST_BASE_MP4_*`, `LAST_BAKED_MP4_*`, `LAST_RECORDING_*`) and **propagate IDB failures**, and return the **authoritative persisted meta** (`savedAt`/`byteLength`/`mimeType`/`durationSeconds`; non-finite duration → 0). The four mutation choke points stamp/signal only from that meta:
+
+- `background.ts` — both save handlers (failed save → honest `ok:false`, no stamp, no `LAST_RECORDING_READY`) + `persistOrphanStudioTranscodeResult`
+- `subtitle-bake.ts` — `BAKED_MP4_READY_KEY` + take promotion from returned meta (new optional `TakeBakeResult.savedAt` → `updateFromBake`)
+- `voice-reapply.ts` — both commit stamps from returned metas
+- `trim-apply.ts` — base stamp from meta; raw-leg **save** failure now demotes to the honest v5.9 stamp-drop (closes I19's IDB-failure half) and never fails the trim
+
+H6 reads untouched — on any failure the old stamp still describes the old record (IDB rollback) and verifies. Bonus: fixed the pre-existing `background.ts(217)` TS2345 (orphan path passed `number | undefined`).
+
+**Verify:** new `scripts/test-artifact-store-writes.mjs` **28/28** (boundaries ×3 stores, meta authority, stamp-from-meta passes H6, injected IDB failure leaves prior record+stamp intact) · full Node sweep green (take-manager 34 · timeline 22 · take-deck 12 · all others) · `npm run build` PASS · `tsc` **3 → 2** documented pre-existing.
+
+**Docs:** backlog **v2.7** (H13 RESOLVED + R13 mitigated) · map **v2.9** · extension-points **v1.11** (storage rule ENFORCED) · README/TODO refreshed.
+
+**Merge gate (user):** real-browser regression — record→bake→attach, voice re-apply (base-only + baked), trim apply (raw leg happy path + store-mismatch fallback), Download CTA, recovery (tab close mid-processing).
+
 ## Docs-archiving Refresh #3 (2026-07-12) — **DONE**
 
 - Snapshot: [`archive/progress/claude-progress-through-v5.10.0.md`](archive/progress/claude-progress-through-v5.10.0.md)
@@ -40,7 +59,7 @@ Authoritative references:
 ### Other open work
 
 1. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9 (also listed in v5.10 roadmap deferred).
-2. Architecture **H13** (persist-before-stamp — v5.10 added a bounds pre-check at the trim raw leg only; general contract still open) and **H8** (recovery voice provenance).
+2. Architecture **H8** (recovery voice provenance) — H13 resolved 2026-07-12 (see sprint entry above; user QA gates merge).
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE**
 
 Map **v2.8** · extension-points **v1.10** · backlog **v2.6**. Re-verified raw-WebM trim against code after QA PASS; confidence High (single machine); H13 still open (partial at trim raw leg); no new ADR/context/message/store. Carry-forward blocks updated in all three living arch docs + README.

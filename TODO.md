@@ -11,7 +11,9 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 Background / bar-style refresh + accumulated micro-interactions/a11y from the v5 arc ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
 
-**Also open (lower priority):** architecture **H13** (acknowledged store writes — v5.10 bounds pre-check is trim-raw-leg only) · **H8** (recovery voice provenance). Optional `/architecture-hardening` when ready.
+**Also open (lower priority):** architecture **H8** (recovery voice provenance). Optional `/architecture-hardening` when ready.
+
+**H13 — RESOLVED (2026-07-12, branch `feature/h13-persist-before-stamp`, awaiting user QA + merge):** all three `saveLast*` artifact saves now throw on unpersistable size / IDB failure and return authoritative persisted meta; the four mutation choke points (background relay, subtitle bake, voice re-apply, trim apply) stamp/signal only from that meta. Node: new `test-artifact-store-writes.mjs` **28** · full sweep green · build PASS · tsc 3→2 pre-existing. **Merge gate:** real-browser regression — bake, voice re-apply, trim apply, Reddit attach, recovery.
 
 ## Shipped ledger
 
@@ -32,4 +34,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**Incremental refresh complete (2026-07-12)** for v5.9→v5.10 — **map v2.8 · extension-points v1.10 · hardening backlog v2.6 · ADRs 0001–0005**. No new seam/context/store/message. Top open: **H13** acknowledged artifact persistence (High/S — partial bounds pre-check at trim raw leg only), then **H8** recovery voice provenance (Med/S); H12 resolved. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**H13 sprint complete (2026-07-12)** — **map v2.9 · extension-points v1.11 · hardening backlog v2.7 · ADRs 0001–0005**. Persist-before-stamp is now enforced by the stores themselves (throw + returned persisted meta; stamps/signals only from it); H6 reads untouched; no new seam/context/store/message. Remaining open: **H8** recovery voice provenance (Med/S); H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

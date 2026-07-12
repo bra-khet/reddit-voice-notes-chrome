@@ -4,8 +4,12 @@ const DB_NAME = 'rvnLastBaseMp4';
 const DB_VERSION = 1;
 const STORE_NAME = 'exports';
 const RECORD_KEY = 'last';
+// CHANGED: H13 — persistability bounds exported (were private literals).
+// WHY: callers and Node tests need the exact gate the save function enforces;
+//      mirrors LAST_RECORDING_MIN/MAX_BYTES (v5.10 precedent).
+export const LAST_BASE_MP4_MIN_BYTES = 256;
 /** Typical 2:00 base MP4 after transcode — reject oversized blobs before IDB write. */
-const MAX_BYTES = 25 * 1024 * 1024;
+export const LAST_BASE_MP4_MAX_BYTES = 25 * 1024 * 1024;
 
 export interface LastBaseMp4Meta {
   byteLength: number;
@@ -56,16 +60,40 @@ interface StoredLastBaseMp4 {
 
 /**
  * Persist the latest base MP4 (pre burn-in) for Design Studio subtitle baking (eloquent-4).
+ *
+ * H13 contract (persist-before-stamp): throws on an unpersistable size or any
+ * IDB failure, and resolves with the authoritative meta of the record that was
+ * actually written. Callers MUST stamp/signal only from that returned meta —
+ * a resolved promise is the proof of persistence, never an assumption.
  */
-export async function saveLastBaseMp4(blob: Blob, durationSeconds: number): Promise<void> {
-  if (blob.size < 256 || blob.size > MAX_BYTES) return;
+// BUG FIX: H13 false-success artifact publication (hardening backlog v2.6)
+// Fix: save silently returned on size rejection and swallowed IDB errors, so
+//      callers stamped/signaled artifacts the store never wrote. Now the size
+//      gate throws, IDB failures propagate, and the persisted meta is returned.
+// Sync: last-baked-mp4-db.ts + last-recording-db.ts (same contract),
+//       entrypoints/background.ts, ui/design-studio/subtitle-bake.ts,
+//       audio/voice-reapply.ts, editing/trim-apply.ts (consume returned meta).
+export async function saveLastBaseMp4(
+  blob: Blob,
+  durationSeconds: number,
+): Promise<LastBaseMp4Meta> {
+  if (blob.size < LAST_BASE_MP4_MIN_BYTES || blob.size > LAST_BASE_MP4_MAX_BYTES) {
+    throw new Error(
+      `Base MP4 not persistable (${blob.size} bytes; allowed ` +
+        `${LAST_BASE_MP4_MIN_BYTES}..${LAST_BASE_MP4_MAX_BYTES}).`,
+    );
+  }
 
   const record: StoredLastBaseMp4 = {
     blob,
     mimeType: blob.type || 'video/mp4',
     byteLength: blob.size,
     savedAt: Date.now(),
-    durationSeconds: Math.min(MAX_RECORDING_SECONDS, Math.max(0, durationSeconds)),
+    // Non-finite input (legacy callers without a known duration) persists as 0
+    // rather than NaN — the meta must stay JSON-safe for stamps.
+    durationSeconds: Number.isFinite(durationSeconds)
+      ? Math.min(MAX_RECORDING_SECONDS, Math.max(0, durationSeconds))
+      : 0,
   };
 
   try {
@@ -78,7 +106,15 @@ export async function saveLastBaseMp4(blob: Blob, durationSeconds: number): Prom
     });
   } catch (error) {
     console.warn('[Reddit Voice Notes] Could not save last base MP4 for subtitle bake', error);
+    throw error;
   }
+
+  return {
+    byteLength: record.byteLength,
+    mimeType: record.mimeType,
+    savedAt: record.savedAt,
+    durationSeconds: record.durationSeconds,
+  };
 }
 
 export async function loadLastBaseMp4(): Promise<LastBaseMp4Snapshot | null> {

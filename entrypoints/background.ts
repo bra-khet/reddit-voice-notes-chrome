@@ -214,10 +214,17 @@ async function persistOrphanStudioTranscodeResult(
 
     const take = await getTakeManager().getCurrentTake();
     const durationSeconds = take?.meta.durationSeconds ?? take?.artifacts.baseRecording?.durationSeconds;
-    await saveLastBaseMp4(blob, durationSeconds);
+    // BUG FIX: H13 false-success artifact publication
+    // Fix: stamp from the store's returned persisted meta instead of
+    //      manufacturing Date.now() — saveLastBaseMp4 now throws on size
+    //      rejection/IDB failure, so a failed write falls to the catch below
+    //      and the take is never stamped/promoted for unwritten bytes.
+    // Sync: MSG_SAVE_LAST_BASE_MP4 / MSG_SAVE_LAST_RECORDING handlers,
+    //       src/storage/last-base-mp4-db.ts (contract).
+    const savedMeta = await saveLastBaseMp4(blob, durationSeconds ?? Number.NaN);
     await getTakeManager().recordArtifact('baseMp4', {
-      savedAt: Date.now(),
-      byteLength: message.mp4ByteLength,
+      savedAt: savedMeta.savedAt,
+      byteLength: savedMeta.byteLength,
       durationSeconds,
     });
 
@@ -1097,13 +1104,21 @@ export default defineBackground(() => {
             }
             const bytes = unpackBinary(request.mp4Base64, request.mp4ByteLength);
             const blob = new Blob([Uint8Array.from(bytes)], { type: 'video/mp4' });
-            await saveLastBaseMp4(blob, request.durationSeconds);
+            // BUG FIX: H13 false-success artifact publication
+            // Fix: saveLastBaseMp4 now throws on size rejection/IDB failure
+            //      (it used to no-op silently) — a failed write reaches the
+            //      catch below, so ok:false is honest and no stamp lands.
+            //      The stamp uses the store's returned persisted meta, not a
+            //      manufactured Date.now().
+            // Sync: persistOrphanStudioTranscodeResult, MSG_SAVE_LAST_RECORDING,
+            //       src/storage/last-base-mp4-db.ts (contract).
+            const savedMeta = await saveLastBaseMp4(blob, request.durationSeconds);
             // v5.4.0: stamp the artifact into the current take AFTER the IDB
             // write succeeds — the snapshot must never claim blobs it lacks.
             void getTakeManager().recordArtifact('baseMp4', {
-              savedAt: Date.now(),
-              byteLength: request.mp4ByteLength,
-              durationSeconds: request.durationSeconds,
+              savedAt: savedMeta.savedAt,
+              byteLength: savedMeta.byteLength,
+              durationSeconds: savedMeta.durationSeconds,
             });
             response.ok = true;
             sendResponse(response);
@@ -1127,16 +1142,24 @@ export default defineBackground(() => {
             }
             const bytes = unpackBinary(request.webmBase64, request.webmByteLength);
             const blob = new Blob([Uint8Array.from(bytes)], { type: 'video/webm' });
-            await saveLastRecording(blob, request.durationSeconds);
+            // BUG FIX: H13 false-success artifact publication
+            // Fix: saveLastRecording now throws on size rejection/IDB failure
+            //      (it used to no-op silently) — a failed write reaches the
+            //      catch below, so LAST_RECORDING_READY never fires and no
+            //      stamp lands for unwritten bytes. Stamp uses the store's
+            //      returned persisted meta, not a manufactured Date.now().
+            // Sync: MSG_SAVE_LAST_BASE_MP4 handler above,
+            //       src/storage/last-recording-db.ts (contract).
+            const savedMeta = await saveLastRecording(blob, request.durationSeconds);
             // CHANGED: signal Design Studio to reload voice preview without tab visibility flip.
             // WHY: recording completes on Reddit while studio may stay open (eloquent-2 UX).
             await browser.storage.local.set({ [LAST_RECORDING_READY_KEY]: Date.now() });
             // v5.4.0: stamp the artifact into the current take AFTER the IDB
             // write succeeds — the snapshot must never claim blobs it lacks.
             void getTakeManager().recordArtifact('baseRecording', {
-              savedAt: Date.now(),
-              byteLength: request.webmByteLength,
-              durationSeconds: request.durationSeconds,
+              savedAt: savedMeta.savedAt,
+              byteLength: savedMeta.byteLength,
+              durationSeconds: savedMeta.durationSeconds,
             });
             response.ok = true;
             sendResponse(response);

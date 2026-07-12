@@ -26,9 +26,9 @@ export type BrowserCompositeVideoCodec =
 /**
  * Composite output video bitrate. Pinned at the overlay path's proven
  * OVERLAY_VIDEO_BPS figure — and, decisively, under the ceiling imposed by
- * the 30 MB rvnLastBakedMp4 store cap (R13): saveLastBakedMp4 SILENTLY drops
- * larger blobs, so at the 2:00 recording cap total bitrate must stay below
- * ~2.0 Mbps. 1.5 Mbps video + 128 kbps AAC ≈ 24.5 MB worst case.
+ * the 30 MB rvnLastBakedMp4 store cap (R13): saveLastBakedMp4 REJECTS (throws
+ * on) larger blobs since H13, so at the 2:00 recording cap total bitrate must
+ * stay below ~2.0 Mbps. 1.5 Mbps video + 128 kbps AAC ≈ 24.5 MB worst case.
  */
 export const BROWSER_COMPOSITE_VIDEO_BPS = 1_500_000;
 
