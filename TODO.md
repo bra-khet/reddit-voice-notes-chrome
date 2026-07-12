@@ -1,18 +1,19 @@
 # TODO
 
-## Current: v5.9.0 — Atomic Trim Apply — **SHIPPED / TAGGED `v5.9.0` (2026-07-11)**
+## Current: v5.10.0 — Raw Trim Apply — **CODE COMPLETE / TAGGED `v5.10.0` (2026-07-11); real-browser QA gate OPEN**
 
-**Design (as-built):** [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) · **Release notes:** [`docs/release-notes-v5.9.0.md`](docs/release-notes-v5.9.0.md)  
-**Package:** `5.9.0` · **Push:** deferred (user pushes)
+**Design (as-built):** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md) · **Release notes:** [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md)  
+**Package:** `5.10.0` · **Push:** deferred (user pushes)
 
-Trim actually cuts: **Apply trim** → shorter `baseMp4` + cue shift (both transcript copies) + H6 re-stamp (`bakedMp4`/`baseRecording` dropped). Real-browser QA **PASS**. Post-QA: Reddit panel same-take promote fix; trim OUT fractional-duration floor.
+Trim keeps the voice: **Apply trim** now also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice work** in the subtitle editor. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean.
 
-## ▶ Next — **v5.10.0 Raw WebM Trim Apply** (planning committed; implementation not started)
+**⚠ Before pushing / distributing:** run the real-browser QA checklist in [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md) (focus: trim → Change Voice → audition → re-bake, no desync; raw-leg fallback).
 
-**Design (planning):** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md)  
-**Goal:** Trim the raw capture WebM at apply time so post-trim voice re-apply / Change Voice work again (v5.9 intentionally clears `baseRecording`).
+## ▶ Next — **v6.0 "Polish & Visual Maturity"** (unscoped)
 
-**Also open (lower priority):** unique “voice locked after trim” copy only if a UI rework wants it (current gray-out is correct) · **v6.0 "Polish & Visual Maturity"** arc (v5.9 roadmap §9) · architecture H13 / H8.
+Background / bar-style refresh + accumulated micro-interactions/a11y from the v5 arc ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9). Run `/docs-archiving` Refresh #3 after v5.10.0 QA sign-off.
+
+**Also open (lower priority):** architecture **H13** (acknowledged store writes — v5.10 added a bounds pre-check at the trim raw leg only) · **H8** (recovery voice provenance).
 
 ## Shipped ledger
 
@@ -20,6 +21,7 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 | Version | Focus | More |
 |---------|-------|------|
+| **v5.10.0** | Raw WebM trim — post-trim voice re-apply — **tagged** (QA gate open) | [notes](docs/release-notes-v5.10.0.md) |
 | **v5.9.0** | Atomic trim apply — **tagged** | [notes](docs/release-notes-v5.9.0.md) |
 | **v5.8.0** | Timeline visual subtitle editor | [notes](archive/docs/release-notes-v5.8.0.md) |
 | **v5.7.0** | Partial re-bake splice (Phase 2b) — default-on | [notes](archive/docs/release-notes-v5.7.0.md) |
@@ -32,4 +34,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-Full `/architecture-hardening` pass completed at tagged v5.9.0 — **map v2.6 · extension-points v1.8 · hardening backlog v2.5 · ADRs 0001–0005**. Top hardening: **H13** acknowledged artifact persistence (High/S), then **H8** recovery voice provenance (Med/S); H12 is resolved. Re-run before the next major refactor or on a new execution context / message family / storage class (triggers in [`docs/architecture/README.md`](docs/architecture/README.md)).
+Living docs updated in-place for v5.10.0 — **map v2.7 · extension-points v1.9 · hardening backlog v2.5 · ADRs 0001–0005** (no new seam/context/store/message, so no full re-run needed). Top hardening: **H13** acknowledged artifact persistence (High/S), then **H8** recovery voice provenance (Med/S); H12 is resolved. Re-run before the next major refactor or on a new execution context / message family / storage class (triggers in [`docs/architecture/README.md`](docs/architecture/README.md)).
