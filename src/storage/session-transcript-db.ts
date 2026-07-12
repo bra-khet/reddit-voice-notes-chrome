@@ -157,7 +157,12 @@ export async function saveSessionTranscript(
       tx.onerror = () => reject(tx.error ?? new Error('Session transcript write failed.'));
     });
   } catch (error) {
+    // BUG FIX: background could signal transcript-ready after a swallowed IDB failure (BUG-038)
+    // Fix: terminal persistence must reject so its background owner publishes the ready
+    //      signal only after the transcript row actually commits.
+    // Sync: entrypoints/background.ts persistTranscribeCompletion.
     console.warn('[Reddit Voice Notes] Session transcript save failed', error);
+    throw error;
   }
 }
 

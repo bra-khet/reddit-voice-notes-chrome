@@ -244,20 +244,29 @@ export async function reapplyVoiceToCurrentTake(
     );
   }
 
-  await saveLastBaseMp4(newBase.blob, base.meta.durationSeconds);
+  // BUG FIX: H13 false-success artifact publication
+  // Fix: stamps were manufactured with Date.now() after saves that could
+  //      silently no-op (size) or swallow IDB failure (base store) — a failed
+  //      write still shipped a fresh stamp over the previous artifact's bytes.
+  //      Saves now throw on any failure (nothing is stamped; the old stamp
+  //      still describes the old record, H6-verifiable) and the stamps carry
+  //      the store's returned persisted meta.
+  // Sync: src/storage/last-base-mp4-db.ts + last-baked-mp4-db.ts (contract),
+  //       editing/trim-apply.ts + subtitle-bake.ts (same pattern).
+  const baseMeta = await saveLastBaseMp4(newBase.blob, base.meta.durationSeconds);
   const baseStamp: TakeArtifactStamp = {
-    savedAt: Date.now(),
-    byteLength: newBase.blob.size,
-    durationSeconds: base.meta.durationSeconds,
+    savedAt: baseMeta.savedAt,
+    byteLength: baseMeta.byteLength,
+    durationSeconds: baseMeta.durationSeconds,
   };
 
   let bakedStamp: TakeArtifactStamp | undefined;
   if (newBaked && baked) {
-    await saveLastBakedMp4(newBaked.blob, baked.meta.durationSeconds);
+    const bakedMeta = await saveLastBakedMp4(newBaked.blob, baked.meta.durationSeconds);
     bakedStamp = {
-      savedAt: Date.now(),
-      byteLength: newBaked.blob.size,
-      durationSeconds: baked.meta.durationSeconds,
+      savedAt: bakedMeta.savedAt,
+      byteLength: bakedMeta.byteLength,
+      durationSeconds: bakedMeta.durationSeconds,
     };
   }
 

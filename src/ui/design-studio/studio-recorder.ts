@@ -206,10 +206,12 @@ export function mountStudioRecorder(
       case 'stopped':
         // Take is promoted to 'ready' by the session; the deck takes over.
         void setWorkflowPhase('polish');
-        // BUG FIX: Studio subtitle relay aborted on stop
-        // Fix: closeAudition() called session.dispose() which bumpSession() aborts the
-        //      parallel transcribe fork and drops relaySaveSessionTranscript — Reddit panel
-        //      keeps the session alive on 'stopped'; hide audition UI only.
+        // BUG FIX: Studio subtitle listener aborted on stop
+        // Fix: closeAudition() called session.dispose() which bumpSession() cancels the
+        //      parallel transcribe job. Background now owns terminal persistence (BUG-038),
+        //      but the stopped session stays alive so a UI close does not turn a valid
+        //      completion into cancellation; hide audition UI only.
+        // Sync: voice-recorder.ts; entrypoints/background.ts.
         finishAuditionUi();
         break;
       case 'error':
@@ -322,9 +324,14 @@ export function mountStudioRecorder(
       disposed = true;
       window.removeEventListener('pagehide', pageHideHandler);
       window.removeEventListener('pageshow', pageShowHandler);
-      // BUG FIX: main.ts pagehide unmount called closeAudition() during processing
-      // Fix: tab teardown must persist draft + detach UI only — dispose() aborts offscreen transcode.
-      if (host?.session.getPhase() === 'processing') {
+      // BUG FIX: main.ts pagehide could abort transcode or post-transcode STT (BUG-038)
+      // Fix: tab teardown persists draft + detaches while either background fork is
+      //      outstanding; stopped means transcode ended, not necessarily transcript ended.
+      // Sync: VoiceRecorderSession.hasPendingTranscription; background terminal owner.
+      if (
+        host?.session.getPhase() === 'processing' ||
+        host?.session.hasPendingTranscription()
+      ) {
         detachAuditionOnPageHide();
         return;
       }

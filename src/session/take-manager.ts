@@ -146,6 +146,11 @@ export interface BeginTakeResult {
 export interface TakeBakeResult {
   durationSeconds?: number;
   byteLength?: number;
+  // CHANGED: H13 — optional authoritative store timestamp.
+  // WHY: the bake path stamps from the meta saveLastBakedMp4 returns; when
+  //      present the bakedMp4 stamp must carry the store's exact savedAt so
+  //      H6 comparisons match byte-for-byte instead of within tolerance.
+  savedAt?: number;
 }
 
 export type TakeChangeListener = (take: CurrentTake | null) => void;
@@ -673,7 +678,8 @@ function createStorageTakeManager(): TakeManager {
       return enqueueWrite(async () => {
         const now = Date.now();
         const stamp: TakeArtifactStamp = {
-          savedAt: now,
+          // H13: prefer the store's persisted savedAt over the write instant.
+          savedAt: result.savedAt ?? now,
           byteLength: result.byteLength,
           durationSeconds: result.durationSeconds,
         };

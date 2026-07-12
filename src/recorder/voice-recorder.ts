@@ -18,10 +18,7 @@ import {
 import { relaySaveLastRecording } from '@/src/storage/last-recording-relay';
 import { forkTranscribeWebm, prewarmOffscreen } from '@/src/transcription/transcribe-client';
 
-import { relaySaveSessionTranscript } from '@/src/storage/session-transcript-relay';
 import { clearSessionTranscript, setSessionTranscript } from '@/src/transcription/session-transcript';
-import { buildScaffoldTranscriptResult } from '@/src/transcription/transcript-editing';
-import { classifyTranscribeFailure } from '@/src/transcription/transcribe-failure';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
 import {
   createTakeVoiceStamp,
@@ -163,6 +160,14 @@ export class VoiceRecorderSession {
   /** Exposed for host teardown — pagehide must not abort mid-transcode dispose. */
   getPhase(): RecorderPhase {
     return this.phase;
+  }
+
+  // BUG FIX: Studio teardown could cancel STT after transcode had already reached stopped (BUG-038)
+  // Fix: expose the narrower background-fork state so pagehide can detach without
+  //      sending CANCEL while terminal transcript persistence is still outstanding.
+  // Sync: src/ui/design-studio/studio-recorder.ts dispose.
+  hasPendingTranscription(): boolean {
+    return this.transcribeAbort !== null;
   }
 
   subscribe(listener: StateListener): () => void {
@@ -622,6 +627,10 @@ export class VoiceRecorderSession {
     this.transcribeAbort = controller;
 
     return forkTranscribeWebm(webm, {
+      // BUG FIX: tab-close transcript completion was owned by a disposable page (BUG-038)
+      // Fix: pass capture duration to the background-owned terminal persistence path.
+      // Sync: transcribe-client.ts; entrypoints/background.ts.
+      durationSeconds: clipDurationSeconds,
       signal: controller.signal,
       onProgress: (ratio, stage) => {
         if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return;
@@ -642,30 +651,18 @@ export class VoiceRecorderSession {
         if (this.isSuperseded(stopEpoch) || generation !== this.transcribeGeneration) return null;
         if (!outcome) return null;
 
+        // BUG FIX: tab-close transcript completion was owned by a disposable page (BUG-038)
+        // Fix: background now persists every non-cancelled terminal result before relay;
+        //      this page keeps only its optional session-local success cache and logs.
+        // Sync: entrypoints/background.ts; transcribe-completion.ts.
         if (outcome.applied) {
           setSessionTranscript(outcome.result, outcome.jobId);
-          void relaySaveSessionTranscript(outcome.result, outcome.jobId);
         } else {
-          // CHANGED: graceful failure → persist a timecode scaffold instead of
-          // silently dropping the result (v5.3 Phase 2). Fires SESSION_TRANSCRIPT_
-          // READY_KEY so Design Studio unsticks from amber "pending" and opens a
-          // usable template. Only reached when subtitles are enabled (caller guard).
-          const failure = classifyTranscribeFailure(outcome);
-          if (failure) {
-            const scaffold = buildScaffoldTranscriptResult(clipDurationSeconds, {
-              language: outcome.result.language,
-            });
-            void relaySaveSessionTranscript(scaffold, outcome.jobId, {
-              error: failure,
-              isScaffolded: true,
-            });
-            console.warn(`${EXTENSION_LOG_PREFIX} Transcribe failed — scaffolding`, {
-              jobId: outcome.jobId,
-              reason: failure.type,
-              clipDurationSeconds,
-              scaffoldSegments: scaffold.segments.length,
-            });
-          }
+          console.warn(`${EXTENSION_LOG_PREFIX} Transcribe failed — background persisted terminal scaffolding`, {
+            jobId: outcome.jobId,
+            clipDurationSeconds,
+            stage: outcome.stage,
+          });
         }
 
         console.log(`${EXTENSION_LOG_PREFIX} Transcribe complete`, {

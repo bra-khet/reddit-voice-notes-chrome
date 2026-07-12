@@ -1,6 +1,6 @@
 # Transcription & subtitle-bake architecture
 
-**Status:** Canonical Vosk/CSP and subtitle-bake reference, refreshed through tagged **v5.9.0** (2026-07-11). Read before changing transcription, overlay painting, composite strategy, partial splice, or trim/cue ownership.
+**Status:** Canonical Vosk/CSP and subtitle-bake reference, refreshed through **H13 QA hardening on v5.10.0** (2026-07-12). Read before changing transcription, overlay painting, composite strategy, partial splice, or trim/cue ownership.
 
 **Design Studio integration (Subtitles section):** `docs/design-studio.md` §7 — edit→confirm→bake UX, session IDB, and preview vs export fidelity.
 
@@ -155,21 +155,24 @@ Open `transcribe-harness.html` → load WebM from recorder → Transcribe.
 
 Before v5.3 a Vosk no-speech / empty / inference error left the Studio stuck on amber "Pending" until the 120 s timeout (silent failure). Now every transcribe outcome resolves to a persisted, explicit state.
 
-**Emission path (content script):**
+**Terminal emission path (background-owned since BUG-038):**
 
 ```
 forkTranscribeWebm() resolves (applied | fallback | timeout)
-  └─ if NOT applied → classifyTranscribeFailure()  [transcribe-failure.ts]
+  └─ offscreen MSG_TRANSCRIBE_COMPLETE → background terminal owner
+     prepareTranscribeCompletionForPersistence()  [transcribe-completion.ts]
+     if NOT applied → classifyTranscribeFailure()  [transcribe-failure.ts]
         → 'no-speech' | 'inference-error' | 'empty-result' | 'timeout'
      buildScaffoldTranscriptResult(clipDurationSeconds)  [transcript-editing.ts]
         → evenly-timed empty slots (soft-hyphen ­ placeholder)
-     relaySaveSessionTranscript(scaffold, jobId, { error, isScaffolded:true })
-        → MSG_SAVE_SESSION_TRANSCRIPT → background saveSessionTranscript()
-        → rvnSessionTranscript IDB (carries error + isScaffolded) + SESSION_TRANSCRIPT_READY_KEY
+     background saveSessionTranscript(result|scaffold, jobId, metadata)
+        → rvnSessionTranscript IDB commit
+        → SESSION_TRANSCRIPT_READY_KEY (publish only after commit)
 ```
 
 - **Classifier** (`transcribe-failure.ts`): no-speech is detected by `VOSK_NO_SPEECH_ERROR_MARKER` (the sandbox host *throws* on empty text, arriving as `fallback:true`); applied→null, timeout marker→timeout, fallback→inference-error, empty→no-speech, else→empty-result.
-- **Clip duration** comes from the recorder timer (`elapsedSeconds`, matches `LAST_RECORDING_READY_KEY` meta) — no re-decode, no new storage.
+- **Clip duration** comes from the recorder timer and rides `TranscribeStartRequest.durationSeconds` into a background-only job context — no re-decode, no new storage key.
+- **Tab-close survival (BUG-038):** terminal normalization/persistence and the 125 s watchdog live in the background service worker kept alive for the accepted relay job. Studio pagehide detaches while STT remains pending (including the post-transcode `stopped` window), so teardown does not emit CANCEL. The initiating page may disappear after ACK without dropping success or timeout. Explicit cancellation/supersession retires the context, so a late old COMPLETE cannot overwrite the newer take.
 - **Studio resolve** (`subtitle-controls.ts deliveryStatusForSnapshot`): maps `error`/`isScaffolded` → `no-speech` | `failed` | `scaffolded`, short-circuits the pending timer, and opens the segment editor in scaffolding mode (red status strip + timed empty slots).
 
 **Soft-hyphen placeholder (`­`, U+00AD):** empty scaffold slots carry a soft hyphen so they survive `.trim()`-based emptiness filters and persist through editing; everything blank-aware uses `cueTextIsBlank` / `stripScaffoldPlaceholder`. Empty slots bake to nothing (`usableSegments` skips them).
@@ -335,12 +338,13 @@ See `archive/progress/eloquent-branch.md` for full phase plan, `docs/design-stud
 ## Resume in a new chat (carry-forward)
 
 ```
-Transcription/subtitle architecture refreshed through tagged v5.9.0.
+Transcription/subtitle architecture refreshed through H13 + H14/BUG-038 on v5.10.0 (browser QA PASS, merged).
 Vosk: extension page decodes PCM → null-origin sandbox → blob worker; MEMFS per session.
 Capture: Studio or Reddit forks raw-clone STT from offscreen FFmpeg transcode; queues are independent.
+BUG-038: background owns terminal transcript persistence + 125s watchdog; tab close cannot drop success/timeout.
 Default bake: clean base decode → shared painter at exact PTS → Canvas2D blend → encode/mux in Studio.
 Fallbacks: dual-IVF+FFmpeg → MediaRecorder+FFmpeg → drawtext; all remain supported.
 Eligible re-bakes use verified dirty-GOP splice (I16); any miss runs the full ladder.
 Timeline cue timing is frame-exact (I17); trim preview=APPLY shifts both transcript copies (I18).
-Read docs/architecture/architecture-map.md v2.6 before changing contexts, stores, or pipelines.
+Read docs/architecture/architecture-map.md v2.11 before changing contexts, stores, or pipelines.
 ```

@@ -19,6 +19,11 @@ import { TRANSCRIBE_TIMEOUT_MS } from './constants';
 import type { TranscriptResult } from './types';
 
 const ACK_TIMEOUT_MS = 45_000;
+// BUG FIX: tab-close transcription had no surviving terminal timeout (BUG-038)
+// Fix: background owns the 125s completion watchdog; keep this page-local guard later
+//      so it cannot cancel the offscreen worker before background persists its timeout.
+// Sync: entrypoints/background.ts TRANSCRIBE_COMPLETION_WATCHDOG_MS.
+const CLIENT_COMPLETION_TIMEOUT_MS = TRANSCRIBE_TIMEOUT_MS + 15_000;
 
 function isExtensionContextValid(): boolean {
   try {
@@ -63,6 +68,8 @@ export interface TranscribeClientResult {
 
 export interface ForkTranscribeOptions {
   language?: string;
+  /** Recorder-timer duration used by background-owned graceful-failure scaffolding. */
+  durationSeconds?: number;
   signal?: AbortSignal;
   onProgress?: (ratio: number, stage: string) => void;
 }
@@ -148,10 +155,10 @@ export async function forkTranscribeWebm(
         result: { text: '', segments: [], source: 'vosk', language: options?.language },
         applied: false,
         fallback: true,
-        stage: `timeout-${Math.round(TRANSCRIBE_TIMEOUT_MS / 1000)}s`,
+        stage: `timeout-${Math.round(CLIENT_COMPLETION_TIMEOUT_MS / 1000)}s`,
         elapsedMs: Math.round(performance.now() - startedAt),
       });
-    }, TRANSCRIBE_TIMEOUT_MS);
+    }, CLIENT_COMPLETION_TIMEOUT_MS);
 
     ackTimer = window.setTimeout(() => {
       if (!gotAck) {
@@ -200,6 +207,11 @@ export async function forkTranscribeWebm(
       jobId,
       webmBase64: webmPacked.dataBase64,
       webmByteLength: webmPacked.byteLength,
+      // BUG FIX: tab-close transcript completion was owned by a disposable page (BUG-038)
+      // Fix: background receives the recorder duration needed to persist a terminal
+      //      scaffold even when this listener and its timers disappear with the tab.
+      // Sync: messaging/types.ts; entrypoints/background.ts.
+      durationSeconds: options?.durationSeconds,
       language: options?.language,
     };
 

@@ -234,8 +234,9 @@ export async function applyTrimToCurrentTake(
           report(0.72 + ratio * 0.18);
         },
       });
-      // saveLastRecording silently no-ops outside these bounds (H13) — never
-      // publish a stamp the store may not back.
+      // Early demote: saveLastRecording would throw on these bounds anyway
+      // (H13 store gate), but rejecting here keeps the failure inside the
+      // transform phase — before ANY store write — instead of mid-commit.
       if (rawBlob.size >= LAST_RECORDING_MIN_BYTES && rawBlob.size <= LAST_RECORDING_MAX_BYTES) {
         trimmedRawBlob = rawBlob;
       } else {
@@ -284,15 +285,23 @@ export async function applyTrimToCurrentTake(
     );
   }
   const bakedCleared = Boolean(takeBeforeCommit.artifacts.bakedMp4);
-  const rawAudio: TrimApplyOutcome['rawAudio'] =
-    trimmedRawBlob !== null ? 'trimmed' : rawLeg === 'skip' ? 'none' : 'dropped';
 
   // ---- commit block (writes last, I7; H6 protects consumers if we die here) ----
-  await saveLastBaseMp4(trimmedBlob, newDurationSeconds);
+  // BUG FIX: H13 false-success artifact publication
+  // Fix: both stamps were manufactured with Date.now() after saves that could
+  //      silently no-op (size) or swallow IDB failure — a failed write still
+  //      shipped a fresh stamp over the previous artifact's bytes. Saves now
+  //      throw: a base-save failure aborts the apply before anything else is
+  //      written (old stamp still describes the old record); a raw-save
+  //      failure demotes to the honest v5.9 stamp-drop (I19) and never fails
+  //      the trim. Stamps carry the store's returned persisted meta.
+  // Sync: src/storage/last-base-mp4-db.ts + last-recording-db.ts (contract),
+  //       audio/voice-reapply.ts + subtitle-bake.ts (same pattern).
+  const baseMeta = await saveLastBaseMp4(trimmedBlob, newDurationSeconds);
   const baseStamp: TakeArtifactStamp = {
-    savedAt: Date.now(),
-    byteLength: trimmedBlob.size,
-    durationSeconds: newDurationSeconds,
+    savedAt: baseMeta.savedAt,
+    byteLength: baseMeta.byteLength,
+    durationSeconds: baseMeta.durationSeconds,
   };
 
   if (shiftedEdited) {
@@ -303,13 +312,25 @@ export async function applyTrimToCurrentTake(
   // fresh stamp rides the SAME updateCurrentTake write as the base stamp.
   let rawStamp: TakeArtifactStamp | null = null;
   if (trimmedRawBlob) {
-    await saveLastRecording(trimmedRawBlob, newDurationSeconds);
-    rawStamp = {
-      savedAt: Date.now(),
-      byteLength: trimmedRawBlob.size,
-      durationSeconds: newDurationSeconds,
-    };
+    try {
+      const rawMeta = await saveLastRecording(trimmedRawBlob, newDurationSeconds);
+      rawStamp = {
+        savedAt: rawMeta.savedAt,
+        byteLength: rawMeta.byteLength,
+        durationSeconds: rawMeta.durationSeconds,
+      };
+    } catch (error) {
+      // The pure size pre-check above already demoted unpersistable blobs;
+      // this catches the IDB-failure half of H13. Same honest outcome.
+      console.warn(
+        `${EXTENSION_LOG_PREFIX} Raw audio save failed — dropping baseRecording stamp instead.`,
+        error,
+      );
+      rawLeg = 'drop-stamp';
+    }
   }
+  const rawAudio: TrimApplyOutcome['rawAudio'] =
+    rawStamp !== null ? 'trimmed' : rawLeg === 'skip' ? 'none' : 'dropped';
 
   const durationLabel = newDurationSeconds.toFixed(1);
   const note =

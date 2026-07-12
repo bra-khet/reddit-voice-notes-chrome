@@ -1,13 +1,13 @@
 # Project History — Reddit Voice Notes
 
-**Living milestone index.** Updated **2026-07-12** · Current milestone: **v5.10.0 — Raw Trim Apply (QA PASS)** · Stable: **v5.10.0** · Docs-archiving: **Refresh #3 complete**.
+**Living milestone index.** Updated **2026-07-12** · Current milestone: **v5.10.0 — Raw Trim Apply (QA PASS)** · Stable: **v5.10.0** · Post-ship hardening: **H13 + H14/BUG-038 merged** (no version bump) · Docs-archiving: **Refresh #3 complete**.
 
 This is the go-to orientation doc: it indexes every major milestone and points to both the **living** documents (current work) and their **archived** history. Read this first when you need to know "what happened before the current feature branch?" — then follow a pointer into [`archive/`](../archive/) only if you need the full detail.
 
-- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — post-v5.10.0 open work (v6.0, H13/H8).
+- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — post-v5.10.0 open work (v6.0, H8); H13/H14 closed.
 - **Archived progress logs:** [`claude-progress-through-v5.10.0.md`](../archive/progress/claude-progress-through-v5.10.0.md) (v5.9.0 → v5.10.0) · [`claude-progress-through-v5.9.0.md`](../archive/progress/claude-progress-through-v5.9.0.md) (v5.8.0 → v5.9.0) · [`claude-progress-pre-v5.8.0.md`](../archive/progress/claude-progress-pre-v5.8.0.md) (v5.7.0 → v5.4.0) · [`claude-progress-pre-v5.4.0.md`](../archive/progress/claude-progress-pre-v5.4.0.md) (v5.3.10 → v1.0.0 MVP).
-- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map **v2.8**, extension-points **v1.10**, hardening backlog **v2.6**, ADRs 0001–0005 (v5.9→v5.10 incremental refresh 2026-07-12).
-- **Next planned (unshipped):** the **v6.0 "Polish & Visual Maturity"** arc ([`v5.9.0-trim-apply-roadmap.md`](v5.9.0-trim-apply-roadmap.md) §9) — background / bar-style refresh + v5-arc micro-interactions; unscoped until a design doc opens.
+- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map **v2.11**, extension-points **v1.12**, hardening backlog **v2.9**, ADRs 0001–0005 (H13 + H14/BUG-038 browser QA PASS 2026-07-12).
+- **Next planned (unshipped):** the **v6.0 "Polish & Visual Maturity"** arc ([`v5.9.0-trim-apply-roadmap.md`](v5.9.0-trim-apply-roadmap.md) §9) — background / bar-style refresh + v5-arc micro-interactions; unscoped until a design doc opens. Optional small hardening: **H8** recovery voice provenance.
 
 ---
 

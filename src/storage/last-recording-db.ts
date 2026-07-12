@@ -6,8 +6,9 @@ const STORE_NAME = 'recordings';
 const RECORD_KEY = 'last';
 // CHANGED: v5.10.0 — persistability bounds exported (were private literals).
 // WHY: trim-apply byte-checks the trimmed WebM BEFORE stamping it on the take;
-//      saveLastRecording silently no-ops outside these bounds (H13), and a
-//      stamp must never describe bytes the store may not hold.
+//      a stamp must never describe bytes the store may not hold. Since H13
+//      (2026-07-12) saveLastRecording also THROWS outside these bounds — the
+//      caller pre-check is an early demote, the store gate is the enforcement.
 export const LAST_RECORDING_MIN_BYTES = 256;
 /** Slightly above typical 2:00 WebM cap — reject oversized blobs before IDB write. */
 export const LAST_RECORDING_MAX_BYTES = 18 * 1024 * 1024;
@@ -61,20 +62,43 @@ interface StoredLastRecording {
 
 /**
  * Persist the most recent successful take for Design Studio voice preview (dulcet-2).
- * Overwrites prior entry; failures are silent so recording flow is never blocked.
+ * Overwrites the prior entry.
+ *
+ * H13 contract (persist-before-stamp): throws on an unpersistable size or any
+ * IDB failure, and resolves with the authoritative meta of the record that was
+ * actually written. Callers MUST stamp/signal only from that returned meta;
+ * callers on flows that must never block (capture stop) own their own
+ * catch-and-continue — the store no longer hides failure for them.
  */
+// BUG FIX: H13 false-success artifact publication (hardening backlog v2.6)
+// Fix: save silently returned on size rejection and swallowed IDB errors, so
+//      the background stamped baseRecording + fired LAST_RECORDING_READY over
+//      bytes the store never wrote. Size gate now throws; IDB failures
+//      propagate; the persisted meta is returned. Supersedes the v5.10
+//      caller-side bounds pre-check as the enforcement point (trim-apply keeps
+//      its pre-check as an early demote, no longer as the only defense).
+// Sync: last-base-mp4-db.ts + last-baked-mp4-db.ts (same contract),
+//       entrypoints/background.ts, editing/trim-apply.ts (consume returned meta).
 export async function saveLastRecording(
   blob: Blob,
   durationSeconds: number,
-): Promise<void> {
-  if (blob.size < LAST_RECORDING_MIN_BYTES || blob.size > LAST_RECORDING_MAX_BYTES) return;
+): Promise<LastRecordingMeta> {
+  if (blob.size < LAST_RECORDING_MIN_BYTES || blob.size > LAST_RECORDING_MAX_BYTES) {
+    throw new Error(
+      `Recording not persistable (${blob.size} bytes; allowed ` +
+        `${LAST_RECORDING_MIN_BYTES}..${LAST_RECORDING_MAX_BYTES}).`,
+    );
+  }
 
   const record: StoredLastRecording = {
     blob,
     mimeType: blob.type || 'video/webm',
     byteLength: blob.size,
     savedAt: Date.now(),
-    durationSeconds: Math.min(MAX_RECORDING_SECONDS, Math.max(0, durationSeconds)),
+    // Non-finite input persists as 0 rather than NaN — meta must stay JSON-safe.
+    durationSeconds: Number.isFinite(durationSeconds)
+      ? Math.min(MAX_RECORDING_SECONDS, Math.max(0, durationSeconds))
+      : 0,
   };
 
   try {
@@ -87,7 +111,15 @@ export async function saveLastRecording(
     });
   } catch (error) {
     console.warn('[Reddit Voice Notes] Could not save last recording for voice preview', error);
+    throw error;
   }
+
+  return {
+    byteLength: record.byteLength,
+    mimeType: record.mimeType,
+    savedAt: record.savedAt,
+    durationSeconds: record.durationSeconds,
+  };
 }
 
 export async function loadLastRecording(): Promise<LastRecordingSnapshot | null> {

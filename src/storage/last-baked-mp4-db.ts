@@ -4,7 +4,12 @@ const DB_NAME = 'rvnLastBakedMp4';
 const DB_VERSION = 1;
 const STORE_NAME = 'exports';
 const RECORD_KEY = 'last';
-const MAX_BYTES = 30 * 1024 * 1024;
+// CHANGED: H13 — persistability bounds exported (were private literals).
+// WHY: callers and Node tests need the exact gate the save function enforces;
+//      mirrors LAST_RECORDING_MIN/MAX_BYTES (v5.10 precedent). The 30 MB cap
+//      is load-bearing for BROWSER_COMPOSITE_VIDEO_BPS (composite-plan.ts).
+export const LAST_BAKED_MP4_MIN_BYTES = 256;
+export const LAST_BAKED_MP4_MAX_BYTES = 30 * 1024 * 1024;
 
 export interface LastBakedMp4Meta {
   byteLength: number;
@@ -53,15 +58,37 @@ interface StoredLastBakedMp4 {
   durationSeconds: number;
 }
 
-export async function saveLastBakedMp4(blob: Blob, durationSeconds: number): Promise<void> {
-  if (blob.size < 256 || blob.size > MAX_BYTES) return;
+/**
+ * H13 contract (persist-before-stamp): throws on an unpersistable size or any
+ * IDB failure, and resolves with the authoritative meta of the record that was
+ * actually written. Callers MUST stamp/signal only from that returned meta.
+ */
+// BUG FIX: H13 false-success artifact publication (hardening backlog v2.6)
+// Fix: save silently returned on size rejection (IDB errors already rethrew),
+//      so a >30 MB bake published BAKED_MP4_READY + a baked stamp over the
+//      previous artifact's bytes. Size gate now throws; persisted meta returned.
+// Sync: last-base-mp4-db.ts + last-recording-db.ts (same contract),
+//       ui/design-studio/subtitle-bake.ts, audio/voice-reapply.ts (consumers).
+export async function saveLastBakedMp4(
+  blob: Blob,
+  durationSeconds: number,
+): Promise<LastBakedMp4Meta> {
+  if (blob.size < LAST_BAKED_MP4_MIN_BYTES || blob.size > LAST_BAKED_MP4_MAX_BYTES) {
+    throw new Error(
+      `Baked MP4 not persistable (${blob.size} bytes; allowed ` +
+        `${LAST_BAKED_MP4_MIN_BYTES}..${LAST_BAKED_MP4_MAX_BYTES}).`,
+    );
+  }
 
   const record: StoredLastBakedMp4 = {
     blob,
     mimeType: blob.type || 'video/mp4',
     byteLength: blob.size,
     savedAt: Date.now(),
-    durationSeconds: Math.min(MAX_RECORDING_SECONDS, Math.max(0, durationSeconds)),
+    // Non-finite input persists as 0 rather than NaN — meta must stay JSON-safe.
+    durationSeconds: Number.isFinite(durationSeconds)
+      ? Math.min(MAX_RECORDING_SECONDS, Math.max(0, durationSeconds))
+      : 0,
   };
 
   try {
@@ -76,6 +103,13 @@ export async function saveLastBakedMp4(blob: Blob, durationSeconds: number): Pro
     console.warn('[Reddit Voice Notes] Could not save baked MP4', error);
     throw error;
   }
+
+  return {
+    byteLength: record.byteLength,
+    mimeType: record.mimeType,
+    savedAt: record.savedAt,
+    durationSeconds: record.durationSeconds,
+  };
 }
 
 export async function loadLastBakedMp4(): Promise<LastBakedMp4Snapshot | null> {

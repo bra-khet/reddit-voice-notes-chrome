@@ -13,8 +13,12 @@ const root = resolve(process.cwd());
 const outdir = mkdtempSync(join(tmpdir(), 'rvn-failure-'));
 const outfile = join(outdir, 'bundle.mjs');
 
+// BUG FIX: tab-close transcript completion was owned by a disposable page (BUG-038)
+// Fix: bundle the background-neutral completion normalizer, which re-exports the
+//      existing classifier, so terminal success/failure/cancellation is guarded.
+
 await build({
-  entryPoints: [join(root, 'src/transcription/transcribe-failure.ts')],
+  entryPoints: [join(root, 'src/transcription/transcribe-completion.ts')],
   bundle: true,
   format: 'esm',
   platform: 'node',
@@ -23,7 +27,9 @@ await build({
   logLevel: 'silent',
 });
 
-const { classifyTranscribeFailure } = await import(pathToFileURL(outfile).href);
+const { classifyTranscribeFailure, prepareTranscribeCompletionForPersistence } = await import(
+  pathToFileURL(outfile).href
+);
 
 let passed = 0;
 let failed = 0;
@@ -106,6 +112,59 @@ check('missing stage on fallback still classifies + gives a message', () => {
   const r = classifyTranscribeFailure({ applied: false, fallback: true, stage: '', result: result() });
   assert.equal(r.type, 'inference-error');
   assert.ok(r.message.length > 0);
+});
+
+console.log('\nprepareTranscribeCompletionForPersistence\n');
+
+check('successful offscreen completion is persistable without the initiating tab', () => {
+  const prepared = prepareTranscribeCompletionForPersistence(
+    {
+      ok: true,
+      transcriptJson: JSON.stringify(result({
+        text: 'survived tab close',
+        segments: [{ start: 0, end: 1, text: 'survived tab close' }],
+      })),
+    },
+    12,
+  );
+  assert.equal(prepared.result.text, 'survived tab close');
+  assert.equal(prepared.result.segments.length, 1);
+  assert.equal(prepared.meta, undefined);
+});
+
+check('timeout completion becomes a timed scaffold with terminal metadata', () => {
+  const prepared = prepareTranscribeCompletionForPersistence(
+    { ok: false, error: 'Transcription timed out after 120s' },
+    12,
+    'en',
+  );
+  assert.equal(prepared.meta.error.type, 'timeout');
+  assert.equal(prepared.meta.isScaffolded, true);
+  assert.ok(prepared.result.segments.length > 0);
+  assert.equal(prepared.result.duration, 12);
+});
+
+check('inference failure becomes scaffolded instead of leaving Pending forever', () => {
+  const prepared = prepareTranscribeCompletionForPersistence(
+    { ok: false, error: 'worker inference failed' },
+    9,
+  );
+  assert.equal(prepared.meta.error.type, 'inference-error');
+  assert.equal(prepared.result.duration, 9);
+});
+
+check('cancelled/superseded completion is never persisted over a newer take', () => {
+  assert.equal(
+    prepareTranscribeCompletionForPersistence({ ok: false, error: 'cancelled' }, 9),
+    null,
+  );
+});
+
+check('invalid successful transcript JSON fails loudly', () => {
+  assert.throws(
+    () => prepareTranscribeCompletionForPersistence({ ok: true, transcriptJson: '{"text":7}' }, 9),
+    /invalid transcript JSON/,
+  );
 });
 
 rmSync(outdir, { recursive: true, force: true });

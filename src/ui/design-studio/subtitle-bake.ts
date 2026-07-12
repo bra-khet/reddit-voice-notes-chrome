@@ -371,13 +371,22 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
   });
 
   report({ ratio: 0.94, stage: 'saving', message: 'Saving baked MP4…' });
-  await saveLastBakedMp4(burned, base.meta.durationSeconds);
+  // BUG FIX: H13 false-success artifact publication
+  // Fix: saveLastBakedMp4 now throws on size rejection too (it used to no-op
+  //      silently on >30 MB, then this path fired BAKED_MP4_READY + promoted
+  //      the take over the PREVIOUS bake's bytes). A failed save propagates to
+  //      the bake's existing failure surface; ready-signal and stamp publish
+  //      only from the store's returned persisted meta.
+  // Sync: src/storage/last-baked-mp4-db.ts (contract), take-manager.ts
+  //       TakeBakeResult.savedAt, audio/voice-reapply.ts (same pattern).
+  const savedMeta = await saveLastBakedMp4(burned, base.meta.durationSeconds);
   await browser.storage.local.set({ [BAKED_MP4_READY_KEY]: Date.now() });
   // v5.4.0: promote the bake into the current take — every context (status
   // panel, Reddit attach) learns about the fresh baked MP4 via the snapshot.
   void getTakeManager().updateFromBake({
-    durationSeconds: base.meta.durationSeconds,
-    byteLength: burned.size,
+    durationSeconds: savedMeta.durationSeconds,
+    byteLength: savedMeta.byteLength,
+    savedAt: savedMeta.savedAt,
   });
 
   report({

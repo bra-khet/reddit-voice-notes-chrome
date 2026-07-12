@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-12 · **Reflects:** `main` @ tagged `v5.10.0` (real-browser QA PASS; incremental hardening refresh complete) · **Map:** v2.8 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-12 · **Reflects:** `main` @ tagged `v5.10.0` + H13/H14 hardening (browser QA PASS, merged; no version bump) · **Map:** v2.11 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,9 +12,9 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I19, confidence ledger, and five money-path traces through atomic trim + raw-WebM trim (QA PASS) | v2.8 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: voice/subtitle/font, message/query, storage, Studio/capture, browser/fallback composite, take/audio editing, verified splice, timeline, and atomic trim (raw leg incl.) | v1.10 |
-| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H13 persistence acknowledgment (partial at trim raw leg) + H8 recovery voice open; H12 resolved; H10 deferred; risks through v5.10 trim | v2.6 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I20, confidence ledger, and six money-path traces including BUG-038 tab-close transcript recovery | v2.11 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: message pipelines v3 (durable terminal owner), storage (H13 persist-before-publish ENFORCED), Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.12 |
+| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H13 + H14/BUG-038 fully resolved (browser QA PASS); H8 recovery voice open; H10 deferred; R13/R17 mitigated | v2.9 |
 | `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) (Accepted, v5.3.10) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) (Accepted, v5.4.0) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) (Accepted, v5.5.0) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) (Accepted, v5.6.0) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) (Accepted, v5.7.0 — execution behind flag, **default on**) | — |
 
 ---
@@ -51,6 +51,7 @@ This directory holds the **living, versioned** architecture index for the extens
 - Before any major refactor (prefs, relay, offscreen lifecycle, TakeManager writers).
 - Before pushing / tagging a release: confirm map version reflects the tag.
 - Any artifact save function changing caps/error behavior: re-check H13's persist-before-stamp contract.
+- Any recoverable pipeline moving its only COMPLETE handler, timeout, or durable save into a tab: re-check H14/BUG-038's background terminal-owner contract.
 
 ## Version policy
 
@@ -70,13 +71,16 @@ This directory holds the **living, versioned** architecture index for the extens
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes, main @ tagged v5.10.0 (QA PASS 2026-07-12). Architecture map v2.8.
+Repo: Reddit Voice Notes, main @ tagged v5.10.0 + H13/H14 hardening merged. Architecture map v2.11.
 Six contexts unchanged; primary subtitle bake is direct browser composite, with permanent FFmpeg fallbacks.
 Editing arc CLOSED at raw-trim apply: preview=APPLY (I18), dual cue shift, base + raw WebM cut together
 (audio-only; baseRecording re-stamped or honestly dropped — I19); post-trim voice re-apply works.
-Open hardening: H13 acknowledged artifact persistence (High/S — partial bounds pre-check at trim raw leg only);
-H8 recovery voice provenance (Med/S). H12 Studio progress = direct runtime broadcast.
-Risks: R14 verified splice, R15 two-view draft, R16 narrow trim multi-store commit window (3–4 stores).
-Read architecture-map.md, extension-points.md v1.10, hardening-backlog.md v2.6.
-Next product: v6.0 visual maturity (unscoped).
+H13 RESOLVED + browser QA PASS: saveLast* throw on size/IDB failure + return persisted meta; the four
+mutation choke points stamp/signal only from that meta; H6 reads untouched; test-artifact-store-writes.mjs 28.
+H14/BUG-038 RESOLVED + browser QA PASS: background owns terminal transcript commit + 125s watchdog;
+Node 12/12; tab-close mid-processing delivers transcript/scaffold. No retry UI (Vosk already succeeded).
+Open hardening: H8 recovery voice provenance (Med/S). H12 Studio progress = direct runtime broadcast.
+Risks: R13 closed by H13; R14 verified splice, R15 two-view draft, R16 trim multi-store window (3–4 stores); R17 by H14.
+Read architecture-map.md, extension-points.md v1.12, hardening-backlog.md v2.9.
+Next product: v6.0 visual maturity (unscoped). No version bump for this hardening merge.
 ```
