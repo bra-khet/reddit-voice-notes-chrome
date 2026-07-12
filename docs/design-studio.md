@@ -865,7 +865,7 @@ reddit.com).
 
 | Item | Section | Notes |
 |------|---------|-------|
-| Trim raw capture WebM | Voice / Timeline | Restores post-trim voice re-apply; current v5.9 behavior intentionally locks voice by clearing `baseRecording` stamp |
+| Trim raw capture WebM | Voice / Timeline | **v5.10 planning:** [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — restores post-trim voice re-apply; v5.9 intentionally locks voice by clearing `baseRecording` |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | Recovery voice provenance | Capture / Recovery | Architecture H8: interrupted draft resumes with current prefs because completion stamp does not exist yet |
 | v6 visual maturity | Shell / Background | Theme/background/elevation/reduced-motion audit after the functional editing arc |

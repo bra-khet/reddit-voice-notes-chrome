@@ -24,11 +24,17 @@ Authoritative references:
 - Architecture: [`docs/architecture/README.md`](docs/architecture/README.md) — map v2.6, extension-points v1.8, backlog v2.5, ADRs 0001–0005
 - Full shipped ledger: [`docs/HISTORY.md`](docs/HISTORY.md)
 
-## Open work
+## Next phase — v5.10.0 (planning only)
 
-1. **Trim the raw capture WebM** so post-trim voice changes can be restored without desynchronizing audio and video.
-2. Consider unique **voice locked after trim** copy only if the current gray-out UX is reworked; present behavior is correct.
-3. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9.
+**Design committed:** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md)  
+**Status:** planning on `main`; **no feature branch / no implementation yet.**  
+**Intent:** extend atomic trim apply so the raw capture WebM is trimmed with the base MP4, restoring post-trim voice re-apply and Change Voice (v5.9 correctly locked voice by dropping `baseRecording`).
+
+### Other open work
+
+1. Unique **voice locked after trim** copy only if the gray-out UX is reworked; present behavior is correct.
+2. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9.
+3. Architecture **H13** (persist-before-stamp) and **H8** (recovery voice provenance) — ranked in the hardening backlog; not blocked by v5.10 planning.
 
 ## Architecture hardening — full v5.9.0 refresh (2026-07-11)
 

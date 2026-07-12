@@ -424,7 +424,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | `docs/v5.6.0-audio-decoupling.md` | Audio decoupling + editing/timeline backend + **partial-splice contract** (§4.2 as-built, §13 QA checklist) |
 | `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline visual subtitle editor as-built (the v5.8.0 Studio surface — SHIPPED) |
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA gate/result |
-| `docs/v5.10.0-raw-trim-apply-roadmap.md` | **Planning only / unshipped:** proposed raw-WebM trim extension to restore post-trim voice changes. Re-verify its storage API names, H13 acknowledgment rule, and R16 transcript ownership before implementation |
+| `docs/v5.10.0-raw-trim-apply-roadmap.md` | **Next phase (planning committed / not started):** raw-WebM trim to restore post-trim voice changes. Re-verify storage API names, H13 acknowledgment, and R16 transcript ownership before implementation |
 | `docs/architecture/adr/` | ADR-0001 WebCodecs backbone · ADR-0002 TakeManager storage sync · ADR-0003 composite-stage elimination (**Accepted**) · ADR-0004 audio decoupling / voice re-apply · ADR-0005 partial re-bake splice (**Accepted**, default-on) |
 | `docs/architecture/extension-points.md` | Seam registry (v1.8) |
 | `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.5) |

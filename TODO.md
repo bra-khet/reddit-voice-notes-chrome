@@ -7,9 +7,12 @@
 
 Trim actually cuts: **Apply trim** → shorter `baseMp4` + cue shift (both transcript copies) + H6 re-stamp (`bakedMp4`/`baseRecording` dropped). Real-browser QA **PASS**. Post-QA: Reddit panel same-take promote fix; trim OUT fractional-duration floor.
 
-## ▶ Next (open) — post-v5.9 candidates
+## ▶ Next — **v5.10.0 Raw WebM Trim Apply** (planning committed; implementation not started)
 
-[Trimming the raw capture WebM](docs/v5.10.0-raw-trim-apply-roadmap.md) (planning only; restores post-trim voice changes) · unique “voice locked after trim” copy if a UI rework wants it (current gray-out is correct) · **v6.0 "Polish & Visual Maturity"** arc (roadmap §9).
+**Design (planning):** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md)  
+**Goal:** Trim the raw capture WebM at apply time so post-trim voice re-apply / Change Voice work again (v5.9 intentionally clears `baseRecording`).
+
+**Also open (lower priority):** unique “voice locked after trim” copy only if a UI rework wants it (current gray-out is correct) · **v6.0 "Polish & Visual Maturity"** arc (v5.9 roadmap §9) · architecture H13 / H8.
 
 ## Shipped ledger
 
