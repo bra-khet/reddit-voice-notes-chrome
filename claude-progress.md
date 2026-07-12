@@ -67,10 +67,25 @@ Map **v2.11** · extension-points **v1.12** · backlog **v2.9** · bug-archive B
 
 ### Other open work
 
-1. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9.
-2. Architecture **H8** (recovery voice provenance) — still open; not blocked by H13/H14.
+1. **▶ Next: H8 recovery voice provenance** (see sprint plan entry below) — before v6.0.
+2. Then scope **v6.0 “Polish & Visual Maturity”** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
 3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10).
+
+## H8 — next sprint (planned 2026-07-12) · user-confirmed repro
+
+**Decision:** H8 is the **next clear step before v6.0**. Not a release; branch off `main` @ v5.10.0 + H13/H14.
+
+### Consultation / repro notes (user QA)
+
+- **Normal Stop → finish / tab-close while job lives:** voice is bound at **Stop**; orphan persist finishes that job. Switching profiles mid-flight does **not** retarget it. **Not H8.**
+- **H8 path:** first job **dies incomplete** (hard extension reload / crash) → draft + `baseRecording`, no `baseMp4`, `inflight === false` → `resumeDraftTranscodeInner` starts a **new** transcode with **`prefs.voiceEffect` at resume**.
+- **User repro:** hard-reload mid-transcode → edit `rvnUserPrefs` / `voiceEffect` in DevTools → reopen Design Studio → recovered MP4 uses the **new** voice. Confirmed this *is* H8.
+- **Why hard to hit in product UI:** voice prefs are primarily written from Design Studio (`saveVoiceEffectPreferences` in `voice-controls.ts`); opening Studio also kicks recovery. Changing prefs *before* resume without DevTools is awkward today. Practical user incidence is low; value is **correctness + future-proofing** (new settings surfaces, multi-page, crash then later prefs edit) so recovery does not silently depend on “prefs only change inside Studio after mount.”
+
+### Intended fix (backlog H8 — do not expand)
+
+Optional JSON-safe capture voice intent on the take at begin/stop; recovery uses that for resume transcode and promotes `TakeVoiceStamp` on success; legacy drafts without the field keep current-prefs + honest note. Out of scope: Retry UI, multi-take history, blob storage of rendered audio.
 
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE** (superseded by H13/H14 merge above)
 
-Use [`TODO.md`](TODO.md) as the compact task ledger. Start any implementation as its own sprint/branch.
+Use [`TODO.md`](TODO.md) as the compact task ledger. Start H8 as its own sprint/branch.
