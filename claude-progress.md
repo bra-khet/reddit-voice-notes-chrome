@@ -11,9 +11,9 @@ This is the **living** progress file, focused on work after **v5.9.0 (Atomic Tri
 
 The full prior content is intact so this file can stay small and actionable. Add new session entries below the current-work section; run `/docs-archiving` (Refresh) after the next tagged milestone or major feature.
 
-## Current baseline — post-v5.9.0
+## Baseline — v5.9.0 (superseded by v5.10.0 below)
 
-**Stable:** `v5.9.0` · **Package:** `5.9.0` · **Branch:** `main` · **Tag:** `v5.9.0` · **Shipped:** 2026-07-11
+**Stable then:** `v5.9.0` · **Tag:** `v5.9.0` · **Shipped:** 2026-07-11
 
 Atomic trim apply is complete and real-browser QA passed. **Apply trim** now creates a shorter `baseMp4`, shifts both transcript copies with preview-identical cue math, clears the trim intent, writes a new H6 base stamp, and drops stale `bakedMp4` / `baseRecording` stamps. The next subtitle bake is therefore a correct full composite, and post-trim voice re-apply stays honestly locked until the raw capture can be trimmed too.
 
@@ -24,17 +24,23 @@ Authoritative references:
 - Architecture: [`docs/architecture/README.md`](docs/architecture/README.md) — map v2.6, extension-points v1.8, backlog v2.5, ADRs 0001–0005
 - Full shipped ledger: [`docs/HISTORY.md`](docs/HISTORY.md)
 
-## Next phase — v5.10.0 (planning only)
+## v5.10.0 — Raw Trim Apply (2026-07-11) — **CODE COMPLETE, TAGGED; real-browser QA gate OPEN**
 
-**Design committed:** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md)  
-**Status:** planning on `main`; **no feature branch / no implementation yet.**  
-**Intent:** extend atomic trim apply so the raw capture WebM is trimmed with the base MP4, restoring post-trim voice re-apply and Change Voice (v5.9 correctly locked voice by dropping `baseRecording`).
+**As-built:** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md) §10 · **Release notes:** [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md) · **Package:** `5.10.0` · merged `feature/v5.10.0-raw-trim-apply` → `main`, tag `v5.10.0` (push deferred).
+
+Apply trim now cuts the raw capture WebM with the base MP4: pure `planRawTrimLeg` gate (H6 vocabulary) → `applyTrimToWebM` (mediabunny `WebMOutputFormat`, **audio-only** — VP8 canvas track discarded by design, sample-accurate Opus) → fresh `baseRecording` stamp in the SAME `updateCurrentTake` write. **Post-trim voice re-apply / Change Voice work again**; any raw-leg failure (no stamp, H6 mismatch, conversion error, un-persistable size vs the now-exported `LAST_RECORDING_MIN/MAX_BYTES` — H13 pre-check) demotes honestly to the v5.9 stamp-drop lock and never fails the trim. `voiceLocked` outcome → tri-state `rawAudio`. Zero changes to voice-reapply/UI — the unlock is emergent (stamp gate + `savedAt` poll).
+
+Phase 0 gap worth remembering: the planning doc named a nonexistent `saveLastBaseRecording` API — the real store is `rvnLastRecording` / `saveLastRecording` with silent out-of-bounds no-op (H13).
+
+**Verify:** timeline **22** · take-manager **34** · full Node regression sweep green · `npm run build` PASS @ 5.10.0 · `tsc` = 3 documented pre-existing. Docs: map **v2.7**, extension-points **v1.9**, Trace E extended, I19 added.
+
+**⚠ Open gate:** real-browser QA (release notes checklist — trim → Change Voice → audition → re-bake, no desync; raw-leg fallback; regressions) before push/distribution.
 
 ### Other open work
 
-1. Unique **voice locked after trim** copy only if the gray-out UX is reworked; present behavior is correct.
+1. Run `/docs-archiving` **Refresh #3** after v5.10.0 QA sign-off.
 2. Scope the **v6.0 “Polish & Visual Maturity”** arc from [`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9.
-3. Architecture **H13** (persist-before-stamp) and **H8** (recovery voice provenance) — ranked in the hardening backlog; not blocked by v5.10 planning.
+3. Architecture **H13** (persist-before-stamp — v5.10 added a bounds pre-check at the trim raw leg only; the general contract is still open) and **H8** (recovery voice provenance).
 
 ## Architecture hardening — full v5.9.0 refresh (2026-07-11)
 

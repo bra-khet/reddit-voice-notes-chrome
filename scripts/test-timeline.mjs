@@ -38,7 +38,10 @@ const {
   uniformSegments,
 } = await bundle('src/timeline/timeline.ts', 'timeline.mjs');
 
-const { planTrim, shiftCuesForTrim } = await bundle('src/editing/trim.ts', 'trim.mjs');
+const { planTrim, planRawTrimLeg, shiftCuesForTrim } = await bundle(
+  'src/editing/trim.ts',
+  'trim.mjs',
+);
 
 let checks = 0;
 function check(name, fn) {
@@ -264,6 +267,43 @@ check('frame-snapped planTrim range composes: shift lands inside frame math', ()
   const [cue] = shiftCuesForTrim([{ start: 5, end: 6, text: 'c' }], plan.range);
   assert.equal(cue.start, 5 - plan.range.inSeconds);
   assert.equal(cue.end, 6 - plan.range.inSeconds);
+});
+
+// v5.10.0 — the raw-recording leg gate (roadmap §4 step 3). A raw-leg problem
+// is never fatal to the trim: 'drop-stamp' is the v5.9 voice-lock outcome.
+console.log('planRawTrimLeg (raw-recording leg gate)');
+
+const RAW_NOW = 1_800_000_000_000;
+const rawStamp = { savedAt: RAW_NOW, byteLength: 1_000_000, durationSeconds: 42 };
+
+check('no stamp → skip (legacy take; voice was never available)', () => {
+  assert.equal(planRawTrimLeg(undefined, { savedAt: RAW_NOW, byteLength: 1_000_000 }), 'skip');
+  assert.equal(planRawTrimLeg(undefined, null), 'skip');
+});
+
+check('stamp without a backing store → drop-stamp (honest v5.9 lock)', () => {
+  assert.equal(planRawTrimLeg(rawStamp, null), 'drop-stamp');
+  assert.equal(planRawTrimLeg(rawStamp, undefined), 'drop-stamp');
+});
+
+check('H6 mismatch (savedAt or byteLength) → drop-stamp, never adopt', () => {
+  assert.equal(
+    planRawTrimLeg(rawStamp, { savedAt: RAW_NOW - 60_000, byteLength: 1_000_000 }),
+    'drop-stamp',
+  );
+  assert.equal(
+    planRawTrimLeg(rawStamp, { savedAt: RAW_NOW, byteLength: 999_999 }),
+    'drop-stamp',
+  );
+});
+
+check('verified stamp↔store match → trim (the v5.10 unlock path)', () => {
+  assert.equal(
+    planRawTrimLeg(rawStamp, { savedAt: RAW_NOW, byteLength: 1_000_000 }),
+    'trim',
+  );
+  // byteLength optional on either side — savedAt agreement is sufficient (H6).
+  assert.equal(planRawTrimLeg({ savedAt: RAW_NOW }, { savedAt: RAW_NOW }), 'trim');
 });
 
 rmSync(outdir, { recursive: true, force: true });

@@ -226,6 +226,36 @@ check('artifacts patch: explicit undefined no longer clobbers a real stamp', () 
   assert.equal(merged.artifacts.baseMp4.byteLength, 2_000_000); // preserved
 });
 
+// v5.10.0 — raw-WebM trim re-stamps baseRecording IN the same write that
+// replaces baseMp4 and drops bakedMp4 (roadmap §4 step 8): other contexts can
+// never observe a half-updated artifact set.
+check('artifacts patch: dual fresh stamps + baked delete ride one patch (v5.10 trim commit)', () => {
+  const take = parseCurrentTake(
+    validTake({
+      artifacts: {
+        baseRecording: { savedAt: NOW - 45_000, byteLength: 1_000_000, durationSeconds: 42 },
+        baseMp4: { savedAt: NOW - 31_000, byteLength: 2_000_000, durationSeconds: 42 },
+        bakedMp4: { savedAt: NOW - 20_000, byteLength: 3_000_000, durationSeconds: 42 },
+      },
+    }),
+  );
+  const merged = mergeTakePatch(
+    take,
+    {
+      artifacts: {
+        baseMp4: { savedAt: NOW, byteLength: 900_000, durationSeconds: 30 },
+        baseRecording: { savedAt: NOW, byteLength: 240_000, durationSeconds: 30 },
+        bakedMp4: null,
+      },
+    },
+    NOW,
+  );
+  assert.equal(merged.artifacts.baseMp4.durationSeconds, 30); // replaced
+  assert.equal(merged.artifacts.baseRecording.byteLength, 240_000); // replaced (trimmed WebM)
+  assert.equal(merged.artifacts.baseRecording.durationSeconds, 30); // matches new base
+  assert.equal('bakedMp4' in merged.artifacts, false); // deleted
+});
+
 console.log('takeFreshnessMs');
 
 check('takeFreshnessMs picks the latest stamp', () => {

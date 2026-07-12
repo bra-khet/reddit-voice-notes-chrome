@@ -12,7 +12,12 @@
  * without the storage/preferences graph. This module stays: the planTrim gate,
  * intent CRUD, the mediabunny container trim, and the pure cue shift.
  *
- * planTrim + shiftCuesForTrim are pure (Node-tested via scripts/test-timeline.mjs).
+ * v5.10.0 — raw capture WebM trim joins the same split: applyTrimToWebM
+ * (audio-only output, roadmap §3B addendum) mirrors applyTrimToMp4, and the
+ * pure planRawTrimLeg gate decides the raw leg ('skip'/'drop-stamp'/'trim').
+ *
+ * planTrim + shiftCuesForTrim + planRawTrimLeg are pure (Node-tested via
+ * scripts/test-timeline.mjs).
  *
  * Sync: timeline.ts (clampTrimRange / TrimRange), take-manager.ts
  *       (TakeTrimEdit + edits patch), trim-apply.ts (the v5.9.0 consumer),
@@ -30,8 +35,14 @@ import {
   Input,
   Mp4OutputFormat,
   Output,
+  WebMOutputFormat,
 } from 'mediabunny';
-import { getTakeManager } from '@/src/session/take-manager';
+import {
+  getTakeManager,
+  takeArtifactMatchesStore,
+  type ArtifactStoreMeta,
+  type TakeArtifactStamp,
+} from '@/src/session/take-manager';
 import {
   clampTrimRange,
   createTimeline,
@@ -193,6 +204,95 @@ export async function applyTrimToMp4(
         `${range.outSeconds.toFixed(3)}s] → ${Math.round(buffer.byteLength / 1024)} KiB.`,
     );
     return new Blob([buffer], { type: 'video/mp4' });
+  } finally {
+    input.dispose();
+  }
+}
+
+// ─── Raw capture WebM trim (v5.10.0 — roadmap §3B/§3C/§4) ────────────────────
+
+/**
+ * Decide the raw-recording leg of a trim apply. Pure — Node-tested truth table.
+ * A raw-leg problem is never fatal to the trim itself: the MP4 cut is the
+ * product action; this leg only decides whether post-trim voice re-apply stays
+ * available ('trim'), is honestly locked ('drop-stamp' — the v5.9 outcome), or
+ * was never possible ('skip' — legacy take without a stamp).
+ */
+export type RawTrimLegPlan = 'skip' | 'drop-stamp' | 'trim';
+
+export function planRawTrimLeg(
+  stamp: TakeArtifactStamp | undefined,
+  storeMeta: ArtifactStoreMeta | null | undefined,
+): RawTrimLegPlan {
+  if (!stamp) return 'skip';
+  return takeArtifactMatchesStore(stamp, storeMeta) ? 'trim' : 'drop-stamp';
+}
+
+/**
+ * Materialize a trim of the raw capture WebM: produce an AUDIO-ONLY WebM
+ * covering [inSeconds, outSeconds). The video track is discarded by design
+ * (roadmap §3B addendum): every post-trim consumer of `baseRecording` is an
+ * audio consumer, and keeping the VP8 canvas track would force a whole-clip
+ * video re-encode nothing ever reads. Opus boundaries are sample-accurate —
+ * mediabunny decodes, trims the edge sample, and re-encodes.
+ *
+ * Browser-only (WebCodecs), like applyTrimToMp4. Throws on cancel/failure;
+ * never returns a partial container.
+ */
+export async function applyTrimToWebM(
+  source: Blob,
+  range: TrimRange,
+  options?: ApplyTrimOptions,
+): Promise<Blob> {
+  if (options?.signal?.aborted) {
+    throw new DOMException('Trim cancelled.', 'AbortError');
+  }
+
+  const input = new Input({ source: new BlobSource(source), formats: ALL_FORMATS });
+  const output = new Output({
+    format: new WebMOutputFormat(),
+    target: new BufferTarget(),
+  });
+
+  try {
+    const conversion = await Conversion.init({
+      input,
+      output,
+      trim: { start: range.inSeconds, end: range.outSeconds },
+      video: { discard: true },
+      showWarnings: false, // our own video discard is intentional, not a warning
+    });
+    if (!conversion.isValid) {
+      // Only unintentional discards explain the failure — the video track is
+      // discarded by us on purpose and must not masquerade as the reason.
+      const reasons = conversion.discardedTracks
+        .filter((entry) => entry.reason !== 'discarded_by_user')
+        .map((entry) => entry.reason)
+        .join(', ');
+      throw new Error(`Raw audio trim invalid${reasons ? ` (${reasons})` : ''}.`);
+    }
+    conversion.onProgress = (progress) => {
+      options?.onProgress?.(Math.min(1, Math.max(0, progress)));
+    };
+    const onAbort = (): void => {
+      void conversion.cancel();
+    };
+    options?.signal?.addEventListener('abort', onAbort, { once: true });
+    try {
+      await conversion.execute();
+    } finally {
+      options?.signal?.removeEventListener('abort', onAbort);
+    }
+
+    const buffer = output.target.buffer;
+    if (!buffer || buffer.byteLength < 256) {
+      throw new Error('Raw audio trim produced an empty WebM buffer.');
+    }
+    console.log(
+      `${EXTENSION_LOG_PREFIX} Raw audio trim: [${range.inSeconds.toFixed(3)}s → ` +
+        `${range.outSeconds.toFixed(3)}s] → ${Math.round(buffer.byteLength / 1024)} KiB (audio-only).`,
+    );
+    return new Blob([buffer], { type: 'audio/webm' });
   } finally {
     input.dispose();
   }

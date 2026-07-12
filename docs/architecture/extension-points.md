@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.8 · **Updated:** 2026-07-11 · **Reflects:** `main` @ `v5.9.0`
+**Version:** v1.9 · **Updated:** 2026-07-11 · **Reflects:** `feature/v5.10.0-raw-trim-apply` @ `v5.10.0`
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.8 — full v5.9 audit: corrected the subtitle/bake seam to show direct browser composite as primary (dual-IVF is fallback), documented Studio-direct runtime progress (H12 resolved), added the fail-loud artifact-store write rule (H13), and removed the last inert-trim sentence. No new seam. v1.7 — **atomic trim APPLY** shipped (v5.9.0): the audio-editing seam's "artifact integration still deferred" caveat is lifted — new `trim-apply.ts` orchestrator entry (H6 base mutate, dual-copy cue shift via `shiftCuesForTrim`/`replaceSessionTranscriptResults`, stamp null-delete take patch, voice-lock + full-composite-after-apply gotchas); timeline cue editor seam's trim note updated (Apply strip control, preview=apply). NO new seam. v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.9 — **raw-WebM trim** shipped (v5.10.0): the audio-editing seam's trim entry gains the raw-recording leg (`applyTrimToWebM` audio-only output + pure `planRawTrimLeg` gate in `trim.ts`; orchestrator re-stamps `baseRecording` in the same take write), and the v5.9 "trim LOCKS THE VOICE IN" gotcha is rewritten — the lock is now only the degraded outcome when the raw leg cannot run. `last-recording-db.ts` exports its persistability bounds (H13 pre-check). NO new seam. v1.8 — full v5.9 audit: corrected the subtitle/bake seam to show direct browser composite as primary (dual-IVF is fallback), documented Studio-direct runtime progress (H12 resolved), added the fail-loud artifact-store write rule (H13), and removed the last inert-trim sentence. No new seam. v1.7 — **atomic trim APPLY** shipped (v5.9.0): the audio-editing seam's "artifact integration still deferred" caveat is lifted — new `trim-apply.ts` orchestrator entry (H6 base mutate, dual-copy cue shift via `shiftCuesForTrim`/`replaceSessionTranscriptResults`, stamp null-delete take patch, voice-lock + full-composite-after-apply gotchas); timeline cue editor seam's trim note updated (Apply strip control, preview=apply). NO new seam. v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -276,7 +276,10 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
   splice seam below), `src/editing/trim.ts` (`planTrim` gate; intent in
   `take.edits.trim`; `loadTrimIntent` read helper added v5.8.0; mediabunny
   `Conversion` apply; pure `shiftCuesForTrim` added v5.9.0 — mirrors the
-  ghost-preview math `projectCueThroughTrim`, no frame-snapping of cue times).
+  ghost-preview math `projectCueThroughTrim`, no frame-snapping of cue times;
+  v5.10.0 adds `applyTrimToWebM` — audio-only trim of the raw capture WebM,
+  video track discarded by design — and the pure `planRawTrimLeg` gate
+  `'skip' | 'drop-stamp' | 'trim'` over the H6 stamp↔store check).
 - **Apply a trim end-to-end (v5.9.0):** `applyTrimToCurrentTake({ requested,
   fps, editedResult })` (`src/editing/trim-apply.ts` — NEW module, kept out of
   `trim.ts` so `test-timeline.mjs` bundles the pure logic without the storage
@@ -284,12 +287,22 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
   base → container trim → dual-copy cue shift (`replaceSessionTranscriptResults`
   rewrites BOTH session-transcript copies — revert must never resurrect
   pre-trim times) → superseded guard → commit-last: new base stamp +
-  `meta.durationSeconds` + `edits.trim` clear + `bakedMp4`/`baseRecording`
-  stamp DELETES (patch `null` = delete, v5.9.0 take-manager evolution) +
-  status `baked → ready`. Deliberately NO `BAKED_MP4_READY_KEY` (no baked
-  bytes produced — the take-snapshot broadcast is the channel). Studio
-  surface: "Apply trim" + two-click confirm in the timeline trim strip
-  (`onApplyTrim` dep; host owns the post-apply draft/undo/clip-source refresh).
+  `meta.durationSeconds` + `edits.trim` clear + `bakedMp4` stamp DELETE
+  (patch `null` = delete, v5.9.0 take-manager evolution) +
+  status `baked → ready`. **v5.10.0 raw leg:** `planRawTrimLeg` resolves the
+  `baseRecording` stamp against `rvnLastRecording` up front; a verified match
+  runs `applyTrimToWebM` (audio-only, sample-accurate Opus) and the fresh
+  `baseRecording` stamp rides the SAME `updateCurrentTake` write — post-trim
+  voice re-apply / Change Voice stay available. Any raw-leg failure (no stamp,
+  H6 mismatch, conversion error, un-persistable size per the exported
+  `LAST_RECORDING_MIN/MAX_BYTES` bounds — H13 pre-check) demotes to the v5.9
+  stamp-DELETE outcome and never fails the trim. Outcome carries tri-state
+  `rawAudio: 'trimmed' | 'dropped' | 'none'`. Deliberately NO
+  `BAKED_MP4_READY_KEY` (no baked bytes produced — the take-snapshot broadcast
+  is the channel). Studio surface: "Apply trim" + two-click confirm in the
+  timeline trim strip (`onApplyTrim` dep; host owns the post-apply
+  draft/undo/clip-source refresh; the Voice panel's apply affordance
+  re-enables emergently off the surviving stamp).
 - **Preview=bake?** YES for voice — re-apply resolves through the same
   `resolveVoiceGraph` + renderer as the audition. N/A for the remux
   (bit-copy by definition).
@@ -305,14 +318,18 @@ Canonical contract: `docs/v5.6.0-audio-decoupling.md` (+ ADR-0004).
 - **Gotchas:**
   - A DSP fallback ABORTS the re-apply (never silently ship raw audio under
     a claimed voice); the take stays untouched.
-  - **A trim apply LOCKS THE VOICE IN (v5.9.0):** it drops the `baseRecording`
-    stamp (the raw WebM no longer matches the timeline), so a later re-apply
-    fails honestly at the clean-audio door ("re-record to change the voice") —
-    never desynced audio. Trimming the raw WebM is its own follow-up if wanted.
-    `docs/v5.10.0-raw-trim-apply-roadmap.md` sketches that follow-up but is
-    planning-only: implementation must reuse the existing `last-recording-db.ts`
-    seam, preserve the H6 superseded-take guard, and obey H13's acknowledged-
-    persistence rule before publishing a replacement raw-recording stamp.
+  - **A trim apply KEEPS THE VOICE AVAILABLE (v5.10.0; supersedes the v5.9
+    voice-lock):** the raw capture WebM is trimmed with the MP4 (audio-only —
+    the VP8 canvas track is discarded because every post-trim consumer is an
+    audio consumer and mediabunny would force a whole-clip video re-encode)
+    and `baseRecording` is re-stamped in the same take write. The v5.9
+    lock-in is now only the DEGRADED outcome (`rawAudio: 'dropped'`): stamp
+    absent/mismatched, conversion failure, or a result outside the store's
+    persistability bounds — then the stamp drops and a later re-apply fails
+    honestly at the clean-audio door ("re-record to change the voice"), never
+    desynced audio. The trimmed WebM's `savedAt` drives the Voice panel's
+    poll, so the affordance re-enables with zero UI code.
+    (`docs/v5.10.0-raw-trim-apply-roadmap.md` §10 is the as-built record.)
   - **Post-apply bakes are FULL composites by construction** —
     `computePartialRebakePlan` nulls on any duration change; never "fix" that
     guard without replacing what it protects.
@@ -394,7 +411,9 @@ the existing edit / dirty-tracking / trim seams. Canonical as-built:
 - **Trim:** ✂ mode writes the non-destructive `edits.trim` intent through the existing `planTrim`
   gate (`src/editing/trim.ts` `loadTrimIntent`/`storeTrimIntent`) → TakeManager `mergeTakeEdits`.
   v5.9.0 consumes it through `applyTrimToCurrentTake`: H6 base cut + live-draft/baseline cue shift +
-  one take patch that clears intent and stale baked/raw-audio stamps.
+  one take patch that clears intent and the stale baked stamp. v5.10.0 adds the raw leg to the same
+  patch: the capture WebM is trimmed too (audio-only) and `baseRecording` is re-stamped — or
+  honestly dropped when the leg cannot run — so post-trim Change Voice works from the editor.
 - **Preview=bake?** YES for cue timing (frame-snap, I17). **YES for trim since v5.9.0
   (preview=APPLY):** the ghost bars project the live draft through `projectCueThroughTrim`,
   and `shiftCuesForTrim` reproduces that math on apply — the host passes the LIVE draft
@@ -421,16 +440,19 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.8 (2026-07-11), main @ tagged v5.9.0.
+Extension points v1.9 (2026-07-11), feature/v5.10.0-raw-trim-apply @ v5.10.0.
 Seams: voice v5 · subtitle/font v1 · messages v2 · storage v1 · theme/Studio/live-mic v1 ·
 overlay backbone v1 · take lifecycle v1 · capture host v1 · audio editing/re-apply v1 ·
-partial splice v1 · timeline editor v1. No new seam/context/store/message in v5.9.
+partial splice v1 · timeline editor v1. No new seam/context/store/message in v5.9/v5.10.
 Default subtitle bake: browser decodes base → shared painter → encode/mux directly.
 Fallbacks: dual-IVF+FFmpeg → MediaRecorder+FFmpeg → drawtext.
 Studio pipeline progress is the offscreen runtime broadcast; skip-tab maps suppress duplicates.
 Take state syncs through rvn.take.current (ADR-0002); H6 is mandatory before blob adoption.
-Trim apply: H6 base cut + live/baseline cue shift + intent/stale-stamp clear; next bake is full.
-Storage rule: persist and receive authoritative success/meta before publishing stamps/signals (H13).
+Trim apply: H6 base cut + raw-WebM audio-only cut (planRawTrimLeg; failure = honest stamp drop) +
+live/baseline cue shift + intent/stale-stamp clear in ONE take write; next bake is full;
+post-trim voice re-apply stays available when the raw leg succeeded.
+Storage rule: persist and receive authoritative success/meta before publishing stamps/signals (H13);
+last-recording-db exports its persistability bounds for pre-checks.
 Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
 one-shot question → query message. New editing UI → reuse the edit/dirty/trim seams, don't add a wire.
 ```

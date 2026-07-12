@@ -19,12 +19,18 @@
  *   storage.onChanged broadcast is the update channel.
  * - §3H: BOTH session-transcript copies shift — revert must never resurrect
  *   pre-trim cue times.
- * - §3I: baseRecording stamp is DROPPED — the raw capture WebM no longer
- *   matches the timeline, so voice re-apply fails honestly through the
- *   existing clean-audio door instead of desyncing audio.
+ * - v5.10.0 (supersedes v5.9 §3I): the raw capture WebM is TRIMMED WITH the
+ *   MP4 (audio-only, planRawTrimLeg → applyTrimToWebM) and re-stamped, so
+ *   voice re-apply / Change Voice stay available on the trimmed timeline.
+ *   Only when the raw leg cannot run (no stamp, store mismatch, conversion
+ *   failure, unpersistable size) does the stamp drop — the v5.9 outcome:
+ *   voice locks honestly through the existing clean-audio door. A raw-leg
+ *   problem is never fatal to the trim itself.
  *
- * Sync: trim.ts (planTrim gate, applyTrimToMp4, shiftCuesForTrim),
+ * Sync: trim.ts (planTrim gate, applyTrimToMp4, applyTrimToWebM,
+ *       planRawTrimLeg, shiftCuesForTrim),
  *       take-manager.ts (artifacts null-delete patch, H6),
+ *       last-recording-db.ts (saveLastRecording persistability bounds — H13),
  *       session-transcript-db.ts (replaceSessionTranscriptResults),
  *       ui/design-studio/subtitle-segment-editor.ts (the Studio caller — owns
  *       the post-apply in-memory refresh + undo-stack reset)
@@ -37,6 +43,12 @@ import {
 } from '@/src/session/take-manager';
 import { loadLastBaseMp4, saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import {
+  LAST_RECORDING_MAX_BYTES,
+  LAST_RECORDING_MIN_BYTES,
+  loadLastRecording,
+  saveLastRecording,
+} from '@/src/storage/last-recording-db';
+import {
   loadSessionTranscript,
   replaceSessionTranscriptResults,
 } from '@/src/storage/session-transcript-db';
@@ -47,7 +59,13 @@ import {
 import type { TranscriptResult } from '@/src/transcription/types';
 import type { TrimRange } from '@/src/timeline/timeline';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
-import { applyTrimToMp4, planTrim, shiftCuesForTrim } from './trim';
+import {
+  applyTrimToMp4,
+  applyTrimToWebM,
+  planRawTrimLeg,
+  planTrim,
+  shiftCuesForTrim,
+} from './trim';
 
 export type TrimApplyErrorCode =
   | 'invalid-range' // planTrim rejected the request (or no clip duration)
@@ -96,8 +114,14 @@ export interface TrimApplyOutcome {
   removedCueCount: number;
   /** True when a bakedMp4 stamp existed and was dropped (re-bake needed). */
   bakedCleared: boolean;
-  /** True when a baseRecording stamp existed and was dropped (voice locked in). */
-  voiceLocked: boolean;
+  /**
+   * v5.10.0 — the raw-recording leg's honest outcome (replaces v5.9's
+   * `voiceLocked`): 'trimmed' = baseRecording was cut with the MP4 and
+   * re-stamped (voice re-apply stays available) · 'dropped' = the stamp
+   * existed but the leg could not run (voice locked, the v5.9 behavior) ·
+   * 'none' = the take never had a raw-recording stamp.
+   */
+  rawAudio: 'trimmed' | 'dropped' | 'none';
 }
 
 /** Mechanical shift of one TranscriptResult onto the post-trim timeline. */
@@ -161,6 +185,13 @@ export async function applyTrimToCurrentTake(
     );
   }
 
+  // CHANGED: v5.10.0 — raw-recording leg resolved up front (roadmap §4 step 3).
+  // WHY: the WebM must be trimmed WITH the MP4 so post-trim voice re-apply
+  //      stays available; a mismatched/absent raw source demotes to the v5.9
+  //      drop-stamp outcome instead of failing the trim.
+  const recording = await loadLastRecording();
+  let rawLeg = planRawTrimLeg(take.artifacts.baseRecording, recording?.meta ?? null);
+
   // The SAME gate Save-intent uses — apply never trusts raw marker positions.
   // BUG FIX: trim OUT forced to whole second (floored recorder meta)
   // Fix: plan against max(store meta, editor clip length) so legacy floored
@@ -182,12 +213,48 @@ export async function applyTrimToCurrentTake(
   report(0.02);
 
   // ---- transform (no store touched yet) ----
+  // Progress budget: the MP4 cut dominates; when the raw leg runs it takes the
+  // 0.72–0.90 span so the meter never jumps backwards between legs.
+  const mp4Span = rawLeg === 'trim' ? 0.68 : 0.88;
   const trimmedBlob = await applyTrimToMp4(base.blob, range, {
     signal: options.signal,
     onProgress: (ratio) => {
-      report(0.02 + ratio * 0.88);
+      report(0.02 + ratio * mp4Span);
     },
   });
+  throwIfAborted(options.signal);
+
+  // ---- raw-recording leg (v5.10.0; still no store touched) ----
+  let trimmedRawBlob: Blob | null = null;
+  if (rawLeg === 'trim' && recording) {
+    try {
+      const rawBlob = await applyTrimToWebM(recording.blob, range, {
+        signal: options.signal,
+        onProgress: (ratio) => {
+          report(0.72 + ratio * 0.18);
+        },
+      });
+      // saveLastRecording silently no-ops outside these bounds (H13) — never
+      // publish a stamp the store may not back.
+      if (rawBlob.size >= LAST_RECORDING_MIN_BYTES && rawBlob.size <= LAST_RECORDING_MAX_BYTES) {
+        trimmedRawBlob = rawBlob;
+      } else {
+        console.warn(
+          `${EXTENSION_LOG_PREFIX} Raw audio trim result not persistable ` +
+            `(${rawBlob.size} bytes) — dropping baseRecording stamp instead.`,
+        );
+        rawLeg = 'drop-stamp';
+      }
+    } catch (error) {
+      // A cancel aborts the whole apply (nothing written yet); any other
+      // raw-leg failure demotes to the v5.9 outcome — the trim itself proceeds.
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+      console.warn(`${EXTENSION_LOG_PREFIX} Raw audio trim failed — voice stays locked.`, error);
+      rawLeg = 'drop-stamp';
+    }
+  }
   throwIfAborted(options.signal);
 
   // Cue shift, computed in memory for BOTH copies (§3H). The live draft is the
@@ -217,7 +284,8 @@ export async function applyTrimToCurrentTake(
     );
   }
   const bakedCleared = Boolean(takeBeforeCommit.artifacts.bakedMp4);
-  const voiceLocked = Boolean(takeBeforeCommit.artifacts.baseRecording);
+  const rawAudio: TrimApplyOutcome['rawAudio'] =
+    trimmedRawBlob !== null ? 'trimmed' : rawLeg === 'skip' ? 'none' : 'dropped';
 
   // ---- commit block (writes last, I7; H6 protects consumers if we die here) ----
   await saveLastBaseMp4(trimmedBlob, newDurationSeconds);
@@ -231,17 +299,37 @@ export async function applyTrimToCurrentTake(
     await replaceSessionTranscriptResults(shiftedOriginal ?? shiftedEdited, shiftedEdited);
   }
 
+  // v5.10.0 — the trimmed raw WebM replaces the single-slot recording; its
+  // fresh stamp rides the SAME updateCurrentTake write as the base stamp.
+  let rawStamp: TakeArtifactStamp | null = null;
+  if (trimmedRawBlob) {
+    await saveLastRecording(trimmedRawBlob, newDurationSeconds);
+    rawStamp = {
+      savedAt: Date.now(),
+      byteLength: trimmedRawBlob.size,
+      durationSeconds: newDurationSeconds,
+    };
+  }
+
+  const durationLabel = newDurationSeconds.toFixed(1);
+  const note =
+    bakedCleared && rawAudio === 'trimmed'
+      ? `Trimmed to ${durationLabel}s — bake again for the new timeline; voice changes stay available.`
+      : bakedCleared
+        ? `Trimmed to ${durationLabel}s — bake again to burn subtitles on the new timeline.`
+        : rawAudio === 'trimmed'
+          ? `Trimmed to ${durationLabel}s — voice changes stay available.`
+          : `Trimmed to ${durationLabel}s.`;
+
   await manager.updateCurrentTake(
     {
       // A trimmed take needs a fresh bake — 'ready' is the honest capability.
       status: takeBeforeCommit.status === 'baked' ? 'ready' : undefined,
       meta: {
         durationSeconds: newDurationSeconds,
-        note: bakedCleared
-          ? `Trimmed to ${newDurationSeconds.toFixed(1)}s — bake again to burn subtitles on the new timeline.`
-          : `Trimmed to ${newDurationSeconds.toFixed(1)}s.`,
+        note,
       },
-      artifacts: { baseMp4: baseStamp, bakedMp4: null, baseRecording: null },
+      artifacts: { baseMp4: baseStamp, bakedMp4: null, baseRecording: rawStamp },
       edits: { trim: null },
     },
     { expectId: takeId },
@@ -253,7 +341,13 @@ export async function applyTrimToCurrentTake(
       `${range.outSeconds.toFixed(3)}s] · new duration ${newDurationSeconds.toFixed(3)}s · ` +
       `${removedCueCount} cue(s) removed` +
       `${bakedCleared ? ' · baked cleared (re-bake needed)' : ''}` +
-      `${voiceLocked ? ' · voice locked in (raw audio dropped)' : ''}.`,
+      `${
+        rawAudio === 'trimmed'
+          ? ' · raw audio trimmed (voice re-apply available)'
+          : rawAudio === 'dropped'
+            ? ' · voice locked in (raw audio dropped)'
+            : ''
+      }.`,
   );
 
   return {
@@ -263,6 +357,6 @@ export async function applyTrimToCurrentTake(
     shiftedEdited,
     removedCueCount,
     bakedCleared,
-    voiceLocked,
+    rawAudio,
   };
 }
