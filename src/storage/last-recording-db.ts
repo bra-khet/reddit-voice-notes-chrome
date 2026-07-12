@@ -4,8 +4,13 @@ const DB_NAME = 'rvnLastRecording';
 const DB_VERSION = 1;
 const STORE_NAME = 'recordings';
 const RECORD_KEY = 'last';
+// CHANGED: v5.10.0 — persistability bounds exported (were private literals).
+// WHY: trim-apply byte-checks the trimmed WebM BEFORE stamping it on the take;
+//      saveLastRecording silently no-ops outside these bounds (H13), and a
+//      stamp must never describe bytes the store may not hold.
+export const LAST_RECORDING_MIN_BYTES = 256;
 /** Slightly above typical 2:00 WebM cap — reject oversized blobs before IDB write. */
-const MAX_BYTES = 18 * 1024 * 1024;
+export const LAST_RECORDING_MAX_BYTES = 18 * 1024 * 1024;
 
 export interface LastRecordingMeta {
   byteLength: number;
@@ -62,7 +67,7 @@ export async function saveLastRecording(
   blob: Blob,
   durationSeconds: number,
 ): Promise<void> {
-  if (blob.size < 256 || blob.size > MAX_BYTES) return;
+  if (blob.size < LAST_RECORDING_MIN_BYTES || blob.size > LAST_RECORDING_MAX_BYTES) return;
 
   const record: StoredLastRecording = {
     blob,
