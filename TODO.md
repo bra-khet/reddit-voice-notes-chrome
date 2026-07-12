@@ -13,7 +13,7 @@ Background / bar-style refresh + accumulated micro-interactions/a11y from the v5
 
 **Also open (lower priority):** architecture **H8** (recovery voice provenance). Optional `/architecture-hardening` when ready.
 
-**H13 — RESOLVED (2026-07-12, branch `feature/h13-persist-before-stamp`, awaiting user QA + merge):** all three `saveLast*` artifact saves now throw on unpersistable size / IDB failure and return authoritative persisted meta; the four mutation choke points (background relay, subtitle bake, voice re-apply, trim apply) stamp/signal only from that meta. Node: new `test-artifact-store-writes.mjs` **28** · full sweep green · build PASS · tsc 3→2 pre-existing. **Merge gate:** real-browser regression — bake, voice re-apply, trim apply, Reddit attach, recovery.
+**H13 — RESOLVED IN CODE (2026-07-12, branch `feature/h13-persist-before-stamp`, awaiting item 7 re-QA + merge):** persist-before-stamp remains green. H13 QA item 7 exposed **BUG-038**: closing the initiating tab dropped a successful Vosk COMPLETE because transcript save/timeout lived in that page. Background now owns terminal transcript persistence + a 125 s watchdog; cancelled/superseded jobs cannot publish. Node: artifact stores **28** · transcribe failure/completion **12** · build PASS · tsc still 2 pre-existing. **Merge gate:** rerun checklist item 7 close/reopen and confirm transcript (or terminal scaffold) arrives.
 
 ## Shipped ledger
 
@@ -34,4 +34,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**H13 sprint complete (2026-07-12)** — **map v2.9 · extension-points v1.11 · hardening backlog v2.7 · ADRs 0001–0005**. Persist-before-stamp is now enforced by the stores themselves (throw + returned persisted meta; stamps/signals only from it); H6 reads untouched; no new seam/context/store/message. Remaining open: **H8** recovery voice provenance (Med/S); H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**H13 + BUG-038 code complete (2026-07-12)** — **map v2.10 · extension-points v1.12 · hardening backlog v2.8 · ADRs 0001–0005**. Persist-before-stamp remains enforced; transcribe terminal ownership now survives tab teardown. No new context/store/key/message family/UI. Remaining gate: item 7 browser re-QA. Open architecture: **H8** recovery voice provenance (Med/S); H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

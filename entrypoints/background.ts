@@ -44,6 +44,8 @@ import {
 } from '@/src/settings/user-preferences';
 import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
 import { getTakeManager } from '@/src/session/take-manager';
+import { prepareTranscribeCompletionForPersistence } from '@/src/transcription/transcribe-completion';
+import { TRANSCRIBE_TIMEOUT_MS } from '@/src/transcription/constants';
 import type { TranscriptFailureReason, TranscriptResult } from '@/src/transcription/types';
 import { designStudioExtensionUrl } from '@/src/ui/design-studio/open-design-studio';
 import { BURNIN_PIPELINE_STAMP, OFFSCREEN_WORKER_STAMP } from '@/src/utils/constants';
@@ -106,6 +108,11 @@ const OFFSCREEN_PATH = 'offscreen.html';
 const OFFSCREEN_READY_RETRIES = 30;
 const OFFSCREEN_READY_DELAY_MS = 100;
 const KEEP_ALIVE_INTERVAL_MS = 5_000;
+// BUG FIX: tab-close transcription had no surviving terminal timeout (BUG-038)
+// Fix: allow the offscreen 120s timeout to emit first, then have background publish
+//      a terminal timeout if no COMPLETE crossed the context boundary within 5s.
+// Sync: transcribe-client.ts CLIENT_COMPLETION_TIMEOUT_MS.
+const TRANSCRIBE_COMPLETION_WATCHDOG_MS = TRANSCRIBE_TIMEOUT_MS + 5_000;
 
 type ChromeOffscreenApi = {
   hasDocument?: () => Promise<boolean>;
@@ -140,6 +147,18 @@ const burnInSkipTabRelayByJobId = new Map<string, boolean>();
 const transcodeSkipTabRelayByJobId = new Map<string, boolean>();
 const transcribeSkipTabRelayByJobId = new Map<string, boolean>();
 
+interface TranscribeJobContext {
+  durationSeconds: number;
+  language?: string;
+  watchdog: ReturnType<typeof setTimeout>;
+}
+
+// BUG FIX: tab-close transcript completion was owned by a disposable page (BUG-038)
+// Fix: background retains the minimum terminal-persistence context and watchdog for
+//      each active job; taking/deleting this entry also deduplicates late completions.
+// Sync: TranscribeStartRequest.durationSeconds; prepareTranscribeCompletionForPersistence.
+const transcribeContextByJobId = new Map<string, TranscribeJobContext>();
+
 let activeRelayJobs = 0;
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -162,6 +181,44 @@ function stopRelayKeepAlive(): void {
     clearInterval(keepAliveInterval);
     keepAliveInterval = null;
   }
+}
+
+function normalizeTranscribeDuration(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function clearTranscribeJobContext(jobId: string): void {
+  const context = transcribeContextByJobId.get(jobId);
+  if (context) clearTimeout(context.watchdog);
+  transcribeContextByJobId.delete(jobId);
+}
+
+function takeTranscribeJobContext(jobId: string): Omit<TranscribeJobContext, 'watchdog'> | null {
+  const context = transcribeContextByJobId.get(jobId);
+  if (!context) return null;
+  clearTimeout(context.watchdog);
+  transcribeContextByJobId.delete(jobId);
+  return { durationSeconds: context.durationSeconds, language: context.language };
+}
+
+function startTranscribeJobContext(request: TranscribeStartRequest): void {
+  clearTranscribeJobContext(request.jobId);
+  const watchdog = setTimeout(() => {
+    if (!transcribeContextByJobId.has(request.jobId)) return;
+    void relayTranscribeBroadcast({
+      type: MSG_TRANSCRIBE_COMPLETE,
+      jobId: request.jobId,
+      ok: false,
+      error: `Transcription timed out after ${Math.round(TRANSCRIBE_TIMEOUT_MS / 1000)}s`,
+    });
+    void cancelOffscreenTranscribeJob(request.jobId);
+  }, TRANSCRIBE_COMPLETION_WATCHDOG_MS);
+
+  transcribeContextByJobId.set(request.jobId, {
+    durationSeconds: normalizeTranscribeDuration(request.durationSeconds),
+    language: request.language,
+    watchdog,
+  });
 }
 
 async function resolveRelayTabId(
@@ -327,16 +384,56 @@ function relayBurnInBroadcast(message: BurnInProgressMessage | BurnInCompleteMes
   }
 }
 
-function relayTranscribeBroadcast(message: TranscribeProgressMessage | TranscribeCompleteMessage): void {
+async function persistTranscribeCompletion(
+  message: TranscribeCompleteMessage,
+  context: Omit<TranscribeJobContext, 'watchdog'>,
+): Promise<void> {
+  // BUG FIX: successful Vosk result vanished when its initiating tab closed (BUG-038)
+  // Fix: background is the terminal owner: normalize and commit the result/scaffold,
+  //      then publish SESSION_TRANSCRIPT_READY_KEY only after the IDB write resolves.
+  // Sync: transcribe-completion.ts; session-transcript-db.ts; voice-recorder.ts.
+  const prepared = prepareTranscribeCompletionForPersistence(
+    message,
+    context.durationSeconds,
+    context.language,
+  );
+  if (!prepared) return;
+
+  await saveSessionTranscript(prepared.result, message.jobId, prepared.meta);
+  await browser.storage.local.set({ [SESSION_TRANSCRIPT_READY_KEY]: Date.now() });
+}
+
+async function relayTranscribeBroadcast(
+  message: TranscribeProgressMessage | TranscribeCompleteMessage,
+): Promise<void> {
   const jobId = message.jobId;
+  const isComplete = message.type === MSG_TRANSCRIBE_COMPLETE;
+  const context = isComplete ? takeTranscribeJobContext(jobId) : null;
+  // BUG FIX: a new same-tab job could mutate relay maps while terminal persistence awaited (BUG-038)
+  // Fix: snapshot the completed job's delivery route before the first await so a late
+  //      completion can never be rebound to the newer job's tab or relay mode.
+  // Sync: registerTranscribeTab supersession cleanup below.
   const skipTabRelay = transcribeSkipTabRelayByJobId.get(jobId) === true;
+  const registeredTabId = transcribeTabByJobId.get(jobId);
+
+  if (isComplete && !context) {
+    console.warn('[Reddit Voice Notes] Ignoring stale transcribe completion', { jobId });
+    return;
+  }
+  if (!isComplete && !transcribeContextByJobId.has(jobId)) return;
+
+  if (isComplete && context) {
+    try {
+      await persistTranscribeCompletion(message, context);
+    } catch (error) {
+      console.warn('[Reddit Voice Notes] Terminal transcript persist failed', { jobId, error });
+    }
+  }
 
   if (!skipTabRelay) {
-    void (async () => {
-      const tabId = await resolveRelayTabId(jobId, transcribeTabByJobId, 'transcribe');
-      if (tabId === undefined) return;
-
-      void browser.tabs.sendMessage(tabId, message).catch((error) => {
+    const tabId = registeredTabId ?? await resolveRelayTabId(jobId, transcribeTabByJobId, 'transcribe');
+    if (tabId !== undefined) {
+      await browser.tabs.sendMessage(tabId, message).catch((error) => {
         const msg = error instanceof Error ? error.message : String(error);
         // CHANGED: detect dead-tab connection errors and clean up relay mapping
         // WHY: mirrors transcode relay cleanup — stale entry would block resolveRelayTabId fallback
@@ -349,20 +446,18 @@ function relayTranscribeBroadcast(message: TranscribeProgressMessage | Transcrib
           console.warn('[Reddit Voice Notes] Transcribe tab relay failed:', error);
         }
       });
-    })();
+    }
   }
 
-  if (message.type === MSG_TRANSCRIBE_COMPLETE) {
-    void (async () => {
-      const tabId = transcribeTabByJobId.get(jobId);
-      if (tabId !== undefined && activeTranscribeJobByTabId.get(tabId) === jobId) {
-        activeTranscribeJobByTabId.delete(tabId);
-      }
-      transcribeTabByJobId.delete(jobId);
-      transcribeSkipTabRelayByJobId.delete(jobId);
-      await forgetRelayTab(jobId);
-      stopRelayKeepAlive();
-    })();
+  if (isComplete) {
+    const tabId = transcribeTabByJobId.get(jobId);
+    if (tabId !== undefined && activeTranscribeJobByTabId.get(tabId) === jobId) {
+      activeTranscribeJobByTabId.delete(tabId);
+    }
+    transcribeTabByJobId.delete(jobId);
+    transcribeSkipTabRelayByJobId.delete(jobId);
+    await forgetRelayTab(jobId);
+    stopRelayKeepAlive();
   }
 }
 
@@ -500,8 +595,15 @@ async function registerTranscribeTab(
       });
       transcribeTabByJobId.delete(previousJobId);
       transcribeSkipTabRelayByJobId.delete(previousJobId);
+      // BUG FIX: a superseded transcribe could later overwrite the newer take (BUG-038)
+      // Fix: retire its background terminal context before cancelling; late COMPLETE
+      //      is then ignored and the keep-alive reference is released exactly once.
+      // Sync: relayTranscribeBroadcast context guard.
+      const previousWasActive = transcribeContextByJobId.has(previousJobId);
+      clearTranscribeJobContext(previousJobId);
+      if (previousWasActive) stopRelayKeepAlive();
       void forgetRelayTab(previousJobId);
-      void cancelOffscreenTranscribeJob(previousJobId);
+      if (previousWasActive) void cancelOffscreenTranscribeJob(previousJobId);
     }
     activeTranscribeJobByTabId.set(senderTabId, jobId);
     transcribeTabByJobId.set(jobId, senderTabId);
@@ -754,7 +856,7 @@ function relayTranscribeFailure(jobId: string, error: unknown): void {
     ok: false,
     error: error instanceof Error ? error.message : String(error),
   };
-  relayTranscribeBroadcast(completeMsg);
+  void relayTranscribeBroadcast(completeMsg);
 }
 
 async function loadBackgroundBytes(
@@ -1204,14 +1306,27 @@ export default defineBackground(() => {
         }
         return;
       }
-      if (type === MSG_TRANSCRIBE_PROGRESS || type === MSG_TRANSCRIBE_COMPLETE) {
+      if (type === MSG_TRANSCRIBE_PROGRESS) {
         // Content scripts cannot rely on offscreen runtime broadcasts — relay from offscreen only.
         if (sender.url?.includes('offscreen.html')) {
-          relayTranscribeBroadcast(
-            message as TranscribeProgressMessage | TranscribeCompleteMessage,
-          );
+          void relayTranscribeBroadcast(message as TranscribeProgressMessage);
         }
         return;
+      }
+      if (type === MSG_TRANSCRIBE_COMPLETE) {
+        if (!sender.url?.includes('offscreen.html')) return;
+
+        // BUG FIX: tab-close transcript persistence could outlive the message event (BUG-038)
+        // Fix: hold the MV3 message channel open until terminal IDB persistence, ready
+        //      publication, relay, and cleanup finish in the background service worker.
+        // Sync: relayTranscribeBroadcast; offscreen/main.ts broadcastTranscribe.
+        void relayTranscribeBroadcast(message as TranscribeCompleteMessage)
+          .then(() => sendResponse({ ok: true }))
+          .catch((error) => sendResponse({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          }));
+        return true;
       }
       if (type === MSG_BURNIN_PROGRESS || type === MSG_BURNIN_COMPLETE) {
         // Offscreen broadcasts reach Design Studio via runtime; tab relay is Reddit-only.
@@ -1233,6 +1348,11 @@ export default defineBackground(() => {
           validateTranscribeStartRequest(transcribeRequest);
           await registerTranscribeTab(transcribeRequest.jobId, sender);
           startRelayKeepAlive();
+          // BUG FIX: tab-close transcript completion was owned by a disposable page (BUG-038)
+          // Fix: start the background-owned terminal context before ACK so every accepted
+          //      job has a surviving duration, dedupe guard, and completion watchdog.
+          // Sync: TranscribeStartRequest.durationSeconds; relayTranscribeBroadcast.
+          startTranscribeJobContext(transcribeRequest);
 
           const ack: TranscribeAckResponse = {
             type: MSG_TRANSCRIBE_ACK,

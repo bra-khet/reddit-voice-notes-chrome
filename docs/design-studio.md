@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through **v5.10.0** (2026-07-12 QA PASS). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.8, seams v1.10, backlog v2.6.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.10, seams v1.12, backlog v2.8.
 
 ---
 
@@ -460,7 +460,7 @@ This section is the largest integrated subsystem: prefs + dual-copy session IDB 
 ```
 stopRecording() [Studio or Reddit]
   ├─ transcode → base.mp4 → mp4Blob + relay to rvnLastBaseMp4
-  └─ fork transcribe (if subtitles on) → Vosk → relay to rvnSessionTranscript
+  └─ fork transcribe (if subtitles on) → Vosk → background terminal persist to rvnSessionTranscript
 
 Design Studio
   ├─ Poll/load session transcript (Pending → Ready / Timed out / No speech / Failed / Scaffolded)
@@ -479,6 +479,8 @@ Recorder reaches **stopped** after transcode only (BUG-026); transcribe does not
 **Graceful failure → scaffold (v5.3):** Vosk no-speech / empty / inference-error / timeout no longer hang on amber "Pending". The content script classifies the outcome (`transcribe-failure.ts` → `no-speech` \| `inference-error` \| `empty-result` \| `timeout`), builds an evenly-timed **scaffold** (`buildScaffoldTranscriptResult`, soft-hyphen `­` slots), and persists it with `{ error, isScaffolded }`. The Studio resolves a terminal **delivery status** (`deliveryStatusForSnapshot`) and the segment editor opens in scaffolding mode (red status + timed empty slots ready to type). See `docs/transcription-architecture.md` § failure emission.
 
 **Delivery status taxonomy** (`TranscriptDeliveryStatus` in `subtitle-segment-editor.ts`): `idle · pending · ready · timeout · failed · no-speech · scaffolded`. The last three short-circuit the 120 s pending timer.
+
+**Tab-close recovery (BUG-038):** the initiating recorder page no longer owns transcript persistence. Background retains the accepted job's duration/language, persists a successful result or timed scaffold on `MSG_TRANSCRIBE_COMPLETE`, and publishes `rvn.sessionTranscript.ready` only after the IDB commit. Its 125 s watchdog survives page teardown; cancelled/superseded jobs are excluded. No Retry control was added because this failure was delivery loss after successful Vosk inference, not bad audio or an inference miss.
 
 ### 7.3 Segment editor (YouTube-style)
 
@@ -997,6 +999,7 @@ browser-composite subtitle bake with verified partial splice, atomic trim + raw 
 Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18; rawAudio tri-state.
 State: TakeManager owns rvn.take.current; blobs remain in H6-verified single-slot IDB stores.
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
-Open: H13 persisted-write acknowledgment, H8 recovery voice provenance, v6 visual maturity.
-Read docs/architecture/architecture-map.md v2.8 before changing cross-context behavior.
+H13 + BUG-038 code complete: persisted artifacts are acknowledged; background owns terminal transcript delivery after tab close (browser item 7 re-test pending).
+Open: H8 recovery voice provenance, v6 visual maturity.
+Read docs/architecture/architecture-map.md v2.10 before changing cross-context behavior.
 ```

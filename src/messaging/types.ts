@@ -182,6 +182,11 @@ export interface TranscribeStartRequest {
   jobId: string;
   webmBase64: string;
   webmByteLength: number;
+  // BUG FIX: tab-close transcript completion was owned by a disposable page (BUG-038)
+  // Fix: carry clip duration into the background-owned job context so a timeout or
+  //      inference failure can persist correctly timed scaffolding after tab teardown.
+  // Sync: transcribe-client.ts; entrypoints/background.ts.
+  durationSeconds?: number;
   language?: string;
 }
 

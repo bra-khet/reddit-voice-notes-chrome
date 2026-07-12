@@ -1055,6 +1055,45 @@ Each slow miss extended the wall-clock gap between captured frames without reduc
 
 ---
 
+## BUG-038 (2026-07): transcript lost when the initiating tab closes mid-transcription
+
+### Symptoms
+
+- H13 QA item 7: stop a subtitle-enabled recording, close the Reddit or Design Studio tab while processing, then reopen Studio.
+- The base MP4 and raw WebM recover, but the subtitle status remains Pending and the successful transcript never appears.
+- Offscreen evidence looks contradictory: `Transcribe job finished ... {segments: 2, chars: 59}` is logged, yet no `rvnSessionTranscript` row/ready signal arrives.
+- The usual page-local 120 s timeout also disappears with the closed tab, so there is no terminal scaffold.
+
+### Root cause
+
+Vosk itself succeeded. The offscreen worker emitted `MSG_TRANSCRIBE_COMPLETE`, but transcript persistence was a second step owned by `VoiceRecorderSession` in the initiating page: receive COMPLETE → classify/build scaffold if needed → `MSG_SAVE_SESSION_TRANSCRIPT` → background IDB write. Closing the tab destroyed that listener and its absolute timer. Transcode already had a background orphan-persistence path; transcription did not.
+
+### Fix (2026-07, `feature/h13-persist-before-stamp`)
+
+- Background now owns every accepted transcription's terminal context (duration/language), a 125 s completion watchdog, and terminal IDB persistence before publishing `SESSION_TRANSCRIPT_READY_KEY`.
+- `prepareTranscribeCompletionForPersistence` normalizes both Vosk success and graceful-failure scaffolds outside the disposable page context; cancelled/superseded jobs return `null` and late completions are ignored.
+- Studio pagehide detaches whenever transcription is still pending—even if transcode already moved the recorder to `stopped`—so teardown does not send an accidental CANCEL before the background terminal owner finishes.
+- The page-local guard moves to 135 s so it cannot cancel the worker ahead of the background/offscreen timeout path.
+- `saveSessionTranscript` now rethrows IDB failures; the background cannot advertise ready after a failed write.
+- No Retry UI was added: the supplied logs prove the audio and Vosk result were healthy. Retrying would duplicate work and mask the missing terminal owner; the existing scaffold/manual-edit path remains the recovery surface for genuine inference failures.
+
+### Verification
+
+- `scripts/test-transcribe-failure.mjs` — 12/12 (tabless success, timeout scaffold, inference scaffold, cancellation suppression, invalid-payload rejection).
+- `npm run build` — PASS.
+- `npm run compile` — only the same 2 documented pre-existing Studio errors.
+- Real-browser H13 item 7 re-run remains the merge gate.
+
+### Related files
+
+- `entrypoints/background.ts`
+- `src/transcription/transcribe-completion.ts`
+- `src/transcription/transcribe-client.ts`
+- `src/recorder/voice-recorder.ts`
+- `src/storage/session-transcript-db.ts`
+
+---
+
 ## Open — subtitle edits vs profiles (2026-06) — not fixed
 
 Full handoff: `docs/eloquent-profile-handoff.md` § Open / unfixed. Studio open items: `docs/design-studio.md` §11.
