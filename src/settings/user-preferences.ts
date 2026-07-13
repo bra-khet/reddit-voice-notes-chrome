@@ -26,6 +26,14 @@ import {
 } from '@/src/settings/custom-styles';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import {
+  dbSnapshotFromUserPreferences,
+  loadUserPrefsDbSnapshot,
+  measureUserPrefsSnapshot,
+  replaceUserPrefsDbSnapshot,
+  USER_PREFS_DB_SCHEMA_VERSION,
+  type UserPrefsDbSnapshot,
+} from '@/src/storage/user-prefs-db';
+import {
   normalizeDesignOverrides,
   type DesignOverrides,
 } from '@/src/theme/design-overrides';
@@ -56,6 +64,26 @@ export type { DesignOverrides } from '@/src/theme/design-overrides';
  */
 export const USER_PREFS_STORAGE_KEY = 'rvnUserPrefs' as const;
 export const USER_PREFS_VERSION = 1 as const;
+// CHANGED: v5.11.0 keeps public UserPreferencesV1 at v1 while persistence moves to schema v2.
+// WHY: callers keep their exact type contract; this tiny local key is only a post-IDB change signal.
+const USER_PREFS_V2_COORDINATOR_KEY = 'rvnUserPrefs.v2' as const;
+const USER_PREFS_TRANSFER_TYPE = 'rvn-user-preferences-v1' as const;
+const MAX_USER_PREFS_IMPORT_BYTES = 2 * 1024 * 1024;
+const USER_PREFS_TOTAL_WARNING_BYTES = 256 * 1024;
+const USER_PREFS_RECORD_WARNING_BYTES = 64 * 1024;
+
+interface UserPrefsV2Coordinator {
+  schemaVersion: typeof USER_PREFS_DB_SCHEMA_VERSION;
+  revision: number;
+  migratedAt: number;
+  updatedAt: number;
+}
+
+interface UserPreferencesExportPayload {
+  type: typeof USER_PREFS_TRANSFER_TYPE;
+  exportedAt: string;
+  preferences: UserPreferencesV1;
+}
 /** One-time marker — flips stored v5.3.10 rollout `webCodecsBake: false` to true. */
 export const WEBCODECS_BAKE_ROLLOUT_MIGRATED_KEY = 'rvnWebCodecsBakeRolloutMigrated' as const;
 /** One-time marker — flips stored v5.5.0 rollout `browserComposite: false` to true. */
@@ -435,48 +463,284 @@ function enqueuePrefsOp<T>(op: () => Promise<T>): Promise<T> {
   return task;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isUserPrefsV2Coordinator(value: unknown): value is UserPrefsV2Coordinator {
+  if (!isRecord(value)) return false;
+  return (
+    value.schemaVersion === USER_PREFS_DB_SCHEMA_VERSION &&
+    typeof value.revision === 'number' &&
+    Number.isFinite(value.revision) &&
+    typeof value.migratedAt === 'number' &&
+    Number.isFinite(value.migratedAt) &&
+    typeof value.updatedAt === 'number' &&
+    Number.isFinite(value.updatedAt)
+  );
+}
+
+function isLegacyUserPreferences(value: unknown): value is Partial<UserPreferencesV1> {
+  return isRecord(value) && value.version === USER_PREFS_VERSION;
+}
+
+function preferencesFromDbSnapshot(snapshot: UserPrefsDbSnapshot): Partial<UserPreferencesV1> {
+  return {
+    version: snapshot.global.version,
+    appearance: {
+      ...snapshot.global.appearance,
+      savedProfiles: snapshot.profiles,
+      savedCustomStyles: snapshot.customStyles,
+    },
+    audio: snapshot.global.audio,
+    notifications: snapshot.global.notifications,
+    voiceEffect: snapshot.global.voiceEffect,
+    transcriptConfig: snapshot.global.transcriptConfig,
+    experimental: snapshot.global.experimental,
+  };
+}
+
+function nextPrefsCoordinator(previous: unknown): UserPrefsV2Coordinator {
+  const now = Date.now();
+  const current = isUserPrefsV2Coordinator(previous) ? previous : undefined;
+  return {
+    schemaVersion: USER_PREFS_DB_SCHEMA_VERSION,
+    revision: Math.max(now, (current?.revision ?? 0) + 1),
+    migratedAt: current?.migratedAt ?? now,
+    updatedAt: now,
+  };
+}
+
+function logUserPrefsSize(
+  snapshot: UserPrefsDbSnapshot,
+  coordinator: UserPrefsV2Coordinator,
+): void {
+  const sizes = measureUserPrefsSnapshot(snapshot);
+  const coordinatorBytes = new TextEncoder().encode(JSON.stringify(coordinator)).byteLength;
+  console.info('[Reddit Voice Notes] User preferences saved', {
+    ...sizes,
+    coordinatorBytes,
+    totalWithCoordinatorBytes: sizes.totalBytes + coordinatorBytes,
+    profileCount: snapshot.profiles.length,
+    customStyleCount: snapshot.customStyles.length,
+  });
+
+  if (
+    import.meta.env.DEV &&
+    (sizes.totalBytes > USER_PREFS_TOTAL_WARNING_BYTES ||
+      sizes.maxRecordBytes > USER_PREFS_RECORD_WARNING_BYTES)
+  ) {
+    console.warn('[Reddit Voice Notes] Large user-preferences payload', {
+      totalBytes: sizes.totalBytes,
+      maxRecordBytes: sizes.maxRecordBytes,
+      totalWarningBytes: USER_PREFS_TOTAL_WARNING_BYTES,
+      recordWarningBytes: USER_PREFS_RECORD_WARNING_BYTES,
+    });
+  }
+}
+
 async function commitUserPreferences(next: UserPreferencesV1): Promise<UserPreferencesV1> {
   const merged = await mergeSubtitlesEnabledIntoPrefs(next);
+  const stored = await browser.storage.local.get(USER_PREFS_V2_COORDINATOR_KEY);
+  const coordinator = nextPrefsCoordinator(stored[USER_PREFS_V2_COORDINATOR_KEY]);
+  const snapshot = dbSnapshotFromUserPreferences(merged);
+
+  // CHANGED: persist the complete v2 snapshot before publishing its local-storage revision.
+  // WHY: mirrors H13 persist-before-publish and prevents listeners observing an uncommitted IDB state.
+  await replaceUserPrefsDbSnapshot(snapshot);
   await browser.storage.local.set({
-    [USER_PREFS_STORAGE_KEY]: merged,
+    [USER_PREFS_V2_COORDINATOR_KEY]: coordinator,
     [THEME_STORAGE_KEY]: merged.appearance.activeThemeId,
   });
+  logUserPrefsSize(snapshot, coordinator);
   return merged;
 }
 
-/** Read + merge rvnUserPrefs. Call only while holding enqueuePrefsOp. */
-async function readUserPreferencesBlob(): Promise<UserPreferencesV1> {
-  const stored = await browser.storage.local.get(USER_PREFS_STORAGE_KEY);
-  const raw = stored[USER_PREFS_STORAGE_KEY] as Partial<UserPreferencesV1> | undefined;
+async function removeMigratedLegacyBlob(): Promise<void> {
+  try {
+    await browser.storage.local.remove(USER_PREFS_STORAGE_KEY);
+  } catch (error) {
+    console.warn('[Reddit Voice Notes] Could not remove migrated rvnUserPrefs blob', error);
+  }
+}
 
-  if (!raw || raw.version !== USER_PREFS_VERSION) {
+/** Read + merge the v2 IDB snapshot, with one-time v1 fallback migration. */
+async function readUserPreferencesBlob(): Promise<UserPreferencesV1> {
+  const stored = await browser.storage.local.get([
+    USER_PREFS_STORAGE_KEY,
+    USER_PREFS_V2_COORDINATOR_KEY,
+  ]);
+  const legacyCandidate = stored[USER_PREFS_STORAGE_KEY];
+  const legacyRaw = isLegacyUserPreferences(legacyCandidate)
+    ? legacyCandidate
+    : undefined;
+  const coordinator = stored[USER_PREFS_V2_COORDINATOR_KEY];
+
+  let dbSnapshot: UserPrefsDbSnapshot | null;
+  try {
+    dbSnapshot = await loadUserPrefsDbSnapshot();
+  } catch (error) {
+    if (legacyRaw) {
+      // CHANGED: a failed first migration leaves the legacy blob intact and usable.
+      // WHY: migration is retryable and must never delete or strand the only good preference copy.
+      console.warn('[Reddit Voice Notes] Using legacy user preferences after IDB failure', error);
+      return mergeSubtitlesEnabledIntoPrefs(mergePreferences(legacyRaw));
+    }
+    throw error;
+  }
+
+  let raw: Partial<UserPreferencesV1>;
+  let publishedV2 = isUserPrefsV2Coordinator(coordinator);
+  let removeLegacyAfterSuccess = false;
+
+  if (dbSnapshot) {
+    raw = preferencesFromDbSnapshot(dbSnapshot);
+    removeLegacyAfterSuccess = Boolean(legacyRaw);
+  } else if (legacyRaw) {
+    raw = legacyRaw;
+    const migrated = await mergeSubtitlesEnabledIntoPrefs(mergePreferences(raw));
+    try {
+      await commitUserPreferences(migrated);
+    } catch (error) {
+      console.warn('[Reddit Voice Notes] User-preferences migration deferred', error);
+      return migrated;
+    }
+    publishedV2 = true;
+    removeLegacyAfterSuccess = true;
+  } else {
     const legacy = await browser.storage.local.get(THEME_STORAGE_KEY);
     const legacyId = legacy[THEME_STORAGE_KEY] as string | undefined;
     const base = mergePreferences(undefined);
-    if (!legacyId) {
-      return mergeSubtitlesEnabledIntoPrefs(base);
-    }
-    const migrated: UserPreferencesV1 = {
+    const initial: UserPreferencesV1 = {
       ...base,
       appearance: {
         ...base.appearance,
-        activeThemeId: normalizeThemeId(legacyId),
+        activeThemeId: legacyId
+          ? normalizeThemeId(legacyId)
+          : base.appearance.activeThemeId,
       },
     };
-    return commitUserPreferences(migrated);
+    raw = await commitUserPreferences(initial);
+    publishedV2 = true;
   }
 
   let merged = await mergeSubtitlesEnabledIntoPrefs(mergePreferences(raw));
   merged = await migrateWebCodecsBakeRolloutIfNeeded(merged, raw);
   merged = await migrateBrowserCompositeRolloutIfNeeded(merged, raw);
-  if (merged.appearance.activeThemeId !== raw.appearance?.activeThemeId) {
-    return commitUserPreferences(merged);
+  if (
+    !publishedV2 ||
+    merged.appearance.activeThemeId !== raw.appearance?.activeThemeId
+  ) {
+    merged = await commitUserPreferences(merged);
   }
+  if (removeLegacyAfterSuccess) await removeMigratedLegacyBlob();
   return merged;
 }
 
 export async function loadUserPreferences(): Promise<UserPreferencesV1> {
   return enqueuePrefsOp(() => readUserPreferencesBlob());
+}
+
+function importedPreferencesFromJson(json: string): Partial<UserPreferencesV1> {
+  const trimmed = json.trim();
+  if (!trimmed) throw new Error('Choose a Reddit Voice Notes preferences JSON file.');
+  if (new TextEncoder().encode(trimmed).byteLength > MAX_USER_PREFS_IMPORT_BYTES) {
+    throw new Error('Preferences file is too large to import.');
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error('Preferences file is not valid JSON.');
+  }
+
+  if (!isRecord(parsed) || parsed.type !== USER_PREFS_TRANSFER_TYPE) {
+    throw new Error('This is not a Reddit Voice Notes preferences export.');
+  }
+  if (typeof parsed.exportedAt !== 'string' || !isRecord(parsed.preferences)) {
+    throw new Error('Preferences export is missing required metadata.');
+  }
+
+  const preferences = parsed.preferences;
+  if (
+    preferences.version !== USER_PREFS_VERSION ||
+    !isRecord(preferences.appearance) ||
+    !isRecord(preferences.audio) ||
+    !isRecord(preferences.notifications)
+  ) {
+    throw new Error('Preferences export uses an unsupported or invalid schema.');
+  }
+
+  const appearance = preferences.appearance;
+  if (
+    ('savedProfiles' in appearance && !Array.isArray(appearance.savedProfiles)) ||
+    ('savedCustomStyles' in appearance && !Array.isArray(appearance.savedCustomStyles)) ||
+    (Array.isArray(appearance.savedProfiles) &&
+      !appearance.savedProfiles.every(isRecord)) ||
+    (Array.isArray(appearance.savedCustomStyles) &&
+      !appearance.savedCustomStyles.every(isRecord))
+  ) {
+    throw new Error('Preferences export contains invalid profile or style records.');
+  }
+
+  return preferences as unknown as Partial<UserPreferencesV1>;
+}
+
+/** Export the complete normalized preference snapshot in a versioned JSON envelope. */
+export async function exportUserPreferencesAsJSON(): Promise<string> {
+  const preferences = await loadUserPreferences();
+  const payload: UserPreferencesExportPayload = {
+    type: USER_PREFS_TRANSFER_TYPE,
+    exportedAt: new Date().toISOString(),
+    preferences,
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/** Validate, normalize, and atomically replace the live preference snapshot. */
+export async function importUserPreferencesFromJSON(
+  json: string,
+): Promise<UserPreferencesV1> {
+  const imported = mergePreferences(importedPreferencesFromJson(json));
+  const normalized: UserPreferencesV1 = {
+    ...imported,
+    transcriptConfig: transcriptConfigForProfileStorage(imported.transcriptConfig),
+    appearance: {
+      ...imported.appearance,
+      savedProfiles: imported.appearance.savedProfiles?.map((profile) => ({
+        ...profile,
+        transcriptConfig:
+          profile.transcriptConfig == null
+            ? null
+            : transcriptConfigForProfileStorage(profile.transcriptConfig),
+      })),
+    },
+  };
+
+  return enqueuePrefsOp(async () => {
+    const current = await readUserPreferencesBlob();
+    const previousSubtitlesEnabled = normalizeTranscriptConfig(
+      current.transcriptConfig,
+    ).transcriptionEnabled;
+    const importedSubtitlesEnabled = normalizeTranscriptConfig(
+      normalized.transcriptConfig,
+    ).transcriptionEnabled;
+
+    // CHANGED: imported subtitle enablement follows the existing BUG-019 atomic-key pathway.
+    // WHY: a later prefs merge must not overwrite the toggle selected by the imported snapshot.
+    await setSubtitlesEnabled(importedSubtitlesEnabled);
+    try {
+      return await commitUserPreferences(normalized);
+    } catch (error) {
+      try {
+        await setSubtitlesEnabled(previousSubtitlesEnabled);
+      } catch (rollbackError) {
+        console.warn('[Reddit Voice Notes] Could not restore subtitle flag after import failure', rollbackError);
+      }
+      throw error;
+    }
+  });
 }
 
 export async function saveVoiceEffectPreferences(
@@ -873,6 +1137,7 @@ export function onUserPreferencesChanged(
     if (area !== 'local') return;
     if (
       !(USER_PREFS_STORAGE_KEY in changes) &&
+      !(USER_PREFS_V2_COORDINATOR_KEY in changes) &&
       !(THEME_STORAGE_KEY in changes) &&
       !(SUBTITLES_ENABLED_STORAGE_KEY in changes)
     ) {

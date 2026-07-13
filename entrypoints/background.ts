@@ -29,6 +29,12 @@ import { saveLastRecording } from '@/src/storage/last-recording-db';
 import { loadLastBaseMp4, saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { loadLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import {
+  loadUserPrefsDbSnapshotDirect,
+  replaceUserPrefsDbSnapshotDirect,
+  USER_PREFS_DB_SCHEMA_VERSION,
+  type UserPrefsDbSnapshot,
+} from '@/src/storage/user-prefs-db';
+import {
   BAKED_MP4_CHUNK_BYTES,
   MSG_GET_BAKED_MP4_CHUNK,
   MSG_GET_BAKED_MP4_META,
@@ -62,6 +68,8 @@ import {
   MSG_TRANSCODE_OFFSCREEN,
   MSG_TRANSCODE_PROGRESS,
   MSG_QUERY_TRANSCODE_INFLIGHT,
+  MSG_USER_PREFS_DB_LOAD,
+  MSG_USER_PREFS_DB_REPLACE,
   MSG_TRANSCODE_START,
   type QueryTranscodeInflightResponse,
   MSG_TRANSCRIBE_ACK,
@@ -102,12 +110,16 @@ import {
   type TranscribeOffscreenRequest,
   type TranscribeProgressMessage,
   type TranscribeStartRequest,
+  type UserPrefsDbLoadResponse,
+  type UserPrefsDbReplaceRequest,
+  type UserPrefsDbReplaceResponse,
 } from '@/src/messaging/types';
 
 const OFFSCREEN_PATH = 'offscreen.html';
 const OFFSCREEN_READY_RETRIES = 30;
 const OFFSCREEN_READY_DELAY_MS = 100;
 const KEEP_ALIVE_INTERVAL_MS = 5_000;
+const MAX_USER_PREFS_RELAY_JSON_CHARS = 2 * 1024 * 1024;
 // BUG FIX: tab-close transcription had no surviving terminal timeout (BUG-038)
 // Fix: allow the offscreen 120s timeout to emit first, then have background publish
 //      a terminal timeout if no COMPLETE crossed the context boundary within 5s.
@@ -947,6 +959,24 @@ function backgroundBlobChunk(bytes: Uint8Array, chunkIndex: number): BackgroundB
   };
 }
 
+function parseUserPrefsRelaySnapshot(snapshotJson: string): UserPrefsDbSnapshot {
+  if (!snapshotJson || snapshotJson.length > MAX_USER_PREFS_RELAY_JSON_CHARS) {
+    throw new Error('User-preferences snapshot is missing or too large.');
+  }
+  const parsed = JSON.parse(snapshotJson) as Partial<UserPrefsDbSnapshot>;
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !parsed.global ||
+    parsed.global.schemaVersion !== USER_PREFS_DB_SCHEMA_VERSION ||
+    !Array.isArray(parsed.profiles) ||
+    !Array.isArray(parsed.customStyles)
+  ) {
+    throw new Error('User-preferences snapshot is invalid.');
+  }
+  return parsed as UserPrefsDbSnapshot;
+}
+
 // BUG FIX: tsc TS2833 "Cannot find namespace 'browser'" (TS 5.7 + WXT types)
 // Fix: `browser` is a value global, not a type namespace; use WXT's `Browser` namespace for the Port type.
 async function relayBackgroundBlobViaPort(port: Browser.runtime.Port, id: string): Promise<void> {
@@ -1037,6 +1067,41 @@ export default defineBackground(() => {
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (typeof message === 'object' && message !== null && 'type' in message) {
       const type = (message as { type: string }).type;
+
+      if (type === MSG_USER_PREFS_DB_LOAD) {
+        // CHANGED: background owns extension-origin preference IDB access for content scripts.
+        // WHY: preserves the existing user-preferences API without opening a reddit.com-origin DB.
+        void loadUserPrefsDbSnapshotDirect()
+          .then((snapshot) => {
+            sendResponse({
+              ok: true,
+              snapshotJson: JSON.stringify(snapshot),
+            } satisfies UserPrefsDbLoadResponse);
+          })
+          .catch((error) => {
+            sendResponse({
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            } satisfies UserPrefsDbLoadResponse);
+          });
+        return true;
+      }
+
+      if (type === MSG_USER_PREFS_DB_REPLACE) {
+        void (async () => {
+          const response: UserPrefsDbReplaceResponse = { ok: false };
+          try {
+            const request = message as UserPrefsDbReplaceRequest;
+            const snapshot = parseUserPrefsRelaySnapshot(request.snapshotJson);
+            await replaceUserPrefsDbSnapshotDirect(snapshot);
+            response.ok = true;
+          } catch (error) {
+            response.error = error instanceof Error ? error.message : String(error);
+          }
+          sendResponse(response);
+        })();
+        return true;
+      }
 
       if (type === MSG_QUERY_TRANSCODE_INFLIGHT) {
         const response: QueryTranscodeInflightResponse = {

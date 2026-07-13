@@ -28,6 +28,8 @@ import {
   deleteClipProfile,
   deleteCustomClipStyle,
   enterCustomStyleMode,
+  exportUserPreferencesAsJSON,
+  importUserPreferencesFromJSON,
   loadUserPreferences,
   onUserPreferencesChanged,
   saveAppearancePreferences,
@@ -192,6 +194,15 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
                 <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
                   Delete
                 </button>
+                <!-- CHANGED: v5.11.0 adds first-class backup/restore beside profile management. -->
+                <!-- WHY: users no longer need to edit or copy a truncated DevTools preference blob. -->
+                <button type="button" class="popup__profile-btn popup__profile-btn--save-new" data-export-preferences>
+                  Export JSON
+                </button>
+                <button type="button" class="popup__profile-btn popup__profile-btn--save-new" data-import-preferences>
+                  Import JSON
+                </button>
+                <input type="file" accept="application/json,.json" data-import-preferences-file hidden />
               </div>
             </section>
             ${renderCurrentTakeDeck()}
@@ -330,6 +341,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const saveProfileBtn = root.querySelector<HTMLButtonElement>('[data-save-profile]')!;
   const saveProfileNewBtn = root.querySelector<HTMLButtonElement>('[data-save-profile-new]')!;
   const deleteProfileBtn = root.querySelector<HTMLButtonElement>('[data-delete-profile]')!;
+  const exportPreferencesBtn = root.querySelector<HTMLButtonElement>('[data-export-preferences]')!;
+  const importPreferencesBtn = root.querySelector<HTMLButtonElement>('[data-import-preferences]')!;
+  const importPreferencesFile = root.querySelector<HTMLInputElement>('[data-import-preferences-file]')!;
   const saveStyleBtn = root.querySelector<HTMLButtonElement>('[data-save-style]')!;
   const saveStyleNewBtn = root.querySelector<HTMLButtonElement>('[data-save-style-new]')!;
   const deleteStyleBtn = root.querySelector<HTMLButtonElement>('[data-delete-style]')!;
@@ -1037,6 +1051,59 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const profileName = activeProfile()?.name ?? 'this profile';
     if (!window.confirm(`Delete "${profileName}"?`)) return;
     void studioPersist(() => deleteClipProfile(profileId));
+  });
+
+  // CHANGED: v5.11.0 exposes versioned preference backup/restore through the Studio UI.
+  // WHY: this is the safe user workflow for rich IDB-backed profiles and custom styles.
+  exportPreferencesBtn.addEventListener('click', () => {
+    void (async () => {
+      await flushPendingDesignPersist();
+      await subtitleControls.flushPersist();
+      await voiceControls.flushPersist();
+      const json = await exportUserPreferencesAsJSON();
+      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reddit-voice-notes-preferences-${new Date().toISOString().slice(0, 10)}.json`;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    })().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Could not export preferences.';
+      window.alert(message);
+    });
+  });
+
+  importPreferencesBtn.addEventListener('click', () => {
+    importPreferencesFile.click();
+  });
+
+  importPreferencesFile.addEventListener('change', () => {
+    const file = importPreferencesFile.files?.[0];
+    if (!file) return;
+    if (!window.confirm('Replace all current Reddit Voice Notes preferences with this backup?')) {
+      importPreferencesFile.value = '';
+      return;
+    }
+
+    invalidateInFlightSaves();
+    void (async () => {
+      await flushPendingDesignPersist();
+      await subtitleControls.flushPersist();
+      await voiceControls.flushPersist();
+      const json = await file.text();
+      const prefs = await studioPersist(() => importUserPreferencesFromJSON(json));
+      if (prefs) window.alert('Preferences imported successfully.');
+    })()
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Could not import preferences.';
+        window.alert(message);
+      })
+      .finally(() => {
+        importPreferencesFile.value = '';
+      });
   });
 
   saveStyleBtn.addEventListener('click', () => {

@@ -19,9 +19,33 @@ export const MSG_OFFSCREEN_PONG = 'rvn/offscreen-pong' as const;
 export const MSG_OFFSCREEN_PREWARM = 'rvn/offscreen-prewarm' as const;
 export const MSG_OPEN_RECORDER = 'rvn/open-recorder' as const;
 export const MSG_OPEN_DESIGN_STUDIO = 'rvn/open-design-studio' as const;
+// CHANGED: v5.11.0 relays structured preference IDB access for Reddit content scripts.
+// WHY: content scripts cannot read the extension-origin rvnUserPrefs database directly.
+export const MSG_USER_PREFS_DB_LOAD = 'rvn/user-prefs-db-load' as const;
+export const MSG_USER_PREFS_DB_REPLACE = 'rvn/user-prefs-db-replace' as const;
 
 export interface OpenDesignStudioRequest {
   type: typeof MSG_OPEN_DESIGN_STUDIO;
+}
+
+export interface UserPrefsDbLoadRequest {
+  type: typeof MSG_USER_PREFS_DB_LOAD;
+}
+
+export interface UserPrefsDbLoadResponse {
+  ok: boolean;
+  snapshotJson?: string;
+  error?: string;
+}
+
+export interface UserPrefsDbReplaceRequest {
+  type: typeof MSG_USER_PREFS_DB_REPLACE;
+  snapshotJson: string;
+}
+
+export interface UserPrefsDbReplaceResponse {
+  ok: boolean;
+  error?: string;
 }
 export const MSG_SAVE_LAST_RECORDING = 'rvn/save-last-recording' as const;
 

@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.10 · **Updated:** 2026-07-12 · **Reflects:** `feature/h8-recovery-voice-provenance` @ tagged `v5.10.0` + H13/H14
+**Version:** v2.11 · **Updated:** 2026-07-12 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` implementation
 **Status:** Ranked hardening items for the current standalone editing suite. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.10 (2026-07-12) — **H8 RESOLVED in code:** `captureVoiceIntent` (normalized config + id-free key) is written at begin and refreshed in the awaited stop-time pre-transcode take update; recovery prefers it, stamps the successful/fallback render with `TakeVoiceStamp`, and uses current prefs only for legacy drafts with a visible deck note. TakeManager 37/37; deck 13/13; no new store/key/message/context and no product version bump. v2.9 (2026-07-12) — **H14 / BUG-038 fully closed:** real-browser H13 item 7 re-run **PASS** (transcript/scaffold survives tab close); branch merged to `main` with H13; **no version bump**. Confidence High for the tab-close money path. v2.8 (2026-07-12) — **H14 / BUG-038 RESOLVED in code:** terminal transcription persistence and timeout moved from the disposable initiating page to a background job context; success/failure commits precede the ready signal, 125 s watchdog survives tab close, and cancelled/superseded/late jobs cannot publish. `test-transcribe-failure.mjs` 12/12; build PASS; H13 item 7 browser re-run was then pending. No retry UI/new family/store/key. v2.7 (2026-07-12) — **H13 RESOLVED** in a dedicated sprint: all three single-slot artifact save functions (`saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording`) now throw on unpersistable size + IDB failure and return the authoritative persisted meta; the four mutation choke points (background relay ×3 sites, subtitle bake, voice re-apply, trim apply) stamp/signal only from that meta. New Node suite `test-artifact-store-writes.mjs` (28). R13 mitigation updated; trim raw leg's IDB-failure half of I19 closed. No schema/message/key/UI change; H6 reads untouched. v2.6 (2026-07-12) — incremental refresh after **v5.10.0 raw-WebM trim** real-browser QA PASS. No new hardening item; product follow-up "raw-WebM trim" is **SHIPPED**. **H13 still OPEN** with **partial progress**: `last-recording-db.ts` exports `LAST_RECORDING_MIN/MAX_BYTES` and `trim-apply.ts` pre-checks before stamping (I19) — base/baked save acknowledgment is unchanged. **R16** extended: when the raw leg succeeds the commit window may include a fourth store (`rvnLastRecording`). H8/H10 unchanged. v2.5 (2026-07-11) — full refresh at tagged v5.9.0. Atomic trim real-browser QA is PASS; R16 records its narrow cross-store commit race. **H12 resolved**: Studio clients receive offscreen progress directly on `runtime.onMessage`, while background skip-tab maps suppress the Reddit relay. **H8 remains open**: `TakeVoiceStamp` lands only after a successful transcode, so an interrupted draft still resumes with current prefs and may have no provenance stamp. New **H13 (High/Small)**: base/baked store saves can silently reject/swallow a write while callers publish success/stamps; require acknowledged persisted metadata. v2.4 (2026-07-11) — refreshed to `main` @ v5.8.0. **H9 SHIPPED** — browser-side full composite is default-on since v5.5.1 (two-machine QA PASS; the ~43 s x264 wall is gone on the primary path). v5.7.0 partial-splice execution introduced the avcC hazard, mitigated **by construction** via the kept-region fidelity gate (I16) → new risk R14. v5.8.0 timeline editor introduced the List/Timeline two-view-over-one-draft coupling → R15. v2.3 (2026-07-07) — H9 hybrid cut IMPLEMENTED on `feature/v5.5.0-browser-composite`; new R13. v2.2 (2026-07-07) — H9 decision recorded via ADR-0003. v2.1 (2026-07-06) — H6/H11 resolved, H10 deferred. v2.0 (2026-07-06) — full refresh post-v5.4.0. v1.0 (2026-06-24) — eloquent-5 era (H1–H5).
+**Changelog:** v2.11 (2026-07-12) — v5.11 full-IDB preferences adds R18: migration/publication/cross-origin relay could split preference truth. Mitigation is by construction (atomic three-store replace, coordinator-last, v1 delete-after-success, explicit background direct helpers) + 12 focused checks; browser matrix remains the residual gate. v2.10 (2026-07-12) — **H8 RESOLVED in code:** `captureVoiceIntent` is durable before render and recovery reuses it; browser A→B acceptance pending. Earlier history remains in git.
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -301,7 +301,7 @@ direct-runtime/content-tab split is intentional and working.
 
 ---
 
-## Risk register — WebCodecs / canvas / splice / trim paths (through v5.10.0)
+## Risk register — current architecture (through v5.11.0 implementation)
 
 | # | Risk | Likelihood | Impact | Mitigation in place | Residual action |
 |---|------|-----------|--------|--------------------|-----------------|
@@ -322,6 +322,7 @@ direct-runtime/content-tab split is intentional and working.
 | R15 | Timeline/List two-view edits desync — an edit in one view lost because the other's stale DOM is read on Apply (dirty-state collapse) | Med | Silent loss of a cue edit | `captureActiveDraft()` reads the List DOM only when List is active; Timeline writes straight to `modalDraft` (Sprint-3 fix, QA PASS) | Any NEW view onto the cue draft must route through the same capture discipline — the review checklist for editor changes |
 | R16 | Another take begins during trim apply's final multi-store commit; base (and optional raw WebM) writes are H6-safe but the single-slot transcript has no `takeId` ownership | Low | New take may briefly inherit shifted cues from the prior take; trim caller may report success after `expectId` returns null | Long transform happens before a superseded guard; remaining race is base-save → (optional recording-save) → transcript-save → take-patch; H6 prevents wrong base/recording adoption; raw-leg size pre-check avoids unpersistable stamps (I19) | Keep explicit; if concurrency expands or reproduces, add transcript ownership/CAS. Do not invent cross-database transactions preemptively |
 | R17 | A closable page is the only owner of a pipeline's terminal save/timeout | ~~High~~ **Mitigated** | Worker reports success but durable state never lands; UI remains Pending | **H14 / BUG-038:** background owns transcribe terminal context, commit, ready publication, and watchdog; cancel/supersession retires context | Closed for transcribe. Apply the message-v3 terminal-owner rule to any future recoverable pipeline |
+| R18 | Preferences split across migration state, coordinator notification, or a host-origin content-script DB | Med | Recorder/Studio observe different profiles or the legacy copy is removed before durable v2 data exists | **ADR-0006 / I21:** all truth in one extension-IDB transaction; coordinator written last; v1 removed last; failed migration retains v1; Reddit wrappers call background direct helpers; 12 focused checks | Run fresh/upgrade/forced-failure/recorder-hot-swap/DevTools browser matrix before release; keep confidence Med until pass |
 
 ---
 
@@ -348,7 +349,7 @@ direct-runtime/content-tab split is intentional and working.
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.10 (2026-07-12), feature/h8-recovery-voice-provenance @ tagged v5.10.0 + H13/H14 (no version bump).
+Hardening backlog v2.11 (2026-07-12), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0 implementation.
 DONE: H6 stamp verification; H7 doc drift; H9 browser composite default-on;
 H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast;
 H13 persist-before-stamp — all three saveLast* throw on size/IDB failure and return
@@ -360,8 +361,8 @@ H8 RESOLVED in code — captureVoiceIntent is durable before transcode; recovery
   promotes TakeVoiceStamp, and visibly discloses current-prefs fallback for legacy drafts.
   Node: take-manager 37/37, deck 13/13; build PASS; browser A→B repro re-run pending.
 DEFERRED: H10 fallback observability (user decision); H5 binary/cap restoration.
-Mitigated risks: R13 by H13; R14 splice avcC by I16; R15 List/Timeline draft by captureActiveDraft; R17 by H14.
+Mitigated risks: R13 by H13; R14 by I16; R15 by captureActiveDraft; R17 by H14; R18 by ADR-0006/I21 (browser gate open).
 R16: narrow 3–4 store trim commit window; H6 protects base/recording; transcript lacks takeId.
 Editing arc closed; next product candidate: v6 visual maturity (unscoped).
-No new ADR/context/message-family/store/key was required by H8; retry/history/blob storage stayed out of scope.
+v5.11 adds ADR-0006, one structured IDB class, signal-only coordinator, and two bounded DB requests; no context/progress pipeline.
 ```

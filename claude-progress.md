@@ -30,6 +30,21 @@ Authoritative references:
 
 **QA note (accepted, not a defect):** manual DevTools delete of `rvnLastRecording` can leave the open path stale until a full extension reload — normal users never nuke IDB by hand.
 
+## v5.11.0 preferences storage refactor — **IMPLEMENTED · browser QA pending (2026-07-12)**
+
+**Branch:** `feature/v5.11.0-prefs-storage-refactor` from H8 commit `ad534df` · **Package:** `5.11.0` · **Decision:** ADR-0006
+**Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md)
+
+The public `UserPreferencesV1`/`USER_PREFS_VERSION` contract stays v1. Durable truth now lives in extension-origin `rvnUserPrefs` IndexedDB: one `global` row plus per-entity `profiles` and `customStyles` rows, replaced in one transaction under the existing `enqueuePrefsOp` choke point. `rvnUserPrefs.v2` local is a schema/migration marker + monotonic revision signal only, published after IDB commits. Profiles retain normalized `voiceEffectConfig` + profile-safe `transcriptConfig`; session transcript result text is stripped at the split boundary.
+
+Reddit content scripts cannot access extension IDB, so the thin wrapper transparently uses two bounded background request/response operations for load/replace; background handlers call explicit direct helpers. Popup/Studio/background use IDB directly. No caller changed and no work/progress pipeline was added.
+
+Migration is one-time and safe: valid v1 blob → normalize → IDB transaction → coordinator/theme publish → remove v1. An injected IDB failure returns and retains v1; the next load retries. Studio profile management now includes versioned JSON Export/Import with validation/normalization, replacement confirmation, and subtitle-flag rollback on failed import. Every save logs UTF-8 row sizes; dev warns above 256 KiB total / 64 KiB record.
+
+**Verification:** `test-user-prefs-storage.mjs` **12/12** (split/strip/size, atomic replace/delete, failed write, migration/retry, Export/Import, invalid import no-write, Reddit relay) · `npm run build` **PASS** · `npm run compile` only 2 pre-existing subtitle diagnostics. **Manual pending:** roadmap §9 fresh/upgrade/failure/profile-style/hot-swap/Export-Import/DevTools matrix.
+
+**Architecture:** map **v3.0** · extension-points **v1.14** · backlog **v2.11** · ADRs 0001–0006.
+
 ## H13 + H14/BUG-038 hardening — **MERGED to main (2026-07-12) · no version bump**
 
 **Branch:** `feature/h13-persist-before-stamp` (from tagged `v5.10.0`) → **`main`**.  

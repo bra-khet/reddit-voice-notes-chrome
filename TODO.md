@@ -7,17 +7,19 @@
 
 Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice** work. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean. Real-browser checklist **all PASS**.
 
-## ▶ Next — **H8 browser acceptance, then scope v6.0**
+## ▶ Current — **v5.11.0 preferences full-IDB migration (browser QA pending)**
 
-**H8 status:** **RESOLVED in code · manual A→B repro re-run pending** on `feature/h8-recovery-voice-provenance`. Hardening only — package stays **5.10.0**.
+**Branch:** `feature/v5.11.0-prefs-storage-refactor` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md)
 
-**Implemented:** optional JSON-safe `captureVoiceIntent` (normalized config + id-free key) is persisted on `beginTake` and refreshed in the awaited stop-time pre-transcode patch. The original job renders that same config. Recovery prefers the captured intent, then promotes `TakeVoiceStamp` (including voice fallback) with `ready`. Legacy drafts still use current prefs and now show an honest ready-deck note.
+**Implemented:** preserved `user-preferences.ts` API + BUG-023 queue; full `rvnUserPrefs` IndexedDB (`global`, `profiles`, `customStyles`); signal-only `rvnUserPrefs.v2`; transparent Reddit content-script → background IDB load/replace requests; delete-after-success/retryable v1 migration; transcript-result stripping; JSON Export/Import in the Studio profile cluster; per-save size telemetry/dev warnings; ADR-0006 and architecture map v3.0.
 
-**Automated:** take-manager **37/37** · take-deck **13/13** · `npm run build` **PASS** · `tsc` only the same **2 pre-existing** subtitle errors.
+**Automated:** `test-user-prefs-storage.mjs` **12/12** · `npm run build` **PASS** · `npm run compile` only the same **2 pre-existing** subtitle errors.
 
-**Manual acceptance:** capture with voice A → hard-reload extension mid-transcode → edit `rvnUserPrefs.voiceEffect` to B in DevTools → reopen Studio → recovered MP4 must sound like A. For a deliberately legacy draft without `captureVoiceIntent`, current voice is allowed but the deck must disclose it.
+**Manual gate:** fresh install; large v1 upgrade; forced migration failure/retry; profile/style create/update/apply/delete; popup/recorder hot-swap; Export→Import; DevTools rows; confirm the old large local blob is removed. Full matrix is roadmap §9.
 
-**After acceptance:** scope **v6.0 "Polish & Visual Maturity"** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
+## Follow-up — **H8 browser acceptance, then scope v6.0**
+
+H8 remains **resolved in code** on this branch (inherited from `ad534df`) with the manual A→B hard-reload repro re-run pending. After v5.11 and H8 acceptance, scope **v6.0 "Polish & Visual Maturity"**.
 
 ## Hardening closed on main (2026-07-12) — **no version bump**
 
@@ -49,4 +51,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**H8 resolved in code; H13 + H14/BUG-038 merged (2026-07-12)** — **map v2.12 · extension-points v1.13 · hardening backlog v2.10 · ADRs 0001–0005**. Recovery voice is now take-owned before render; persist-before-stamp and background transcript terminal ownership remain enforced. **H8 browser repro re-run pending; H10 deferred.** Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**v5.11 prefs IDB implemented; H8 resolved in code; H13 + H14/BUG-038 merged** — **map v3.0 · extension-points v1.14 · hardening backlog v2.11 · ADRs 0001–0006**. Preference migration/relay browser QA and H8 A→B repro remain pending; H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

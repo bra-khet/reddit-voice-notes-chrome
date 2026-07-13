@@ -1,9 +1,9 @@
 # Design Studio — semantic framework & architecture reference
 
-**Status:** Canonical source of truth for Design Studio behavior, refreshed through **v5.10.0** (2026-07-12 QA PASS). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
+**Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v5.11.0 preferences-IDB implementation** (manual browser QA pending). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.12, seams v1.13, backlog v2.10.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.0, seams v1.14, backlog v2.11.
 
 ---
 
@@ -129,7 +129,7 @@ pagehide
 **Rules (BUG-023 cluster):**
 
 1. Never mount before reconciled `initialPrefs` are ready.
-2. All `rvnUserPrefs` writes go through `enqueuePrefsOp` in `user-preferences.ts`.
+2. All preference writes go through `enqueuePrefsOp` in `user-preferences.ts`; IDB commits precede `rvnUserPrefs.v2` publication.
 3. Storage listener ignores events until `prefsHydrated` and while `ignoreStoragePrefs` (in-flight save).
 4. Teardown uses `pagehide`, not `unload` (async storage flush — BUG-017).
 5. **Never** call `subtitleControls.flushPersist()` before profile save/update (BUG-021) — see `docs/eloquent-profile-handoff.md`.
@@ -138,7 +138,8 @@ pagehide
 
 | Store | Key / DB | Holds | Studio reads | Studio writes |
 |-------|----------|-------|--------------|---------------|
-| `chrome.storage.local` | `rvnUserPrefs` | Profiles, styles, appearance, voice, `transcriptConfig` (style/toggle) | Boot + listener | Debounced section saves, profile actions |
+| `chrome.storage.local` | `rvnUserPrefs.v2` | Tiny schema/migration marker + monotonic revision signal; **no preference truth** | Boot + listener | `user-preferences.ts`, only after IDB commit |
+| `chrome.storage.local` | `rvnUserPrefs` | Legacy v1 migration input only; removed after successful v2 commit | First v5.11 load fallback | Never after migration |
 | `chrome.storage.local` | `rvn.subtitles.enabled` | Atomic subtitle on/off | `readSubtitlesEnabledLocal` | `setSubtitlesEnabled` (before prefs merge — BUG-019) |
 | `chrome.storage.local` | `rvn.lastRecording.ready` | Signal new WebM for voice preview poll | Voice + subtitle polls | — (recorder writes) |
 | `chrome.storage.local` | `rvn.sessionTranscript.ready` | Signal new transcript IDB row | Subtitle poll | — (background writes) |
@@ -146,12 +147,13 @@ pagehide
 | `chrome.storage.local` | `rvn.workflow.phase` | 3-phase intent: `'design' \| 'capture' \| 'polish'` | Workflow banner (boot + listener) | Banner CTA, recorder stop |
 | `chrome.storage.local` | `rvn.take.current` | v5.4.0 current-take snapshot: status/source/meta + artifact stamps — **never blobs** | Current Take deck + recovery (boot + `storage.onChanged` via TakeManager subscription) | TakeManager only (`src/session/take-manager.ts`): recorder-session transitions, background artifact stamps, bake promotion |
 | IndexedDB | `rvnImageDb` | Personal background blobs | Direct (extension origin) | Upload/delete UI |
+| IndexedDB | `rvnUserPrefs` (`global`, `profiles`, `customStyles`) | Complete normalized preferences; profile rows embed voice + subtitle settings | Direct in extension pages; Reddit content script via background request | `user-preferences.ts` only; atomic three-store replace |
 | IndexedDB | `rvnLastRecording` | Last raw capture WebM (`baseRecording`) | Voice controls, recovery, timeline audio source | — (capture relay/background) |
 | IndexedDB | `rvnSessionTranscript` | Vosk + edited transcript | Subtitle controls | Confirm & save |
 | IndexedDB | `rvnLastBaseMp4` | Clean/current base MP4 for bake | Bake, trim apply, voice re-apply | Capture relay/background; trim and voice mutation orchestrators |
 | IndexedDB | `rvnLastBakedMp4` | Burned/composited MP4 output | Partial splice, voice re-apply, Download | Bake / re-apply |
 
-**Never** put image blobs or transcript cue text in `rvnUserPrefs`.
+**Never** put image blobs or transcript cue text in the preferences IDB. Global/profile `transcriptConfig` is stripped to style/toggle fields at the split boundary.
 
 **Take lifecycle (v5.4→v5.10):** `rvn.take.current` is a snapshot only — blobs stay in the single-slot IDB stores above, referenced by H6-verified `TakeArtifactStamp`s. Additive `voice` provenance and `edits.trim` intent also live in the snapshot. Trim apply replaces the base stamp, drops `bakedMp4`, and either re-stamps `baseRecording` (raw WebM cut succeeded) or deletes it (honest v5.9 lock) in one TakeManager patch; no `MSG_TAKE_*` family exists (ADR-0002). Artifact stores must persist successfully before callers publish stamps/signals (architecture backlog H13; v5.10 adds a bounds pre-check on the trim raw leg only).
 
@@ -253,7 +255,7 @@ Color/effect changes call `applyLocalDesignOverrides` → immediate preview refr
 
 ### 4.4 Extension to recorder
 
-`saveAppearancePreferences` → `chrome.storage.local` → content script `onUserPreferencesChanged` → `waveform.setTheme()` / alignment hot-swap mid-recording (QA-verified).
+`saveAppearancePreferences` → atomic `rvnUserPrefs` IDB replace → `rvnUserPrefs.v2` local revision → content-script `onUserPreferencesChanged` → background-relayed IDB load → `waveform.setTheme()` / alignment hot-swap mid-recording. The caller API and hot-swap behavior are unchanged; v5.11 browser QA remains pending.
 
 ### 4.5 Module map
 
@@ -901,6 +903,7 @@ reddit.com).
 | `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline editor as-built |
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
+| `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |
 | `archive/docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
@@ -993,14 +996,15 @@ src/workflow/
 ## Resume in a new chat (carry-forward)
 
 ```
-Design Studio canonical semantics refreshed through tagged v5.10.0 (QA PASS 2026-07-12).
+Design Studio canonical semantics refreshed through v5.11.0 prefs-IDB implementation (browser QA pending).
 Primary surface: native capture + live canvas, voice audition/re-apply, List/Timeline cues,
 browser-composite subtitle bake with verified partial splice, atomic trim + raw WebM cut, take deck/download.
 Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18; rawAudio tri-state.
-State: TakeManager owns rvn.take.current; blobs remain in H6-verified single-slot IDB stores.
+State: TakeManager owns rvn.take.current; prefs truth is rvnUserPrefs IDB global/profiles/customStyles;
+rvnUserPrefs.v2 is signal-only; Reddit content scripts relay prefs DB access through background.
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
 H8 resolved in code: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result. Legacy drafts disclose current-prefs fallback.
-Open: H8 browser A→B repro re-run, then v6 visual maturity.
-Read docs/architecture/architecture-map.md v2.12 before changing cross-context behavior.
+Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix; H8 A→B repro still pending.
+Read docs/architecture/architecture-map.md v3.0 before changing cross-context behavior.
 ```

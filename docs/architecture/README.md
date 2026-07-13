@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-12 · **Reflects:** `feature/h8-recovery-voice-provenance` @ tagged `v5.10.0` + H13/H14 · **Map:** v2.12 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-12 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` implementation · **Map:** v3.0 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,10 +12,10 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I20, confidence ledger, and recovery traces including H8 voice provenance | v2.12 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: message pipelines v3, H13 storage rule, H8 capture intent, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.13 |
-| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 resolved in code; H10 deferred; R13/R17 mitigated | v2.10 |
-| `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) (Accepted, v5.3.10) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) (Accepted, v5.4.0) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) (Accepted, v5.5.0) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) (Accepted, v5.6.0) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) (Accepted, v5.7.0 — execution behind flag, **default on**) | — |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I21, preference publication/relay, and recovery traces | v3.0 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: preference storage v2, message pipelines v3, H13 storage rule, H8 capture intent, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.14 |
+| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 resolved; H10 deferred; preference migration/relay risk R18 browser gate | v2.11 |
+| `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) · [0006 Full-IDB user preferences](adr/0006-user-preferences-full-idb.md) | Accepted |
 
 ---
 
@@ -34,6 +34,7 @@ This directory holds the **living, versioned** architecture index for the extens
 | `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline visual subtitle editor as-built (v5.8.0) |
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built (v5.9.0) |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw-WebM trim as-built (v5.10.0) — post-trim voice re-apply restored; real-browser QA PASS 2026-07-12 |
+| `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration + relay + Export/Import implementation source of truth |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `src/session/take-manager.ts` (header) | Take lifecycle contract |
 | `claude-progress.md` | Session timeline + release tags |
@@ -71,7 +72,7 @@ This directory holds the **living, versioned** architecture index for the extens
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes, feature/h8-recovery-voice-provenance @ tagged v5.10.0 + H13/H14. Architecture map v2.12.
+Repo: Reddit Voice Notes, feature/v5.11.0-prefs-storage-refactor @ package 5.11.0 implementation. Architecture map v3.0.
 Six contexts unchanged; primary subtitle bake is direct browser composite, with permanent FFmpeg fallbacks.
 Editing arc CLOSED at raw-trim apply: preview=APPLY (I18), dual cue shift, base + raw WebM cut together
 (audio-only; baseRecording re-stamped or honestly dropped — I19); post-trim voice re-apply works.
@@ -80,8 +81,10 @@ mutation choke points stamp/signal only from that meta; H6 reads untouched; test
 H14/BUG-038 RESOLVED + browser QA PASS: background owns terminal transcript commit + 125s watchdog;
 Node 12/12; tab-close mid-processing delivers transcript/scaffold. No retry UI (Vosk already succeeded).
 H8 RESOLVED in code: captureVoiceIntent is persisted before transcode; recovery reuses it and stamps the result.
+v5.11 prefs: full rvnUserPrefs IDB (global/profiles/customStyles), signal-only rvnUserPrefs.v2;
+Reddit content scripts relay DB load/replace through background. Focused 12/12 + build PASS; browser QA pending.
 Legacy drafts retain current-prefs recovery with a visible note. Browser A→B repro re-run remains acceptance QA.
 Risks: R13 closed by H13; R14 verified splice, R15 two-view draft, R16 trim multi-store window (3–4 stores); R17 by H14.
-Read architecture-map.md, extension-points.md v1.13, hardening-backlog.md v2.10.
-Next product: v6.0 visual maturity (unscoped). No version bump for this hardening merge.
+Read architecture-map.md, extension-points.md v1.14, hardening-backlog.md v2.11, ADR-0006.
+Next: v5.11 browser matrix, then H8 A→B acceptance; v6.0 remains unscoped.
 ```
