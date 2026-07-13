@@ -872,7 +872,7 @@ reddit.com).
 |------|---------|-------|
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
-| ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. Browser A→B repro re-run pending |
+| ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
 | v6 visual maturity | Shell / Background | Theme/background/elevation/reduced-motion audit after the functional editing arc |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
@@ -1004,7 +1004,7 @@ State: TakeManager owns rvn.take.current; prefs truth is rvnUserPrefs IDB global
 rvnUserPrefs.v2 is signal-only; Reddit content scripts relay prefs DB access through background.
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
-H8 resolved in code: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result. Legacy drafts disclose current-prefs fallback.
-Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix; H8 A→B repro still pending.
+H8 resolved + browser QA PASS: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result even if resume-time prefs were mutated/nuked. Legacy drafts disclose current-prefs fallback. No H8 re-run for v5.11.
+Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix only.
 Read docs/architecture/architecture-map.md v3.0 before changing cross-context behavior.
 ```

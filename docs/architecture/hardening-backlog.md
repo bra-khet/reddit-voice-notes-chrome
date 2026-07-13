@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.11 · **Updated:** 2026-07-12 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` implementation
+**Version:** v2.12 · **Updated:** 2026-07-13 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` implementation
 **Status:** Ranked hardening items for the current standalone editing suite. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.11 (2026-07-12) — v5.11 full-IDB preferences adds R18: migration/publication/cross-origin relay could split preference truth. Mitigation is by construction (atomic three-store replace, coordinator-last, v1 delete-after-success, explicit background direct helpers) + 12 focused checks; browser matrix remains the residual gate. v2.10 (2026-07-12) — **H8 RESOLVED in code:** `captureVoiceIntent` is durable before render and recovery reuses it; browser A→B acceptance pending. Earlier history remains in git.
+**Changelog:** v2.12 (2026-07-13) — **H8 browser QA PASS** recorded (user confirmed A→B hard-reload mid-transcode → mutate/nuke resume-time prefs → recovery still uses capture-time voice). Docs had left “re-run pending” after code land; no re-test required for v5.11 (prefs IDB is orthogonal to take-owned `captureVoiceIntent`). v2.11 (2026-07-12) — v5.11 full-IDB preferences adds R18; browser matrix remains the residual gate for prefs only. v2.10 (2026-07-12) — H8 RESOLVED in code. Earlier history remains in git.
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -18,7 +18,7 @@ Items are updated in place. Add new items here; never fork to `hardening-backlog
 | H11 | Concurrent Studio recordings vs single-slot take | Med-Low | — | **Resolved — user QA, no code needed (2026-07-06)** |
 | H13 | Artifact-store writes must acknowledge persistence before stamps/signals | **High** | S | **Resolved (2026-07-12)** |
 | H14 | Transcribe terminal state must survive initiating-tab teardown (BUG-038) | **High** | S | **Resolved (2026-07-12) · browser QA PASS · merged** |
-| H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **Resolved (2026-07-12) · browser repro re-run pending** |
+| H8 | Recovery re-transcode uses resume-time (not capture-time) voice prefs | Med | S | **Resolved (2026-07-12) · browser QA PASS** |
 | H12 | Studio-job progress relay mechanism — verify + document | Med (cheap) | XS | **Resolved (2026-07-11) — direct runtime broadcast** |
 | H10 | Encoder-fallback observability | Med-High | S | **Deferred — user decision** (both paths work; failures hard to reproduce) |
 | H9 | Composite-stage elimination (~43 s x264 wall, 88% of WebCodecs bake) | High impact / high cost | L | **SHIPPED** — browser full composite merged v5.5.0, **default-on since v5.5.1** (two-machine QA PASS). ADR-0003 Accepted. Partial-splice (v5.7.0) cuts re-bakes further |
@@ -86,7 +86,7 @@ so resumed base MP4s were saved with duration 0.
   overlay-backbone gotcha updated; ADR-0001 left untouched (immutable record — its
   "follow-ups: flip default after QA" is now satisfied and noted here).
 
-## H8 — Recovery re-transcode uses resume-time voice prefs (RESOLVED 2026-07-12)
+## H8 — Recovery re-transcode uses resume-time voice prefs (RESOLVED 2026-07-12 · browser QA PASS)
 
 **Resolution:** added optional `CurrentTake.captureVoiceIntent` (normalized config + id-free
 intent key), parsed as an independent dependency-free additive field. `voice-recorder.ts`
@@ -97,9 +97,14 @@ stop-time `processing` patch before passing the same config to the first transco
 legacy drafts. That legacy fallback writes a visible ready-deck note. No blob/store/key,
 message family, history model, or retry UI was added.
 
-**Verified:** `test-take-manager.mjs` 37/37 (intent parse + merge coverage),
-`test-take-deck.mjs` 13/13, and `npm run build` PASS. Original hard-reload + DevTools A→B browser repro remains the
-manual acceptance check.
+**Verified (automated):** `test-take-manager.mjs` 37/37 (intent parse + merge coverage),
+`test-take-deck.mjs` 13/13, and `npm run build` PASS.
+
+**Verified (browser QA PASS — user, post-code land):** hard-reload mid-transcode (first job
+dies incomplete) → edit/nuke resume-time voice prefs in DevTools → reopen Design Studio →
+recovered MP4 still uses **capture-time** voice (A), not mutated prefs (B). Confirmed even
+when recovered prefs were completely nuked. **No re-run required for v5.11** — prefs full-IDB
+migration does not change take-owned `captureVoiceIntent` or recovery preference of that field.
 
 - **Item / class it kills:** silent semantic drift — a draft recovered after tab close is
   re-transcoded with `prefs.voiceEffect` *as of resume time*
@@ -349,7 +354,7 @@ direct-runtime/content-tab split is intentional and working.
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.11 (2026-07-12), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0 implementation.
+Hardening backlog v2.12 (2026-07-13), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0 implementation.
 DONE: H6 stamp verification; H7 doc drift; H9 browser composite default-on;
 H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast;
 H13 persist-before-stamp — all three saveLast* throw on size/IDB failure and return
@@ -357,12 +362,13 @@ H13 persist-before-stamp — all three saveLast* throw on size/IDB failure and r
   test-artifact-store-writes.mjs 28; browser QA PASS.
 H14 / BUG-038 — background terminal transcript persistence + 125s watchdog; Node 12/12,
   build PASS; real-browser H13 item 7 close/reopen PASS (transcript survives).
-H8 RESOLVED in code — captureVoiceIntent is durable before transcode; recovery reuses it,
-  promotes TakeVoiceStamp, and visibly discloses current-prefs fallback for legacy drafts.
-  Node: take-manager 37/37, deck 13/13; build PASS; browser A→B repro re-run pending.
+H8 RESOLVED + browser QA PASS — captureVoiceIntent is durable before transcode; recovery
+  reuses it, promotes TakeVoiceStamp, and visibly discloses current-prefs fallback for
+  legacy drafts. Node 37/37 + 13/13; user A→B hard-reload + mutate/nuke prefs confirmed
+  capture-time voice. No H8 re-run for v5.11 (prefs IDB orthogonal).
 DEFERRED: H10 fallback observability (user decision); H5 binary/cap restoration.
-Mitigated risks: R13 by H13; R14 by I16; R15 by captureActiveDraft; R17 by H14; R18 by ADR-0006/I21 (browser gate open).
+Mitigated risks: R13 by H13; R14 by I16; R15 by captureActiveDraft; R17 by H14; R18 by ADR-0006/I21 (prefs browser gate open).
 R16: narrow 3–4 store trim commit window; H6 protects base/recording; transcript lacks takeId.
-Editing arc closed; next product candidate: v6 visual maturity (unscoped).
+Editing arc closed; next product candidate: v6 visual maturity after v5.11 prefs browser matrix.
 v5.11 adds ADR-0006, one structured IDB class, signal-only coordinator, and two bounded DB requests; no context/progress pipeline.
 ```

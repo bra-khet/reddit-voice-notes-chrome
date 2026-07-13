@@ -82,20 +82,20 @@ Map **v2.11** · extension-points **v1.12** · backlog **v2.9** · bug-archive B
 
 ### Other open work
 
-1. **▶ Next: H8 browser A→B acceptance re-run** (implementation complete below).
+1. **▶ Next: v5.11 prefs browser matrix** (see `.ignore/QA-5.11.0/qa-checklist.md`).
 2. Then scope **v6.0 “Polish & Visual Maturity”** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
 3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10).
 
-## H8 recovery voice provenance — **RESOLVED in code 2026-07-12 · no version bump**
+## H8 recovery voice provenance — **RESOLVED + browser QA PASS · no version bump**
 
-**Branch:** `feature/h8-recovery-voice-provenance` from `main` @ v5.10.0 + H13/H14. Product/package remains **5.10.0**.
+**Branch:** landed on `feature/v5.11.0-prefs-storage-refactor` (from `ad534df` / H8 work). Product package stayed **5.10.0** until the prefs bump to **5.11.0**.
 
 ### Consultation / repro notes (user QA)
 
 - **Normal Stop → finish / tab-close while job lives:** voice is bound at **Stop**; orphan persist finishes that job. Switching profiles mid-flight does **not** retarget it. **Not H8.**
-- **H8 path:** first job **dies incomplete** (hard extension reload / crash) → draft + `baseRecording`, no `baseMp4`, `inflight === false` → `resumeDraftTranscodeInner` starts a **new** transcode with **`prefs.voiceEffect` at resume**.
-- **User repro:** hard-reload mid-transcode → edit `rvnUserPrefs` / `voiceEffect` in DevTools → reopen Design Studio → recovered MP4 uses the **new** voice. Confirmed this *is* H8.
-- **Why hard to hit in product UI:** voice prefs are primarily written from Design Studio (`saveVoiceEffectPreferences` in `voice-controls.ts`); opening Studio also kicks recovery. Changing prefs *before* resume without DevTools is awkward today. Practical user incidence is low; value is **correctness + future-proofing** (new settings surfaces, multi-page, crash then later prefs edit) so recovery does not silently depend on “prefs only change inside Studio after mount.”
+- **H8 path (pre-fix defect):** first job **dies incomplete** (hard extension reload / crash) → draft + `baseRecording`, no `baseMp4`, `inflight === false` → recovery started a **new** transcode with **`prefs.voiceEffect` at resume**.
+- **Pre-fix user repro:** hard-reload mid-transcode → edit `rvnUserPrefs` / `voiceEffect` in DevTools → reopen Design Studio → recovered MP4 used the **new** (wrong) voice.
+- **Post-fix browser QA PASS (user):** same A→B hard-reload path after the fix → recovered MP4 keeps **capture-time** voice even when resume-time prefs were edited or **completely nuked**. **Fully closed — no re-run for v5.11** (prefs IDB migration is orthogonal to take-owned `captureVoiceIntent`).
 
 ### Implementation
 
@@ -107,11 +107,11 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 - `node scripts/test-take-manager.mjs`: **37/37** (capture intent parse/malformed/merge)
 - `node scripts/test-take-deck.mjs`: **13/13** (legacy ready note visible)
-- `npm run build`: **PASS** at package 5.10.0
+- `npm run build`: **PASS**
 - `npx tsc --noEmit`: only **2 pre-existing** subtitle errors; no H8 error
-- Manual pending: capture A → hard reload mid-transcode → set prefs B → reopen → recovered MP4 must sound like A; legacy snapshot without the field may use current prefs but must show the note
-- Architecture: map **v2.12** · extension points **v1.13** · backlog **v2.10**
+- **Browser QA PASS (user):** capture A → hard reload mid-transcode → set/nuke prefs B → reopen → recovered MP4 sounds like A
+- Architecture: map **v3.0** · extension points **v1.14** · backlog **v2.12**
 
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE** (superseded by H13/H14 merge above)
 
-Use [`TODO.md`](TODO.md) as the compact task ledger. Complete H8 browser acceptance before scoping v6.0.
+Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; residual manual gate is v5.11 prefs browser QA before scoping v6.0.

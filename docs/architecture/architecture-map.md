@@ -353,7 +353,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 4. Legacy draft without `captureVoiceIntent` → retain current-prefs transcode, but persist a visible ready-deck note disclosing that fallback
 5. Reddit attach mode available again (never-baked takes attach their base MP4)
 
-**Code verified at:** `voice-recorder.ts` `beginTakeTracking` / stop pre-transcode patch / `transcodeToMp4`, `take-manager.ts` additive parser/merge, and `studio-take-recovery.ts` `resumeDraftTranscodeInner`. H6 still rejects superseded WebM bytes before adoption; H8 now makes a restarted job voice-stable across mutable prefs. Automated: TakeManager 37/37, deck 13/13; original hard-reload + DevTools A→B repro remains the browser acceptance check.
+**Code verified at:** `voice-recorder.ts` `beginTakeTracking` / stop pre-transcode patch / `transcodeToMp4`, `take-manager.ts` additive parser/merge, and `studio-take-recovery.ts` `resumeDraftTranscodeInner`. H6 still rejects superseded WebM bytes before adoption; H8 now makes a restarted job voice-stable across mutable prefs. Automated: TakeManager 37/37, deck 13/13; **browser QA PASS** (user A→B hard-reload + mutate/nuke resume-time prefs → capture-time voice).
 
 ### Trace C — personal background WYSIWYG relay (carried from v1, unchanged)
 
@@ -401,7 +401,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | TakeManager pure core (parse/merge/stale/freshness/null-delete) | **High** | Node-tested (`test-take-manager.mjs` 34); pure helpers isolated from `browser.*` |
 | Studio-native capture + live canvas | **High** | User QA checklist 1–11 PASS (2026-07-06); zero-copy contract structural |
 | WebCodecs dual-IVF + FFmpeg composite fallback | **High (single machine)** | QA PASS 2026-07-05, 8–10× render speedup; session-cached alpha calibration (`codec+dimensions+fps`) gates this fallback tier |
-| Recovery paths (tab-close, orphan transcode/transcript, inflight query) | **High (single machine; H8 browser re-run pending)** | MP4/raw recovery QA passed; BUG-038 background transcript terminal recovery **browser QA PASS**; H8 capture voice intent + resumed `TakeVoiceStamp` are Node/build verified, with the original A→B hard-reload repro retained for manual acceptance |
+| Recovery paths (tab-close, orphan transcode/transcript, inflight query) | **High (single machine)** | MP4/raw recovery QA passed; BUG-038 background transcript terminal recovery **browser QA PASS**; H8 capture voice intent + resumed `TakeVoiceStamp` Node/build verified **and browser QA PASS** (user A→B hard-reload + mutate/nuke prefs → capture-time voice retained) |
 | Artifact stamp contract | **High** | I15 — `takeArtifactMatchesStore` enforced at all three consumers, 6 Node checks (H6, 2026-07-06) |
 | Studio-initiated transcode progress delivery | **High** | H12 resolved: `transcoder.ts` listens on `runtime.onMessage`; `transcodeSkipTabRelayByJobId` suppresses only the content-tab duplicate for extension-page senders |
 | Concurrent Studio recordings / dual-writer take races | **High** | User QA 2026-07-06: overlapping recordings capture correctly, processing serializes, first take downloadable (and downloads) while second processes; Reddit panel syncs as designed. Known accepted edge: transient window between the two completions where the status display shows the *second* take's length while the first is the downloadable one — display-only, self-corrects on second completion (backlog H11) |
@@ -506,9 +506,8 @@ Spine:
   H13 (2026-07-12): saveLast* throw on size/IDB failure + return persisted meta; stamps/signals only from that meta.
   BUG-038/H14: background owns terminal transcript persistence + 125s watchdog; tab close cannot drop success/timeout (browser QA PASS).
 Editing arc CLOSED: v5.6 audio → v5.7 splice → v5.8 timeline → v5.9 atomic trim → v5.10 raw-WebM trim (both QA PASS).
-Hardening v2.11: H8 RESOLVED in code (legacy drafts disclose current-prefs fallback); H13 + H14/BUG-038 resolved;
-H8 browser A→B repro re-run pending; H10 deferred.
+Hardening v2.12: H8 RESOLVED + browser QA PASS; H13 + H14/BUG-038 resolved; H10 deferred.
 Risks: R13 closed by H13; R14 I16; R15 two-view draft; R16 trim multi-store window (3–4 stores); R17 by H14.
 Extension points v1.14. ADRs 0001–0006 Accepted; v5.11 adds one IDB class + two DB requests, no context/pipeline.
-Next: run v5.11 browser matrix, then H8 A→B acceptance. Read architecture-map.md then /architecture-hardening resume.
+Next: run v5.11 browser matrix; then scope v6.0. Read architecture-map.md then /architecture-hardening resume.
 ```

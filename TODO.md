@@ -17,20 +17,19 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Manual gate:** fresh install; large v1 upgrade; forced migration failure/retry; profile/style create/update/apply/delete; popup/recorder hot-swap; Export→Import; DevTools rows; confirm the old large local blob is removed. Full matrix is roadmap §9.
 
-## Follow-up — **H8 browser acceptance, then scope v6.0**
+## Follow-up — **after v5.11 browser QA · scope v6.0**
 
-H8 remains **resolved in code** on this branch (inherited from `ad534df`) with the manual A→B hard-reload repro re-run pending. After v5.11 and H8 acceptance, scope **v6.0 "Polish & Visual Maturity"**.
+**H8 is fully closed** (code + browser QA PASS — user confirmed A→B: hard-reload mid-transcode → mutate/nuke resume-time prefs → recovery still uses capture-time voice). No H8 re-run is required for v5.11 (prefs storage is orthogonal to take-owned `captureVoiceIntent`). After v5.11 prefs browser matrix PASS, scope **v6.0 "Polish & Visual Maturity"**.
 
-## Hardening closed on main (2026-07-12) — **no version bump**
-
-**Branch:** `feature/h13-persist-before-stamp` → **merged to `main`**. Hardening only (not a release). Stable remains **v5.10.0**.
+## Hardening closed (2026-07-12) — **no version bump**
 
 | Item | Outcome |
 |------|---------|
-| **H13** persist-before-stamp | **RESOLVED + browser QA PASS** — `saveLast*` throw on size/IDB failure, return meta; four choke points stamp only from meta. Node **28/28**. |
-| **H14 / BUG-038** tab-close transcript | **RESOLVED + browser QA PASS** — background owns terminal transcript commit + 125 s watchdog; initiating tab may close without dropping success/scaffold. Node **12/12**. |
+| **H13** persist-before-stamp | **RESOLVED + browser QA PASS** — merged to `main`. `saveLast*` throw on size/IDB failure, return meta; four choke points stamp only from meta. Node **28/28**. |
+| **H14 / BUG-038** tab-close transcript | **RESOLVED + browser QA PASS** — merged to `main`. Background owns terminal transcript commit + 125 s watchdog. Node **12/12**. |
+| **H8** recovery voice provenance | **RESOLVED + browser QA PASS** — on `feature/v5.11.0-prefs-storage-refactor` (from `ad534df`). Take-owned `captureVoiceIntent`; recovery ignores mutated/nuked resume-time prefs. Node take-manager **37/37** · deck **13/13**. |
 
-**Verify:** artifact-store writes 28 · transcribe-failure 12 · take-manager 34 · timeline 22 · build PASS · tsc 2 pre-existing. Push of `main` / tags remains user-owned.
+**Verify:** artifact-store writes 28 · transcribe-failure 12 · take-manager 37 · take-deck 13 · timeline 22 · build PASS · tsc 2 pre-existing. Push of `main` / tags remains user-owned.
 
 ## Shipped ledger
 
@@ -51,4 +50,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**v5.11 prefs IDB implemented; H8 resolved in code; H13 + H14/BUG-038 merged** — **map v3.0 · extension-points v1.14 · hardening backlog v2.11 · ADRs 0001–0006**. Preference migration/relay browser QA and H8 A→B repro remain pending; H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**v5.11 prefs IDB implemented (browser QA pending); H8 + H13 + H14/BUG-038 fully closed (code + browser QA PASS)** — **map v3.0 · extension-points v1.14 · hardening backlog v2.12 · ADRs 0001–0006**. Only residual manual gate: v5.11 prefs matrix; H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

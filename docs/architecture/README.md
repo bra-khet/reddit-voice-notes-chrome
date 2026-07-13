@@ -14,7 +14,7 @@ This directory holds the **living, versioned** architecture index for the extens
 |------|------|---------|
 | [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I21, preference publication/relay, and recovery traces | v3.0 |
 | [`extension-points.md`](extension-points.md) | Integration seam registry: preference storage v2, message pipelines v3, H13 storage rule, H8 capture intent, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.14 |
-| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 resolved; H10 deferred; preference migration/relay risk R18 browser gate | v2.11 |
+| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 fully closed (browser QA PASS); H10 deferred; preference migration/relay risk R18 browser gate | v2.12 |
 | `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) · [0006 Full-IDB user preferences](adr/0006-user-preferences-full-idb.md) | Accepted |
 
 ---
@@ -80,11 +80,12 @@ H13 RESOLVED + browser QA PASS: saveLast* throw on size/IDB failure + return per
 mutation choke points stamp/signal only from that meta; H6 reads untouched; test-artifact-store-writes.mjs 28.
 H14/BUG-038 RESOLVED + browser QA PASS: background owns terminal transcript commit + 125s watchdog;
 Node 12/12; tab-close mid-processing delivers transcript/scaffold. No retry UI (Vosk already succeeded).
-H8 RESOLVED in code: captureVoiceIntent is persisted before transcode; recovery reuses it and stamps the result.
+H8 RESOLVED + browser QA PASS: captureVoiceIntent is persisted before transcode; recovery reuses it
+and stamps the result even if resume-time prefs were mutated/nuked. No H8 re-run for v5.11.
 v5.11 prefs: full rvnUserPrefs IDB (global/profiles/customStyles), signal-only rvnUserPrefs.v2;
 Reddit content scripts relay DB load/replace through background. Focused 12/12 + build PASS; browser QA pending.
-Legacy drafts retain current-prefs recovery with a visible note. Browser A→B repro re-run remains acceptance QA.
+Legacy drafts retain current-prefs recovery with a visible note.
 Risks: R13 closed by H13; R14 verified splice, R15 two-view draft, R16 trim multi-store window (3–4 stores); R17 by H14.
-Read architecture-map.md, extension-points.md v1.14, hardening-backlog.md v2.11, ADR-0006.
-Next: v5.11 browser matrix, then H8 A→B acceptance; v6.0 remains unscoped.
+Read architecture-map.md, extension-points.md v1.14, hardening-backlog.md v2.12, ADR-0006.
+Next: v5.11 browser matrix; v6.0 remains unscoped.
 ```
