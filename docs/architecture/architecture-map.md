@@ -1,11 +1,12 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v3.0 · **Reflects branch/tag:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` implementation · **Updated:** 2026-07-12
+**Version:** v3.1 · **Reflects branch/tag:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` · **browser QA PASS** · **Updated:** 2026-07-13
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v3.1` (2026-07-13) — **v5.11.0 real-browser QA PASS** (Chrome, `ebca7cb` dev build). I21 + confidence ledger raised to **High (single machine)**. Matrix: fresh install, real+planted v1 upgrade, profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools rows, size telemetry, product smoke all PASS. §3 force-fail PARTIAL accepted (fallback verified; Node inject covers hard fail). No post-QA code fixes. Extension-points **v1.15** · backlog **v2.13**. Merge-ready.
 - `v3.0` (2026-07-12) — **new structured storage class:** full `UserPreferencesV1` truth moved from the large `rvnUserPrefs` local blob into extension-origin `rvnUserPrefs` IDB (`global`, `profiles`, `customStyles`) behind the preserved `user-preferences.ts` API and BUG-023 queue. `rvnUserPrefs.v2` is marker/revision signal only and publishes after the atomic IDB transaction. Reddit content scripts use bounded background load/replace requests because host-origin code cannot open extension IDB. One-time v1 migration is delete-after-success/retry-on-failure; versioned Export/Import + size telemetry ship in Studio. ADR-0006; focused tests 12/12; build PASS; browser matrix pending. Extension-points **v1.14**.
 - `v2.12` (2026-07-12) — **H8 recovery voice provenance resolved in code** (no product version bump). The take snapshot gains optional, JSON-safe `captureVoiceIntent`; recorder writes it at begin and refreshes it in the awaited pre-transcode stop patch, then recovery prefers it over mutable prefs and promotes the successful/fallback render to `TakeVoiceStamp`. Legacy drafts retain current-prefs behavior with a visible deck note. Updated state ownership, Trace B, confidence, and carry-forward. TakeManager 37/37; deck 13/13; build PASS. Extension-points **v1.13** · backlog **v2.10**. No new context, message family, storage key/store, writer, or ADR.
 - `v2.11` (2026-07-12) — **H13 + H14/BUG-038 browser QA PASS** and merge to `main` (no product version bump). I20 + Trace F confidence raised to High (single machine); confidence ledger rows for transcribe/recovery/H13 updated; backlog **v2.9**. No code change in this map revision.
@@ -327,7 +328,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | I18 | Trim ghost preview and destructive apply use the same half-open cue projection; apply consumes the live draft, shifts both transcript copies, and clears undo so pre-trim cue times cannot return | preview↔bake, state | `timeline-geometry.ts` `projectCueThroughTrim`; `trim.ts` `shiftCuesForTrim`; `trim-apply.ts`; `subtitle-segment-editor.ts` — Node-tested (`test-timeline` 22) + real-browser QA (v5.9 + v5.10) | High (single machine) |
 | I19 | A `baseRecording` stamp published by trim apply always describes bytes the store can hold: the raw leg pre-checks the trimmed blob against `last-recording-db.ts`'s exported persistability bounds and demotes to an honest stamp drop otherwise (never a lying stamp). Post-trim voice re-apply is available only when that stamp survives | state | `trim-apply.ts` raw-leg guard + `planRawTrimLeg` (`trim.ts`) — Node-tested (`test-timeline` 22: leg truth table) + real-browser QA PASS 2026-07-12 (happy path + store-mismatch fallback) | High (single machine) |
 | I20 | Once a transcribe START is accepted, a non-cancelled terminal outcome is persisted by background before its ready signal; the initiating tab may disappear without dropping success/failure/timeout, and a superseded job cannot publish | messages, state | `background.ts` transcribe context/watchdog + `transcribe-completion.ts`; BUG-038 — Node-tested (`test-transcribe-failure` 12) + real-browser QA item 7 PASS 2026-07-12 | High (single machine) |
-| I21 | A `rvnUserPrefs.v2` revision never advertises uncommitted preference data: the atomic `global`/`profiles`/`customStyles` transaction (direct or background-relayed) resolves first; failed first migration retains v1 | state, messages | `user-prefs-db.ts`; `user-preferences.ts`; `background.ts`; ADR-0006 — Node-tested 12 checks | Med (browser matrix pending) |
+| I21 | A `rvnUserPrefs.v2` revision never advertises uncommitted preference data: the atomic `global`/`profiles`/`customStyles` transaction (direct or background-relayed) resolves first; failed first migration retains v1 | state, messages | `user-prefs-db.ts`; `user-preferences.ts`; `background.ts`; ADR-0006 — Node-tested 12 checks + **real-browser QA PASS 2026-07-13** (fresh/upgrade/relay/Export-Import; §3 force-fail PARTIAL accepted) | High (single machine) |
 
 ---
 
@@ -412,7 +413,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | Atomic trim apply (v5.9.0) | **High (single machine)** | Node: timeline 16→22 + take-manager 33→34; real-browser QA PASS for duration/cue parity, full post-apply bake, voice lock (now fallback-only), revert/undo, recovery, Download/attach, and regressions (2026-07-11); reconfirmed under v5.10 suite |
 | Raw-WebM trim + post-trim voice re-apply (v5.10.0) | **High (single machine)** | Node: timeline 22 (`planRawTrimLeg` truth table) + take-manager 34 (dual-stamp one-write). **Real-browser QA PASS 2026-07-12:** post-trim Change Voice / re-apply / bake, edges, recovery, deck/Download/attach, raw-leg store-mismatch → honest lock, regressions. Accepted non-defect: manual DevTools IDB nuke of `rvnLastRecording` needs extension reload to recreate open path. No post-QA code fixes. As-built: `docs/v5.10.0-raw-trim-apply-roadmap.md` §10 |
 | Artifact-store write acknowledgment | **High** | **H13 shipped 2026-07-12 (merged):** all three saves throw on size/IDB failure and return persisted meta; callers stamp/signal only from it — Node-tested (`test-artifact-store-writes.mjs` 28). Real-browser regression covered with H13 checklist + item 7 PASS |
-| User-preferences full-IDB migration (v5.11.0) | **Med (automated)** | Atomic split/load, failed-write preservation, one-time delete-after-success migration, retry, Export/Import, size accounting, and Reddit-origin background relay are covered by `test-user-prefs-storage.mjs` 12; production build PASS. Fresh/upgrade/large-profile browser matrix remains open |
+| User-preferences full-IDB migration (v5.11.0) | **High (single machine)** | Node: `test-user-prefs-storage.mjs` **12/12** + build PASS. **Real-browser QA PASS 2026-07-13** (checklist `.ignore/QA-5.11.0/`): fresh IDB layout, real+planted v1 upgrade (legacy removed), profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools per-entity rows, size telemetry, product smoke. §3 force-fail PARTIAL accepted (fallback surface + Node inject). No post-QA code fixes. As-built: `docs/v5.11.0-prefs-storage-refactor.md` §9/§12 |
 | Vosk model caching | **Low (accepted)** | ~40 MB re-download per session; BUG-013 tradeoff stands |
 | Demo site (`demo/`) parity with v5.4.0 | **Low (out of scope)** | No capture pipeline there; explicitly deferred |
 
@@ -426,7 +427,9 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ## 7. Self-critique (Phase 2)
 
-**Verified in the v3.0 preference-storage pass (2026-07-12):** complete `user-preferences.ts` API and normalize/profile embedding paths; H13 native-IDB wrappers; every recorder/content caller; background request-response conventions; Studio profile cluster. The first direct-IDB draft incorrectly assumed all preference consumers shared extension origin. Canonical docs plus live recorder imports exposed the contradiction before close-out; the implementation now relays content-script load/replace through explicit background direct helpers, covered by a Reddit-origin wrapper test. **Still unverified:** real Chrome origin behavior, DevTools row ergonomics, and UI file download/upload—kept Med until the roadmap browser matrix passes.
+**Verified in the v3.0 preference-storage pass (2026-07-12):** complete `user-preferences.ts` API and normalize/profile embedding paths; H13 native-IDB wrappers; every recorder/content caller; background request-response conventions; Studio profile cluster. The first direct-IDB draft incorrectly assumed all preference consumers shared extension origin. Canonical docs plus live recorder imports exposed the contradiction before close-out; the implementation now relays content-script load/replace through explicit background direct helpers, covered by a Reddit-origin wrapper test.
+
+**Closed in v3.1 (2026-07-13):** real Chrome origin behavior, DevTools per-entity row ergonomics, Export/Import download/upload, cold Reddit relay, and migration delete-after-success were proven in browser QA PASS. Residual accepted: browser §3 force-fail remains PARTIAL (IDB auto-recreates; Node covers inject); optional Import merge/union is a future idea, not a defect.
 
 **Verified in the v2.11 close-out (2026-07-12):** user real-browser re-run of H13 item 7 **PASS** — transcript survives tab close mid-processing after the BUG-038 background-owner fix. H13 + H14 merged to `main` without a product version bump. I20 / Trace F / recovery confidence raised to High (single machine).
 
@@ -482,7 +485,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | `docs/v5.11.0-prefs-storage-refactor.md` | **Full-IDB preferences implementation:** migration, relay, Export/Import, size telemetry, risk and browser QA matrix |
 | `docs/architecture/adr/` | ADR-0001 WebCodecs backbone · ADR-0002 TakeManager storage sync · ADR-0003 composite-stage elimination (**Accepted**) · ADR-0004 audio decoupling / voice re-apply · ADR-0005 partial re-bake splice (**Accepted**, default-on) |
 | `docs/architecture/extension-points.md` | Seam registry (v1.14) |
-| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.11) |
+| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.13) |
 | `src/messaging/types.ts` | Wire registry — authoritative message constants |
 | `src/session/take-manager.ts` | Take lifecycle contract (header doc is authoritative) |
 
@@ -492,22 +495,22 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3/WXT), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0 implementation. Map v3.0.
+Repo: Reddit Voice Notes (Chrome MV3/WXT), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0.
+Map v3.1 · browser QA PASS 2026-07-13 · merge-ready.
 Contexts (6): content / background SW / offscreen FFmpeg / Vosk sandbox / Design Studio / popup.
 Spine:
   preview=bake: direct shared painter on browser composite; timeline frame-snap I17; trim preview=APPLY I18.
   composition: bg→bars in capture; subtitles post-base. Full default = browser decode→paint→encode; FFmpeg tiers persist.
   messages: types.ts has 3 pipelines + idempotent query + chunked relays; Studio progress is direct runtime broadcast (H12).
   state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; prefs truth is rvnUserPrefs IDB
-  (global/profiles/customStyles), with signal-only rvnUserPrefs.v2 and Reddit→background DB requests (I21);
+  (global/profiles/customStyles), with signal-only rvnUserPrefs.v2 and Reddit→background DB requests (I21 High);
   H8 captureVoiceIntent makes recovery voice-stable;
   trim cuts base + raw WebM (audio-only,
   re-stamped or honestly dropped — I19), clears the baked stamp, forces full re-bake; post-trim voice re-apply works.
   H13 (2026-07-12): saveLast* throw on size/IDB failure + return persisted meta; stamps/signals only from that meta.
   BUG-038/H14: background owns terminal transcript persistence + 125s watchdog; tab close cannot drop success/timeout (browser QA PASS).
 Editing arc CLOSED: v5.6 audio → v5.7 splice → v5.8 timeline → v5.9 atomic trim → v5.10 raw-WebM trim (both QA PASS).
-Hardening v2.12: H8 RESOLVED + browser QA PASS; H13 + H14/BUG-038 resolved; H10 deferred.
-Risks: R13 closed by H13; R14 I16; R15 two-view draft; R16 trim multi-store window (3–4 stores); R17 by H14.
-Extension points v1.14. ADRs 0001–0006 Accepted; v5.11 adds one IDB class + two DB requests, no context/pipeline.
-Next: run v5.11 browser matrix; then scope v6.0. Read architecture-map.md then /architecture-hardening resume.
+Hardening v2.13: H8/H13/H14 fully closed; v5.11 prefs QA PASS; H10 deferred; R18 mitigated.
+Extension points v1.15. ADRs 0001–0006 Accepted; v5.11 adds one IDB class + two DB requests, no context/pipeline.
+Next: merge v5.11.0 → main + tag/notes; then scope v6.0. Read architecture-map.md then /architecture-hardening resume.
 ```

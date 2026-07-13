@@ -7,19 +7,21 @@
 
 Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice** work. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean. Real-browser checklist **all PASS**.
 
-## ▶ Current — **v5.11.0 preferences full-IDB migration (browser QA pending)**
+## ▶ Current — **v5.11.0 preferences full-IDB migration (browser QA PASS · merge-ready)**
 
-**Branch:** `feature/v5.11.0-prefs-storage-refactor` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md)
+**Branch:** `feature/v5.11.0-prefs-storage-refactor` @ `ebca7cb` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md)
 
-**Implemented:** preserved `user-preferences.ts` API + BUG-023 queue; full `rvnUserPrefs` IndexedDB (`global`, `profiles`, `customStyles`); signal-only `rvnUserPrefs.v2`; transparent Reddit content-script → background IDB load/replace requests; delete-after-success/retryable v1 migration; transcript-result stripping; JSON Export/Import in the Studio profile cluster; per-save size telemetry/dev warnings; ADR-0006 and architecture map v3.0.
+**Implemented:** preserved `user-preferences.ts` API + BUG-023 queue; full `rvnUserPrefs` IndexedDB (`global`, `profiles`, `customStyles`); signal-only `rvnUserPrefs.v2`; transparent Reddit content-script → background IDB load/replace requests; delete-after-success/retryable v1 migration; transcript-result stripping; JSON Export/Import in the Studio profile cluster; per-save size telemetry/dev warnings; ADR-0006 and architecture map **v3.1**.
 
 **Automated:** `test-user-prefs-storage.mjs` **12/12** · `npm run build` **PASS** · `npm run compile` only the same **2 pre-existing** subtitle errors.
 
-**Manual gate:** fresh install; large v1 upgrade; forced migration failure/retry; profile/style create/update/apply/delete; popup/recorder hot-swap; Export→Import; DevTools rows; confirm the old large local blob is removed. Full matrix is roadmap §9.
+**Real-browser QA (2026-07-13):** **PASS · blockers none.** Checklist `.ignore/QA-5.11.0/qa-checklist.md` — fresh install, v1 upgrade (real + planted), profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools rows, size telemetry, product smoke all ■. §3 force-fail ▲ PARTIAL accepted (fallback verified; Node covers inject). §14 skipped (H8 closed). No post-QA code fixes.
 
-## Follow-up — **after v5.11 browser QA · scope v6.0**
+**Merge next:** branch → `main` (user-owned push) · tag / release notes for **v5.11.0** · then scope **v6.0**.
 
-**H8 is fully closed** (code + browser QA PASS — user confirmed A→B: hard-reload mid-transcode → mutate/nuke resume-time prefs → recovery still uses capture-time voice). No H8 re-run is required for v5.11 (prefs storage is orthogonal to take-owned `captureVoiceIntent`). After v5.11 prefs browser matrix PASS, scope **v6.0 "Polish & Visual Maturity"**.
+## Follow-up — **after v5.11 merge · scope v6.0**
+
+**H8 is fully closed** (code + browser QA PASS). **v5.11 prefs browser matrix PASS 2026-07-13.** After merge/tag of v5.11.0, scope **v6.0 "Polish & Visual Maturity"**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
 ## Hardening closed (2026-07-12) — **no version bump**
 
@@ -50,4 +52,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**v5.11 prefs IDB implemented (browser QA pending); H8 + H13 + H14/BUG-038 fully closed (code + browser QA PASS)** — **map v3.0 · extension-points v1.14 · hardening backlog v2.12 · ADRs 0001–0006**. Only residual manual gate: v5.11 prefs matrix; H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**v5.11 prefs IDB browser QA PASS (2026-07-13) · merge-ready; H8 + H13 + H14/BUG-038 fully closed** — **map v3.1 · extension-points v1.15 · hardening backlog v2.13 · ADRs 0001–0006**. H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

@@ -30,10 +30,10 @@ Authoritative references:
 
 **QA note (accepted, not a defect):** manual DevTools delete of `rvnLastRecording` can leave the open path stale until a full extension reload — normal users never nuke IDB by hand.
 
-## v5.11.0 preferences storage refactor — **IMPLEMENTED · browser QA pending (2026-07-12)**
+## v5.11.0 preferences storage refactor — **IMPLEMENTED · browser QA PASS (2026-07-13) · merge-ready**
 
-**Branch:** `feature/v5.11.0-prefs-storage-refactor` from H8 commit `ad534df` · **Package:** `5.11.0` · **Decision:** ADR-0006
-**Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md)
+**Branch:** `feature/v5.11.0-prefs-storage-refactor` from H8 commit `ad534df` · QA build `ebca7cb` · **Package:** `5.11.0` · **Decision:** ADR-0006  
+**Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · checklist `.ignore/QA-5.11.0/qa-checklist.md`
 
 The public `UserPreferencesV1`/`USER_PREFS_VERSION` contract stays v1. Durable truth now lives in extension-origin `rvnUserPrefs` IndexedDB: one `global` row plus per-entity `profiles` and `customStyles` rows, replaced in one transaction under the existing `enqueuePrefsOp` choke point. `rvnUserPrefs.v2` local is a schema/migration marker + monotonic revision signal only, published after IDB commits. Profiles retain normalized `voiceEffectConfig` + profile-safe `transcriptConfig`; session transcript result text is stripped at the split boundary.
 
@@ -41,9 +41,15 @@ Reddit content scripts cannot access extension IDB, so the thin wrapper transpar
 
 Migration is one-time and safe: valid v1 blob → normalize → IDB transaction → coordinator/theme publish → remove v1. An injected IDB failure returns and retains v1; the next load retries. Studio profile management now includes versioned JSON Export/Import with validation/normalization, replacement confirmation, and subtitle-flag rollback on failed import. Every save logs UTF-8 row sizes; dev warns above 256 KiB total / 64 KiB record.
 
-**Verification:** `test-user-prefs-storage.mjs` **12/12** (split/strip/size, atomic replace/delete, failed write, migration/retry, Export/Import, invalid import no-write, Reddit relay) · `npm run build` **PASS** · `npm run compile` only 2 pre-existing subtitle diagnostics. **Manual pending:** roadmap §9 fresh/upgrade/failure/profile-style/hot-swap/Export-Import/DevTools matrix.
+**Automated:** `test-user-prefs-storage.mjs` **12/12** · `npm run build` **PASS** · `npm run compile` only 2 pre-existing subtitle diagnostics.
 
-**Architecture:** map **v3.0** · extension-points **v1.14** · backlog **v2.11** · ADRs 0001–0006.
+**Real-browser QA (2026-07-13, Chrome, `.output/chrome-mv3-dev/`):** **PASS · blockers none.** Fresh install, real + planted v1 upgrade, profile/style CRUD, cross-context hot-swap, Reddit cold-load relay + capture smoke, Export/Import happy + reject, DevTools per-entity rows, size telemetry, product smoke all ■. §3 migration force-fail ▲ PARTIAL accepted (fallback path + Node inject; full browser force-fail impractical). §14 skipped (H8 already closed). Evidence under `.ignore/QA-5.11.0/`. **No post-QA code fixes.**
+
+**Accepted follow-ups (not merge gates):** optional Import merge/union mode → [`docs/future-ideas.md`](docs/future-ideas.md).
+
+**Architecture:** map **v3.1** · extension-points **v1.15** · backlog **v2.13** · ADRs 0001–0006.
+
+**Next:** merge branch → `main` (user-owned push); tag / release notes for **v5.11.0**; then scope **v6.0**.
 
 ## H13 + H14/BUG-038 hardening — **MERGED to main (2026-07-12) · no version bump**
 
@@ -82,9 +88,9 @@ Map **v2.11** · extension-points **v1.12** · backlog **v2.9** · bug-archive B
 
 ### Other open work
 
-1. **▶ Next: v5.11 prefs browser matrix** (see `.ignore/QA-5.11.0/qa-checklist.md`).
+1. **▶ Next: merge v5.11.0** (`feature/v5.11.0-prefs-storage-refactor` → `main`) — browser QA PASS 2026-07-13; then tag / release notes.
 2. Then scope **v6.0 “Polish & Visual Maturity”** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
-3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10).
+3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10 / v5.11).
 
 ## H8 recovery voice provenance — **RESOLVED + browser QA PASS · no version bump**
 
@@ -114,4 +120,4 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE** (superseded by H13/H14 merge above)
 
-Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; residual manual gate is v5.11 prefs browser QA before scoping v6.0.
+Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs browser QA PASS — merge next, then scope v6.0.

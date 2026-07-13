@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.14 · **Updated:** 2026-07-12 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` implementation
+**Version:** v1.15 · **Updated:** 2026-07-13 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` · **browser QA PASS**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.14 — **preferences storage v2 seam:** full `UserPreferencesV1` truth moves to `rvnUserPrefs` IDB (`global`/`profiles`/`customStyles`), published through signal-only `rvnUserPrefs.v2`; v1 migration is retryable/delete-after-success. Reddit content scripts use background load/replace requests; Studio gains Export/Import and size telemetry. ADR-0006; 12 focused checks; browser QA pending. v1.13 — **H8 recovery provenance:** the Take lifecycle seam gains optional `captureVoiceIntent` (normalized voice config + id-free key) written before render; recovery consumes it and promotes `TakeVoiceStamp`, while legacy drafts use current prefs with a visible note. No new writer/store/key/message/context. v1.12 — **BUG-038 / message pipelines v3:** an accepted transcribe job's terminal persistence and 125 s watchdog now belong to background, not the initiating tab. `TranscribeStartRequest` carries optional duration for failure scaffolding; cancelled/superseded/late jobs cannot publish. No new family/store/key/UI. v1.11 — **H13 shipped:** the Storage seam's persist-before-publish rule is now enforced by the stores themselves — `saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording` throw on unpersistable size + IDB failure and return the authoritative persisted meta (`LAST_BASE_MP4_*` / `LAST_BAKED_MP4_*` bounds exported alongside the v5.10 recording bounds); all four mutation choke points stamp/signal only from that meta (`TakeBakeResult.savedAt` added for the bake path). No seam/contract shape change beyond the save return type. Earlier history remains in git.
+**Changelog:** v1.15 — **v5.11 prefs browser QA PASS** (2026-07-13): fresh/upgrade/relay/Export-Import/DevTools matrix closed; no seam contract change. v1.14 — **preferences storage v2 seam:** full `UserPreferencesV1` truth moves to `rvnUserPrefs` IDB (`global`/`profiles`/`customStyles`), published through signal-only `rvnUserPrefs.v2`; v1 migration is retryable/delete-after-success. Reddit content scripts use background load/replace requests; Studio gains Export/Import and size telemetry. ADR-0006; 12 focused checks; browser QA pending. v1.13 — **H8 recovery provenance:** the Take lifecycle seam gains optional `captureVoiceIntent` (normalized voice config + id-free key) written before render; recovery consumes it and promotes `TakeVoiceStamp`, while legacy drafts use current prefs with a visible note. No new writer/store/key/message/context. v1.12 — **BUG-038 / message pipelines v3:** an accepted transcribe job's terminal persistence and 125 s watchdog now belong to background, not the initiating tab. `TranscribeStartRequest` carries optional duration for failure scaffolding; cancelled/superseded/late jobs cannot publish. No new family/store/key/UI. v1.11 — **H13 shipped:** the Storage seam's persist-before-publish rule is now enforced by the stores themselves — `saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording` throw on unpersistable size + IDB failure and return the authoritative persisted meta (`LAST_BASE_MP4_*` / `LAST_BAKED_MP4_*` bounds exported alongside the v5.10 recording bounds); all four mutation choke points stamp/signal only from that meta (`TakeBakeResult.savedAt` added for the bake path). No seam/contract shape change beyond the save return type. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -451,7 +451,8 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.14 (2026-07-12), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0 implementation. Map v3.0.
+Extension points v1.15 (2026-07-13), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0.
+Map v3.1 · v5.11 browser QA PASS · merge-ready.
 Seams: voice v5 · subtitle/font v1 · messages v3 · storage v1 · theme/Studio/live-mic v1 ·
 overlay backbone v1 · take lifecycle v1 · capture host v1 · audio editing/re-apply v1 ·
 partial splice v1 · timeline editor v1. No new seam/context/store/message in v5.9/v5.10.
@@ -467,7 +468,7 @@ live/baseline cue shift + intent/stale-stamp clear in ONE take write; next bake 
 post-trim voice re-apply available when rawAudio === 'trimmed' (emergent Voice panel).
 Storage rule (H13 ENFORCED): saveLast* throw on size/IDB failure and return persisted meta;
 stamps/signals build only from that meta (all three stores export *_MIN/MAX_BYTES bounds).
-Prefs v2: rvnUserPrefs IDB owns global/profiles/customStyles; rvnUserPrefs.v2 is signal-only;
+Prefs v2 (QA PASS): rvnUserPrefs IDB owns global/profiles/customStyles; rvnUserPrefs.v2 is signal-only;
 Reddit content scripts use background LOAD/REPLACE requests; all mutations stay under enqueuePrefsOp.
 Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
 one-shot question → query message. New editing UI → reuse the edit/dirty/trim seams, don't add a wire.

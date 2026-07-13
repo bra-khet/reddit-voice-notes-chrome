@@ -1,8 +1,8 @@
 # ADR-0006: Store user preferences fully in IndexedDB
 
-- **Status:** Accepted
+- **Status:** Accepted · **browser QA PASS 2026-07-13** (merge-ready)
 - **Date:** 2026-07-12
-- **Reflects branch/tag:** `feature/v5.11.0-prefs-storage-refactor` @ `ad534df`
+- **Reflects branch/tag:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` (QA build `ebca7cb`)
 - **Deciders:** v5.11.0 preferences-storage sprint
 
 ## Context
@@ -33,7 +33,7 @@ Store the full preference snapshot in a dedicated `rvnUserPrefs` IndexedDB with 
 
 - **Positive:** Profiles/styles become clean expandable records; the three-store snapshot commits atomically; cross-context listeners observe a post-commit revision; migration and import reuse canonical normalization.
 - **Negative / accepted cost:** Every preference load opens/reads IDB, and each save replaces at most 25 small records. Content-script calls serialize the structured snapshot across one background request. A generic storage repository, diff writer, and progress/chunk relay are deliberately rejected because current caps do not justify them.
-- **Follow-ups:** Ship migration fallback, Export/Import, size telemetry, storage-map/extension-point updates, and manual fresh/upgrade/failure QA from the v5.11.0 roadmap.
+- **Follow-ups:** Migration fallback, Export/Import, size telemetry, and architecture map/seam updates shipped with implementation. **Manual browser matrix PASS 2026-07-13** (roadmap §9 / `.ignore/QA-5.11.0/`). Optional future: Import merge/union mode (`docs/future-ideas.md`) — not a v5.11 requirement.
 
 ## References
 

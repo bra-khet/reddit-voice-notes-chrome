@@ -1,9 +1,9 @@
 # Hardening Backlog — Reddit Voice Notes
 
-**Version:** v2.12 · **Updated:** 2026-07-13 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` implementation
+**Version:** v2.13 · **Updated:** 2026-07-13 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` · **browser QA PASS**
 **Status:** Ranked hardening items for the current standalone editing suite. Each item cites
 evidence, ROI, blast radius, and explicit non-goals. Scored: `(impact × bug_likelihood) ÷ cost`.
-**Changelog:** v2.12 (2026-07-13) — **H8 browser QA PASS** recorded (user confirmed A→B hard-reload mid-transcode → mutate/nuke resume-time prefs → recovery still uses capture-time voice). Docs had left “re-run pending” after code land; no re-test required for v5.11 (prefs IDB is orthogonal to take-owned `captureVoiceIntent`). v2.11 (2026-07-12) — v5.11 full-IDB preferences adds R18; browser matrix remains the residual gate for prefs only. v2.10 (2026-07-12) — H8 RESOLVED in code. Earlier history remains in git.
+**Changelog:** v2.13 (2026-07-13) — **v5.11 prefs browser QA PASS**; R18 residual gate closed (merge-ready). v2.12 (2026-07-13) — **H8 browser QA PASS** recorded (user confirmed A→B hard-reload mid-transcode → mutate/nuke resume-time prefs → recovery still uses capture-time voice). Docs had left “re-run pending” after code land; no re-test required for v5.11 (prefs IDB is orthogonal to take-owned `captureVoiceIntent`). v2.11 (2026-07-12) — v5.11 full-IDB preferences adds R18; browser matrix remains the residual gate for prefs only. v2.10 (2026-07-12) — H8 RESOLVED in code. Earlier history remains in git.
 
 Items are updated in place. Add new items here; never fork to `hardening-backlog-v2.md`.
 
@@ -327,7 +327,7 @@ direct-runtime/content-tab split is intentional and working.
 | R15 | Timeline/List two-view edits desync — an edit in one view lost because the other's stale DOM is read on Apply (dirty-state collapse) | Med | Silent loss of a cue edit | `captureActiveDraft()` reads the List DOM only when List is active; Timeline writes straight to `modalDraft` (Sprint-3 fix, QA PASS) | Any NEW view onto the cue draft must route through the same capture discipline — the review checklist for editor changes |
 | R16 | Another take begins during trim apply's final multi-store commit; base (and optional raw WebM) writes are H6-safe but the single-slot transcript has no `takeId` ownership | Low | New take may briefly inherit shifted cues from the prior take; trim caller may report success after `expectId` returns null | Long transform happens before a superseded guard; remaining race is base-save → (optional recording-save) → transcript-save → take-patch; H6 prevents wrong base/recording adoption; raw-leg size pre-check avoids unpersistable stamps (I19) | Keep explicit; if concurrency expands or reproduces, add transcript ownership/CAS. Do not invent cross-database transactions preemptively |
 | R17 | A closable page is the only owner of a pipeline's terminal save/timeout | ~~High~~ **Mitigated** | Worker reports success but durable state never lands; UI remains Pending | **H14 / BUG-038:** background owns transcribe terminal context, commit, ready publication, and watchdog; cancel/supersession retires context | Closed for transcribe. Apply the message-v3 terminal-owner rule to any future recoverable pipeline |
-| R18 | Preferences split across migration state, coordinator notification, or a host-origin content-script DB | Med | Recorder/Studio observe different profiles or the legacy copy is removed before durable v2 data exists | **ADR-0006 / I21:** all truth in one extension-IDB transaction; coordinator written last; v1 removed last; failed migration retains v1; Reddit wrappers call background direct helpers; 12 focused checks | Run fresh/upgrade/forced-failure/recorder-hot-swap/DevTools browser matrix before release; keep confidence Med until pass |
+| R18 | Preferences split across migration state, coordinator notification, or a host-origin content-script DB | ~~Med~~ **Mitigated** | Recorder/Studio observe different profiles or the legacy copy is removed before durable v2 data exists | **ADR-0006 / I21:** all truth in one extension-IDB transaction; coordinator written last; v1 removed last; failed migration retains v1; Reddit wrappers call background direct helpers; 12 focused checks | **Browser matrix PASS 2026-07-13** (fresh/upgrade/hot-swap/relay/Export-Import/DevTools). §3 force-fail PARTIAL accepted (fallback + Node inject). Closed for release; watch new writers bypassing `enqueuePrefsOp` |
 
 ---
 
@@ -354,7 +354,8 @@ direct-runtime/content-tab split is intentional and working.
 ## Resume in a new chat (carry-forward)
 
 ```
-Hardening backlog v2.12 (2026-07-13), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0 implementation.
+Hardening backlog v2.13 (2026-07-13), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0.
+v5.11 prefs browser QA PASS — merge-ready.
 DONE: H6 stamp verification; H7 doc drift; H9 browser composite default-on;
 H11 concurrent capture QA; H12 Studio progress = direct runtime broadcast;
 H13 persist-before-stamp — all three saveLast* throw on size/IDB failure and return
@@ -367,8 +368,9 @@ H8 RESOLVED + browser QA PASS — captureVoiceIntent is durable before transcode
   legacy drafts. Node 37/37 + 13/13; user A→B hard-reload + mutate/nuke prefs confirmed
   capture-time voice. No H8 re-run for v5.11 (prefs IDB orthogonal).
 DEFERRED: H10 fallback observability (user decision); H5 binary/cap restoration.
-Mitigated risks: R13 by H13; R14 by I16; R15 by captureActiveDraft; R17 by H14; R18 by ADR-0006/I21 (prefs browser gate open).
+Mitigated risks: R13 by H13; R14 by I16; R15 by captureActiveDraft; R17 by H14;
+  R18 by ADR-0006/I21 + browser QA PASS 2026-07-13.
 R16: narrow 3–4 store trim commit window; H6 protects base/recording; transcript lacks takeId.
-Editing arc closed; next product candidate: v6 visual maturity after v5.11 prefs browser matrix.
+Editing arc closed; next product candidate: v6 visual maturity after v5.11.0 merge.
 v5.11 adds ADR-0006, one structured IDB class, signal-only coordinator, and two bounded DB requests; no context/progress pipeline.
 ```
