@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-12 · **Reflects:** `main` @ tagged `v5.10.0` + H13/H14 hardening (browser QA PASS, merged; no version bump) · **Map:** v2.11 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-12 · **Reflects:** `feature/h8-recovery-voice-provenance` @ tagged `v5.10.0` + H13/H14 · **Map:** v2.12 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,9 +12,9 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I20, confidence ledger, and six money-path traces including BUG-038 tab-close transcript recovery | v2.11 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: message pipelines v3 (durable terminal owner), storage (H13 persist-before-publish ENFORCED), Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.12 |
-| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H13 + H14/BUG-038 fully resolved (browser QA PASS); H8 recovery voice open; H10 deferred; R13/R17 mitigated | v2.9 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I20, confidence ledger, and recovery traces including H8 voice provenance | v2.12 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: message pipelines v3, H13 storage rule, H8 capture intent, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.13 |
+| [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 resolved in code; H10 deferred; R13/R17 mitigated | v2.10 |
 | `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) (Accepted, v5.3.10) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) (Accepted, v5.4.0) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) (Accepted, v5.5.0) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) (Accepted, v5.6.0) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) (Accepted, v5.7.0 — execution behind flag, **default on**) | — |
 
 ---
@@ -71,7 +71,7 @@ This directory holds the **living, versioned** architecture index for the extens
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes, main @ tagged v5.10.0 + H13/H14 hardening merged. Architecture map v2.11.
+Repo: Reddit Voice Notes, feature/h8-recovery-voice-provenance @ tagged v5.10.0 + H13/H14. Architecture map v2.12.
 Six contexts unchanged; primary subtitle bake is direct browser composite, with permanent FFmpeg fallbacks.
 Editing arc CLOSED at raw-trim apply: preview=APPLY (I18), dual cue shift, base + raw WebM cut together
 (audio-only; baseRecording re-stamped or honestly dropped — I19); post-trim voice re-apply works.
@@ -79,8 +79,9 @@ H13 RESOLVED + browser QA PASS: saveLast* throw on size/IDB failure + return per
 mutation choke points stamp/signal only from that meta; H6 reads untouched; test-artifact-store-writes.mjs 28.
 H14/BUG-038 RESOLVED + browser QA PASS: background owns terminal transcript commit + 125s watchdog;
 Node 12/12; tab-close mid-processing delivers transcript/scaffold. No retry UI (Vosk already succeeded).
-Open hardening: H8 recovery voice provenance (Med/S). H12 Studio progress = direct runtime broadcast.
+H8 RESOLVED in code: captureVoiceIntent is persisted before transcode; recovery reuses it and stamps the result.
+Legacy drafts retain current-prefs recovery with a visible note. Browser A→B repro re-run remains acceptance QA.
 Risks: R13 closed by H13; R14 verified splice, R15 two-view draft, R16 trim multi-store window (3–4 stores); R17 by H14.
-Read architecture-map.md, extension-points.md v1.12, hardening-backlog.md v2.9.
+Read architecture-map.md, extension-points.md v1.13, hardening-backlog.md v2.10.
 Next product: v6.0 visual maturity (unscoped). No version bump for this hardening merge.
 ```

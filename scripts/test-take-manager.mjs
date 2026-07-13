@@ -401,6 +401,36 @@ const VOICE_STAMP = {
   revision: 0,
 };
 
+// BUG FIX: H8 recovery voice provenance
+// Fix: cover the additive pre-render intent independently from TakeVoiceStamp.
+// Sync: parseCurrentTake / mergeTakePatch in take-manager.ts.
+const CAPTURE_VOICE_INTENT = {
+  intentKey: '{"enabled":true,"intensity":10,"turbo":false,"kind":"character","characterPresetId":"gremlin"}',
+  config: { enabled: true, characterPresetId: 'gremlin', intensity: 10, turbo: false },
+};
+
+check('capture voice intent round-trips before a rendered voice stamp exists', () => {
+  const parsed = parseCurrentTake(
+    validTake({ captureVoiceIntent: CAPTURE_VOICE_INTENT, voice: undefined }),
+  );
+  assert.equal(parsed.captureVoiceIntent.intentKey, CAPTURE_VOICE_INTENT.intentKey);
+  assert.equal(parsed.captureVoiceIntent.config.characterPresetId, 'gremlin');
+  assert.equal(parsed.voice, undefined);
+});
+
+check('malformed capture voice intent drops silently, never the snapshot', () => {
+  for (const bad of [
+    { ...CAPTURE_VOICE_INTENT, intentKey: '' },
+    { ...CAPTURE_VOICE_INTENT, config: 'gremlin' },
+    { ...CAPTURE_VOICE_INTENT, config: [] },
+    ['not', 'an', 'intent'],
+  ]) {
+    const parsed = parseCurrentTake(validTake({ captureVoiceIntent: bad }));
+    assert.notEqual(parsed, null);
+    assert.equal(parsed.captureVoiceIntent, undefined);
+  }
+});
+
 check('voice stamp round-trips; fallback flag preserved', () => {
   const parsed = parseCurrentTake(validTake({ voice: { ...VOICE_STAMP, fallback: true } }));
   assert.equal(parsed.voice.intentKey, VOICE_STAMP.intentKey);
@@ -447,6 +477,19 @@ check('mergeTakePatch: voice replaces atomically; absent patch keeps prior', () 
   assert.equal(next.voice.origin, 'reapply');
   const kept = mergeTakePatch(take, { status: 'baked' }, NOW);
   assert.equal(kept.voice.revision, 0);
+});
+
+check('mergeTakePatch: capture voice intent replaces atomically; absent patch keeps prior', () => {
+  const take = parseCurrentTake(validTake({ captureVoiceIntent: CAPTURE_VOICE_INTENT }));
+  const changed = {
+    intentKey: '{"enabled":false,"intensity":10,"turbo":false,"kind":"none"}',
+    config: { enabled: false, intensity: 10, turbo: false },
+  };
+  const next = mergeTakePatch(take, { captureVoiceIntent: changed }, NOW);
+  assert.equal(next.captureVoiceIntent.intentKey, changed.intentKey);
+  assert.equal(next.captureVoiceIntent.config.enabled, false);
+  const kept = mergeTakePatch(take, { status: 'processing' }, NOW);
+  assert.equal(kept.captureVoiceIntent.intentKey, CAPTURE_VOICE_INTENT.intentKey);
 });
 
 check('mergeTakePatch: edits merge per-field; null clears trim', () => {

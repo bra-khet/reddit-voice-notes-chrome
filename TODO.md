@@ -7,17 +7,17 @@
 
 Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice** work. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean. Real-browser checklist **all PASS**.
 
-## ▶ Next — **H8 recovery voice provenance** (before v6.0)
+## ▶ Next — **H8 browser acceptance, then scope v6.0**
 
-**Status:** **OPEN · next sprint** · backlog item in [`docs/architecture/hardening-backlog.md`](docs/architecture/hardening-backlog.md) § H8 · **no version bump** expected.
+**H8 status:** **RESOLVED in code · manual A→B repro re-run pending** on `feature/h8-recovery-voice-provenance`. Hardening only — package stays **5.10.0**.
 
-**What it is:** When a draft has raw WebM but no base MP4 and the *original* transcode is gone (`inflight === false`), `studio-take-recovery.ts` starts a **new** WebM→MP4 with `loadUserPreferences().voiceEffect` **at resume time**. Capture-time voice is not on the interrupted draft (`TakeVoiceStamp` only lands on successful `ready`). User-confirmed repro (2026-07-12): extension hard-reload mid-transcode → edit `rvnUserPrefs.voiceEffect` in DevTools → reopen Studio → resume uses the **edited** voice.
+**Implemented:** optional JSON-safe `captureVoiceIntent` (normalized config + id-free key) is persisted on `beginTake` and refreshed in the awaited stop-time pre-transcode patch. The original job renders that same config. Recovery prefers the captured intent, then promotes `TakeVoiceStamp` (including voice fallback) with `ready`. Legacy drafts still use current prefs and now show an honest ready-deck note.
 
-**Practical exposure today:** Very narrow. Normal tab-close keeps the original job (orphan persist = stop-time voice). Voice prefs are written from Design Studio (`saveVoiceEffectPreferences`); opening Studio also runs recovery, so a normal user rarely changes prefs *before* resume without DevTools. Hardening still worth doing: capture intent on the take snapshot so recovery cannot silently drift if prefs change (future surfaces, multi-page, crash + later edit).
+**Automated:** take-manager **37/37** · take-deck **13/13** · `npm run build` **PASS** · `tsc` only the same **2 pre-existing** subtitle errors.
 
-**Fix sketch (from backlog):** optional JSON-safe capture voice intent at `beginTake` (or stop); recovery prefers that config and promotes `TakeVoiceStamp` on resume success; legacy drafts without the field keep current-prefs + honest note.
+**Manual acceptance:** capture with voice A → hard-reload extension mid-transcode → edit `rvnUserPrefs.voiceEffect` to B in DevTools → reopen Studio → recovered MP4 must sound like A. For a deliberately legacy draft without `captureVoiceIntent`, current voice is allowed but the deck must disclose it.
 
-**After H8:** scope **v6.0 "Polish & Visual Maturity"** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
+**After acceptance:** scope **v6.0 "Polish & Visual Maturity"** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
 
 ## Hardening closed on main (2026-07-12) — **no version bump**
 
@@ -49,4 +49,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS)** — **map v2.11 · extension-points v1.12 · hardening backlog v2.9 · ADRs 0001–0005**. Persist-before-stamp enforced; background owns terminal transcript delivery after tab close. **Next open item: H8** (recovery voice provenance — user-confirmed via hard-reload + DevTools prefs edit). **H10** deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**H8 resolved in code; H13 + H14/BUG-038 merged (2026-07-12)** — **map v2.12 · extension-points v1.13 · hardening backlog v2.10 · ADRs 0001–0005**. Recovery voice is now take-owned before render; persist-before-stamp and background transcript terminal ownership remain enforced. **H8 browser repro re-run pending; H10 deferred.** Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).

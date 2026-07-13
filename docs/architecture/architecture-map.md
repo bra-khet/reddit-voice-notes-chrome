@@ -1,11 +1,12 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v2.11 · **Reflects branch/tag:** `main` @ tagged `v5.10.0` + H13/H14 hardening (merged) · **Updated:** 2026-07-12
+**Version:** v2.12 · **Reflects branch/tag:** `feature/h8-recovery-voice-provenance` @ tagged `v5.10.0` + H13/H14 · **Updated:** 2026-07-12
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v2.12` (2026-07-12) — **H8 recovery voice provenance resolved in code** (no product version bump). The take snapshot gains optional, JSON-safe `captureVoiceIntent`; recorder writes it at begin and refreshes it in the awaited pre-transcode stop patch, then recovery prefers it over mutable prefs and promotes the successful/fallback render to `TakeVoiceStamp`. Legacy drafts retain current-prefs behavior with a visible deck note. Updated state ownership, Trace B, confidence, and carry-forward. TakeManager 37/37; deck 13/13; build PASS. Extension-points **v1.13** · backlog **v2.10**. No new context, message family, storage key/store, writer, or ADR.
 - `v2.11` (2026-07-12) — **H13 + H14/BUG-038 browser QA PASS** and merge to `main` (no product version bump). I20 + Trace F confidence raised to High (single machine); confidence ledger rows for transcribe/recovery/H13 updated; backlog **v2.9**. No code change in this map revision.
 - `v2.10` (2026-07-12) — H13 QA item 7 / **BUG-038**: fixed the tab-close transcript loss exposed after artifact recovery passed. Vosk/offscreen was successful; the initiating page owned the second-step transcript save and its timeout, so both disappeared on teardown. Background now owns accepted-job terminal context (`durationSeconds`/language), a 125 s completion watchdog, success/failure normalization, IDB commit, and ready publication. Cancelled/superseded/late jobs are excluded. Added I20 + Trace F; message/state sections and confidence ledger corrected. No new execution context, store, storage key, or message family; `TranscribeStartRequest` gained one optional duration field. Retry UI rejected as symptom-masking because the supplied audio and Vosk result were healthy. Extension-points **v1.12** · backlog **v2.8**.
 - `v2.9` (2026-07-12) — hardening triage applied: **H13 shipped** (`feature/h13-persist-before-stamp`). All three single-slot artifact saves (`saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording`) throw on unpersistable size + IDB failure and return the authoritative persisted meta; the four mutation choke points (background relay ×3 sites, subtitle bake via new optional `TakeBakeResult.savedAt`, voice re-apply, trim apply) stamp/signal only from that meta. Trim raw leg's IDB-failure half of I19 closed (save failure → honest stamp drop). H6 reads untouched; no new context/message/storage-key/writer. New Node suite `test-artifact-store-writes.mjs` (28). Confidence ledger + open question 1 updated; backlog **v2.7**.
@@ -273,6 +274,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | Datum | Where | Single writer / choke point |
 |-------|-------|------------------------------|
 | `rvn.take.current` | `chrome.storage.local` | **TakeManager** (`src/session/take-manager.ts`) — recorder session owns capture transitions, background merges artifact stamps, Studio bake promotes to `baked`. Same-context writes serialized; `sessionEpoch` guards sub-second races |
+| Capture-time voice intent | Optional `captureVoiceIntent` inside `rvn.take.current` | **Recorder session** writes normalized config + id-free key at `beginTake`, then refreshes the exact stop-time config in the awaited pre-transcode patch. Recovery reads it; TakeManager remains dependency-free and parses it as an opaque JSON object (H8) |
 | Current Vosk transcript / failure scaffold | `rvnSessionTranscript` IDB + `rvn.sessionTranscript.ready` signal | **Background terminal transcribe owner** (`entrypoints/background.ts` → `saveSessionTranscript`) after offscreen COMPLETE/watchdog. The initiating page is not required after ACK (BUG-038) |
 | `experimental.webCodecsBake` / `parallelBake` | `rvnUserPrefs` | `enqueuePrefsOp`; **default true since v5.4.0** (`resolveOverlayBakeEncoder`, one-time rollout migration — `user-preferences.ts:191,329`) |
 | Encoded segment metadata | in-memory per bake | `src/encoding/encoded-segment.ts` (`EncodedOverlaySegmentMeta`) — telemetry + future editing primitive; not persisted |
@@ -328,10 +330,11 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 
 1. Tab closes during `processing` → `pagehide` auto-draft; snapshot may persist as phantom `processing`
 2. Reopen Studio → `studio-take-recovery.ts`: `reconcileInterruptedProcessing()` + `MSG_QUERY_TRANSCODE_INFLIGHT` → if inflight: wait (background will `persistOrphanStudioTranscodeResult`); if idle: demote to `draft`
-3. Draft with `baseRecording` stamp but no `baseMp4` → `resumeDraftTranscodeInner`: load WebM from `rvnLastRecording` (≥256 bytes) → re-transcode with **current** `prefs.voiceEffect` → `relaySaveLastBaseMp4` → take → `ready`
-4. Reddit attach mode available again (never-baked takes attach their base MP4)
+3. Draft with `baseRecording` stamp but no `baseMp4` → `resumeDraftTranscodeInner`: H6-verify and load WebM from `rvnLastRecording` (≥256 bytes) → re-transcode with `take.captureVoiceIntent.config` → `relaySaveLastBaseMp4` → atomically promote `ready` + capture-origin `TakeVoiceStamp` (including fallback)
+4. Legacy draft without `captureVoiceIntent` → retain current-prefs transcode, but persist a visible ready-deck note disclosing that fallback
+5. Reddit attach mode available again (never-baked takes attach their base MP4)
 
-**Code verified at:** `studio-take-recovery.ts:44-70`. Hardening applied here 2026-07-06 (H6): resume now cross-checks the draft's `baseRecording` stamp against `recording.meta` before adopting the WebM, demoting the stamp on mismatch. Remaining seam: resume re-applies *current* voice prefs rather than capture-time settings (H8, v5.4.x patch).
+**Code verified at:** `voice-recorder.ts` `beginTakeTracking` / stop pre-transcode patch / `transcodeToMp4`, `take-manager.ts` additive parser/merge, and `studio-take-recovery.ts` `resumeDraftTranscodeInner`. H6 still rejects superseded WebM bytes before adoption; H8 now makes a restarted job voice-stable across mutable prefs. Automated: TakeManager 37/37, deck 13/13; original hard-reload + DevTools A→B repro remains the browser acceptance check.
 
 ### Trace C — personal background WYSIWYG relay (carried from v1, unchanged)
 
@@ -379,7 +382,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | TakeManager pure core (parse/merge/stale/freshness/null-delete) | **High** | Node-tested (`test-take-manager.mjs` 34); pure helpers isolated from `browser.*` |
 | Studio-native capture + live canvas | **High** | User QA checklist 1–11 PASS (2026-07-06); zero-copy contract structural |
 | WebCodecs dual-IVF + FFmpeg composite fallback | **High (single machine)** | QA PASS 2026-07-05, 8–10× render speedup; session-cached alpha calibration (`codec+dimensions+fps`) gates this fallback tier |
-| Recovery paths (tab-close, orphan transcode/transcript, inflight query) | **High (single machine)** | MP4/raw recovery QA passed; BUG-038 background transcript terminal recovery **browser QA PASS**; remaining architectural seam: H8 voice provenance |
+| Recovery paths (tab-close, orphan transcode/transcript, inflight query) | **High (single machine; H8 browser re-run pending)** | MP4/raw recovery QA passed; BUG-038 background transcript terminal recovery **browser QA PASS**; H8 capture voice intent + resumed `TakeVoiceStamp` are Node/build verified, with the original A→B hard-reload repro retained for manual acceptance |
 | Artifact stamp contract | **High** | I15 — `takeArtifactMatchesStore` enforced at all three consumers, 6 Node checks (H6, 2026-07-06) |
 | Studio-initiated transcode progress delivery | **High** | H12 resolved: `transcoder.ts` listens on `runtime.onMessage`; `transcodeSkipTabRelayByJobId` suppresses only the content-tab duplicate for extension-page senders |
 | Concurrent Studio recordings / dual-writer take races | **High** | User QA 2026-07-06: overlapping recordings capture correctly, processing serializes, first take downloadable (and downloads) while second processes; Reddit panel syncs as designed. Known accepted edge: transient window between the two completions where the status display shows the *second* take's length while the first is the downloadable one — display-only, self-corrects on second completion (backlog H11) |
@@ -455,7 +458,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA gate/result |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | **Raw-WebM trim as-built (v5.10.0):** Phase 0 closed the storage-API-name gap (`saveLastRecording`, not the planning draft's `saveLastBaseRecording`) and the H13 posture (exported bounds pre-check); §10 is the as-built log, §7 the real-browser QA gate |
 | `docs/architecture/adr/` | ADR-0001 WebCodecs backbone · ADR-0002 TakeManager storage sync · ADR-0003 composite-stage elimination (**Accepted**) · ADR-0004 audio decoupling / voice re-apply · ADR-0005 partial re-bake splice (**Accepted**, default-on) |
-| `docs/architecture/extension-points.md` | Seam registry (v1.12) |
+| `docs/architecture/extension-points.md` | Seam registry (v1.13) |
 | `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.8) |
 | `src/messaging/types.ts` | Wire registry — authoritative message constants |
 | `src/session/take-manager.ts` | Take lifecycle contract (header doc is authoritative) |
@@ -466,20 +469,21 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3/WXT), main @ tagged v5.10.0 + H13/H14 merged. Map v2.11.
+Repo: Reddit Voice Notes (Chrome MV3/WXT), feature/h8-recovery-voice-provenance @ tagged v5.10.0 + H13/H14. Map v2.12.
 Contexts (6): content / background SW / offscreen FFmpeg / Vosk sandbox / Design Studio / popup.
 Spine:
   preview=bake: direct shared painter on browser composite; timeline frame-snap I17; trim preview=APPLY I18.
   composition: bg→bars in capture; subtitles post-base. Full default = browser decode→paint→encode; FFmpeg tiers persist.
   messages: types.ts has 3 pipelines + idempotent query + chunked relays; Studio progress is direct runtime broadcast (H12).
-  state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; trim cuts base + raw WebM (audio-only,
+  state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; H8 captureVoiceIntent makes recovery voice-stable;
+  trim cuts base + raw WebM (audio-only,
   re-stamped or honestly dropped — I19), clears the baked stamp, forces full re-bake; post-trim voice re-apply works.
   H13 (2026-07-12): saveLast* throw on size/IDB failure + return persisted meta; stamps/signals only from that meta.
   BUG-038/H14: background owns terminal transcript persistence + 125s watchdog; tab close cannot drop success/timeout (browser QA PASS).
 Editing arc CLOSED: v5.6 audio → v5.7 splice → v5.8 timeline → v5.9 atomic trim → v5.10 raw-WebM trim (both QA PASS).
-Hardening v2.9: H13 + H14/BUG-038 RESOLVED + browser QA PASS + merged (no version bump);
-H8 OPEN (recovery resume-time voice); H10 deferred.
+Hardening v2.10: H8 RESOLVED in code (legacy drafts disclose current-prefs fallback); H13 + H14/BUG-038 resolved;
+H8 browser A→B repro re-run pending; H10 deferred.
 Risks: R13 closed by H13; R14 I16; R15 two-view draft; R16 trim multi-store window (3–4 stores); R17 by H14.
-Extension points v1.12. ADRs 0001–0005 Accepted; no new ADR/context/message-family/store in BUG-038.
+Extension points v1.13. ADRs 0001–0005 Accepted; no new ADR/context/message-family/store in H8.
 Next product: v6.0 visual maturity (unscoped). Read architecture-map.md then /architecture-hardening resume.
 ```

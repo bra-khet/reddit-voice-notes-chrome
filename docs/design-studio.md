@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through **v5.10.0** (2026-07-12 QA PASS). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.10, seams v1.12, backlog v2.8.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v2.12, seams v1.13, backlog v2.10.
 
 ---
 
@@ -870,7 +870,7 @@ reddit.com).
 |------|---------|-------|
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
-| Recovery voice provenance | Capture / Recovery | Architecture H8: interrupted draft resumes with current prefs because completion stamp does not exist yet |
+| ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. Browser A→B repro re-run pending |
 | v6 visual maturity | Shell / Background | Theme/background/elevation/reduced-motion audit after the functional editing arc |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
@@ -1000,6 +1000,7 @@ Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shif
 State: TakeManager owns rvn.take.current; blobs remain in H6-verified single-slot IDB stores.
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
-Open: H8 recovery voice provenance, v6 visual maturity.
-Read docs/architecture/architecture-map.md v2.11 before changing cross-context behavior.
+H8 resolved in code: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result. Legacy drafts disclose current-prefs fallback.
+Open: H8 browser A→B repro re-run, then v6 visual maturity.
+Read docs/architecture/architecture-map.md v2.12 before changing cross-context behavior.
 ```

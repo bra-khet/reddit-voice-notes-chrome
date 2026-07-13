@@ -67,13 +67,13 @@ Map **v2.11** · extension-points **v1.12** · backlog **v2.9** · bug-archive B
 
 ### Other open work
 
-1. **▶ Next: H8 recovery voice provenance** (see sprint plan entry below) — before v6.0.
+1. **▶ Next: H8 browser A→B acceptance re-run** (implementation complete below).
 2. Then scope **v6.0 “Polish & Visual Maturity”** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
 3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10).
 
-## H8 — next sprint (planned 2026-07-12) · user-confirmed repro
+## H8 recovery voice provenance — **RESOLVED in code 2026-07-12 · no version bump**
 
-**Decision:** H8 is the **next clear step before v6.0**. Not a release; branch off `main` @ v5.10.0 + H13/H14.
+**Branch:** `feature/h8-recovery-voice-provenance` from `main` @ v5.10.0 + H13/H14. Product/package remains **5.10.0**.
 
 ### Consultation / repro notes (user QA)
 
@@ -82,10 +82,21 @@ Map **v2.11** · extension-points **v1.12** · backlog **v2.9** · bug-archive B
 - **User repro:** hard-reload mid-transcode → edit `rvnUserPrefs` / `voiceEffect` in DevTools → reopen Design Studio → recovered MP4 uses the **new** voice. Confirmed this *is* H8.
 - **Why hard to hit in product UI:** voice prefs are primarily written from Design Studio (`saveVoiceEffectPreferences` in `voice-controls.ts`); opening Studio also kicks recovery. Changing prefs *before* resume without DevTools is awkward today. Practical user incidence is low; value is **correctness + future-proofing** (new settings surfaces, multi-page, crash then later prefs edit) so recovery does not silently depend on “prefs only change inside Studio after mount.”
 
-### Intended fix (backlog H8 — do not expand)
+### Implementation
 
-Optional JSON-safe capture voice intent on the take at begin/stop; recovery uses that for resume transcode and promotes `TakeVoiceStamp` on success; legacy drafts without the field keep current-prefs + honest note. Out of scope: Retry UI, multi-take history, blob storage of rendered audio.
+`CurrentTake.captureVoiceIntent` is an optional, JSON-safe additive field with normalized voice config + `voiceEffectUserIntentKey`; TakeManager parses it as an opaque object and remains dependency-free. Recorder writes it in the initial `beginTake`, then refreshes it in an **awaited atomic processing patch before transcode** and passes that exact config to the first job. Recovery prefers the take-owned config, promotes capture-origin `TakeVoiceStamp` (including FFmpeg fallback) with `ready`, and loads current prefs only for legacy drafts. The ready deck now surfaces the legacy fallback note.
+
+No Retry UI, multi-take history, rendered-audio blob, new store/key/message/context, H10 work, or v6 polish.
+
+### Verification / carry-forward
+
+- `node scripts/test-take-manager.mjs`: **37/37** (capture intent parse/malformed/merge)
+- `node scripts/test-take-deck.mjs`: **13/13** (legacy ready note visible)
+- `npm run build`: **PASS** at package 5.10.0
+- `npx tsc --noEmit`: only **2 pre-existing** subtitle errors; no H8 error
+- Manual pending: capture A → hard reload mid-transcode → set prefs B → reopen → recovered MP4 must sound like A; legacy snapshot without the field may use current prefs but must show the note
+- Architecture: map **v2.12** · extension points **v1.13** · backlog **v2.10**
 
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE** (superseded by H13/H14 merge above)
 
-Use [`TODO.md`](TODO.md) as the compact task ledger. Start H8 as its own sprint/branch.
+Use [`TODO.md`](TODO.md) as the compact task ledger. Complete H8 browser acceptance before scoping v6.0.

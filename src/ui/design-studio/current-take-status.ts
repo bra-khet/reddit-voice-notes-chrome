@@ -138,9 +138,13 @@ export function deriveTakeDeckModel(take: CurrentTake | null): TakeDeckModel {
       return {
         icon: status.complete,
         stateText: 'Take ready',
-        hint: hasBase
-          ? null
-          : 'MP4 export not found yet — it may still be relaying from the recorder.',
+        // BUG FIX: H8 recovery voice provenance
+        // Fix: surface recovery's honest legacy-prefs note on ready takes;
+        //      previously ready-state notes were stored but always hidden.
+        // Sync: studio-take-recovery.ts legacy fallback note.
+        hint:
+          take.meta.note ??
+          (hasBase ? null : 'MP4 export not found yet — it may still be relaying from the recorder.'),
         badges,
         download: { enabled: prefer !== null, label: downloadLabel, prefer },
         recordLabel: 'Re-record take',

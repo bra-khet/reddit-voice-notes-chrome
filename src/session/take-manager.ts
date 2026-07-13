@@ -87,6 +87,17 @@ export interface TakeVoiceStamp {
   fallback?: boolean;
 }
 
+// BUG FIX: H8 recovery voice provenance
+// Fix: persist the normalized, id-free voice intent before rendering so an
+//      interrupted draft can resume without consulting mutable user prefs.
+// Sync: voice-recorder.ts capture writer; studio-take-recovery.ts consumer.
+export interface TakeVoiceIntent {
+  /** voiceEffectUserIntentKey(config) — stable, id-free intent identity. */
+  intentKey: string;
+  /** Normalized VoiceEffectConfig (opaque here to keep TakeManager dependency-free). */
+  config: Record<string, unknown>;
+}
+
 /** v5.6.0 — non-destructive trim intent (seconds on the take's timeline). */
 export interface TakeTrimEdit {
   inSeconds: number;
@@ -111,6 +122,8 @@ export interface CurrentTake {
   lastUpdated: number;
   meta: CurrentTakeMeta;
   artifacts: Partial<Record<TakeArtifactKind, TakeArtifactStamp>>;
+  /** H8 — intended capture voice, present before the base MP4 render completes. */
+  captureVoiceIntent?: TakeVoiceIntent;
   /** v5.6.0 — voice provenance (absent on pre-v5.6.0 snapshots). */
   voice?: TakeVoiceStamp;
   /** v5.6.0 — pending non-destructive edits (absent when none). */
@@ -126,6 +139,8 @@ export type CurrentTakePatch = {
   //      inconsistent intermediate snapshots to other contexts.
   /** Per-kind stamp merge; an object replaces, `null` deletes. */
   artifacts?: Partial<Record<TakeArtifactKind, TakeArtifactStamp | null>>;
+  /** Replaces capture-time voice intent wholesale (provenance is atomic). */
+  captureVoiceIntent?: TakeVoiceIntent;
   /** Replaces the voice stamp wholesale (voice provenance is atomic). */
   voice?: TakeVoiceStamp;
   /** Per-field edit-intent merge; `null` clears a field. */
@@ -135,6 +150,7 @@ export type CurrentTakePatch = {
 export interface BeginTakeInit {
   source: TakeSource;
   meta?: Partial<CurrentTakeMeta>;
+  captureVoiceIntent?: TakeVoiceIntent;
 }
 
 export interface BeginTakeResult {
@@ -339,6 +355,27 @@ function parseVoiceStamp(raw: unknown): TakeVoiceStamp | undefined {
   };
 }
 
+// BUG FIX: H8 recovery voice provenance
+// Fix: parse the additive intent independently so malformed or legacy values
+//      never invalidate the rest of the take snapshot.
+// Sync: CurrentTake.captureVoiceIntent; mergeTakePatch; beginTake.
+function parseVoiceIntent(raw: unknown): TakeVoiceIntent | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
+  const intent = raw as Record<string, unknown>;
+  if (typeof intent.intentKey !== 'string' || intent.intentKey.length === 0) return undefined;
+  if (
+    typeof intent.config !== 'object' ||
+    intent.config === null ||
+    Array.isArray(intent.config)
+  ) {
+    return undefined;
+  }
+  return {
+    intentKey: intent.intentKey,
+    config: intent.config as Record<string, unknown>,
+  };
+}
+
 function parseTrimEdit(raw: unknown): TakeTrimEdit | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
   const trim = raw as Record<string, unknown>;
@@ -426,6 +463,12 @@ export function parseCurrentTake(raw: unknown): CurrentTake | null {
     meta,
     artifacts,
   };
+  // BUG FIX: H8 recovery voice provenance
+  // Fix: retain valid capture intent while keeping the additive parser tolerant
+  //      of legacy drafts and malformed optional fields.
+  // Sync: parseVoiceIntent; voice-recorder.ts; studio-take-recovery.ts.
+  const captureVoiceIntent = parseVoiceIntent(take.captureVoiceIntent);
+  if (captureVoiceIntent) parsed.captureVoiceIntent = captureVoiceIntent;
   // v5.6.0 additive fields — malformed values drop silently, never the snapshot.
   const voice = parseVoiceStamp(take.voice);
   if (voice) parsed.voice = voice;
@@ -480,6 +523,11 @@ export function mergeTakePatch(
     meta: { ...take.meta, ...patch.meta },
     artifacts,
   };
+  // BUG FIX: H8 recovery voice provenance
+  // Fix: replace the capture intent atomically when the exact stop-time config
+  //      supersedes the begin-time snapshot; absent patches preserve it.
+  // Sync: CurrentTakePatch.captureVoiceIntent; voice-recorder.ts stop path.
+  if (patch.captureVoiceIntent) next.captureVoiceIntent = patch.captureVoiceIntent;
   // v5.6.0 — voice stamp is atomic (replace); edits merge per-field.
   if (patch.voice) next.voice = patch.voice;
   const edits = mergeTakeEdits(take.edits, patch.edits);
@@ -605,6 +653,11 @@ function createStorageTakeManager(): TakeManager {
           meta: { ...init.meta },
           artifacts: {},
         };
+        // BUG FIX: H8 recovery voice provenance
+        // Fix: make capture intent durable in the initial snapshot, before any
+        //      stop-time transcode can be interrupted.
+        // Sync: BeginTakeInit.captureVoiceIntent; voice-recorder.ts begin path.
+        if (init.captureVoiceIntent) take.captureVoiceIntent = init.captureVoiceIntent;
         await writeTakeRaw(take);
         return { take, priorTake };
       });

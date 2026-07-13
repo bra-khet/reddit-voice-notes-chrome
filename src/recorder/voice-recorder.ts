@@ -26,13 +26,14 @@ import {
   type CurrentTake,
   type CurrentTakePatch,
   type TakeSource,
+  type TakeVoiceIntent,
   type TakeVoiceStamp,
 } from '@/src/session/take-manager';
 // CHANGED: v5.6.0 — capture-time voice provenance (audio decoupling §3.1).
 // WHY: the take must record which voice its baseMp4 audio carries; these are
 //      pure leaf imports (no WASM) safe for the content-script context.
 import { voiceEffectUserIntentKey } from '@/src/voice/resolve-config';
-import { normalizeVoiceEffectConfig } from '@/src/voice/types';
+import { normalizeVoiceEffectConfig, type VoiceEffectConfig } from '@/src/voice/types';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
 
@@ -45,6 +46,20 @@ const CAP_STOP_LEAD_MS = 300;
 const RECORDER_VIDEO_BPS = 2_500_000;
 const RECORDER_AUDIO_BPS = 128_000;
 const MIN_RECORDING_BYTES = 256;
+
+// BUG FIX: H8 recovery voice provenance
+// Fix: build one normalized, JSON-safe intent shape shared by the begin/stop
+//      snapshot writes and by the exact config passed to the first transcode.
+// Sync: TakeVoiceIntent in take-manager.ts; studio-take-recovery.ts resume path.
+function buildCaptureVoiceIntent(
+  config: VoiceEffectConfig | null | undefined,
+): TakeVoiceIntent {
+  const normalized = normalizeVoiceEffectConfig(config);
+  return {
+    intentKey: voiceEffectUserIntentKey(normalized),
+    config: JSON.parse(JSON.stringify(normalized)) as Record<string, unknown>,
+  };
+}
 
 export type RecorderPhase =
   | 'idle'
@@ -414,12 +429,18 @@ export class VoiceRecorderSession {
     const epoch = this.sessionEpoch;
     try {
       const prefs = await loadUserPreferences();
+      // BUG FIX: H8 recovery voice provenance
+      // Fix: persist begin-time intent in the initial take snapshot so a draft
+      //      has provenance even if stop-time processing is interrupted early.
+      // Sync: stopRecording refresh below; TakeManager beginTake parser/field.
+      const captureVoiceIntent = buildCaptureVoiceIntent(prefs.voiceEffect);
       const { take, priorTake } = await getTakeManager().beginTake({
         source: this.takeSource,
         meta: {
           activeProfileId: prefs.appearance.activeProfileId ?? null,
           subtitlesEnabled: prefs.transcriptConfig?.transcriptionEnabled ?? false,
         },
+        captureVoiceIntent,
       });
       // Sub-second stop/cancel race: the session died while we were
       // registering — undo the phantom 'recording' snapshot immediately.
@@ -553,15 +574,35 @@ export class VoiceRecorderSession {
         // BUG FIX: tsc TS18048 "'prefs.transcriptConfig' is possibly 'undefined'"
         // Fix: optional-chain + default false — matches normalizeTranscriptConfig (absent config ⇒ subtitles off).
         const subtitlesEnabled = prefs.transcriptConfig?.transcriptionEnabled ?? false;
+        const captureVoiceConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
+        const captureVoiceIntent = buildCaptureVoiceIntent(captureVoiceConfig);
 
         // v5.4.0: the WebM relay has fired — from here the take owns real artifacts,
         // so the pre-session snapshot must no longer be restored on cancel/error.
         this.priorTakeSnapshot = null;
         this.hasPriorTakeSnapshot = false;
-        this.trackTakeUpdate({
-          status: 'processing',
-          meta: { durationSeconds: this.elapsedSeconds, subtitlesEnabled },
-        });
+        // BUG FIX: H8 recovery voice provenance
+        // Fix: await one atomic pre-transcode snapshot update carrying the exact
+        //      voice config this job will render; a hard reload can no longer
+        //      leave recovery dependent on later global prefs.
+        // Sync: transcodeToMp4 parameter below; studio-take-recovery.ts.
+        if (this.currentTakeId) {
+          try {
+            await getTakeManager().updateCurrentTake(
+              {
+                status: 'processing',
+                meta: { durationSeconds: this.elapsedSeconds, subtitlesEnabled },
+                captureVoiceIntent,
+              },
+              { expectId: this.currentTakeId },
+            );
+          } catch (error) {
+            console.warn(
+              `${EXTENSION_LOG_PREFIX} Capture voice provenance update failed (legacy recovery fallback remains available)`,
+              error,
+            );
+          }
+        }
 
         // CHANGED: parallel transcription only — burn-in deferred to Design Studio (eloquent-4).
         // WHY: users review and edit segment JSON before confirming subtitle bake.
@@ -572,7 +613,7 @@ export class VoiceRecorderSession {
           void this.forkTranscribe(webmClone, stopEpoch, false);
         }
 
-        const transcodeOutcome = await this.transcodeToMp4(stopEpoch);
+        const transcodeOutcome = await this.transcodeToMp4(stopEpoch, captureVoiceConfig);
         // BUG FIX: dead phase === 'error' branch in stop path
         // Fix: transcodeToMp4 throws on error (caught by outer try/catch); phase cannot be 'error' here
         if (this.isSuperseded(stopEpoch)) return;
@@ -705,6 +746,7 @@ export class VoiceRecorderSession {
 
   private async transcodeToMp4(
     stopEpoch: number,
+    captureVoiceConfig: VoiceEffectConfig,
   ): Promise<{ voiceEffectFallback?: boolean; voiceStamp?: TakeVoiceStamp }> {
     if (!this.webmBlob || this.isSuperseded(stopEpoch)) {
       return {};
@@ -719,7 +761,10 @@ export class VoiceRecorderSession {
     let lastProgress = 0;
 
     try {
-      const prefs = await loadUserPreferences();
+      // BUG FIX: H8 recovery voice provenance
+      // Fix: render the already-persisted stop-time config instead of reloading
+      //      mutable prefs inside the transcode function.
+      // Sync: stopRecording pre-transcode snapshot update.
       const transcodeResult = await transcodeWebmToMp4(
         this.webmBlob,
         (ratio) => {
@@ -729,7 +774,7 @@ export class VoiceRecorderSession {
           this.setPhase('processing', { processingProgress: pct });
         },
         controller.signal,
-        prefs.voiceEffect,
+        captureVoiceConfig,
       );
 
       if (this.isSuperseded(stopEpoch) || generation !== this.transcodeGeneration) {
@@ -740,10 +785,9 @@ export class VoiceRecorderSession {
       // CHANGED: v5.6.0 — record the voice actually rendered into this base MP4.
       // WHY: re-apply needs ground truth (§3.1); a fallback means the audio is
       //      raw despite the intent, and the stamp says so honestly.
-      const voiceConfig = normalizeVoiceEffectConfig(prefs.voiceEffect);
       const voiceStamp = createTakeVoiceStamp({
-        intentKey: voiceEffectUserIntentKey(voiceConfig),
-        config: voiceConfig as unknown as Record<string, unknown>,
+        intentKey: voiceEffectUserIntentKey(captureVoiceConfig),
+        config: captureVoiceConfig as unknown as Record<string, unknown>,
         origin: 'capture',
         fallback: transcodeResult.voiceEffectFallback === true,
       });

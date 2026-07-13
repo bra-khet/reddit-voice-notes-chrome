@@ -99,6 +99,19 @@ check('ready without MP4 stamp → download disabled with relay hint', () => {
   assert.match(m.hint, /relaying/);
 });
 
+// BUG FIX: H8 recovery voice provenance
+// Fix: prove legacy recovery's current-prefs disclosure is visible after ready.
+// Sync: current-take-status.ts ready-state hint; studio-take-recovery.ts note.
+check('ready recovery note surfaces for legacy voice-intent fallback', () => {
+  const m = deriveTakeDeckModel(
+    take('ready', {
+      meta: { durationSeconds: 65, note: 'Recovered with current voice settings.' },
+      artifacts: { baseMp4: stamp },
+    }),
+  );
+  assert.match(m.hint, /current voice settings/);
+});
+
 check('baked → captioned download preferred, BAKED badge', () => {
   const m = deriveTakeDeckModel(
     take('baked', { artifacts: { baseMp4: stamp, bakedMp4: stamp } }),
