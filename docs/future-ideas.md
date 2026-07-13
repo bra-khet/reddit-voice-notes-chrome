@@ -4,6 +4,37 @@ A running log of low-priority, unimplemented ideas with enough context to pick t
 
 ---
 
+## Preferences Import — merge / union mode (post-v5.11)
+
+**Priority:** Low / UX enhancement  
+**Effort:** Small–Medium  
+**Status:** Raised in v5.11.0 real-browser QA (2026-07-13) · **not a defect** · full-replace Import remains correct for v5.11
+
+### What it is
+
+Today Design Studio **Import JSON** is an explicit **full replace**: after confirmation, the imported snapshot becomes the entire preference truth (profiles, custom styles, globals). That matches backup/restore and was QA-verified.
+
+A user may also want **merge / union**: keep existing profiles and custom styles whose IDs/names are not present in the import file, and only add/overwrite those that are. Useful when sharing a “profile pack” without wiping personal styles.
+
+### Sketch (if ever scheduled)
+
+- Add a strategy parameter on `importUserPreferencesFromJSON` (e.g. `'replace' | 'merge'`) **or** a separate **Merge Import** control next to **Import JSON**.
+- Merge must still: validate the versioned envelope, normalize through the same path as migration, run under `enqueuePrefsOp`, and respect profile/style caps (12+12).
+- Define conflict rules: same id → import wins; same display name different id → keep both or rename — pick one rule and document it.
+- Confirmation copy must distinguish “Replace all…” vs “Merge into existing…”.
+
+### Non-goals for this idea alone
+
+- No cloud sync, no multi-device merge CRDT, no schema redesign.
+- Do not change the default Export envelope or the replace path without a product decision.
+
+### Context
+
+- Shipped contract: [`docs/v5.11.0-prefs-storage-refactor.md`](v5.11.0-prefs-storage-refactor.md) §5  
+- QA note: `.ignore/QA-5.11.0/qa-checklist.md` §9
+
+---
+
 ## Chronos Indicator — Live FFmpeg Timecode During Export
 
 **Priority:** Low / future  

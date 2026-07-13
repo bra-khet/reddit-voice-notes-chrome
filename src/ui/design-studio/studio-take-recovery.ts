@@ -14,10 +14,16 @@ import {
   type QueryTranscodeInflightResponse,
 } from '@/src/messaging/types';
 import { loadUserPreferences } from '@/src/settings/user-preferences';
-import { getTakeManager, takeArtifactMatchesStore } from '@/src/session/take-manager';
+import {
+  createTakeVoiceStamp,
+  getTakeManager,
+  takeArtifactMatchesStore,
+} from '@/src/session/take-manager';
 import { relaySaveLastBaseMp4 } from '@/src/storage/last-base-mp4-relay';
 import { loadLastRecording } from '@/src/storage/last-recording-db';
 import { EXTENSION_LOG_PREFIX } from '@/src/utils/constants';
+import { voiceEffectUserIntentKey } from '@/src/voice/resolve-config';
+import { normalizeVoiceEffectConfig, type VoiceEffectConfig } from '@/src/voice/types';
 
 const MIN_RESUME_WEBM_BYTES = 256;
 
@@ -76,15 +82,43 @@ async function resumeDraftTranscodeInner(): Promise<void> {
   });
 
   try {
-    const prefs = await loadUserPreferences();
+    // BUG FIX: H8 recovery voice provenance
+    // Fix: resume from the take's capture-time config; only legacy drafts that
+    //      lack the additive field consult current prefs, and that fallback is
+    //      surfaced honestly in the ready deck note.
+    // Sync: voice-recorder.ts capture writer; take-manager.ts intent parser.
+    const captureIntent = take.captureVoiceIntent;
+    const legacyVoiceFallback = !captureIntent;
+    const voiceConfig = captureIntent
+      ? normalizeVoiceEffectConfig(captureIntent.config as unknown as VoiceEffectConfig)
+      : normalizeVoiceEffectConfig((await loadUserPreferences()).voiceEffect);
+    const intentKey = captureIntent?.intentKey ?? voiceEffectUserIntentKey(voiceConfig);
     const result = await transcodeWebmToMp4(
       recording.blob,
       undefined,
       undefined,
-      prefs.voiceEffect,
+      voiceConfig,
     );
     await relaySaveLastBaseMp4(result.mp4, durationSeconds ?? recording.meta.durationSeconds ?? 0);
-    await getTakeManager().updateCurrentTake({ status: 'ready' });
+    // BUG FIX: H8 recovery voice provenance
+    // Fix: promote the recovered render's actual voice/fallback provenance in
+    //      the same ready patch, matching the normal capture completion path.
+    // Sync: voice-recorder.ts createTakeVoiceStamp capture path.
+    const voiceStamp = createTakeVoiceStamp({
+      intentKey,
+      config: voiceConfig as unknown as Record<string, unknown>,
+      origin: 'capture',
+      fallback: result.voiceEffectFallback === true,
+    });
+    await getTakeManager().updateCurrentTake({
+      status: 'ready',
+      voice: voiceStamp,
+      meta: {
+        note: legacyVoiceFallback
+          ? 'Recovered with current voice settings because this legacy draft did not save capture-time voice intent.'
+          : undefined,
+      },
+    });
   } catch (error) {
     console.warn(`${EXTENSION_LOG_PREFIX} Draft transcode resume failed`, error);
     await getTakeManager().saveDraft({

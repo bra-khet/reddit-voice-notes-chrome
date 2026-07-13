@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.12 · **Updated:** 2026-07-12 · **Reflects:** `main` @ tagged `v5.10.0` + H13/H14 hardening (browser QA PASS, merged)
+**Version:** v1.15 · **Updated:** 2026-07-13 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` · **browser QA PASS**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.12 — **BUG-038 / message pipelines v3:** an accepted transcribe job's terminal persistence and 125 s watchdog now belong to background, not the initiating tab. `TranscribeStartRequest` carries optional duration for failure scaffolding; cancelled/superseded/late jobs cannot publish. No new family/store/key/UI. v1.11 — **H13 shipped:** the Storage seam's persist-before-publish rule is now enforced by the stores themselves — `saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording` throw on unpersistable size + IDB failure and return the authoritative persisted meta (`LAST_BASE_MP4_*` / `LAST_BAKED_MP4_*` bounds exported alongside the v5.10 recording bounds); all four mutation choke points stamp/signal only from that meta (`TakeBakeResult.savedAt` added for the bake path). No seam/contract shape change beyond the save return type. v1.10 — incremental re-verify after **v5.10.0 real-browser QA PASS** (2026-07-12): no new seam/context/store/message; audio-editing + timeline trim entries re-checked against `planRawTrimLeg` / `applyTrimToWebM` / trim-apply commit order; carry-forward aligned to map v2.8. v1.9 — **raw-WebM trim** shipped (v5.10.0): the audio-editing seam's trim entry gains the raw-recording leg (`applyTrimToWebM` audio-only output + pure `planRawTrimLeg` gate in `trim.ts`; orchestrator re-stamps `baseRecording` in the same take write), and the v5.9 "trim LOCKS THE VOICE IN" gotcha is rewritten — the lock is now only the degraded outcome when the raw leg cannot run. `last-recording-db.ts` exports its persistability bounds (H13 pre-check). NO new seam. v1.8 — full v5.9 audit: corrected the subtitle/bake seam to show direct browser composite as primary (dual-IVF is fallback), documented Studio-direct runtime progress (H12 resolved), added the fail-loud artifact-store write rule (H13), and removed the last inert-trim sentence. No new seam. v1.7 — **atomic trim APPLY** shipped (v5.9.0): the audio-editing seam's "artifact integration still deferred" caveat is lifted — new `trim-apply.ts` orchestrator entry (H6 base mutate, dual-copy cue shift via `shiftCuesForTrim`/`replaceSessionTranscriptResults`, stamp null-delete take patch, voice-lock + full-composite-after-apply gotchas); timeline cue editor seam's trim note updated (Apply strip control, preview=apply). NO new seam. v1.6 — **partial re-bake splice EXECUTION** shipped (v5.7.0): new "Partial re-bake splice — v1" seam; the "Audio editing & voice re-apply" seam's PLAN-only caveat is lifted (execution is live behind the kept-region fidelity gate, `experimental.partialRebakeSplice` **default ON**). Added "Timeline cue editor — v1" seam (v5.8.0: a DOM timeline surface over the existing edit / dirty-tracking / trim seams — **no** new message/storage/take-writer; pure `timeline-geometry`/`waveform-peaks` leaves; frame-snap via `timeline.ts`). v1.5 — added "Audio editing & voice re-apply — v1" seam (v5.6.0: TakeVoiceStamp provenance, clean-audio door, stream-copy remux, timeline/trim/dirty-tracking primitives); Take lifecycle seam gains the additive `voice`/`edits` snapshot fields. v1.4 — Take lifecycle seam: H6 shipped (`takeArtifactMatchesStore` + `clearArtifact` are now part of the contract — stamp verification is mandatory at consumption sites); carry-forward block added. v1.3 — added "Take lifecycle & artifacts — v1" and "Studio capture host — v1" seams (v5.4.0); bumped "Message pipelines" to v2 (query-message kind, `store` param on baked-MP4 relay); overlay backbone gotcha updated (webCodecsBake default flipped true). v1.2 — added "Overlay encoding backbone — v1" seam (v5.3.9/v5.3.10). v1.1 — added "Voice live-mic preview — v1" seam (v5.3.1). v1.0 — initial (eloquent-5).
+**Changelog:** v1.15 — **v5.11 prefs browser QA PASS** (2026-07-13): fresh/upgrade/relay/Export-Import/DevTools matrix closed; no seam contract change. v1.14 — **preferences storage v2 seam:** full `UserPreferencesV1` truth moves to `rvnUserPrefs` IDB (`global`/`profiles`/`customStyles`), published through signal-only `rvnUserPrefs.v2`; v1 migration is retryable/delete-after-success. Reddit content scripts use background load/replace requests; Studio gains Export/Import and size telemetry. ADR-0006; 12 focused checks; browser QA pending. v1.13 — **H8 recovery provenance:** the Take lifecycle seam gains optional `captureVoiceIntent` (normalized voice config + id-free key) written before render; recovery consumes it and promotes `TakeVoiceStamp`, while legacy drafts use current prefs with a visible note. No new writer/store/key/message/context. v1.12 — **BUG-038 / message pipelines v3:** an accepted transcribe job's terminal persistence and 125 s watchdog now belong to background, not the initiating tab. `TranscribeStartRequest` carries optional duration for failure scaffolding; cancelled/superseded/late jobs cannot publish. No new family/store/key/UI. v1.11 — **H13 shipped:** the Storage seam's persist-before-publish rule is now enforced by the stores themselves — `saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording` throw on unpersistable size + IDB failure and return the authoritative persisted meta (`LAST_BASE_MP4_*` / `LAST_BAKED_MP4_*` bounds exported alongside the v5.10 recording bounds); all four mutation choke points stamp/signal only from that meta (`TakeBakeResult.savedAt` added for the bake path). No seam/contract shape change beyond the save return type. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -68,9 +68,13 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
   - Heartbeats tagged `*-heartbeat` so stall detectors ignore them (BUG-006).
   - **Not everything is a message (v2):** cross-context *state* belongs in a storage key with `storage.onChanged` (see Take lifecycle seam + ADR-0002). Reach for a pipeline only when there is work-with-progress to relay.
 
-## Storage — v1
+## Storage — v2 (full-IDB preferences)
 
-- **New small datum:** `chrome.storage.local` key → add to storage map (`docs/design-studio.md §3.2`); one writer only; `enqueuePrefsOp` if it touches `rvnUserPrefs`.
+- **User preferences (v5.11):** all durable truth lives in extension-origin `rvnUserPrefs` IDB: one `global` row plus per-entity `profiles` / `customStyles` rows. `rvnUserPrefs.v2` local holds schema/revision timestamps only and is published after the atomic transaction.
+- **Preference writer:** every mutation—including import—stays behind the preserved `user-preferences.ts` API + `enqueuePrefsOp`. Normalization strips transcript result text before the IDB split; profiles retain voice + subtitle setting snapshots.
+- **Content-script boundary:** `user-prefs-db.ts` detects Reddit origin and uses `MSG_USER_PREFS_DB_LOAD` / `REPLACE`; background calls explicit direct helpers. These are bounded request/response operations, not progress pipelines. Never open the DB directly from a content script.
+- **Migration:** read v1 blob → normalize → atomic IDB replace → coordinator/theme publication → remove v1. Any DB failure returns/retains v1 and retries later.
+- **New small datum:** `chrome.storage.local` key → add to storage map (`docs/design-studio.md §3.2`); one writer only. Preference truth does not return to local storage.
 - **New large/structured datum:** new `src/storage/*-db.ts` IDB module + relay if a content script needs access (content scripts cannot read extension IDB — they get bytes via chunked background relay).
 - **New cross-context signal:** `rvn.<x>.ready` key + poll/listener pattern (see `rvn.sessionTranscript.ready` as reference).
 - **Rule:** never put image blobs or transcript cue text in `rvnUserPrefs` — size, quota, and relay semantics all break.
@@ -90,6 +94,7 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Data contracts:** `data-studio-panel`, `data-summary-*`, `data-studio-panel-open` are checked by multiple consumers — do not rename without a grep audit.
 - **Preview coupling:** new controls that affect clip appearance must call `applyLocalDesignOverrides()` → immediate preview; debounced persist for HSV-style rapid input.
 - **Import rule:** Studio and Popup import only direct files — never `@/src/voice` or `@/src/transcription` barrels (they pull WASM dependencies; BUG-008 pattern).
+- **Preference backup (v5.11):** Export/Import belongs beside profile management. Flush pending writes before export/import; validate the versioned envelope, normalize, confirm replacement, then commit once through the preference queue.
 
 ## Voice live-mic preview — v1 (v5.3.1)
 
@@ -186,6 +191,11 @@ Authoritative contract: the header of `src/session/take-manager.ts`.
 - **Add a status:** extend `TakeStatus` + the deck state matrix
   (`current-take-status.ts`, tested in `scripts/test-take-deck.mjs`) + the
   transient set in `isTransientTakeStatus` if it can strand on crash.
+- **Capture voice provenance (H8):** `CurrentTake.captureVoiceIntent` exists before
+  `baseMp4` is ready and contains only normalized config + `voiceEffectUserIntentKey`.
+  Recorder refreshes it in the awaited pre-transcode patch; recovery normalizes
+  the opaque config, renders it, and then promotes `TakeVoiceStamp`. Do not replace
+  this with a read of mutable `rvnUserPrefs` except for legacy snapshots that lack it.
 - **Preview=bake?** N/A — pure state; but the deck's Download CTA must resolve
   blobs from extension-origin IDB *at click time*, never cache bytes in the UI.
 - **Sync points:** `voice-recorder.ts` (transitions + `sessionEpoch` race guard +
@@ -441,7 +451,8 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.12 (2026-07-12), main @ tagged v5.10.0 + H13/H14 merged. Map v2.11.
+Extension points v1.15 (2026-07-13), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0.
+Map v3.1 · v5.11 browser QA PASS · merge-ready.
 Seams: voice v5 · subtitle/font v1 · messages v3 · storage v1 · theme/Studio/live-mic v1 ·
 overlay backbone v1 · take lifecycle v1 · capture host v1 · audio editing/re-apply v1 ·
 partial splice v1 · timeline editor v1. No new seam/context/store/message in v5.9/v5.10.
@@ -450,11 +461,15 @@ Fallbacks: dual-IVF+FFmpeg → MediaRecorder+FFmpeg → drawtext.
 Studio pipeline progress is the offscreen runtime broadcast; skip-tab maps suppress duplicates.
 Transcribe terminal result/scaffold + 125s watchdog belong to background (BUG-038); tab may close after ACK.
 Take state syncs through rvn.take.current (ADR-0002); H6 is mandatory before blob adoption.
+H8: captureVoiceIntent is durable before transcode; recovery uses it and stamps the result;
+legacy drafts alone use current prefs and disclose that fallback in the ready deck.
 Trim apply: H6 base cut + raw-WebM audio-only cut (planRawTrimLeg; failure = honest stamp drop) +
 live/baseline cue shift + intent/stale-stamp clear in ONE take write; next bake is full;
 post-trim voice re-apply available when rawAudio === 'trimmed' (emergent Voice panel).
 Storage rule (H13 ENFORCED): saveLast* throw on size/IDB failure and return persisted meta;
 stamps/signals build only from that meta (all three stores export *_MIN/MAX_BYTES bounds).
+Prefs v2 (QA PASS): rvnUserPrefs IDB owns global/profiles/customStyles; rvnUserPrefs.v2 is signal-only;
+Reddit content scripts use background LOAD/REPLACE requests; all mutations stay under enqueuePrefsOp.
 Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
 one-shot question → query message. New editing UI → reuse the edit/dirty/trim seams, don't add a wire.
 ```

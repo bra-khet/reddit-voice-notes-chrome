@@ -30,6 +30,27 @@ Authoritative references:
 
 **QA note (accepted, not a defect):** manual DevTools delete of `rvnLastRecording` can leave the open path stale until a full extension reload — normal users never nuke IDB by hand.
 
+## v5.11.0 preferences storage refactor — **IMPLEMENTED · browser QA PASS (2026-07-13) · merge-ready**
+
+**Branch:** `feature/v5.11.0-prefs-storage-refactor` from H8 commit `ad534df` · QA build `ebca7cb` · **Package:** `5.11.0` · **Decision:** ADR-0006  
+**Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · **Release notes:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md) · checklist `.ignore/QA-5.11.0/qa-checklist.md`
+
+The public `UserPreferencesV1`/`USER_PREFS_VERSION` contract stays v1. Durable truth now lives in extension-origin `rvnUserPrefs` IndexedDB: one `global` row plus per-entity `profiles` and `customStyles` rows, replaced in one transaction under the existing `enqueuePrefsOp` choke point. `rvnUserPrefs.v2` local is a schema/migration marker + monotonic revision signal only, published after IDB commits. Profiles retain normalized `voiceEffectConfig` + profile-safe `transcriptConfig`; session transcript result text is stripped at the split boundary.
+
+Reddit content scripts cannot access extension IDB, so the thin wrapper transparently uses two bounded background request/response operations for load/replace; background handlers call explicit direct helpers. Popup/Studio/background use IDB directly. No caller changed and no work/progress pipeline was added.
+
+Migration is one-time and safe: valid v1 blob → normalize → IDB transaction → coordinator/theme publish → remove v1. An injected IDB failure returns and retains v1; the next load retries. Studio profile management now includes versioned JSON Export/Import with validation/normalization, replacement confirmation, and subtitle-flag rollback on failed import. Every save logs UTF-8 row sizes; dev warns above 256 KiB total / 64 KiB record.
+
+**Automated:** `test-user-prefs-storage.mjs` **12/12** · `npm run build` **PASS** · `npm run compile` only 2 pre-existing subtitle diagnostics.
+
+**Real-browser QA (2026-07-13, Chrome, `.output/chrome-mv3-dev/`):** **PASS · blockers none.** Fresh install, real + planted v1 upgrade, profile/style CRUD, cross-context hot-swap, Reddit cold-load relay + capture smoke, Export/Import happy + reject, DevTools per-entity rows, size telemetry, product smoke all ■. §3 migration force-fail ▲ PARTIAL accepted (fallback path + Node inject; full browser force-fail impractical). §14 skipped (H8 already closed). Evidence under `.ignore/QA-5.11.0/`. **No post-QA code fixes.**
+
+**Accepted follow-ups (not merge gates):** optional Import merge/union mode → [`docs/future-ideas.md`](docs/future-ideas.md).
+
+**Architecture:** map **v3.1** · extension-points **v1.15** · backlog **v2.13** · ADRs 0001–0006.
+
+**Next:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md) written; merge branch → `main` + tag **v5.11.0** (push user-owned); then scope **v6.0**.
+
 ## H13 + H14/BUG-038 hardening — **MERGED to main (2026-07-12) · no version bump**
 
 **Branch:** `feature/h13-persist-before-stamp` (from tagged `v5.10.0`) → **`main`**.  
@@ -67,25 +88,36 @@ Map **v2.11** · extension-points **v1.12** · backlog **v2.9** · bug-archive B
 
 ### Other open work
 
-1. **▶ Next: H8 recovery voice provenance** (see sprint plan entry below) — before v6.0.
+1. **▶ Next: merge v5.11.0** (`feature/v5.11.0-prefs-storage-refactor` → `main`) — browser QA PASS 2026-07-13; then tag / release notes.
 2. Then scope **v6.0 “Polish & Visual Maturity”** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
-3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10).
+3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10 / v5.11).
 
-## H8 — next sprint (planned 2026-07-12) · user-confirmed repro
+## H8 recovery voice provenance — **RESOLVED + browser QA PASS · no version bump**
 
-**Decision:** H8 is the **next clear step before v6.0**. Not a release; branch off `main` @ v5.10.0 + H13/H14.
+**Branch:** landed on `feature/v5.11.0-prefs-storage-refactor` (from `ad534df` / H8 work). Product package stayed **5.10.0** until the prefs bump to **5.11.0**.
 
 ### Consultation / repro notes (user QA)
 
 - **Normal Stop → finish / tab-close while job lives:** voice is bound at **Stop**; orphan persist finishes that job. Switching profiles mid-flight does **not** retarget it. **Not H8.**
-- **H8 path:** first job **dies incomplete** (hard extension reload / crash) → draft + `baseRecording`, no `baseMp4`, `inflight === false` → `resumeDraftTranscodeInner` starts a **new** transcode with **`prefs.voiceEffect` at resume**.
-- **User repro:** hard-reload mid-transcode → edit `rvnUserPrefs` / `voiceEffect` in DevTools → reopen Design Studio → recovered MP4 uses the **new** voice. Confirmed this *is* H8.
-- **Why hard to hit in product UI:** voice prefs are primarily written from Design Studio (`saveVoiceEffectPreferences` in `voice-controls.ts`); opening Studio also kicks recovery. Changing prefs *before* resume without DevTools is awkward today. Practical user incidence is low; value is **correctness + future-proofing** (new settings surfaces, multi-page, crash then later prefs edit) so recovery does not silently depend on “prefs only change inside Studio after mount.”
+- **H8 path (pre-fix defect):** first job **dies incomplete** (hard extension reload / crash) → draft + `baseRecording`, no `baseMp4`, `inflight === false` → recovery started a **new** transcode with **`prefs.voiceEffect` at resume**.
+- **Pre-fix user repro:** hard-reload mid-transcode → edit `rvnUserPrefs` / `voiceEffect` in DevTools → reopen Design Studio → recovered MP4 used the **new** (wrong) voice.
+- **Post-fix browser QA PASS (user):** same A→B hard-reload path after the fix → recovered MP4 keeps **capture-time** voice even when resume-time prefs were edited or **completely nuked**. **Fully closed — no re-run for v5.11** (prefs IDB migration is orthogonal to take-owned `captureVoiceIntent`).
 
-### Intended fix (backlog H8 — do not expand)
+### Implementation
 
-Optional JSON-safe capture voice intent on the take at begin/stop; recovery uses that for resume transcode and promotes `TakeVoiceStamp` on success; legacy drafts without the field keep current-prefs + honest note. Out of scope: Retry UI, multi-take history, blob storage of rendered audio.
+`CurrentTake.captureVoiceIntent` is an optional, JSON-safe additive field with normalized voice config + `voiceEffectUserIntentKey`; TakeManager parses it as an opaque object and remains dependency-free. Recorder writes it in the initial `beginTake`, then refreshes it in an **awaited atomic processing patch before transcode** and passes that exact config to the first job. Recovery prefers the take-owned config, promotes capture-origin `TakeVoiceStamp` (including FFmpeg fallback) with `ready`, and loads current prefs only for legacy drafts. The ready deck now surfaces the legacy fallback note.
+
+No Retry UI, multi-take history, rendered-audio blob, new store/key/message/context, H10 work, or v6 polish.
+
+### Verification / carry-forward
+
+- `node scripts/test-take-manager.mjs`: **37/37** (capture intent parse/malformed/merge)
+- `node scripts/test-take-deck.mjs`: **13/13** (legacy ready note visible)
+- `npm run build`: **PASS**
+- `npx tsc --noEmit`: only **2 pre-existing** subtitle errors; no H8 error
+- **Browser QA PASS (user):** capture A → hard reload mid-transcode → set/nuke prefs B → reopen → recovered MP4 sounds like A
+- Architecture: map **v3.0** · extension points **v1.14** · backlog **v2.12**
 
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE** (superseded by H13/H14 merge above)
 
-Use [`TODO.md`](TODO.md) as the compact task ledger. Start H8 as its own sprint/branch.
+Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs browser QA PASS — merge next, then scope v6.0.

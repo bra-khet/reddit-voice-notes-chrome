@@ -1,11 +1,14 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v2.11 · **Reflects branch/tag:** `main` @ tagged `v5.10.0` + H13/H14 hardening (merged) · **Updated:** 2026-07-12
+**Version:** v3.1 · **Reflects branch/tag:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` · **browser QA PASS** · **Updated:** 2026-07-13
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v3.1` (2026-07-13) — **v5.11.0 real-browser QA PASS** (Chrome, `ebca7cb` dev build). I21 + confidence ledger raised to **High (single machine)**. Matrix: fresh install, real+planted v1 upgrade, profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools rows, size telemetry, product smoke all PASS. §3 force-fail PARTIAL accepted (fallback verified; Node inject covers hard fail). No post-QA code fixes. Extension-points **v1.15** · backlog **v2.13**. Merge-ready.
+- `v3.0` (2026-07-12) — **new structured storage class:** full `UserPreferencesV1` truth moved from the large `rvnUserPrefs` local blob into extension-origin `rvnUserPrefs` IDB (`global`, `profiles`, `customStyles`) behind the preserved `user-preferences.ts` API and BUG-023 queue. `rvnUserPrefs.v2` is marker/revision signal only and publishes after the atomic IDB transaction. Reddit content scripts use bounded background load/replace requests because host-origin code cannot open extension IDB. One-time v1 migration is delete-after-success/retry-on-failure; versioned Export/Import + size telemetry ship in Studio. ADR-0006; focused tests 12/12; build PASS; browser matrix pending. Extension-points **v1.14**.
+- `v2.12` (2026-07-12) — **H8 recovery voice provenance resolved in code** (no product version bump). The take snapshot gains optional, JSON-safe `captureVoiceIntent`; recorder writes it at begin and refreshes it in the awaited pre-transcode stop patch, then recovery prefers it over mutable prefs and promotes the successful/fallback render to `TakeVoiceStamp`. Legacy drafts retain current-prefs behavior with a visible deck note. Updated state ownership, Trace B, confidence, and carry-forward. TakeManager 37/37; deck 13/13; build PASS. Extension-points **v1.13** · backlog **v2.10**. No new context, message family, storage key/store, writer, or ADR.
 - `v2.11` (2026-07-12) — **H13 + H14/BUG-038 browser QA PASS** and merge to `main` (no product version bump). I20 + Trace F confidence raised to High (single machine); confidence ledger rows for transcribe/recovery/H13 updated; backlog **v2.9**. No code change in this map revision.
 - `v2.10` (2026-07-12) — H13 QA item 7 / **BUG-038**: fixed the tab-close transcript loss exposed after artifact recovery passed. Vosk/offscreen was successful; the initiating page owned the second-step transcript save and its timeout, so both disappeared on teardown. Background now owns accepted-job terminal context (`durationSeconds`/language), a 125 s completion watchdog, success/failure normalization, IDB commit, and ready publication. Cancelled/superseded/late jobs are excluded. Added I20 + Trace F; message/state sections and confidence ledger corrected. No new execution context, store, storage key, or message family; `TranscribeStartRequest` gained one optional duration field. Retry UI rejected as symptom-masking because the supplied audio and Vosk result were healthy. Extension-points **v1.12** · backlog **v2.8**.
 - `v2.9` (2026-07-12) — hardening triage applied: **H13 shipped** (`feature/h13-persist-before-stamp`). All three single-slot artifact saves (`saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording`) throw on unpersistable size + IDB failure and return the authoritative persisted meta; the four mutation choke points (background relay ×3 sites, subtitle bake via new optional `TakeBakeResult.savedAt`, voice re-apply, trim apply) stamp/signal only from that meta. Trim raw leg's IDB-failure half of I19 closed (save failure → honest stamp drop). H6 reads untouched; no new context/message/storage-key/writer. New Node suite `test-artifact-store-writes.mjs` (28). Confidence ledger + open question 1 updated; backlog **v2.7**.
@@ -266,20 +269,38 @@ Adding a fourth visual layer still changes compositing order → explicit ADR re
 
 ### 3.4 State ownership
 
-**Rule:** one writer per datum. Blobs and transcript text never in `rvnUserPrefs`. Blobs never in the take snapshot.
+**Rule:** one writer per datum. Blobs and transcript text never enter preference storage. Blobs never enter the take snapshot.
+
+Preference publication order, verified against `user-preferences.ts`, `user-prefs-db.ts`, and the background relay:
+
+```mermaid
+flowchart LR
+  API["existing prefs API"] --> Q["enqueuePrefsOp"]
+  Q --> ORIGIN{"extension origin?"}
+  ORIGIN -- yes --> TX["IDB transaction<br/>global + profiles + customStyles"]
+  ORIGIN -- Reddit content --> BG["background load/replace request"]
+  BG --> TX
+  TX --> SIGNAL["rvnUserPrefs.v2 revision"]
+  SIGNAL --> LISTENERS["storage.onChanged → reload"]
+  LEGACY["legacy rvnUserPrefs v1"] -. "normalize + migrate" .-> Q
+```
+
+**Invariant encoded:** the coordinator is notification, never preference truth; it is written only after the complete IDB snapshot commits. A failed first migration retains and returns the legacy v1 blob for retry.
 
 Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take.current`). Deltas this map adds context for:
 
 | Datum | Where | Single writer / choke point |
 |-------|-------|------------------------------|
 | `rvn.take.current` | `chrome.storage.local` | **TakeManager** (`src/session/take-manager.ts`) — recorder session owns capture transitions, background merges artifact stamps, Studio bake promotes to `baked`. Same-context writes serialized; `sessionEpoch` guards sub-second races |
+| Capture-time voice intent | Optional `captureVoiceIntent` inside `rvn.take.current` | **Recorder session** writes normalized config + id-free key at `beginTake`, then refreshes the exact stop-time config in the awaited pre-transcode patch. Recovery reads it; TakeManager remains dependency-free and parses it as an opaque JSON object (H8) |
 | Current Vosk transcript / failure scaffold | `rvnSessionTranscript` IDB + `rvn.sessionTranscript.ready` signal | **Background terminal transcribe owner** (`entrypoints/background.ts` → `saveSessionTranscript`) after offscreen COMPLETE/watchdog. The initiating page is not required after ACK (BUG-038) |
-| `experimental.webCodecsBake` / `parallelBake` | `rvnUserPrefs` | `enqueuePrefsOp`; **default true since v5.4.0** (`resolveOverlayBakeEncoder`, one-time rollout migration — `user-preferences.ts:191,329`) |
+| Complete user preferences (`global`, profiles, custom styles) | `rvnUserPrefs` IDB + `rvnUserPrefs.v2` signal | `src/settings/user-preferences.ts` under `enqueuePrefsOp`; extension pages direct, Reddit content via background DB relay; three stores replaced atomically |
+| `experimental.webCodecsBake` / `parallelBake` | `rvnUserPrefs` IDB `global` row | `enqueuePrefsOp`; **default true since v5.4.0** (`resolveOverlayBakeEncoder`, one-time rollout migration) |
 | Encoded segment metadata | in-memory per bake | `src/encoding/encoded-segment.ts` (`EncodedOverlaySegmentMeta`) — telemetry + future editing primitive; not persisted |
-| `experimental.partialRebakeSplice` | `rvnUserPrefs` | `enqueuePrefsOp`; **default ON** (opt-out `=== false`) — `resolvePartialRebakeSpliceEnabled` (`user-preferences.ts:183`) |
+| `experimental.partialRebakeSplice` | `rvnUserPrefs` IDB `global` row | `enqueuePrefsOp`; **default ON** (opt-out `=== false`) — `resolvePartialRebakeSpliceEnabled` |
 | `edits.trim` (non-destructive trim intent) | `rvn.take.current` snapshot | **`planTrim` gate only** (`src/editing/trim.ts`) → TakeManager `mergeTakeEdits`; view-state until an explicit Save. **Consumed by v5.9.0 atomic apply** (`src/editing/trim-apply.ts` — clears the intent in the same commit that mutates `baseMp4`, shifts cues, drops the `bakedMp4` stamp, and — v5.10.0 — mutates `baseRecording` too: the raw WebM is trimmed audio-only and re-stamped, or honestly dropped when the raw leg cannot run). Not a new writer: reuses the v5.6.0 `edits` merge path |
 
-**Invariants:** all `rvnUserPrefs` writes via `enqueuePrefsOp` (BUG-023). Content scripts can't read extension IDB — chunked relay only. The take snapshot references blobs through `TakeArtifactStamp` (`savedAt`/`byteLength`/`durationSeconds`); consumers verify stamps against store metas via `takeArtifactMatchesStore()` before adopting blobs, demoting mismatched stamps with an honest note (**H6, shipped 2026-07-06** — enforced at recovery resume, Reddit attach, and the Download CTA).
+**Invariants:** all preference writes go through `enqueuePrefsOp` (BUG-023); IDB commit precedes coordinator publication (ADR-0006). Content scripts cannot read extension IDB directly—preference JSON uses the bounded background requests, while binary stores retain their chunked relays. The take snapshot references blobs through `TakeArtifactStamp` (`savedAt`/`byteLength`/`durationSeconds`); consumers verify stamps against store metas via `takeArtifactMatchesStore()` before adopting blobs, demoting mismatched stamps with an honest note (**H6, shipped 2026-07-06** — enforced at recovery resume, Reddit attach, and the Download CTA).
 
 ---
 
@@ -292,7 +313,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | I3 | Subtitles are a post-`base.mp4` export pass; never in the live capture stream (overlay pixels are canvas-painted offline — that's the design, not a violation) | composition | `src/ffmpeg/subtitle-burnin.ts`; `subtitle-canvas-bake.ts` | High |
 | I4 | Failure broadcasts before the relay-registry entry is deleted | messages | `src/messaging/relay-registry.ts`; BUG-032 | High |
 | I5 | Stall timers reset only on semantic progress, never heartbeats | messages | `src/ffmpeg/transcoder.ts` `isMeaningfulProgress()` | High |
-| I6 | All `rvnUserPrefs` writes go through `enqueuePrefsOp` | state | `src/settings/user-preferences.ts` | High |
+| I6 | All user-preference read-modify-writes go through `enqueuePrefsOp`; callers never write IDB rows | state | `src/settings/user-preferences.ts` | High |
 | I7 | Content scripts receive blobs via chunked relay only (no extension-IDB reads) | state | `background-blob.ts`, `baked-mp4-blob.ts` | High |
 | I8 | Vosk model loads into MEMFS per session (no IDB cache in sandbox) | state | BUG-011/013 accepted tradeoff | High |
 | I9 | The take snapshot never contains blobs; blobs stay in single-slot IDB stores, referenced by artifact stamps | state | `take-manager.ts` header + `parseCurrentTake` | High |
@@ -307,6 +328,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | I18 | Trim ghost preview and destructive apply use the same half-open cue projection; apply consumes the live draft, shifts both transcript copies, and clears undo so pre-trim cue times cannot return | preview↔bake, state | `timeline-geometry.ts` `projectCueThroughTrim`; `trim.ts` `shiftCuesForTrim`; `trim-apply.ts`; `subtitle-segment-editor.ts` — Node-tested (`test-timeline` 22) + real-browser QA (v5.9 + v5.10) | High (single machine) |
 | I19 | A `baseRecording` stamp published by trim apply always describes bytes the store can hold: the raw leg pre-checks the trimmed blob against `last-recording-db.ts`'s exported persistability bounds and demotes to an honest stamp drop otherwise (never a lying stamp). Post-trim voice re-apply is available only when that stamp survives | state | `trim-apply.ts` raw-leg guard + `planRawTrimLeg` (`trim.ts`) — Node-tested (`test-timeline` 22: leg truth table) + real-browser QA PASS 2026-07-12 (happy path + store-mismatch fallback) | High (single machine) |
 | I20 | Once a transcribe START is accepted, a non-cancelled terminal outcome is persisted by background before its ready signal; the initiating tab may disappear without dropping success/failure/timeout, and a superseded job cannot publish | messages, state | `background.ts` transcribe context/watchdog + `transcribe-completion.ts`; BUG-038 — Node-tested (`test-transcribe-failure` 12) + real-browser QA item 7 PASS 2026-07-12 | High (single machine) |
+| I21 | A `rvnUserPrefs.v2` revision never advertises uncommitted preference data: the atomic `global`/`profiles`/`customStyles` transaction (direct or background-relayed) resolves first; failed first migration retains v1 | state, messages | `user-prefs-db.ts`; `user-preferences.ts`; `background.ts`; ADR-0006 — Node-tested 12 checks + **real-browser QA PASS 2026-07-13** (fresh/upgrade/relay/Export-Import; §3 force-fail PARTIAL accepted) | High (single machine) |
 
 ---
 
@@ -328,10 +350,11 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 
 1. Tab closes during `processing` → `pagehide` auto-draft; snapshot may persist as phantom `processing`
 2. Reopen Studio → `studio-take-recovery.ts`: `reconcileInterruptedProcessing()` + `MSG_QUERY_TRANSCODE_INFLIGHT` → if inflight: wait (background will `persistOrphanStudioTranscodeResult`); if idle: demote to `draft`
-3. Draft with `baseRecording` stamp but no `baseMp4` → `resumeDraftTranscodeInner`: load WebM from `rvnLastRecording` (≥256 bytes) → re-transcode with **current** `prefs.voiceEffect` → `relaySaveLastBaseMp4` → take → `ready`
-4. Reddit attach mode available again (never-baked takes attach their base MP4)
+3. Draft with `baseRecording` stamp but no `baseMp4` → `resumeDraftTranscodeInner`: H6-verify and load WebM from `rvnLastRecording` (≥256 bytes) → re-transcode with `take.captureVoiceIntent.config` → `relaySaveLastBaseMp4` → atomically promote `ready` + capture-origin `TakeVoiceStamp` (including fallback)
+4. Legacy draft without `captureVoiceIntent` → retain current-prefs transcode, but persist a visible ready-deck note disclosing that fallback
+5. Reddit attach mode available again (never-baked takes attach their base MP4)
 
-**Code verified at:** `studio-take-recovery.ts:44-70`. Hardening applied here 2026-07-06 (H6): resume now cross-checks the draft's `baseRecording` stamp against `recording.meta` before adopting the WebM, demoting the stamp on mismatch. Remaining seam: resume re-applies *current* voice prefs rather than capture-time settings (H8, v5.4.x patch).
+**Code verified at:** `voice-recorder.ts` `beginTakeTracking` / stop pre-transcode patch / `transcodeToMp4`, `take-manager.ts` additive parser/merge, and `studio-take-recovery.ts` `resumeDraftTranscodeInner`. H6 still rejects superseded WebM bytes before adoption; H8 now makes a restarted job voice-stable across mutable prefs. Automated: TakeManager 37/37, deck 13/13; **browser QA PASS** (user A→B hard-reload + mutate/nuke resume-time prefs → capture-time voice).
 
 ### Trace C — personal background WYSIWYG relay (carried from v1, unchanged)
 
@@ -379,7 +402,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | TakeManager pure core (parse/merge/stale/freshness/null-delete) | **High** | Node-tested (`test-take-manager.mjs` 34); pure helpers isolated from `browser.*` |
 | Studio-native capture + live canvas | **High** | User QA checklist 1–11 PASS (2026-07-06); zero-copy contract structural |
 | WebCodecs dual-IVF + FFmpeg composite fallback | **High (single machine)** | QA PASS 2026-07-05, 8–10× render speedup; session-cached alpha calibration (`codec+dimensions+fps`) gates this fallback tier |
-| Recovery paths (tab-close, orphan transcode/transcript, inflight query) | **High (single machine)** | MP4/raw recovery QA passed; BUG-038 background transcript terminal recovery **browser QA PASS**; remaining architectural seam: H8 voice provenance |
+| Recovery paths (tab-close, orphan transcode/transcript, inflight query) | **High (single machine)** | MP4/raw recovery QA passed; BUG-038 background transcript terminal recovery **browser QA PASS**; H8 capture voice intent + resumed `TakeVoiceStamp` Node/build verified **and browser QA PASS** (user A→B hard-reload + mutate/nuke prefs → capture-time voice retained) |
 | Artifact stamp contract | **High** | I15 — `takeArtifactMatchesStore` enforced at all three consumers, 6 Node checks (H6, 2026-07-06) |
 | Studio-initiated transcode progress delivery | **High** | H12 resolved: `transcoder.ts` listens on `runtime.onMessage`; `transcodeSkipTabRelayByJobId` suppresses only the content-tab duplicate for extension-page senders |
 | Concurrent Studio recordings / dual-writer take races | **High** | User QA 2026-07-06: overlapping recordings capture correctly, processing serializes, first take downloadable (and downloads) while second processes; Reddit panel syncs as designed. Known accepted edge: transient window between the two completions where the status display shows the *second* take's length while the first is the downloadable one — display-only, self-corrects on second completion (backlog H11) |
@@ -390,6 +413,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | Atomic trim apply (v5.9.0) | **High (single machine)** | Node: timeline 16→22 + take-manager 33→34; real-browser QA PASS for duration/cue parity, full post-apply bake, voice lock (now fallback-only), revert/undo, recovery, Download/attach, and regressions (2026-07-11); reconfirmed under v5.10 suite |
 | Raw-WebM trim + post-trim voice re-apply (v5.10.0) | **High (single machine)** | Node: timeline 22 (`planRawTrimLeg` truth table) + take-manager 34 (dual-stamp one-write). **Real-browser QA PASS 2026-07-12:** post-trim Change Voice / re-apply / bake, edges, recovery, deck/Download/attach, raw-leg store-mismatch → honest lock, regressions. Accepted non-defect: manual DevTools IDB nuke of `rvnLastRecording` needs extension reload to recreate open path. No post-QA code fixes. As-built: `docs/v5.10.0-raw-trim-apply-roadmap.md` §10 |
 | Artifact-store write acknowledgment | **High** | **H13 shipped 2026-07-12 (merged):** all three saves throw on size/IDB failure and return persisted meta; callers stamp/signal only from it — Node-tested (`test-artifact-store-writes.mjs` 28). Real-browser regression covered with H13 checklist + item 7 PASS |
+| User-preferences full-IDB migration (v5.11.0) | **High (single machine)** | Node: `test-user-prefs-storage.mjs` **12/12** + build PASS. **Real-browser QA PASS 2026-07-13** (checklist `.ignore/QA-5.11.0/`): fresh IDB layout, real+planted v1 upgrade (legacy removed), profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools per-entity rows, size telemetry, product smoke. §3 force-fail PARTIAL accepted (fallback surface + Node inject). No post-QA code fixes. As-built: `docs/v5.11.0-prefs-storage-refactor.md` §9/§12 |
 | Vosk model caching | **Low (accepted)** | ~40 MB re-download per session; BUG-013 tradeoff stands |
 | Demo site (`demo/`) parity with v5.4.0 | **Low (out of scope)** | No capture pipeline there; explicitly deferred |
 
@@ -402,6 +426,10 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 ---
 
 ## 7. Self-critique (Phase 2)
+
+**Verified in the v3.0 preference-storage pass (2026-07-12):** complete `user-preferences.ts` API and normalize/profile embedding paths; H13 native-IDB wrappers; every recorder/content caller; background request-response conventions; Studio profile cluster. The first direct-IDB draft incorrectly assumed all preference consumers shared extension origin. Canonical docs plus live recorder imports exposed the contradiction before close-out; the implementation now relays content-script load/replace through explicit background direct helpers, covered by a Reddit-origin wrapper test.
+
+**Closed in v3.1 (2026-07-13):** real Chrome origin behavior, DevTools per-entity row ergonomics, Export/Import download/upload, cold Reddit relay, and migration delete-after-success were proven in browser QA PASS. Residual accepted: browser §3 force-fail remains PARTIAL (IDB auto-recreates; Node covers inject); optional Import merge/union is a future idea, not a defect.
 
 **Verified in the v2.11 close-out (2026-07-12):** user real-browser re-run of H13 item 7 **PASS** — transcript survives tab close mid-processing after the BUG-038 background-owner fix. H13 + H14 merged to `main` without a product version bump. I20 / Trace F / recovery confidence raised to High (single machine).
 
@@ -454,9 +482,10 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | `docs/v5.8.0-trim-ui-visual-subtitle-editor.md` | Timeline visual subtitle editor as-built (the v5.8.0 Studio surface — SHIPPED) |
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA gate/result |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | **Raw-WebM trim as-built (v5.10.0):** Phase 0 closed the storage-API-name gap (`saveLastRecording`, not the planning draft's `saveLastBaseRecording`) and the H13 posture (exported bounds pre-check); §10 is the as-built log, §7 the real-browser QA gate |
+| `docs/v5.11.0-prefs-storage-refactor.md` | **Full-IDB preferences implementation:** migration, relay, Export/Import, size telemetry, risk and browser QA matrix |
 | `docs/architecture/adr/` | ADR-0001 WebCodecs backbone · ADR-0002 TakeManager storage sync · ADR-0003 composite-stage elimination (**Accepted**) · ADR-0004 audio decoupling / voice re-apply · ADR-0005 partial re-bake splice (**Accepted**, default-on) |
-| `docs/architecture/extension-points.md` | Seam registry (v1.12) |
-| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.8) |
+| `docs/architecture/extension-points.md` | Seam registry (v1.14) |
+| `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.13) |
 | `src/messaging/types.ts` | Wire registry — authoritative message constants |
 | `src/session/take-manager.ts` | Take lifecycle contract (header doc is authoritative) |
 
@@ -466,20 +495,22 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3/WXT), main @ tagged v5.10.0 + H13/H14 merged. Map v2.11.
+Repo: Reddit Voice Notes (Chrome MV3/WXT), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0.
+Map v3.1 · browser QA PASS 2026-07-13 · merge-ready.
 Contexts (6): content / background SW / offscreen FFmpeg / Vosk sandbox / Design Studio / popup.
 Spine:
   preview=bake: direct shared painter on browser composite; timeline frame-snap I17; trim preview=APPLY I18.
   composition: bg→bars in capture; subtitles post-base. Full default = browser decode→paint→encode; FFmpeg tiers persist.
   messages: types.ts has 3 pipelines + idempotent query + chunked relays; Studio progress is direct runtime broadcast (H12).
-  state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; trim cuts base + raw WebM (audio-only,
+  state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; prefs truth is rvnUserPrefs IDB
+  (global/profiles/customStyles), with signal-only rvnUserPrefs.v2 and Reddit→background DB requests (I21 High);
+  H8 captureVoiceIntent makes recovery voice-stable;
+  trim cuts base + raw WebM (audio-only,
   re-stamped or honestly dropped — I19), clears the baked stamp, forces full re-bake; post-trim voice re-apply works.
   H13 (2026-07-12): saveLast* throw on size/IDB failure + return persisted meta; stamps/signals only from that meta.
   BUG-038/H14: background owns terminal transcript persistence + 125s watchdog; tab close cannot drop success/timeout (browser QA PASS).
 Editing arc CLOSED: v5.6 audio → v5.7 splice → v5.8 timeline → v5.9 atomic trim → v5.10 raw-WebM trim (both QA PASS).
-Hardening v2.9: H13 + H14/BUG-038 RESOLVED + browser QA PASS + merged (no version bump);
-H8 OPEN (recovery resume-time voice); H10 deferred.
-Risks: R13 closed by H13; R14 I16; R15 two-view draft; R16 trim multi-store window (3–4 stores); R17 by H14.
-Extension points v1.12. ADRs 0001–0005 Accepted; no new ADR/context/message-family/store in BUG-038.
-Next product: v6.0 visual maturity (unscoped). Read architecture-map.md then /architecture-hardening resume.
+Hardening v2.13: H8/H13/H14 fully closed; v5.11 prefs QA PASS; H10 deferred; R18 mitigated.
+Extension points v1.15. ADRs 0001–0006 Accepted; v5.11 adds one IDB class + two DB requests, no context/pipeline.
+Next: merge v5.11.0 → main + tag/notes; then scope v6.0. Read architecture-map.md then /architecture-hardening resume.
 ```

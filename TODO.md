@@ -7,28 +7,31 @@
 
 Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice** work. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean. Real-browser checklist **all PASS**.
 
-## ▶ Next — **H8 recovery voice provenance** (before v6.0)
+## ▶ Current — **v5.11.0 preferences full-IDB migration (browser QA PASS · merge-ready)**
 
-**Status:** **OPEN · next sprint** · backlog item in [`docs/architecture/hardening-backlog.md`](docs/architecture/hardening-backlog.md) § H8 · **no version bump** expected.
+**Branch:** `feature/v5.11.0-prefs-storage-refactor` @ `4433d05` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · **Release notes:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md)
 
-**What it is:** When a draft has raw WebM but no base MP4 and the *original* transcode is gone (`inflight === false`), `studio-take-recovery.ts` starts a **new** WebM→MP4 with `loadUserPreferences().voiceEffect` **at resume time**. Capture-time voice is not on the interrupted draft (`TakeVoiceStamp` only lands on successful `ready`). User-confirmed repro (2026-07-12): extension hard-reload mid-transcode → edit `rvnUserPrefs.voiceEffect` in DevTools → reopen Studio → resume uses the **edited** voice.
+**Implemented:** preserved `user-preferences.ts` API + BUG-023 queue; full `rvnUserPrefs` IndexedDB (`global`, `profiles`, `customStyles`); signal-only `rvnUserPrefs.v2`; transparent Reddit content-script → background IDB load/replace requests; delete-after-success/retryable v1 migration; transcript-result stripping; JSON Export/Import in the Studio profile cluster; per-save size telemetry/dev warnings; ADR-0006 and architecture map **v3.1**.
 
-**Practical exposure today:** Very narrow. Normal tab-close keeps the original job (orphan persist = stop-time voice). Voice prefs are written from Design Studio (`saveVoiceEffectPreferences`); opening Studio also runs recovery, so a normal user rarely changes prefs *before* resume without DevTools. Hardening still worth doing: capture intent on the take snapshot so recovery cannot silently drift if prefs change (future surfaces, multi-page, crash + later edit).
+**Automated:** `test-user-prefs-storage.mjs` **12/12** · `npm run build` **PASS** · `npm run compile` only the same **2 pre-existing** subtitle errors.
 
-**Fix sketch (from backlog):** optional JSON-safe capture voice intent at `beginTake` (or stop); recovery prefers that config and promotes `TakeVoiceStamp` on resume success; legacy drafts without the field keep current-prefs + honest note.
+**Real-browser QA (2026-07-13):** **PASS · blockers none.** Checklist `.ignore/QA-5.11.0/qa-checklist.md` — fresh install, v1 upgrade (real + planted), profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools rows, size telemetry, product smoke all ■. §3 force-fail ▲ PARTIAL accepted (fallback verified; Node covers inject). §14 skipped (H8 closed). No post-QA code fixes.
 
-**After H8:** scope **v6.0 "Polish & Visual Maturity"** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
+**Merge next:** release notes written ([`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md)) · merge branch → `main` + tag **v5.11.0** (push user-owned) · then scope **v6.0**.
 
-## Hardening closed on main (2026-07-12) — **no version bump**
+## Follow-up — **after v5.11 merge · scope v6.0**
 
-**Branch:** `feature/h13-persist-before-stamp` → **merged to `main`**. Hardening only (not a release). Stable remains **v5.10.0**.
+**H8 is fully closed** (code + browser QA PASS). **v5.11 prefs browser matrix PASS 2026-07-13.** After merge/tag of v5.11.0, scope **v6.0 "Polish & Visual Maturity"**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
+
+## Hardening closed (2026-07-12) — **no version bump**
 
 | Item | Outcome |
 |------|---------|
-| **H13** persist-before-stamp | **RESOLVED + browser QA PASS** — `saveLast*` throw on size/IDB failure, return meta; four choke points stamp only from meta. Node **28/28**. |
-| **H14 / BUG-038** tab-close transcript | **RESOLVED + browser QA PASS** — background owns terminal transcript commit + 125 s watchdog; initiating tab may close without dropping success/scaffold. Node **12/12**. |
+| **H13** persist-before-stamp | **RESOLVED + browser QA PASS** — merged to `main`. `saveLast*` throw on size/IDB failure, return meta; four choke points stamp only from meta. Node **28/28**. |
+| **H14 / BUG-038** tab-close transcript | **RESOLVED + browser QA PASS** — merged to `main`. Background owns terminal transcript commit + 125 s watchdog. Node **12/12**. |
+| **H8** recovery voice provenance | **RESOLVED + browser QA PASS** — on `feature/v5.11.0-prefs-storage-refactor` (from `ad534df`). Take-owned `captureVoiceIntent`; recovery ignores mutated/nuked resume-time prefs. Node take-manager **37/37** · deck **13/13**. |
 
-**Verify:** artifact-store writes 28 · transcribe-failure 12 · take-manager 34 · timeline 22 · build PASS · tsc 2 pre-existing. Push of `main` / tags remains user-owned.
+**Verify:** artifact-store writes 28 · transcribe-failure 12 · take-manager 37 · take-deck 13 · timeline 22 · build PASS · tsc 2 pre-existing. Push of `main` / tags remains user-owned.
 
 ## Shipped ledger
 
@@ -49,4 +52,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS)** — **map v2.11 · extension-points v1.12 · hardening backlog v2.9 · ADRs 0001–0005**. Persist-before-stamp enforced; background owns terminal transcript delivery after tab close. **Next open item: H8** (recovery voice provenance — user-confirmed via hard-reload + DevTools prefs edit). **H10** deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**v5.11 prefs IDB browser QA PASS (2026-07-13) · merge-ready; H8 + H13 + H14/BUG-038 fully closed** — **map v3.1 · extension-points v1.15 · hardening backlog v2.13 · ADRs 0001–0006**. H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
