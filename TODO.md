@@ -9,7 +9,7 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 ## ▶ Current — **v5.11.0 preferences full-IDB migration (browser QA PASS · merge-ready)**
 
-**Branch:** `feature/v5.11.0-prefs-storage-refactor` @ `ebca7cb` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md)
+**Branch:** `feature/v5.11.0-prefs-storage-refactor` @ `4433d05` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · **Release notes:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md)
 
 **Implemented:** preserved `user-preferences.ts` API + BUG-023 queue; full `rvnUserPrefs` IndexedDB (`global`, `profiles`, `customStyles`); signal-only `rvnUserPrefs.v2`; transparent Reddit content-script → background IDB load/replace requests; delete-after-success/retryable v1 migration; transcript-result stripping; JSON Export/Import in the Studio profile cluster; per-save size telemetry/dev warnings; ADR-0006 and architecture map **v3.1**.
 
@@ -17,7 +17,7 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Real-browser QA (2026-07-13):** **PASS · blockers none.** Checklist `.ignore/QA-5.11.0/qa-checklist.md` — fresh install, v1 upgrade (real + planted), profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools rows, size telemetry, product smoke all ■. §3 force-fail ▲ PARTIAL accepted (fallback verified; Node covers inject). §14 skipped (H8 closed). No post-QA code fixes.
 
-**Merge next:** branch → `main` (user-owned push) · tag / release notes for **v5.11.0** · then scope **v6.0**.
+**Merge next:** release notes written ([`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md)) · merge branch → `main` + tag **v5.11.0** (push user-owned) · then scope **v6.0**.
 
 ## Follow-up — **after v5.11 merge · scope v6.0**
 

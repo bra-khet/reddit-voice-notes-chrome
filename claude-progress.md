@@ -33,7 +33,7 @@ Authoritative references:
 ## v5.11.0 preferences storage refactor — **IMPLEMENTED · browser QA PASS (2026-07-13) · merge-ready**
 
 **Branch:** `feature/v5.11.0-prefs-storage-refactor` from H8 commit `ad534df` · QA build `ebca7cb` · **Package:** `5.11.0` · **Decision:** ADR-0006  
-**Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · checklist `.ignore/QA-5.11.0/qa-checklist.md`
+**Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · **Release notes:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md) · checklist `.ignore/QA-5.11.0/qa-checklist.md`
 
 The public `UserPreferencesV1`/`USER_PREFS_VERSION` contract stays v1. Durable truth now lives in extension-origin `rvnUserPrefs` IndexedDB: one `global` row plus per-entity `profiles` and `customStyles` rows, replaced in one transaction under the existing `enqueuePrefsOp` choke point. `rvnUserPrefs.v2` local is a schema/migration marker + monotonic revision signal only, published after IDB commits. Profiles retain normalized `voiceEffectConfig` + profile-safe `transcriptConfig`; session transcript result text is stripped at the split boundary.
 
@@ -49,7 +49,7 @@ Migration is one-time and safe: valid v1 blob → normalize → IDB transaction 
 
 **Architecture:** map **v3.1** · extension-points **v1.15** · backlog **v2.13** · ADRs 0001–0006.
 
-**Next:** merge branch → `main` (user-owned push); tag / release notes for **v5.11.0**; then scope **v6.0**.
+**Next:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md) written; merge branch → `main` + tag **v5.11.0** (push user-owned); then scope **v6.0**.
 
 ## H13 + H14/BUG-038 hardening — **MERGED to main (2026-07-12) · no version bump**
 
