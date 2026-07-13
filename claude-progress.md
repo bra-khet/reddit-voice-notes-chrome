@@ -30,7 +30,7 @@ Authoritative references:
 
 **QA note (accepted, not a defect):** manual DevTools delete of `rvnLastRecording` can leave the open path stale until a full extension reload — normal users never nuke IDB by hand.
 
-## v5.11.0 preferences storage refactor — **IMPLEMENTED · browser QA PASS (2026-07-13) · merge-ready**
+## v5.11.0 preferences storage refactor — **SHIPPED · browser QA PASS (2026-07-13) · merged to `main` + tagged `v5.11.0` (push deferred)**
 
 **Branch:** `feature/v5.11.0-prefs-storage-refactor` from H8 commit `ad534df` · QA build `ebca7cb` · **Package:** `5.11.0` · **Decision:** ADR-0006  
 **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · **Release notes:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md) · checklist `.ignore/QA-5.11.0/qa-checklist.md`
@@ -49,7 +49,7 @@ Migration is one-time and safe: valid v1 blob → normalize → IDB transaction 
 
 **Architecture:** map **v3.1** · extension-points **v1.15** · backlog **v2.13** · ADRs 0001–0006.
 
-**Next:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md) written; merge branch → `main` + tag **v5.11.0** (push user-owned); then scope **v6.0**.
+**Shipped 2026-07-13:** merged to `main` (`--no-ff` merge `853d3d8`) + annotated tag **v5.11.0**; release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). Push of `main` + tag user-owned (deferred). **Next:** scope **v6.0**; optional `/docs-archiving` Refresh #4 once `claude-progress.md` grows.
 
 ## H13 + H14/BUG-038 hardening — **MERGED to main (2026-07-12) · no version bump**
 
@@ -88,7 +88,7 @@ Map **v2.11** · extension-points **v1.12** · backlog **v2.9** · bug-archive B
 
 ### Other open work
 
-1. **▶ Next: merge v5.11.0** (`feature/v5.11.0-prefs-storage-refactor` → `main`) — browser QA PASS 2026-07-13; then tag / release notes.
+1. **✅ Done: v5.11.0 merged to `main` + tagged** (`feature/v5.11.0-prefs-storage-refactor` → merge `853d3d8`, annotated tag `v5.11.0`, 2026-07-13) — release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md); push deferred (item 3).
 2. Then scope **v6.0 “Polish & Visual Maturity”** ([`docs/v5.9.0-trim-apply-roadmap.md`](docs/v5.9.0-trim-apply-roadmap.md) §9).
 3. Optional: user **push** of `main` (and any remote tags still deferred from v5.10 / v5.11).
 
@@ -120,4 +120,4 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE** (superseded by H13/H14 merge above)
 
-Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs browser QA PASS — merge next, then scope v6.0.
+Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.

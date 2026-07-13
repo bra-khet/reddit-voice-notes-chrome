@@ -1,15 +1,15 @@
 # TODO
 
-## Current stable — **v5.10.0 Raw Trim Apply** (SHIPPED · real-browser QA PASS 2026-07-12 · tagged `v5.10.0`)
+## Prior stable — **v5.10.0 Raw Trim Apply** (tagged `v5.10.0` · real-browser QA PASS 2026-07-12)
 
 **Design (as-built):** [`docs/v5.10.0-raw-trim-apply-roadmap.md`](docs/v5.10.0-raw-trim-apply-roadmap.md) · **Release notes:** [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md)  
 **Package:** `5.10.0` · **Push:** deferred (user pushes)
 
 Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only, mediabunny, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write — post-trim **voice re-apply / Change Voice** work. Raw-leg failure demotes honestly to the v5.9 lock. Node: timeline 22 · take-manager 34; build + tsc clean. Real-browser checklist **all PASS**.
 
-## ▶ Current — **v5.11.0 preferences full-IDB migration (browser QA PASS · merge-ready)**
+## Current stable — **v5.11.0 preferences full-IDB migration** (SHIPPED · browser QA PASS 2026-07-13 · merged to `main` + tagged `v5.11.0`, push deferred)
 
-**Branch:** `feature/v5.11.0-prefs-storage-refactor` @ `4433d05` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · **Release notes:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md)
+**Merged:** `feature/v5.11.0-prefs-storage-refactor` → `main` (`853d3d8`) · **Tag:** `v5.11.0` · **Package:** `5.11.0` · **Source of truth:** [`docs/v5.11.0-prefs-storage-refactor.md`](docs/v5.11.0-prefs-storage-refactor.md) · **Release notes:** [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md)
 
 **Implemented:** preserved `user-preferences.ts` API + BUG-023 queue; full `rvnUserPrefs` IndexedDB (`global`, `profiles`, `customStyles`); signal-only `rvnUserPrefs.v2`; transparent Reddit content-script → background IDB load/replace requests; delete-after-success/retryable v1 migration; transcript-result stripping; JSON Export/Import in the Studio profile cluster; per-save size telemetry/dev warnings; ADR-0006 and architecture map **v3.1**.
 
@@ -17,7 +17,7 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Real-browser QA (2026-07-13):** **PASS · blockers none.** Checklist `.ignore/QA-5.11.0/qa-checklist.md` — fresh install, v1 upgrade (real + planted), profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools rows, size telemetry, product smoke all ■. §3 force-fail ▲ PARTIAL accepted (fallback verified; Node covers inject). §14 skipped (H8 closed). No post-QA code fixes.
 
-**Merge next:** release notes written ([`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md)) · merge branch → `main` + tag **v5.11.0** (push user-owned) · then scope **v6.0**.
+**Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
 ## Follow-up — **after v5.11 merge · scope v6.0**
 
@@ -52,4 +52,4 @@ Full milestone index with living + archived doc pointers: [`docs/HISTORY.md`](do
 
 ## Architecture hardening
 
-**v5.11 prefs IDB browser QA PASS (2026-07-13) · merge-ready; H8 + H13 + H14/BUG-038 fully closed** — **map v3.1 · extension-points v1.15 · hardening backlog v2.13 · ADRs 0001–0006**. H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
+**v5.11 prefs IDB browser QA PASS (2026-07-13) · tagged `v5.11.0`; H8 + H13 + H14/BUG-038 fully closed** — **map v3.1 · extension-points v1.15 · hardening backlog v2.13 · ADRs 0001–0006**. H10 deferred. Triggers in [`docs/architecture/README.md`](docs/architecture/README.md).
