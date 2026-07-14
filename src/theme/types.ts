@@ -1,3 +1,10 @@
+import type {
+  OverlayPresetId,
+  SpectrumPresetId,
+  StackableEffectId,
+} from './audio-reactive/catalog';
+import type { VisualizerParams } from './audio-reactive/params';
+
 /** Bar geometry for the waveform draw loop. */
 export interface ThemeBarStyle {
   width: number;
@@ -47,7 +54,7 @@ export interface ThemeBackground {
    * - solid: CSS color string
    * - gradient: ordered stops (top → bottom)
    * - image: bundled asset key (see `BACKGROUND_ASSETS`)
-   * - bokeh: programmatic style key (see `BOKEH_STYLES` in bokeh.ts)
+   * - bokeh: registry-native soft-orb field (value reserved for future variants)
    */
   value: string | GradientStop[];
   /** Semi-transparent dim over image backgrounds so bars stay readable (0–1). */
@@ -57,7 +64,12 @@ export interface ThemeBackground {
 
 /** Optional flair merged from Design Studio custom styles (pretty-8). */
 export interface ThemeDesignEffects {
+  /** v2 compatibility field; new dispatch prefers overlayPreset when present. */
   backgroundOverlay?: 'bokeh' | 'sparkle';
+  spectrumPreset?: SpectrumPresetId;
+  overlayPreset?: OverlayPresetId | null;
+  visualizerParams?: Partial<VisualizerParams>;
+  stackables?: readonly StackableEffectId[];
   barGlowMultiplier?: number;
 }
 

@@ -1,15 +1,13 @@
 import {
-  buildPresetBokehOverlayStyle,
-  buildTintedBokehOverlayStyle,
-  drawBokehBackground,
-  drawBokehOverlay,
-  resolveBokehStyle,
-} from './bokeh';
-import { drawSparkleOverlay } from './sparkle';
-import {
   EMPTY_AUDIO_VIZ_FRAME,
+  renderAudioVisualForCanvas,
   type AudioVizFrame,
-} from './audio-reactive/audio-frame';
+  type VisualizerParams,
+} from './audio-reactive';
+import {
+  drawBokehBackdrop,
+  registerCoreOverlayVisuals,
+} from './audio-reactive/overlays';
 import {
   type DrawableBackgroundImage,
   getDrawableBackgroundSize,
@@ -32,13 +30,24 @@ import type {
   WaveformTheme,
 } from './types';
 
+// CHANGED: Sparkle and Bokeh are registry-native built-ins, not hard-coded draw branches.
+// WHY: every current and future overlay must use the same per-canvas lifecycle and parameter seam.
+registerCoreOverlayVisuals();
+
+const MIDNIGHT_BOKEH_PARAMS: Partial<VisualizerParams> = Object.freeze({
+  sensitivity: 0.62,
+  intensity: 0.78,
+  smoothing: 0.8,
+  density: 0.62,
+  color: ['#67e8f9', '#818cf8', '#c084fc'],
+});
+
 export { DEFAULT_USER_BACKGROUND_LAYOUT, normalizeUserBackgroundLayout } from './background-layout';
 export type { UserBackgroundLayout } from './types';
 
 /** Bundled static backgrounds under `public/assets/backgrounds/`. */
 export const BACKGROUND_ASSETS = {
   aurora: 'assets/backgrounds/aurora.svg',
-  'midnight-bokeh': 'assets/backgrounds/midnight-bokeh.svg',
   'warm-glow': 'assets/backgrounds/warm-glow.svg',
 } as const;
 
@@ -273,13 +282,15 @@ function drawBundledThemeBackground(
       break;
     }
     case 'bokeh': {
-      const style = resolveBokehStyle(background);
-      if (style) {
-        drawBokehBackground(ctx, canvas, style, audioFrame);
-      } else {
-        ctx.fillStyle = colors.bg;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
+      drawBokehBackdrop(ctx, canvas, colors.bg);
+      renderAudioVisualForCanvas(
+        'overlay',
+        'bokeh',
+        ctx,
+        canvas,
+        audioFrame,
+        MIDNIGHT_BOKEH_PARAMS,
+      );
       break;
     }
     default:
@@ -288,16 +299,21 @@ function drawBundledThemeBackground(
   }
 }
 
-function drawPresetBokehOverlay(
+function drawBokehThemeOverlay(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   background: ThemeBackground,
   audioFrame: AudioVizFrame,
 ): void {
-  if (background.type !== 'bokeh' || typeof background.value !== 'string') return;
-  const style = buildPresetBokehOverlayStyle(background.value);
-  if (!style) return;
-  drawBokehOverlay(ctx, canvas, style, audioFrame, 'screen', false);
+  if (background.type !== 'bokeh') return;
+  renderAudioVisualForCanvas(
+    'overlay',
+    'bokeh',
+    ctx,
+    canvas,
+    audioFrame,
+    MIDNIGHT_BOKEH_PARAMS,
+  );
 }
 
 export function drawThemeBackground(
@@ -325,7 +341,7 @@ export function drawThemeBackground(
     // Fix: Preset bokeh draws as orb overlay when fill mode replaces the dark bokeh base
     // Sync: skip when fit mode — letterbox already shows the full preset backdrop
     if (layout.scaleMode === 'fill') {
-      drawPresetBokehOverlay(ctx, canvas, theme.background, audioFrame);
+      drawBokehThemeOverlay(ctx, canvas, theme.background, audioFrame);
     }
   } else {
     drawBundledThemeBackground(ctx, canvas, theme, backgroundImage, audioFrame);
@@ -342,20 +358,24 @@ function drawDesignEffectOverlays(
   theme: WaveformTheme,
   audioFrame: AudioVizFrame,
 ): void {
-  const overlay = theme.designEffects?.backgroundOverlay;
+  const effects = theme.designEffects;
+  const overlay = effects?.overlayPreset !== undefined
+    ? effects.overlayPreset
+    : effects?.backgroundOverlay;
   if (!overlay) return;
 
-  if (overlay === 'bokeh') {
-    const style = buildTintedBokehOverlayStyle(theme.colors.bar);
-    drawBokehOverlay(ctx, canvas, style, audioFrame, 'screen', true);
-    return;
-  }
-
-  if (overlay === 'sparkle') {
-    drawSparkleOverlay(ctx, canvas, theme.colors.bar, theme.colors.glow, audioFrame);
-  }
+  const stripAlpha = (color: string): string => color.length === 9 ? color.slice(0, 7) : color;
+  const fallbackPalette = [stripAlpha(theme.colors.bar), stripAlpha(theme.colors.glow)];
+  renderAudioVisualForCanvas('overlay', overlay, ctx, canvas, audioFrame, {
+    ...effects?.visualizerParams,
+    color: effects?.visualizerParams?.color ?? fallbackPalette,
+  });
 }
 
 export function backgroundNeedsImage(background: ThemeBackground): boolean {
   return background.type === 'image' && typeof background.value === 'string';
+}
+
+export function backgroundIsBokeh(background: ThemeBackground): boolean {
+  return background.type === 'bokeh';
 }

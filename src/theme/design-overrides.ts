@@ -6,6 +6,17 @@ import {
 } from '@/src/theme/color-utils';
 import { getThemeById } from '@/src/theme/presets';
 import type { ThemeDesignEffects, WaveformTheme } from '@/src/theme/types';
+import {
+  MAX_STACKABLE_EFFECTS,
+  isOverlayPresetId,
+  isSpectrumPresetId,
+  isStackableEffectId,
+  normalizeVisualizerParams,
+  type OverlayPresetId,
+  type SpectrumPresetId,
+  type StackableEffectId,
+  type VisualizerParams,
+} from '@/src/theme/audio-reactive';
 
 export type BackgroundEffect = 'none' | 'bokeh' | 'sparkle';
 export type BarGlowEffect = 'default' | 'boosted';
@@ -21,6 +32,10 @@ export interface DesignOverrides {
   glowColor?: string;
   backgroundEffect?: BackgroundEffect;
   barGlow?: BarGlowEffect;
+  spectrumPreset?: SpectrumPresetId;
+  visualizerParams?: Partial<VisualizerParams>;
+  overlayPreset?: OverlayPresetId | null;
+  stackables?: StackableEffectId[];
 }
 
 export const CUSTOM_STYLE_BASE_THEME_ID = 'neon-glow' as const;
@@ -49,12 +64,29 @@ export function normalizeDesignOverrides(
   const barColor = normalizeHexColor(raw.barColor);
   if (!barColor) return null;
 
-  return {
+  const normalized: DesignOverrides = {
     barColor,
     glowColor: deriveGlowColor(barColor),
     backgroundEffect: normalizeBackgroundEffect(raw.backgroundEffect),
     barGlow: normalizeBarGlow(raw.barGlow),
   };
+
+  // CHANGED: every additive v6 field is independently allowlisted and bounded.
+  // WHY: imported/saved styles cross an untyped persistence boundary and must not reach renderers raw.
+  if (isSpectrumPresetId(raw.spectrumPreset)) normalized.spectrumPreset = raw.spectrumPreset;
+  if (raw.overlayPreset === null) normalized.overlayPreset = null;
+  else if (isOverlayPresetId(raw.overlayPreset)) normalized.overlayPreset = raw.overlayPreset;
+
+  const visualizerParams = normalizeVisualizerParams(raw.visualizerParams);
+  if (visualizerParams) normalized.visualizerParams = visualizerParams;
+
+  if (Array.isArray(raw.stackables)) {
+    const stackables = [...new Set(raw.stackables.filter(isStackableEffectId))]
+      .slice(0, MAX_STACKABLE_EFFECTS);
+    if (stackables.length > 0) normalized.stackables = stackables;
+  }
+
+  return normalized;
 }
 
 export function designOverridesMatch(
@@ -69,28 +101,52 @@ export function designOverridesMatch(
     left.barColor === right.barColor &&
     (left.glowColor ?? '') === (right.glowColor ?? '') &&
     left.backgroundEffect === right.backgroundEffect &&
-    left.barGlow === right.barGlow
+    left.barGlow === right.barGlow &&
+    left.spectrumPreset === right.spectrumPreset &&
+    left.overlayPreset === right.overlayPreset &&
+    JSON.stringify(left.visualizerParams ?? null) === JSON.stringify(right.visualizerParams ?? null) &&
+    JSON.stringify(left.stackables ?? []) === JSON.stringify(right.stackables ?? [])
   );
 }
 
 function buildDesignEffects(overrides: DesignOverrides): ThemeDesignEffects | undefined {
-  const backgroundOverlay =
+  const legacyOverlay =
     overrides.backgroundEffect === 'bokeh' || overrides.backgroundEffect === 'sparkle'
       ? overrides.backgroundEffect
       : undefined;
+  const hasOverlayPreset = overrides.overlayPreset !== undefined;
+  const overlayPreset = hasOverlayPreset ? overrides.overlayPreset : legacyOverlay;
+  const backgroundOverlay = overlayPreset === 'bokeh' || overlayPreset === 'sparkle'
+    ? overlayPreset
+    : undefined;
   const barGlowMultiplier =
     overrides.barGlow === 'boosted' ? BOOSTED_BAR_GLOW_MULTIPLIER : undefined;
 
-  if (!backgroundOverlay && !barGlowMultiplier) return undefined;
+  if (
+    !backgroundOverlay &&
+    !barGlowMultiplier &&
+    !overrides.spectrumPreset &&
+    !overrides.visualizerParams &&
+    !overrides.stackables?.length &&
+    !hasOverlayPreset
+  ) return undefined;
+
   return {
-    backgroundOverlay,
-    barGlowMultiplier,
+    ...(backgroundOverlay ? { backgroundOverlay } : {}),
+    ...(hasOverlayPreset ? { overlayPreset } : {}),
+    ...(overrides.spectrumPreset ? { spectrumPreset: overrides.spectrumPreset } : {}),
+    ...(overrides.visualizerParams ? { visualizerParams: overrides.visualizerParams } : {}),
+    ...(overrides.stackables?.length ? { stackables: overrides.stackables } : {}),
+    ...(barGlowMultiplier ? { barGlowMultiplier } : {}),
   };
 }
 
 export function themeHasAnimatedOverlay(theme: WaveformTheme): boolean {
-  const overlay = theme.designEffects?.backgroundOverlay;
-  return overlay === 'bokeh' || overlay === 'sparkle';
+  const effects = theme.designEffects;
+  const overlay = effects?.overlayPreset !== undefined
+    ? effects.overlayPreset
+    : effects?.backgroundOverlay;
+  return Boolean(overlay) || Boolean(effects?.stackables?.length);
 }
 
 export function effectiveBarGlow(theme: WaveformTheme): number {

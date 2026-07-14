@@ -1,8 +1,10 @@
 import type { AudioVizFrame } from './audio-frame';
 import type { LayoutMode } from './layout';
 import type { VisualizerParams } from './params';
+import { resolveVisualizerParams } from './params';
 
 export * from './audio-frame';
+export * from './catalog';
 export * from './layout';
 export * from './params';
 
@@ -34,7 +36,14 @@ export interface AudioVisual {
 
 export interface AudioVisualDefinition {
   readonly id: string;
+  /** Human label used by registry-driven picker surfaces. */
+  readonly label?: string;
   readonly kind: AudioVisualKind;
+  /** Broad family name for future Style-panel grouping. */
+  readonly family?: string;
+  /** Hard element ceiling used by density/performance affordances. */
+  readonly maxElements?: number;
+  readonly defaultParams?: Partial<VisualizerParams>;
   create(): AudioVisual;
 }
 
@@ -53,9 +62,28 @@ export function registerAudioVisual(definition: AudioVisualDefinition): () => vo
   return () => definitions.delete(key);
 }
 
+/** Idempotent registration for built-ins imported through more than one theme barrel. */
+export function registerAudioVisualIfAbsent(definition: AudioVisualDefinition): boolean {
+  const key = definitionKey(definition.kind, definition.id);
+  const existing = definitions.get(key);
+  // CHANGED: idempotence is limited to the same built-in definition object.
+  // WHY: a future effect pack must not silently lose an accidental kind:id collision.
+  if (existing === definition) return false;
+  if (existing) throw new Error(`Audio visual already registered: ${key}`);
+  definitions.set(key, definition);
+  return true;
+}
+
+export function getAudioVisualDefinition(
+  kind: AudioVisualKind,
+  id: string,
+): AudioVisualDefinition | null {
+  return definitions.get(definitionKey(kind, id)) ?? null;
+}
+
 /** Creates a fresh preset instance so afterimages/agents never leak across canvases. */
 export function resolveAudioVisual(kind: AudioVisualKind, id: string): AudioVisual | null {
-  return definitions.get(definitionKey(kind, id))?.create() ?? null;
+  return getAudioVisualDefinition(kind, id)?.create() ?? null;
 }
 
 export function listAudioVisualDefinitions(
@@ -63,4 +91,60 @@ export function listAudioVisualDefinitions(
 ): readonly AudioVisualDefinition[] {
   const registered = [...definitions.values()];
   return kind ? registered.filter((definition) => definition.kind === kind) : registered;
+}
+
+interface CanvasVisualRuntime {
+  definition: AudioVisualDefinition;
+  instance: AudioVisual;
+  lastTimeMs: number | null;
+}
+
+const canvasRuntimes = new WeakMap<HTMLCanvasElement, Map<string, CanvasVisualRuntime>>();
+
+/**
+ * Render a registered visual with stable per-canvas state.
+ * CHANGED: registry dispatch now owns update timing and instance reuse.
+ * WHY: particle smoothing must persist frame-to-frame without leaking across preview/capture canvases.
+ */
+export function renderAudioVisualForCanvas(
+  kind: AudioVisualKind,
+  id: string,
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  frame: AudioVizFrame,
+  overrides?: Partial<VisualizerParams>,
+): boolean {
+  const definition = getAudioVisualDefinition(kind, id);
+  if (!definition) return false;
+
+  let runtimes = canvasRuntimes.get(canvas);
+  if (!runtimes) {
+    runtimes = new Map();
+    canvasRuntimes.set(canvas, runtimes);
+  }
+
+  const key = definitionKey(kind, id);
+  let runtime = runtimes.get(key);
+  if (!runtime || runtime.definition !== definition) {
+    runtime = {
+      definition,
+      instance: definition.create(),
+      lastTimeMs: null,
+    };
+    runtimes.set(key, runtime);
+  }
+
+  const elapsedMs = runtime.lastTimeMs === null ? 0 : frame.timeMs - runtime.lastTimeMs;
+  const dt = elapsedMs > 0 ? Math.min(elapsedMs / 1000, 0.1) : 0;
+  runtime.lastTimeMs = frame.timeMs;
+
+  const params = resolveVisualizerParams(definition.defaultParams, overrides);
+  runtime.instance.update?.(frame, dt);
+  runtime.instance.render(ctx, canvas, frame, params);
+  return true;
+}
+
+/** Explicit teardown hook for long-lived canvases that switch capture sessions. */
+export function resetAudioVisualCanvas(canvas: HTMLCanvasElement): void {
+  canvasRuntimes.delete(canvas);
 }

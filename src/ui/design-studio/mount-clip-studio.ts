@@ -714,7 +714,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const barColor =
       patch.barColor ?? current?.barColor ?? (activePrefs ? resolvedTheme().colors.bar : undefined);
     if (!barColor) return null;
+    // CHANGED: preserve registry/preset fields while legacy color/flair controls patch one property.
+    // WHY: opening the pre-Style-panel controls must not silently erase v6 visual settings.
     return {
+      ...current,
+      ...patch,
       barColor,
       glowColor: patch.glowColor ?? current?.glowColor,
       backgroundEffect: patch.backgroundEffect ?? current?.backgroundEffect ?? 'none',
@@ -813,7 +817,13 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   });
 
   const backgroundFlairControls = mountBackgroundFlairControls(root, (backgroundEffect) => {
-    const merged = mergeDesignOverrides({ backgroundEffect });
+    // BUG FIX: Background flair selection masked by a persisted v6 overlay preset
+    // Fix: Treat the still-shipping dropdown as an explicit overlay choice and update both fields.
+    // Sync: Remove this bridge when the refactored Style panel writes overlayPreset directly.
+    const merged = mergeDesignOverrides({
+      backgroundEffect,
+      overlayPreset: backgroundEffect === 'none' ? null : backgroundEffect,
+    });
     if (!merged) return;
     applyLocalDesignOverrides(merged);
     syncSectionSummaries();
