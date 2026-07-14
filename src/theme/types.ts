@@ -54,7 +54,7 @@ export interface ThemeBackground {
    * - solid: CSS color string
    * - gradient: ordered stops (top → bottom)
    * - image: bundled asset key (see `BACKGROUND_ASSETS`)
-   * - bokeh: registry-native soft-orb field (value reserved for future variants)
+   * - bokeh: serialized key for the registry-native Bubbles soft-orb field
    */
   value: string | GradientStop[];
   /** Semi-transparent dim over image backgrounds so bars stay readable (0–1). */

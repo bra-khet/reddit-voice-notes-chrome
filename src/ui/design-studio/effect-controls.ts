@@ -1,4 +1,5 @@
 import type { BackgroundEffect, BarGlowEffect, DesignOverrides } from '@/src/theme/design-overrides';
+import { BUBBLES_OVERLAY_LABEL } from '@/src/theme/audio-reactive/catalog';
 
 // V4 NOTE: Effects controls may relocate when Design Studio sections are segmented.
 
@@ -13,7 +14,7 @@ export function renderBackgroundFlairFields(): string {
         <span class="popup__field-label">Background flair</span>
         <select class="popup__select" data-background-effect aria-label="Background flair">
           <option value="none">None</option>
-          <option value="bokeh">Bokeh</option>
+          <option value="bokeh">${BUBBLES_OVERLAY_LABEL}</option>
           <option value="sparkle">Sparkle</option>
         </select>
       </label>

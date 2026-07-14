@@ -30,7 +30,7 @@ import type {
   WaveformTheme,
 } from './types';
 
-// CHANGED: Sparkle and Bokeh are registry-native built-ins, not hard-coded draw branches.
+// CHANGED: Sparkle and Bubbles are registry-native built-ins, not hard-coded draw branches.
 // WHY: every current and future overlay must use the same per-canvas lifecycle and parameter seam.
 registerCoreOverlayVisuals();
 

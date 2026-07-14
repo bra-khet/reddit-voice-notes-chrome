@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v5.11.0 preferences-IDB implementation** (manual browser QA pending). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.3, seams v1.17, backlog v2.13.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.4, seams v1.18, backlog v2.13.
 
 ---
 
@@ -166,7 +166,7 @@ The **single** Live preview canvas uses `renderThemePreview()` with the same inp
 - Personal background id + layout (Studio reads ImageDB directly)
 - Subtitle overlay options from `subtitleControls.getPreviewOptions()`; offline bake reuses `createOverlayFramePainter`
 
-Animated preview (bokeh, sparkle) runs at 12 fps RAF unless `shouldReduceMotion(prefs)`.
+Animated preview (Bubbles/`bokeh`, Sparkle) runs at 12 fps RAF unless `shouldReduceMotion(prefs)`.
 
 **Invariant:** If it appears in Live preview, the export path must reproduce it—either in the captured base canvas or the post-base subtitle painter/fallback. Timeline cue edits snap to the painter frame grid (I17). Trim ghosts and destructive apply share the same cue projection, so trim preview = applied result (I18).
 
@@ -174,7 +174,7 @@ Animated preview (bokeh, sparkle) runs at 12 fps RAF unless `shouldReduceMotion(
 
 Bottom → top:
 
-1. **Background** — theme gradient/SVG/bokeh + optional personal image.
+1. **Background** — theme gradient/SVG/Bubbles + optional personal image.
 2. **Bars** — waveform + glow/effects (canvas capture at 24 fps on Reddit).
 3. **Subtitles** — post-`base.mp4` composite, never in the live capture RAF. Default: in-page VideoDecoder → shared painter blend → VideoEncoder+mux. Permanent fallbacks: dual-IVF+FFmpeg, MediaRecorder+FFmpeg, then drawtext.
 
@@ -229,7 +229,7 @@ Implement new Studio surfaces via `studio-save-pathways.ts` and `studio-exit.ts`
 **Panel id:** `data-studio-panel="bar-style"`  
 **Summary:** `renderBarStyleSummaryHtml` — style name, color swatch, S/V, alignment badge, effects chip.
 
-**v6 transition (Phase 1 landed 2026-07-14):** this user-facing section and its `data-studio-panel="bar-style"` contract remain unchanged until the integrated Style-panel UI milestone. Underneath, capture and preview share `AudioVizFrame` plus a per-canvas registry runtime (`src/theme/audio-reactive/`, I22). Sparkle/Bokeh are now complete deterministic replacements with hard caps (64/14), dispatched through the overlay registry; placeholder-era appearance parity is intentionally rejected (ADR-0009). `DesignOverrides` already guards future preset/param/stackable fields, and the current Background flair dropdown bridges to `overlayPreset`. The 32-bar spectrum remains direct until Phase 2 Classic-Neon.
+**v6 transition (Phase 2 entry landed 2026-07-14):** this user-facing section and its `data-studio-panel="bar-style"` contract remain unchanged until the integrated Style-panel UI milestone. Underneath, capture and preview share `AudioVizFrame` plus a per-canvas registry runtime (`src/theme/audio-reactive/`, I22). Sparkle/Bubbles are complete deterministic replacements with hard caps (64/14); `bokeh` remains only the serialized Bubbles key (ADR-0009/0010). Classic (Neon Glow) now owns the spectrum registry slot for both live capture and synthetic preview, with neutral operation parity and safe fallback from unavailable IDs. `DesignOverrides` guards preset/param/stackable fields, and the current Background flair dropdown bridges to `overlayPreset`. User Phase 1 browser QA passed; remaining spectra precede the integrated Style panel.
 
 ### 4.1 Controls inventory
 
@@ -668,7 +668,7 @@ Replace `<details>` accordion with always-visible “dressed” cards + nested s
 | **Boot / prefs hydration** | `main.ts` boot order + `applyPrefs` voice/subtitle sync **before** `syncProfileActions` (BUG-027). Re-mounting or re-ordering panel init can resurrect false “Update profile”. |
 | **Four dirty layers** | Profile, style, transcript panel, segment modal — UI refresh must not merge dirty booleans. Exit modal (`studio-exit.ts`) only knows profile/style. |
 | **Storage listener gate** | `prefsHydrated`, `ignoreStoragePrefs`, `invalidateInFlightSaves` — remounting sections on breakpoint change would reset drafts; **avoid re-mount on resize**. |
-| **Preview RAF loop** | `syncPreviewLoop` / `previewCanvases()` — multiple canvases or resize must not duplicate RAF or starve rainbow/bokeh. |
+| **Preview RAF loop** | `syncPreviewLoop` / `previewCanvases()` — multiple canvases or resize must not duplicate RAF or starve rainbow/Bubbles. |
 | **Color debounce** | `COLOR_SAVE_DEBOUNCE_MS` + `colorPicker.endInteraction()` on external sync — collapsing panels must not stomp in-progress hue drags. |
 | **Subtitle `flushPersist` on pagehide** | Teardown order in `unmount()` — must run before tab death (BUG-017/021). |
 | **WYSIWYG copy** | Header says “preview matches recorded video” — rainbow and future effects need honest hints (see `Bake: stepped`). Refresh tagline may need qualification. |
@@ -875,7 +875,7 @@ reddit.com).
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
-| v6 visual maturity | Style / Background | **In progress:** Track A Phase 1 carrier/runtime, guarded prefs, and registry-native Sparkle/Bokeh landed; next Classic-Neon spectrum + size harness. Track B background direct manipulation remains planned. |
+| v6 visual maturity | Style / Background | **In progress:** Track A carrier/runtime, guarded prefs, registry-native Sparkle/Bubbles, Classic-Neon spectrum, and real-artifact size harness landed; remaining spectra/simulations follow. Track B background direct manipulation remains planned. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -906,7 +906,7 @@ reddit.com).
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; Phase 1 registry-native Sparkle/Bokeh + guarded prefs complete, spectra/simulation follow (ADR-0007/0009 Accepted) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; Sparkle/Bubbles + Classic-Neon + size harness complete, remaining spectra/simulations follow (ADR-0007/0009/0010 Accepted) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 (planned)** direct-manipulation background layout — Design-phase; `dim`→field, `customPosition` (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |

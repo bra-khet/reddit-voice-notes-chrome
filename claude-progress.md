@@ -122,11 +122,11 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 1 registry-native overlays complete 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Classic entry complete 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
-- **Roadmap A — audio-reactive visuals + spectrum presets:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · [ADR-0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [ADR-0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md). Six curated spectrum presets + simulation backbone; Sparkle/Bokeh are complete v6 replacements rather than legacy adapters.
+- **Roadmap A — audio-reactive visuals + spectrum presets:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · [ADR-0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [ADR-0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [ADR-0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md). Six curated spectra + simulation backbone; Sparkle/Bubbles are complete v6 replacements rather than legacy adapters.
 - **Roadmap B — direct-manipulation background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · [ADR-0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md). Drag/zoom/snap on the hero preview; promote `dim` to a field; `customPosition`; new `interaction-utils.ts`.
 
 **Pivotal resolution (both):** bars/background/effects are **captured at record time** into `baseRecording` (`WaveformRenderer.drawFrame` → `captureStream`); the bake never re-renders them, only subtitles (I3). So both features are **Design/Capture-phase**, not post-capture editors — WYSIWYG = "arranges the next recording" (I1). The `AnalyserNode` + 32-band FFT (`computeBandValues`) + `smoothedAudioEnergy` **already exist**; no new audio infra. **Hard ceiling = the encoded-size caps** (base ≤25 MB / baked ≤30 MB): visuals are captured→transcoded, so high-entropy effects inflate the MP4 — density caps + perf slider protect size *and* CPU. No new deps/WASM, no version bump (additive `normalize`-guarded fields), no fourth compositing layer.
@@ -140,13 +140,22 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** `test-audio-frame.mjs` **8/8** · `test-ui-tokens.mjs` **7/7** · `npm run build` **PASS** · `npm run compile` only the same 2 pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.2** + I22 · extension-points **v1.16** · ADR-0007 **Accepted**. No new context/message/store/signal/dependency/compositing layer.
 
-### Track A Phase 1 — registry-native Sparkle/Bokeh + guarded settings (**DONE 2026-07-14; automated gate**)
+### Track A Phase 1 — registry-native Sparkle/Bubbles + guarded settings (**DONE 2026-07-14; user browser QA PASS**)
 
 - Added a stable visual catalog and a WeakMap-backed registry runtime that creates one isolated instance per canvas/effect, clamps long `dt`, and merges definition defaults with normalized overrides.
-- Deleted the placeholder `src/theme/sparkle.ts` / `bokeh.ts` implementations. New Sparkle is an 18–64 deterministic, band-driven twinkle/mote field; new Bokeh is a 5–14 deterministic depth/parallax lens field plus bounded two-pass backdrop. IDs/labels remain `sparkle` / `bokeh`; appearance compatibility is deliberately rejected by user direction and ADR-0009.
+- Deleted the placeholder `src/theme/sparkle.ts` / `bokeh.ts` implementations. New Sparkle is an 18–64 deterministic, band-driven twinkle/mote field; public **Bubbles** is a 5–14 deterministic depth/parallax orb field plus bounded two-pass backdrop. `bokeh` remains only the serialized stability key; appearance compatibility is deliberately rejected by ADR-0009/0010.
 - Extended `DesignOverrides` / `ThemeDesignEffects` with allowlisted `spectrumPreset`, `overlayPreset`, normalized `visualizerParams`, and deduplicated ≤3 `stackables`. Current Background flair UI bridges explicitly to the new ID until the Style panel lands. No new prefs version, store, message, signal, dependency, or compositing layer.
-- Midnight Bokeh now uses a legible ice/cyan/purple palette. Spatial partition waits for the first neighbor-querying Phase 3 preset; non-linear layout mappers wait for their Phase 2 spectrum consumer.
+- Midnight Bubbles uses a legible ice/cyan/purple palette. Spatial partition waits for the first neighbor-querying Phase 3 preset; non-linear layout mappers wait for their Phase 2 spectrum consumer.
 - **Automated:** `test-audio-frame` **9/9** · `test-design-overrides-v6` **8/8** · `test-overlay-visuals` **6/6** · `test-ui-tokens` **7/7** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics.
-- **Architecture:** map **v3.3** / I22 · extension-points **v1.17** · ADR-0009 **Accepted**. Browser appearance/FPS and 120-second encoded-size QA remain open.
+- **Architecture:** map **v3.3** / I22 · extension-points **v1.17** · ADR-0009 **Accepted**. User reports browser appearance/FPS QA PASS; real per-heavy-preset size reports remain required.
 
-**Immediate next actions:** Classic-Neon spectrum registry + default-bar pixel parity → land the 120-second size-QA harness → remaining spectrum presets.
+### Track A Phase 2 entry — Classic (Neon Glow) + real-artifact size gate (**DONE 2026-07-14; automated gate**)
+
+- Removed both direct 32-bar paint loops from `waveform.ts`. Capture and Studio preview now resolve the spectrum slot through the per-canvas registry, with Classic-Neon as the default/no-change definition and safe fallback when an additive preset ID has not landed yet.
+- Classic owns the v5 transfer curve, geometry, alpha, glow, alignment, live peak normalization, preview levels, and reduced-motion silhouette. Neutral controls reproduce the prior Canvas-2D operation stream; sensitivity/intensity/density/smoothing can now tune it without a parallel renderer.
+- Added `npm run qa:visual-size -- --preset <id> --base <base.mp4> --baked <baked.mp4> [--json]`. It reads actual MP4 metadata through mediabunny, rejects short smoke clips, enforces base ≤25 MiB / baked ≤30 MiB, and caps duration drift at 0.1 s. Tests synchronize those numbers to the enforced stores and 120 s recording cap.
+- Centralized `BUBBLES_OVERLAY_LABEL`; dropdown, summary, Midnight theme name, and registry picker metadata now say Bubbles while IDs remain stable (ADR-0010). No migration/alias renderer was added.
+- **Automated:** audio-frame **9/9** · design overrides **8/8** · overlay label/caps **6/6** · Classic parity **5/5** · size contract **5/5** · Cividis **7/7** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.4** / I22 · extension-points **v1.18** · ADR-0010 **Accepted**. No new context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** Minimal spectrum → Phosphor → Radial/Central (add coordinate helpers when consumed) → Oscilloscope waveform-on-demand.

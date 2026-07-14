@@ -7,5 +7,6 @@ export * from './design-overrides';
 export * from './background-layout';
 export * from './audio-reactive';
 export * from './audio-reactive/overlays';
+export * from './audio-reactive/spectra';
 export type { BarAlignment } from '@/src/recorder/waveform';
 export { renderThemePreview } from '@/src/recorder/waveform';

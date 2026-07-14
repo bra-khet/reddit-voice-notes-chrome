@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.17 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 1 automated gate PASS**
+**Version:** v1.18 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 2 Classic entry gate PASS**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.17 — **registry-native founding overlays, Phase 1** (2026-07-14): per-canvas runtime reuses isolated instances with clamped `dt`; Sparkle/Bokeh are complete deterministic replacements capped at 64/14 elements; guarded visual catalog/params/stackables persist through existing `DesignOverrides`. ADR-0009 supersedes only ADR-0007's legacy-adapter clause. Node 9 + 8 + 6 + token sync 7 + build PASS; no new message/store/context/layer. v1.16 — **audio-reactive visual seam, Phase 0:** normalized carrier + factory registry + shared Cividis. Earlier history remains in git.
+**Changelog:** v1.18 — **registry-native spectrum slot, Phase 2 entry** (2026-07-14): Classic (Neon Glow) replaces both direct bar loops behind the per-canvas runtime, with distinct capture/preview amplitude modes preserving neutral output and safe fallback from unavailable IDs. A real-MP4 120-second CLI gates the enforced 25/30 MiB ceilings. Public Bubbles label retains `bokeh` stability key (ADR-0010). Node Classic 5 + size 5; no new message/store/context/layer. v1.17 — founding overlays + guarded settings. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -87,16 +87,17 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Gotcha:** Profile at 24 fps before merge — expensive per-frame work can drop below `WAVEFORM_TARGET_FPS` and cause dup-storm on slow machines (BUG-007 trigger class).
 - **Layout constants:** keep waveform bar counts/spacing fixed in v4 scope — changing them breaks the preview WYSIWYG guarantee for clips already recorded.
 
-## Audio-reactive visual system — v2 (v6 Phase 1 overlays)
+## Audio-reactive visual system — v3 (v6 Phase 2 spectrum slot)
 
 - **Carrier:** `src/theme/audio-reactive/audio-frame.ts` owns `AudioVizFrame`: normalized energy (0–1), exactly 32 log-spaced bands (0–1), optional waveform (-1–1), shared `timeMs`, and optional transient. `WaveformRenderer.drawFrame()` supplies live analyser data; `renderThemePreview()` supplies `PREVIEW_BAND_LEVELS` + representative energy. Never invent a second preview-only frame shape (I22).
 - **Registry/runtime:** `src/theme/audio-reactive/index.ts` registers `AudioVisualDefinition` factories by `kind:id` (`spectrum` / `overlay`). `renderAudioVisualForCanvas()` creates once and reuses state through a `WeakMap<HTMLCanvasElement, …>`, clamps `dt` to 100 ms, and resolves normalized defaults/overrides. Never call `definition.create()` per frame.
 - **Draw slots:** overlay visuals generalize `drawDesignEffectOverlays` below the bars; spectrum visuals replace the 32-bar loop. This is a generalization of existing Canvas-2D slots, not a fourth compositing layer. Subtitles remain post-base (I3).
-- **Founding overlays:** `audio-reactive/overlays/sparkle.ts` (twinkle/particle, 18–64) and `bokeh.ts` (soft-lens depth/parallax, 5–14) are deterministic registry-native algorithms consuming energy + bands. Stable IDs/labels remain; old placeholder pixels are intentionally not preserved (ADR-0009).
+- **Founding spectrum:** `audio-reactive/spectra/classic-neon.ts` owns the prior 32-bar transfer curve, geometry, alignment, color-alpha, glow, reduced-motion silhouette, and optional v6 controls. Its neutral defaults reproduce the removed `waveform.ts` loops; capture retains peak normalization while synthetic preview retains its direct levels. If a saved additive spectrum ID has no registered definition yet, capture falls back to Classic rather than drawing blank.
+- **Founding overlays:** `audio-reactive/overlays/sparkle.ts` (twinkle/particle, 18–64) and `bokeh.ts` (public **Bubbles**, serialized ID `bokeh`; soft-lens depth/parallax, 5–14) are deterministic registry-native algorithms. Old placeholder pixels are intentionally not preserved (ADR-0009/0010).
 - **Persistence:** `DesignOverrides` carries optional `spectrumPreset`, `visualizerParams`, `overlayPreset`, and `stackables`. `normalizeDesignOverrides`/`normalizeVisualizerParams` allowlist IDs/layouts, clamp controls/weights, normalize ≤7 palette colors, and dedupe/cap stackables at three. No new store, signal, message, or `USER_PREFS_VERSION` bump.
 - **Shared UI ramp:** `CIVIDIS` in `src/ui/tokens.ts` mirrors `--rvn-cividis-*` in `studio-palette.css`; `test-ui-tokens.mjs` prevents branch drift. Pair color with labels/icons—never encode governor state by hue alone.
-- **Performance/size:** Canvas 2D only; no WebGL/WASM/dependency. Density and stackables must respect both frame smoothness and the 120 s encoded caps (base ≤25 MB, baked ≤30 MB). The heavy-preset harness gates novel presets, not the carrier scaffold.
-- **Decision/canonical design:** ADR-0007 + ADR-0009 (Accepted) + `docs/v6.0.0-custom-styles-refactor.md`. Browser appearance/FPS and 120-second size QA remain the confidence gate; legacy visual parity is not one.
+- **Performance/size:** Canvas 2D only; no WebGL/WASM/dependency. `npm run qa:visual-size -- --preset <id> --base <base.mp4> --baked <baked.mp4>` reads real MP4 metadata, requires a near-120-second pair, and enforces base ≤25 MiB / baked ≤30 MiB plus ≤0.1 s drift. Run it for every heavy preset and keep the artifact report with QA evidence.
+- **Decision/canonical design:** ADR-0007 + ADR-0009 + ADR-0010 (Accepted) + `docs/v6.0.0-custom-styles-refactor.md`. User reports Phase 1 browser QA PASS; real per-heavy-preset 120-second artifact results remain the confidence gate. Overlay legacy visual parity is not one.
 
 ## Design Studio surfaces — v1
 
@@ -462,16 +463,17 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.17 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
-Map v3.3 · v6 audio-reactive Phase 1 automated gate PASS; browser visual/long-capture QA pending.
+Extension points v1.18 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
+Map v3.4 · v6 Phase 2 Classic entry automated gate PASS; Phase 1 user browser QA PASS.
 Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
 New seam: audio-reactive visual system v1; no new context/message/store/signal/compositing layer.
 AudioVizFrame: normalized energy + 32 bands + optional waveform + shared clock (I22).
 AudioVisual registry uses a WeakMap per-canvas runtime; two slots only: overlay below spectrum; both record-time capture.
-Phase 1: Sparkle/Bokeh replacements active (caps 64/14); catalog/params/stackables fully normalize in existing prefs (ADR-0009).
+Classic (Neon Glow) owns the spectrum slot with neutral pixel-operation parity and blank-output fallback.
+Sparkle/Bubbles replacements active (caps 64/14); `bokeh` remains the serialized stability key (ADR-0009/0010).
 Shared Cividis contract: tokens.ts ↔ studio-palette.css, sync-tested; pair color with text/icon.
-Novel effects remain Canvas 2D and must pass 120 s base≤25 MB / baked≤30 MB size QA.
+Novel effects remain Canvas 2D and must pass the real-artifact 120 s base≤25 MiB / baked≤30 MiB CLI gate.
 Prefs remain rvnUserPrefs IDB + enqueuePrefsOp; new visual fields must normalize, no version bump.
 H6/H8/H13/H14 and browser-composite fallback contracts remain unchanged.
-Read ADR-0007 + ADR-0009 + v6 custom-styles roadmap. Next: Classic-Neon spectrum parity + 120-second size harness.
+Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: remaining Phase 2 spectra, starting with Minimal.
 ```

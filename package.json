@@ -12,6 +12,7 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "qa:visual-size": "node scripts/qa-visual-size.mjs",
     "build:vosk-sandbox": "node scripts/build-vosk-sandbox.mjs",
     "postinstall": "wxt prepare && node scripts/copy-ffmpeg-core.mjs && node scripts/fetch-vosk-model.mjs && node scripts/build-vosk-sandbox.mjs"
   },

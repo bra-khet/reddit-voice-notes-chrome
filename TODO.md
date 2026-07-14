@@ -19,16 +19,16 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
-## Current work — **v6.0 "Polish & Visual Maturity" · Track A IN PROGRESS · Phase 1 registry-native overlays complete (2026-07-14)**
+## Current work — **v6.0 "Polish & Visual Maturity" · Track A IN PROGRESS · Phase 2 Classic entry complete (2026-07-14)**
 
-Two branches exist off `main@98c37ab`; roadmaps synthesized from the three `.ignore/prep-v6.0.0/` supplements via `/architecture-hardening`. Active branch = `feature/v6.0.0-custom-styles-refactor`; ADR-0007 and superseding ADR-0009 are Accepted.
+Two branches exist off `main@98c37ab`; roadmaps synthesized from the three `.ignore/prep-v6.0.0/` supplements via `/architecture-hardening`. Active branch = `feature/v6.0.0-custom-styles-refactor`; ADR-0007 and superseding ADR-0009/0010 are Accepted.
 
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
-| **A — audio-reactive visuals** (preferred) | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) | 6 spectrum presets + simulation backbone; registry-native Sparkle/Bokeh replacements; perf governor |
+| **A — audio-reactive visuals** (preferred) | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectrum presets + simulation backbone; registry-native Sparkle/Bubbles; perf governor |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) | Direct drag/zoom/snap on hero preview; `dim`→field; `customPosition`; new `interaction-utils.ts` |
 
-**Track A status:** ✅ Cividis tokens · ✅ normalized `AudioVizFrame` · ✅ per-canvas registry runtime · ✅ placeholder Sparkle/Bokeh replaced with deterministic band-driven families (hard caps **64 / 14**) · ✅ fully guarded `DesignOverrides` catalog/params/≤3 stackables, no prefs version bump. Node **9/9 + 8/8 + 6/6 + 7/7** · build PASS · compile only the same 2 pre-existing subtitle diagnostics · architecture map **v3.3** / seams **v1.17** / I22 / ADR-0009. **NEXT:** (1) Classic-Neon spectrum registry + pixel parity for the default bar path → (2) land the 120 s heavy-preset **size-QA harness** (base ≤25 MB / baked ≤30 MB) → (3) remaining spectra.
+**Track A status:** ✅ Cividis · ✅ normalized `AudioVizFrame` · ✅ per-canvas runtime · ✅ Sparkle/Bubbles replacements (caps **64 / 14**, user browser QA PASS; `bokeh` retained only as stability key) · ✅ guarded prefs · ✅ Classic-Neon spectrum owns default capture+preview slot with **5/5** neutral operation parity + safe fallback · ✅ real-MP4 120 s size harness contract **5/5** (`qa:visual-size`, base ≤25 MiB / baked ≤30 MiB). Existing Node **9/9 + 8/8 + 6/6 + 7/7** · build PASS · compile only the same 2 pre-existing subtitle diagnostics · map **v3.4** / seams **v1.18** / I22 / ADR-0007/0009/0010. **NEXT:** Minimal spectrum → Phosphor → non-linear spectra.
 
 **Non-negotiables (both):** capture-time visuals (Design-phase, not post-capture); `normalize*` guards on every new prefs field, no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no bake-size/perf/legibility regression vs v5.11.0.
 

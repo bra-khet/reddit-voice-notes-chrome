@@ -2,6 +2,7 @@ import type { BarAlignment } from '@/src/recorder/waveform';
 import { resolveAppearanceTheme } from '@/src/theme';
 import { hexToHsv } from '@/src/theme/color-utils';
 import { userBackgroundLayoutFromAppearance } from '@/src/theme/background-layout';
+import { BUBBLES_OVERLAY_LABEL } from '@/src/theme/audio-reactive/catalog';
 import { getCustomStyleById } from '@/src/settings/custom-styles';
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 import { formatVoiceEffectSummary } from '@/src/voice/voice-summary';
@@ -73,7 +74,9 @@ export function renderBarStyleSummaryHtml(ctx: StudioSummaryContext): string {
   const glowBoost = overrides?.barGlow === 'boosted';
 
   const effectParts: string[] = [];
-  if (flair) effectParts.push(flair);
+  // CHANGED: translate stable effect ids before they reach user-visible summary text.
+  // WHY: saved `bokeh` values remain loadable while the v6 effect is presented as Bubbles.
+  if (flair) effectParts.push(flair === 'bokeh' ? BUBBLES_OVERLAY_LABEL : 'Sparkle');
   if (glowBoost) effectParts.push('glow');
   const effectsChip =
     effectParts.length > 0

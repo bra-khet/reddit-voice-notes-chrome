@@ -15,6 +15,29 @@ export interface AudioVisualWants {
   waveform?: boolean;
 }
 
+export type SpectrumAlignment = 'center' | 'bottom' | 'top';
+
+/** Runtime-only canvas style needed by spectrum renderers; never persisted separately. */
+export interface SpectrumRenderEnvironment {
+  alignment: SpectrumAlignment;
+  amplitudeMode: 'capture' | 'preview';
+  reduceMotion: boolean;
+  bars: {
+    width: number;
+    spacing: number;
+    cornerRadius: number;
+    glow: number;
+  };
+  colors: {
+    bar: string;
+    glow: string;
+  };
+}
+
+export interface AudioVisualRenderEnvironment {
+  spectrum?: SpectrumRenderEnvironment;
+}
+
 /**
  * CHANGED: v6 visuals register factories behind a common render contract.
  * WHY: stateful simulations need isolated instances while both draw slots share discovery.
@@ -31,6 +54,7 @@ export interface AudioVisual {
     canvas: HTMLCanvasElement,
     frame: AudioVizFrame,
     params: VisualizerParams,
+    environment?: AudioVisualRenderEnvironment,
   ): void;
 }
 
@@ -113,6 +137,7 @@ export function renderAudioVisualForCanvas(
   canvas: HTMLCanvasElement,
   frame: AudioVizFrame,
   overrides?: Partial<VisualizerParams>,
+  environment?: AudioVisualRenderEnvironment,
 ): boolean {
   const definition = getAudioVisualDefinition(kind, id);
   if (!definition) return false;
@@ -140,7 +165,7 @@ export function renderAudioVisualForCanvas(
 
   const params = resolveVisualizerParams(definition.defaultParams, overrides);
   runtime.instance.update?.(frame, dt);
-  runtime.instance.render(ctx, canvas, frame, params);
+  runtime.instance.render(ctx, canvas, frame, params, environment);
   return true;
 }
 

@@ -26,6 +26,10 @@ export const OVERLAY_PRESET_IDS = [
 
 export type OverlayPresetId = (typeof OVERLAY_PRESET_IDS)[number];
 
+// CHANGED: the public effect name is centralized separately from its serialized id.
+// WHY: `bokeh` remains a stability key, while every current/future picker must say Bubbles.
+export const BUBBLES_OVERLAY_LABEL = 'Bubbles' as const;
+
 export const STACKABLE_EFFECT_IDS = [
   'ember',
   'lightning',

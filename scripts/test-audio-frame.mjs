@@ -157,8 +157,8 @@ check('canvas runtime reuses one instance per canvas and clamps long frame delta
         update(_frame, dt) {
           updates.push([generation, dt]);
         },
-        render(_ctx, _canvas, _frame, params) {
-          renders.push([generation, params.density]);
+        render(_ctx, _canvas, _frame, params, environment) {
+          renders.push([generation, params.density, environment?.spectrum?.alignment ?? null]);
         },
       };
     },
@@ -167,14 +167,37 @@ check('canvas runtime reuses one instance per canvas and clamps long frame delta
   const canvasA = {};
   const canvasB = {};
   const ctx = {};
+  const environment = {
+    spectrum: {
+      alignment: 'bottom',
+      amplitudeMode: 'capture',
+      reduceMotion: false,
+      bars: { width: 10, spacing: 4, cornerRadius: 2, glow: 8 },
+      colors: { bar: '#ffffff', glow: '#ffffff' },
+    },
+  };
   const firstFrame = buildAudioVizFrame({ timeMs: 100 });
   const laterFrame = buildAudioVizFrame({ timeMs: 350 });
-  assert.equal(renderAudioVisualForCanvas('overlay', 'runtime', ctx, canvasA, firstFrame), true);
-  assert.equal(renderAudioVisualForCanvas('overlay', 'runtime', ctx, canvasA, laterFrame), true);
+  assert.equal(
+    renderAudioVisualForCanvas(
+      'overlay', 'runtime', ctx, canvasA, firstFrame, undefined, environment,
+    ),
+    true,
+  );
+  assert.equal(
+    renderAudioVisualForCanvas(
+      'overlay', 'runtime', ctx, canvasA, laterFrame, undefined, environment,
+    ),
+    true,
+  );
   assert.equal(renderAudioVisualForCanvas('overlay', 'runtime', ctx, canvasB, laterFrame), true);
   assert.equal(creates, 2);
   assert.deepEqual(updates, [[1, 0], [1, 0.1], [2, 0]]);
-  assert.deepEqual(renders, [[1, 0.25], [1, 0.25], [2, 0.25]]);
+  assert.deepEqual(renders, [
+    [1, 0.25, 'bottom'],
+    [1, 0.25, 'bottom'],
+    [2, 0.25, null],
+  ]);
   unregister();
 });
 

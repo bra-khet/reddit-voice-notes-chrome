@@ -1,4 +1,4 @@
-// v6.0 Phase 1 — registry-native Sparkle/Bokeh determinism and density caps.
+// v6.0 Phase 1 — registry-native Sparkle/Bubbles determinism and density caps.
 //
 //   Run: node scripts/test-overlay-visuals.mjs
 
@@ -98,11 +98,11 @@ check('definitions expose stable ids, labels, families, and hard ceilings', () =
   assert.deepEqual(
     [BOKEH_VISUAL_DEFINITION.id, BOKEH_VISUAL_DEFINITION.label,
       BOKEH_VISUAL_DEFINITION.family, BOKEH_VISUAL_DEFINITION.maxElements],
-    ['bokeh', 'Bokeh', 'soft-orb-depth', 14],
+    ['bokeh', 'Bubbles', 'soft-orb-depth', 14],
   );
 });
 
-check('density maps monotonically inside fixed Sparkle/Bokeh caps', () => {
+check('density maps monotonically inside fixed Sparkle/Bubbles caps', () => {
   assert.equal(getSparkleParticleCount(-1), SPARKLE_MIN_PARTICLES);
   assert.equal(getSparkleParticleCount(1), SPARKLE_MAX_PARTICLES);
   assert.equal(getSparkleParticleCount(4), SPARKLE_MAX_PARTICLES);
@@ -140,7 +140,7 @@ check('Sparkle consumes band energy rather than drawing a clock-only field', () 
   assert.notDeepEqual(quietCtx.arcs, loudCtx.arcs);
 });
 
-check('Bokeh renders at most fourteen layered lenses and responds to audio', () => {
+check('Bubbles renders at most fourteen layered lenses and responds to audio', () => {
   const quietFrame = { ...frame, energy: 0, bands: Array(32).fill(0) };
   const loudFrame = { ...frame, energy: 1, bands: Array(32).fill(1) };
   const quietCtx = createContext();
@@ -156,7 +156,7 @@ check('Bokeh renders at most fourteen layered lenses and responds to audio', () 
   assert.notDeepEqual(quietCtx.arcs, loudCtx.arcs);
 });
 
-check('Bokeh backdrop is a bounded two-pass Canvas-2D field', () => {
+check('Bubbles backdrop is a bounded two-pass Canvas-2D field', () => {
   const ctx = createContext();
   drawBokehBackdrop(ctx, canvas, '#050814');
   assert.equal(ctx.linearGradients, 1);

@@ -9,6 +9,7 @@ import {
 } from '@/src/utils/constants';
 import {
   drawThemeBackground,
+  deriveGlowColor,
   effectiveBarGlow,
   resolveClipBackgrounds,
   userBackgroundLayoutFromAppearance,
@@ -20,96 +21,25 @@ import type { AnimatedBackground } from '@/src/storage/animated-background';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { DEFAULT_THEME_ID, getThemeById } from '@/src/theme/presets';
 import {
+  AUDIO_VIZ_BAND_COUNT,
   buildAudioVizFrame,
   buildSyntheticAudioVizFrame,
-} from '@/src/theme/audio-reactive/audio-frame';
+  renderAudioVisualForCanvas,
+  type AudioVizFrame,
+  type SpectrumAlignment,
+} from '@/src/theme/audio-reactive';
+import {
+  CLASSIC_NEON_SPECTRUM_ID,
+  registerCoreSpectrumVisuals,
+} from '@/src/theme/audio-reactive/spectra';
 import {
   drawSubtitlePreview,
   type SubtitlePreviewOptions,
 } from '@/src/transcription/subtitle-preview';
 
 const FRAME_INTERVAL_MS = 1000 / WAVEFORM_TARGET_FPS;
-const BAR_COUNT = 32;
-const MIN_BAR_HEIGHT = 4;
 
-/** Fixed spectral silhouette for reduced-motion mode — amplitude scales, shape stays calm. */
-const REDUCED_MOTION_BAR_SHAPE: readonly number[] = [
-  0.42, 0.58, 0.71, 0.55, 0.48, 0.62, 0.78, 0.66,
-  0.52, 0.44, 0.57, 0.69, 0.74, 0.61, 0.5, 0.46,
-  0.53, 0.67, 0.72, 0.59, 0.41, 0.38, 0.49, 0.63,
-  0.7, 0.56, 0.45, 0.4, 0.47, 0.6, 0.65, 0.51,
-];
-
-interface BarLayout {
-  barWidth: number;
-  spacing: number;
-  startX: number;
-}
-
-function computeBarLayout(canvasWidth: number, theme: WaveformTheme): BarLayout {
-  const { width, spacing } = theme.bars;
-  const totalWidth = BAR_COUNT * width + (BAR_COUNT - 1) * spacing;
-  const startX = Math.max(0, (canvasWidth - totalWidth) / 2);
-  return { barWidth: width, spacing, startX };
-}
-
-function fillRoundedRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-): void {
-  const r = Math.min(radius, width / 2, height / 2);
-  if (r <= 0) {
-    ctx.fillRect(x, y, width, height);
-    return;
-  }
-
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + width - r, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-  ctx.lineTo(x + width, y + height - r);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-  ctx.lineTo(x + r, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function applyBarColor(baseColor: string, normalized: number): string {
-  if (baseColor.startsWith('#') && (baseColor.length === 7 || baseColor.length === 4)) {
-    const alpha = 0.35 + normalized * 0.65;
-    const hex = baseColor.length === 4
-      ? `#${baseColor[1]}${baseColor[1]}${baseColor[2]}${baseColor[2]}${baseColor[3]}${baseColor[3]}`
-      : baseColor;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-  return baseColor;
-}
-
-/**
- * Compresses a 0-1 normalized amplitude for better visual dynamics on voice.
- * WHY: Raw FFT values for voice have strong low-end tilt; simple /255 leaves
- * high bars tiny. Compression lifts quieter detail without per-bar hard boosts.
- * BUG FIX (waveform dynamics): Previously used direct linear normalize from tiny FFT.
- * Fix: Use exponential-style compression after band aggregation so normal speech
- * populates most of the bar height range, including upper spectrum on sibilance.
- */
-function compressForViz(n: number): number {
-  if (n <= 0) return 0;
-  // k controls how aggressively lows are lifted. Tuned for typical mic speech.
-  const k = 4.0;
-  // Normalize the curve output to still reach ~1.0 at input=1.
-  return (1 - Math.exp(-k * n)) / (1 - Math.exp(-k));
-}
+registerCoreSpectrumVisuals();
 
 /**
  * Compute 32 band values (0-255) by aggregating FFT bins over log-spaced
@@ -134,10 +64,10 @@ function computeBandValues(
   const freqMin = Math.max(1, Math.min(minHz, freqMax - 1));
 
   const bands: number[] = [];
-  for (let i = 0; i < BAR_COUNT; i += 1) {
+  for (let i = 0; i < AUDIO_VIZ_BAND_COUNT; i += 1) {
     // Log spacing between min and max
-    const t0 = i / BAR_COUNT;
-    const t1 = (i + 1) / BAR_COUNT;
+    const t0 = i / AUDIO_VIZ_BAND_COUNT;
+    const t1 = (i + 1) / AUDIO_VIZ_BAND_COUNT;
     const f0 = freqMin * Math.pow(freqMax / freqMin, t0);
     const f1 = freqMin * Math.pow(freqMax / freqMin, t1);
 
@@ -157,23 +87,68 @@ function computeBandValues(
   return bands;
 }
 
-/** Future-proofing type for bar vertical alignment (user setting planned). */
-export type BarAlignment = 'center' | 'bottom' | 'top';
+/** Existing public name retained while the registry owns the alignment vocabulary. */
+export type BarAlignment = SpectrumAlignment;
 
-/**
- * Compute top Y for a bar given alignment mode.
- * Default remains 'center' (vertically mirrored / symmetric around middle)
- * to preserve current behavior until the setting UI is built.
- */
-function getBarY(alignment: BarAlignment, centerY: number, barHeight: number, canvasHeight: number): number {
-  if (alignment === 'bottom') {
-    return canvasHeight - barHeight;
+function resolveSpectrumColors(theme: WaveformTheme): { bar: string; glow: string } {
+  const color = theme.designEffects?.visualizerParams?.color;
+  if (typeof color === 'string') {
+    return { bar: color, glow: deriveGlowColor(color) };
   }
-  if (alignment === 'top') {
-    return 0;
+  if (Array.isArray(color) && color.length > 0) {
+    const bar = color[0] ?? theme.colors.bar;
+    return { bar, glow: color[1] ?? deriveGlowColor(bar) };
   }
-  // center (mirrored vertically)
-  return centerY - barHeight / 2;
+  return { bar: theme.colors.bar, glow: theme.colors.glow };
+}
+
+function drawThemeSpectrum(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  theme: WaveformTheme,
+  alignment: BarAlignment,
+  frame: AudioVizFrame,
+  reduceMotion: boolean,
+  amplitudeMode: 'capture' | 'preview',
+): void {
+  const requestedId = theme.designEffects?.spectrumPreset ?? CLASSIC_NEON_SPECTRUM_ID;
+  const environment = {
+    spectrum: {
+      alignment,
+      amplitudeMode,
+      reduceMotion,
+      bars: {
+        width: theme.bars.width,
+        spacing: theme.bars.spacing,
+        cornerRadius: theme.bars.cornerRadius,
+        glow: effectiveBarGlow(theme),
+      },
+      colors: resolveSpectrumColors(theme),
+    },
+  } as const;
+  const rendered = renderAudioVisualForCanvas(
+    'spectrum',
+    requestedId,
+    ctx,
+    canvas,
+    frame,
+    theme.designEffects?.visualizerParams,
+    environment,
+  );
+
+  // CHANGED: an unavailable additive preset falls back to the founding spectrum.
+  // WHY: imported or partially-developed v6 preferences must never produce a blank capture.
+  if (!rendered && requestedId !== CLASSIC_NEON_SPECTRUM_ID) {
+    renderAudioVisualForCanvas(
+      'spectrum',
+      CLASSIC_NEON_SPECTRUM_ID,
+      ctx,
+      canvas,
+      frame,
+      undefined,
+      environment,
+    );
+  }
 }
 
 export class WaveformRenderer {
@@ -410,44 +385,15 @@ export class WaveformRenderer {
       this.userBackgroundLayout,
     );
 
-    const centerY = canvas.height / 2;
-    const maxBarHeight = canvas.height * 0.7;
-    const layout = computeBarLayout(canvas.width, theme);
-    const { barWidth, spacing, startX } = layout;
-    const { cornerRadius } = theme.bars;
-    const glow = effectiveBarGlow(theme);
-
-    const uniformLevel = compressForViz(this.smoothedAudioEnergy);
-
-    // Optional light per-frame peak normalization so loud speech fills range.
-    // Combined with compressForViz this makes upper spectrum visible on sibilants etc.
-    let peak = 0;
-    for (let v of bandValues) peak = Math.max(peak, v);
-    const peakScale = peak > 1 ? 255 / peak : 1;
-
-    for (let i = 0; i < BAR_COUNT; i += 1) {
-      let normalized: number;
-      if (this.reduceMotion) {
-        const shape = REDUCED_MOTION_BAR_SHAPE[i] ?? 0.5;
-        normalized = compressForViz(Math.min(1, uniformLevel * shape));
-      } else {
-        const raw = bandValues[i] ?? 0;
-        const rawNorm = Math.min(1, (raw * peakScale) / 255);
-        normalized = compressForViz(rawNorm);
-      }
-
-      const barHeight = Math.max(MIN_BAR_HEIGHT, normalized * maxBarHeight);
-      const x = startX + i * (barWidth + spacing);
-      const y = getBarY(this.alignment, centerY, barHeight, canvas.height);
-
-      ctx.fillStyle = applyBarColor(theme.colors.bar, normalized);
-      ctx.shadowColor = theme.colors.glow;
-      ctx.shadowBlur = normalized * glow;
-      fillRoundedRect(ctx, x, y, barWidth, barHeight, cornerRadius);
-    }
-
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = 'transparent';
+    drawThemeSpectrum(
+      ctx,
+      canvas,
+      theme,
+      this.alignment,
+      audioFrame,
+      this.reduceMotion,
+      'capture',
+    );
   }
 }
 
@@ -458,36 +404,6 @@ const PREVIEW_BAND_LEVELS: readonly number[] = [
   0.53, 0.67, 0.72, 0.59, 0.41, 0.38, 0.49, 0.63,
   0.7, 0.56, 0.45, 0.4, 0.47, 0.6, 0.65, 0.51,
 ];
-
-function drawBarsFromLevels(
-  ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
-  theme: WaveformTheme,
-  alignment: BarAlignment,
-  levels: readonly number[],
-): void {
-  const centerY = canvas.height / 2;
-  const maxBarHeight = canvas.height * 0.7;
-  const layout = computeBarLayout(canvas.width, theme);
-  const { barWidth, spacing, startX } = layout;
-  const { cornerRadius } = theme.bars;
-  const glow = effectiveBarGlow(theme);
-
-  for (let i = 0; i < BAR_COUNT; i += 1) {
-    const normalized = compressForViz(Math.min(1, levels[i] ?? 0));
-    const barHeight = Math.max(MIN_BAR_HEIGHT, normalized * maxBarHeight);
-    const x = startX + i * (barWidth + spacing);
-    const y = getBarY(alignment, centerY, barHeight, canvas.height);
-
-    ctx.fillStyle = applyBarColor(theme.colors.bar, normalized);
-    ctx.shadowColor = theme.colors.glow;
-    ctx.shadowBlur = normalized * glow;
-    fillRoundedRect(ctx, x, y, barWidth, barHeight, cornerRadius);
-  }
-
-  ctx.shadowBlur = 0;
-  ctx.shadowColor = 'transparent';
-}
 
 /** Clip preview for popup settings — same draw path as live waveform output. */
 export async function renderThemePreview(
@@ -526,7 +442,7 @@ export async function renderThemePreview(
     backgroundFrame,
     userBackgroundLayout,
   );
-  drawBarsFromLevels(ctx, canvas, theme, alignment, PREVIEW_BAND_LEVELS);
+  drawThemeSpectrum(ctx, canvas, theme, alignment, audioFrame, false, 'preview');
   if (subtitlePreview) {
     drawSubtitlePreview(ctx, canvas, { ...subtitlePreview, previewTimeMs: timeMs });
   }

@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 1 automated gate PASS** · **Map:** v3.3 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 2 Classic entry gate PASS** · **Map:** v3.4 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,10 +12,10 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I22, preference publication/relay, recovery traces, and v6 registry overlays | v3.3 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: audio-reactive visuals v2, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.17 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I22, preference publication/relay, recovery traces, and v6 registry visuals | v3.4 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: audio-reactive visuals v3, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.18 |
 | [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 fully closed (browser QA PASS); R18 prefs gate closed; H10 deferred | v2.13 |
-| `adr/` | [0001 WebCodecs encoding backbone](adr/0001-webcodecs-encoding-backbone.md) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) · [0004 Audio decoupling — voice re-apply](adr/0004-audio-decoupling-voice-reapply.md) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) · [0006 Full-IDB user preferences](adr/0006-user-preferences-full-idb.md) · [0007 Audio-reactive visualizer core](adr/0007-audio-reactive-visualizer-core.md) · [0008 Background direct-manipulation layout](adr/0008-background-direct-manipulation-layout.md) · [0009 Registry-native Sparkle/Bokeh](adr/0009-registry-native-sparkle-bokeh.md) | 0001–0007 + 0009 Accepted · **0008 Proposed (v6)** |
+| `adr/` | [0001 WebCodecs backbone](adr/0001-webcodecs-encoding-backbone.md) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) · [0004 Audio decoupling](adr/0004-audio-decoupling-voice-reapply.md) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) · [0006 Full-IDB preferences](adr/0006-user-preferences-full-idb.md) · [0007 Audio-reactive core](adr/0007-audio-reactive-visualizer-core.md) · [0008 Background layout](adr/0008-background-direct-manipulation-layout.md) · [0009 Registry-native Sparkle/Bokeh](adr/0009-registry-native-sparkle-bokeh.md) · [0010 Bubbles label / stable key](adr/0010-bubbles-label-stable-bokeh-id.md) | 0001–0007 + 0009–0010 Accepted · **0008 Proposed (v6)** |
 
 ---
 
@@ -35,7 +35,7 @@ This directory holds the **living, versioned** architecture index for the extens
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built (v5.9.0) |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw-WebM trim as-built (v5.10.0) — post-trim voice re-apply restored; real-browser QA PASS 2026-07-12 |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration + relay + Export/Import — **browser QA PASS 2026-07-13 · merge-ready** |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 in progress** — Phase 1 registry-native Sparkle/Bokeh + guarded prefs landed; spectrum presets + simulation backbone follow (ADR-0007/0009) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 in progress** — Bubbles/Sparkle overlays + Classic-Neon registry spectrum + real-artifact size harness landed; remaining spectra/simulations follow (ADR-0007/0009/0010) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 planned** — direct-manipulation background layout (Design-phase); wins on that topic (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes on `main` (prior versions under `archive/docs/`); write `release-notes-v5.11.0.md` at tag |
 | `src/session/take-manager.ts` (header) | Take lifecycle contract |
@@ -68,22 +68,22 @@ This directory holds the **living, versioned** architecture index for the extens
 - Diagrams embedded inline (Mermaid fenced blocks) — render-checked before commit.
 - Each diagram has one sentence above (what it shows + what to verify it against) and the invariant(s) it encodes below.
 - Every living doc ends with a carry-forward block for cold-session re-seeding.
-- All ADRs use `adr/NNNN-short-title.md` (zero-padded, incrementing — 0010 is next).
+- All ADRs use `adr/NNNN-short-title.md` (zero-padded, incrementing — 0011 is next).
 
 ## Resume in a new chat (carry-forward)
 
 ```
 architecture-hardening resume.
 Repo: Reddit Voice Notes, feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
-Map v3.3 · seams v1.17 · backlog v2.13 · ADRs 0001–0007 + 0009 Accepted; six contexts unchanged.
+Map v3.4 · seams v1.18 · backlog v2.13 · ADRs 0001–0007 + 0009–0010 Accepted; six contexts unchanged.
 v5.11 prefs remain rvnUserPrefs IDB truth + signal-only rvnUserPrefs.v2 (I21 High).
 H8/H13/H14 remain closed; raw trim + recovery invariants unchanged.
-v6 Track A Phase 1 PASS: AudioVizFrame + per-canvas runtime + registry-native Sparkle/Bokeh + guarded visual prefs.
+v6 Track A Phase 1 user QA PASS; Sparkle + Bubbles (`bokeh` stability key) are registry-native and capped.
 I22: live capture and synthetic preview share normalized energy, 32 bands, optional waveform, and clock.
 Composition stays record-time background→overlay→bars; subtitles are the only post-base visual pass (I3).
-Sparkle/Bokeh placeholders are deleted; stable IDs render deterministic capped replacements (64/14). Bar loop remains direct.
-Automated: audio-frame 9/9 · prefs 8/8 · overlays 6/6 · token sync 7/7 · production build PASS; browser/size QA pending.
+Classic (Neon Glow) now owns the spectrum slot; no-change preview/capture/reduced-motion canvas operations are parity-tested.
+Automated artifact harness: npm run qa:visual-size -- --preset <id> --base <base.mp4> --baked <baked.mp4>.
 Size ceiling for novel effects: base ≤25 MB / baked ≤30 MB on 120 s QA.
-Read architecture-map.md, extension-points.md, ADR-0007 + ADR-0009, and the v6 custom-styles roadmap.
-Next: Classic-Neon spectrum parity + 120-second size harness.
+Read architecture-map.md, extension-points.md, ADR-0007/0009/0010, and the v6 custom-styles roadmap.
+Next: remaining Phase 2 spectrum presets, starting with Minimal.
 ```

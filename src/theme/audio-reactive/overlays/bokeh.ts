@@ -4,6 +4,7 @@ import type {
   AudioVizFrame,
   VisualizerParams,
 } from '@/src/theme/audio-reactive';
+import { BUBBLES_OVERLAY_LABEL } from '../catalog';
 import { normalizeHexColor } from '@/src/theme/color-utils';
 import { colorWithAlpha, mixVisualColors, resolveVisualPalette } from '../palette';
 
@@ -50,7 +51,7 @@ export function getBokehOrbCount(density: number): number {
   );
 }
 
-/** Dark photographic field used when Bokeh is the theme background, not only an overlay. */
+/** Dark photographic field used when Bubbles is the theme background, not only an overlay. */
 export function drawBokehBackdrop(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
@@ -173,7 +174,9 @@ class BokehVisual implements AudioVisual {
 
 export const BOKEH_VISUAL_DEFINITION: AudioVisualDefinition = {
   id: 'bokeh',
-  label: 'Bokeh',
+  // CHANGED: Bubbles is the public name; `bokeh` remains the serialized stability key.
+  // WHY: the orb field reads as bubbles, while existing styles must continue to resolve.
+  label: BUBBLES_OVERLAY_LABEL,
   kind: 'overlay',
   family: 'soft-orb-depth',
   maxElements: BOKEH_MAX_ORBS,
