@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Minimal spectrum complete 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Phosphor spectrum complete 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -166,4 +166,12 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Minimal **7/7** · Classic **5/5** · audio-frame/runtime **9/9** · design overrides **8/8**. Build PASS; compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.5** / I22 · extension-points **v1.19**. ADR-0007 already owns this integration; no new ADR/context/message/store/signal/dependency/compositing layer.
 
-**Immediate next actions:** Phosphor → Radial/Central (add coordinate helpers when consumed) → Oscilloscope waveform-on-demand.
+### Track A Phase 2 — Phosphor spectrum (**DONE 2026-07-14; automated gate**)
+
+- Added registry-native `phosphor`: an opinionated segmented CRT meter whose density resolves to **12–24 columns × 6–10 rows**, capped at **240 physical cells**. A stable unlit matrix, lit tint blocks, fake highlight/shadow bevels, bounded RGB offsets, and one scanline per row create the analog instrument identity without random pixel noise.
+- Per-canvas state uses a fast attack and slower user-tunable decay. Live peak normalization is multiplied by the smoothed energy envelope so analyser-floor noise does not keep cells lit; band weighting and top/center/bottom alignment use the shared spectrum environment.
+- High Contrast removes RGB/scanline haze and doubles the bevel edge. Reduced motion also suppresses chromatic movement and replaces FFT rearrangement with a fixed energy-scaled silhouette. Preview and capture share the same renderer; all work stays in the record-time Canvas-2D path.
+- **Automated:** Phosphor **7/7** · focused v6 regression set **54/54**. Build PASS; compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.6** / I22 · extension-points **v1.20**. ADR-0007 already owns the spectrum seam; no new ADR/context/message/store/signal/dependency/compositing layer or speculative non-linear helper.
+
+**Immediate next actions:** Radial Spectrum + its first consumed non-linear coordinate helpers → Central Pulse → Oscilloscope waveform-on-demand.

@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.19 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 2 Minimal spectrum gate PASS**
+**Version:** v1.20 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 2 Phosphor spectrum gate PASS**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.19 — **Minimal spectrum** (2026-07-14): second production spectrum definition; 32 shared bands aggregate into 8–16 broad bars with a quiet rail, contrast-safe tips, slow frame-rate-aware easing, band weighting, and a fixed reduced-motion silhouette. It reuses the capture/preview registry slot and Classic fallback; Node 7/7; no new message/store/context/layer or premature non-linear helper. v1.18 — Classic spectrum slot + real-MP4 size gate. Earlier history remains in git.
+**Changelog:** v1.20 — **Phosphor spectrum** (2026-07-14): third production spectrum definition; the shared carrier drives a capped 12–24 × 6–10 segmented CRT matrix with asymmetric persistence, bevel blocks, bounded RGB fringe, scanlines, energy-gated capture, High Contrast, reduced motion, and band weighting. Capture and preview reuse the existing registry slot; Node 7/7; no new message/store/context/layer/ADR or premature non-linear helper. v1.19 — Minimal spectrum. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -87,12 +87,12 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Gotcha:** Profile at 24 fps before merge — expensive per-frame work can drop below `WAVEFORM_TARGET_FPS` and cause dup-storm on slow machines (BUG-007 trigger class).
 - **Layout constants:** keep waveform bar counts/spacing fixed in v4 scope — changing them breaks the preview WYSIWYG guarantee for clips already recorded.
 
-## Audio-reactive visual system — v4 (v6 Phase 2 Minimal)
+## Audio-reactive visual system — v5 (v6 Phase 2 Phosphor)
 
 - **Carrier:** `src/theme/audio-reactive/audio-frame.ts` owns `AudioVizFrame`: normalized energy (0–1), exactly 32 log-spaced bands (0–1), optional waveform (-1–1), shared `timeMs`, and optional transient. `WaveformRenderer.drawFrame()` supplies live analyser data; `renderThemePreview()` supplies `PREVIEW_BAND_LEVELS` + representative energy. Never invent a second preview-only frame shape (I22).
 - **Registry/runtime:** `src/theme/audio-reactive/index.ts` registers `AudioVisualDefinition` factories by `kind:id` (`spectrum` / `overlay`). `renderAudioVisualForCanvas()` creates once and reuses state through a `WeakMap<HTMLCanvasElement, …>`, clamps `dt` to 100 ms, and resolves normalized defaults/overrides. Never call `definition.create()` per frame.
 - **Draw slots:** overlay visuals generalize `drawDesignEffectOverlays` below the bars; spectrum visuals replace the 32-bar loop. This is a generalization of existing Canvas-2D slots, not a fourth compositing layer. Subtitles remain post-base (I3).
-- **Registered spectra:** `audio-reactive/spectra/classic-neon.ts` owns the prior 32-bar transfer curve, geometry, alignment, color-alpha, glow, reduced-motion silhouette, and optional v6 controls. Its neutral defaults reproduce the removed `waveform.ts` loops. `minimal.ts` is the accessibility-first additive definition: it groups the same 32 bands into a hard-capped set of 8–16 broad meter marks, uses a single anchor rail + contrast-safe tip pair instead of glow/afterimage, eases through per-canvas state, honors band weights, and replaces FFT motion with a fixed energy-scaled silhouette when reduced motion is active. Capture peak normalization is multiplied by the smoothed energy envelope so near-silent analyser noise cannot fill the meter; synthetic preview retains direct levels. If a saved additive spectrum ID has no registered definition yet, capture falls back to Classic rather than drawing blank.
+- **Registered spectra:** `audio-reactive/spectra/classic-neon.ts` owns the prior 32-bar transfer curve, geometry, alignment, color-alpha, glow, reduced-motion silhouette, and optional v6 controls. Its neutral defaults reproduce the removed `waveform.ts` loops. `minimal.ts` is the accessibility-first definition: 8–16 broad marks, one rail, contrast-safe tips, slow easing, energy-gated capture, and a fixed reduced-motion silhouette. `phosphor.ts` is the first intentionally stylized stateful spectrum: a hard-capped 12–24 × 6–10 physical-cell grid (≤240), asymmetric attack/decay, stable unlit matrix, bevel-lit blocks, bounded RGB aberration and scanlines, plus High Contrast/reduced-motion suppression of haze. All three honor the shared alignment/band-weighting environment and use the same capture/preview definition; synthetic preview retains direct levels while live peak normalization is energy-gated. If a saved additive spectrum ID has no registered definition yet, capture falls back to Classic rather than drawing blank.
 - **Founding overlays:** `audio-reactive/overlays/sparkle.ts` (twinkle/particle, 18–64) and `bokeh.ts` (public **Bubbles**, serialized ID `bokeh`; soft-lens depth/parallax, 5–14) are deterministic registry-native algorithms. Old placeholder pixels are intentionally not preserved (ADR-0009/0010).
 - **Persistence:** `DesignOverrides` carries optional `spectrumPreset`, `visualizerParams`, `overlayPreset`, and `stackables`. `normalizeDesignOverrides`/`normalizeVisualizerParams` allowlist IDs/layouts, clamp controls/weights, normalize ≤7 palette colors, and dedupe/cap stackables at three. No new store, signal, message, or `USER_PREFS_VERSION` bump.
 - **Shared UI ramp:** `CIVIDIS` in `src/ui/tokens.ts` mirrors `--rvn-cividis-*` in `studio-palette.css`; `test-ui-tokens.mjs` prevents branch drift. Pair color with labels/icons—never encode governor state by hue alone.
@@ -463,17 +463,17 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.19 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
-Map v3.5 · v6 Phase 2 Minimal automated gate PASS; Phase 1 user browser QA PASS.
+Extension points v1.20 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
+Map v3.6 · v6 Phase 2 Phosphor automated gate PASS; Phase 1 user browser QA PASS.
 Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
-Audio-reactive visual system v4; no new context/message/store/signal/compositing layer.
+Audio-reactive visual system v5; no new context/message/store/signal/compositing layer.
 AudioVizFrame: normalized energy + 32 bands + optional waveform + shared clock (I22).
 AudioVisual registry uses a WeakMap per-canvas runtime; two slots only: overlay below spectrum; both record-time capture.
-Classic (Neon Glow) owns the default/fallback spectrum; Minimal is registered with 8–16 low-motion, contrast-safe marks.
+Classic owns default/fallback; Minimal is the 8–16 mark a11y meter; Phosphor is a capped ≤240-cell segmented CRT with persistence.
 Sparkle/Bubbles replacements active (caps 64/14); `bokeh` remains the serialized stability key (ADR-0009/0010).
 Shared Cividis contract: tokens.ts ↔ studio-palette.css, sync-tested; pair color with text/icon.
 Novel effects remain Canvas 2D and must pass the real-artifact 120 s base≤25 MiB / baked≤30 MiB CLI gate.
 Prefs remain rvnUserPrefs IDB + enqueuePrefsOp; new visual fields must normalize, no version bump.
 H6/H8/H13/H14 and browser-composite fallback contracts remain unchanged.
-Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: Phosphor; defer non-linear helpers to Radial/Central.
+Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: Radial Spectrum; land non-linear helpers only with that consumer.
 ```
