@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Classic entry complete 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Minimal spectrum complete 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -158,4 +158,12 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** audio-frame **9/9** · design overrides **8/8** · overlay label/caps **6/6** · Classic parity **5/5** · size contract **5/5** · Cividis **7/7** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.4** / I22 · extension-points **v1.18** · ADR-0010 **Accepted**. No new context/message/store/signal/dependency/compositing layer.
 
-**Immediate next actions:** Minimal spectrum → Phosphor → Radial/Central (add coordinate helpers when consumed) → Oscilloscope waveform-on-demand.
+### Track A Phase 2 — Minimal spectrum (**DONE 2026-07-14; automated gate**)
+
+- Added registry-native `minimal`: a low-density **8–16** mark signal meter that groups the shared 32-band carrier into broad shapes, gates live peak normalization with the smoothed energy envelope so analyser noise settles, and uses one quiet anchor rail with no glow/afterimage pass.
+- Default slow easing is frame-rate-aware and per-canvas; band weighting is honored. High Contrast validates the solid tip pair to at least **3:1** against the primary mark, while relaxed mode preserves the supplied pair.
+- Reduced motion ignores FFT rearrangement and uses a fixed, energy-scaled silhouette. Capture and synthetic preview share the same definition; Classic remains the default/fallback. Non-linear coordinate helpers remain deferred until Radial/Central actually consumes them.
+- **Automated:** Minimal **7/7** · Classic **5/5** · audio-frame/runtime **9/9** · design overrides **8/8**. Build PASS; compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.5** / I22 · extension-points **v1.19**. ADR-0007 already owns this integration; no new ADR/context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** Phosphor → Radial/Central (add coordinate helpers when consumed) → Oscilloscope waveform-on-demand.
