@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 primary overlays PASS 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 stackables underway 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -249,3 +249,14 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Architecture:** map **v3.14** / I22 · extension-points **v1.28** (audio-reactive v13). ADR-0007 already owns the overlay seam; no new ADR.
 
 **Immediate next actions:** continue Phase 3 with Rising Ember, adding only the minimal ordered stackable contract and bounded ember state its first consumer requires.
+
+### Track A Phase 3 — Rising Ember + first ordered stackable (**DONE 2026-07-14; automated gate**)
+
+- Added the minimal `StackableEffect` contract and definition registry: saved IDs render after the primary overlay and before the spectrum in normalized preference order, deduplicate defensively, stop at three, retain isolated per-canvas state, and sum each instance's bounded `getPerformanceCost()`. No scene graph, arbitrary chain, auto-governor, or new visual layer.
+- Added Rising Ember as the only registered stackable. Density resolves to **16–44 fixed-pool lifetime particles**, each capped at a trail, halo, and hot-core pass (**≤132 elements**). Linear rises from a wide hearth, centered forms a narrow plume, and radial emits an outward cinder corona.
+- Energy and weighted bass/mids/treble shape ignition, weave, lift, and flight; explicit transients immediately add a bounded cinder fan. Capture silence stays empty, synthetic preview remains gently deterministic, High Contrast removes additive glow, and reduced motion paints a time-independent low-cost constellation.
+- Reused the existing lifetime-only `BoundedParticleEmitter`; all Ember physics, spawn geometry, and drawing remain consumer-local. The existing `DesignOverrides.stackables` contract needed no migration, preference version, message, store, signal, dependency, bake renderer, or UI expansion.
+- **Automated:** Rising Ember/stackable **12/12** · focused v6 regression set **149/149** · production build PASS · recorder + Studio shared bundles contain Rising Ember · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.15** / I22 · extension-points **v1.29** (audio-reactive v14). ADR-0007 already owns ordered stackables in the record-time overlay slot; no new ADR.
+
+**Immediate next actions:** continue Phase 3 with Electric Arc / Lightning on the existing ordered seam, keeping its bounded arc state local.

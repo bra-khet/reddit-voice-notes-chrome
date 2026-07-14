@@ -13,6 +13,7 @@ export * from './simulation/bounded-emitter';
 export * from './simulation/flow-field';
 export * from './simulation/simulation';
 export * from './simulation/spatial-partition';
+export * from './simulation/stackable';
 
 export type AudioVisualKind = 'spectrum' | 'overlay';
 

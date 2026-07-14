@@ -1,6 +1,7 @@
 import {
   EMPTY_AUDIO_VIZ_FRAME,
   renderAudioVisualForCanvas,
+  renderStackableEffectsForCanvas,
   type AudioVisualRenderEnvironment,
   type AudioVizFrame,
   type VisualizerParams,
@@ -9,6 +10,7 @@ import {
   drawBokehBackdrop,
   registerCoreOverlayVisuals,
 } from './audio-reactive/overlays';
+import { registerCoreStackableEffects } from './audio-reactive/stackables';
 import {
   type DrawableBackgroundImage,
   getDrawableBackgroundSize,
@@ -34,6 +36,9 @@ import type {
 // CHANGED: Sparkle and Bubbles are registry-native built-ins, not hard-coded draw branches.
 // WHY: every current and future overlay must use the same per-canvas lifecycle and parameter seam.
 registerCoreOverlayVisuals();
+// CHANGED: built-in stackables register beside overlays but keep their own ordered runtime.
+// WHY: Rising Ember must be independently selectable without masquerading as the primary preset.
+registerCoreStackableEffects();
 
 const MIDNIGHT_BOKEH_PARAMS: Partial<VisualizerParams> = Object.freeze({
   sensitivity: 0.62,
@@ -385,14 +390,31 @@ function drawDesignEffectOverlays(
   const overlay = effects?.overlayPreset !== undefined
     ? effects.overlayPreset
     : effects?.backgroundOverlay;
-  if (!overlay) return;
+  // BUG FIX: Empty visual-stack hot-path allocation
+  // Fix: Exit before palette creation when neither a primary overlay nor stackable is active.
+  if (!overlay && !effects?.stackables?.length) return;
 
   const stripAlpha = (color: string): string => color.length === 9 ? color.slice(0, 7) : color;
   const fallbackPalette = [stripAlpha(theme.colors.bar), stripAlpha(theme.colors.glow)];
-  renderAudioVisualForCanvas('overlay', overlay, ctx, canvas, audioFrame, {
-    ...effects?.visualizerParams,
-    color: effects?.visualizerParams?.color ?? fallbackPalette,
-  }, visualEnvironment);
+  if (overlay) {
+    renderAudioVisualForCanvas('overlay', overlay, ctx, canvas, audioFrame, {
+      ...effects?.visualizerParams,
+      color: effects?.visualizerParams?.color ?? fallbackPalette,
+    }, visualEnvironment);
+  }
+
+  // CHANGED: stackables paint in saved order after the primary overlay and before the spectrum.
+  // WHY: Rising Ember must remain independently selectable while preserving the existing layer model.
+  if (effects?.stackables?.length) {
+    renderStackableEffectsForCanvas(
+      effects.stackables,
+      ctx,
+      canvas,
+      audioFrame,
+      effects.visualizerParams,
+      visualEnvironment,
+    );
+  }
 }
 
 export function backgroundNeedsImage(background: ThemeBackground): boolean {
