@@ -5,6 +5,7 @@
  */
 
 export const AUDIO_VIZ_BAND_COUNT = 32;
+export const SYNTHETIC_WAVEFORM_SAMPLE_COUNT = 256;
 
 export interface AudioVizFrame {
   /** Smoothed whole-spectrum energy, normalized to 0–1. */
@@ -25,6 +26,8 @@ export interface BuildAudioVizFrameOptions {
   /** Divide source bands by this value before clamping (255 for analyser byte bands). */
   bandScale?: number;
   waveform?: Float32Array;
+  /** Raw AnalyserNode time-domain bytes; normalized without an intermediate float buffer. */
+  waveformBytes?: Uint8Array;
   timeMs?: number;
   transient?: boolean;
 }
@@ -47,21 +50,62 @@ function normalizeWaveform(samples: Float32Array | undefined): Float32Array | un
   return Float32Array.from(samples, (sample) => clamp(sample, -1, 1, 0));
 }
 
+function normalizeByteWaveform(samples: Uint8Array | undefined): Float32Array | undefined {
+  if (!samples) return undefined;
+  return Float32Array.from(samples, (sample) => clamp((sample - 128) / 128, -1, 1, 0));
+}
+
 export function buildAudioVizFrame({
   energy = 0,
   bands = [],
   bandScale = 1,
   waveform,
+  waveformBytes,
   timeMs = 0,
   transient,
 }: BuildAudioVizFrameOptions = {}): AudioVizFrame {
   return {
     energy: clamp(energy, 0, 1),
     bands: normalizeBands(bands, bandScale),
-    waveform: normalizeWaveform(waveform),
+    waveform: waveform
+      ? normalizeWaveform(waveform)
+      : normalizeByteWaveform(waveformBytes),
     timeMs: Math.max(0, Number.isFinite(timeMs) ? timeMs : 0),
     ...(transient === undefined ? {} : { transient }),
   };
+}
+
+export interface SyntheticAudioVizFrameOptions {
+  /** Generate a deterministic, voice-like time-domain signal only when the active visual requests it. */
+  waveform?: boolean;
+  waveformSampleCount?: number;
+}
+
+function buildSyntheticWaveform(
+  sampleCount: number,
+  timeMs: number,
+  energy: number,
+): Float32Array {
+  const count = Math.min(
+    2048,
+    Math.max(32, Number.isFinite(sampleCount) ? Math.round(sampleCount) : SYNTHETIC_WAVEFORM_SAMPLE_COUNT),
+  );
+  const seconds = Math.max(0, Number.isFinite(timeMs) ? timeMs : 0) / 1000;
+  const amplitude = 0.28 + clamp(energy, 0, 1) * 0.92;
+  const harmonicDrift = Math.sin(seconds * 0.73) * 0.42;
+
+  // CHANGED: the no-mic preview has a deterministic, gently evolving harmonic waveform.
+  // WHY: Oscilloscope should demonstrate its real trace path without pretending the Studio has live audio.
+  return Float32Array.from({ length: count }, (_, index) => {
+    const phase = index / Math.max(1, count - 1);
+    const envelope = 0.72 + Math.sin(phase * Math.PI) ** 2 * 0.28;
+    const fundamental = Math.sin(phase * Math.PI * 2 * 3.25 + seconds * 1.1) * 0.68;
+    const overtone = Math.sin(
+      phase * Math.PI * 2 * (7.5 + harmonicDrift) - seconds * 1.7,
+    ) * 0.23;
+    const air = Math.sin(phase * Math.PI * 2 * 13.25 + seconds * 0.41) * 0.09;
+    return clamp((fundamental + overtone + air) * amplitude * envelope, -1, 1, 0);
+  });
 }
 
 /** Representative no-microphone frame for the Studio preview path. */
@@ -69,8 +113,20 @@ export function buildSyntheticAudioVizFrame(
   bands: readonly number[],
   timeMs: number,
   energy = 0.32,
+  options: SyntheticAudioVizFrameOptions = {},
 ): AudioVizFrame {
-  return buildAudioVizFrame({ energy, bands, timeMs });
+  return buildAudioVizFrame({
+    energy,
+    bands,
+    timeMs,
+    waveform: options.waveform
+      ? buildSyntheticWaveform(
+        options.waveformSampleCount ?? SYNTHETIC_WAVEFORM_SAMPLE_COUNT,
+        timeMs,
+        energy,
+      )
+      : undefined,
+  });
 }
 
 /** Zero-input default keeps direct/background-only callers backward-safe. */

@@ -153,7 +153,7 @@ check('definition is a capped, registry-native polar spectrum', () => {
   );
   const visual = RADIAL_SPECTRUM_VISUAL_DEFINITION.create();
   assert.deepEqual(visual.supportedLayouts, ['radial']);
-  assert.equal(visual.wants.bands, true);
+  assert.equal(RADIAL_SPECTRUM_VISUAL_DEFINITION.wants.bands, true);
   assert.equal(visual.supportsAfterimage, true);
   registerCoreSpectrumVisuals();
   registerCoreSpectrumVisuals();

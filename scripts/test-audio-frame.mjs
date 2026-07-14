@@ -28,6 +28,7 @@ const {
   EMPTY_AUDIO_VIZ_FRAME,
   buildAudioVizFrame,
   buildSyntheticAudioVizFrame,
+  getAudioVisualWants,
   listAudioVisualDefinitions,
   registerAudioVisual,
   registerAudioVisualIfAbsent,
@@ -105,13 +106,15 @@ check('definitions create isolated stateful instances and unregister cleanly', (
   const unregister = registerAudioVisual({
     id: 'test',
     kind: 'spectrum',
+    wants: { bands: true },
     create: () => ({
       id: `test-${++generation}`,
       kind: 'spectrum',
-      wants: { bands: true },
       render() {},
     }),
   });
+  assert.deepEqual(getAudioVisualWants('spectrum', 'test'), { bands: true });
+  assert.equal(generation, 0, 'capability lookup must not instantiate the visual');
   const first = resolveAudioVisual('spectrum', 'test');
   const second = resolveAudioVisual('spectrum', 'test');
   assert.ok(first && second);
@@ -126,7 +129,8 @@ check('same id may occupy different draw slots, but duplicates in one slot fail'
   const makeDefinition = (kind) => ({
     id: 'shared',
     kind,
-    create: () => ({ id: 'shared', kind, wants: {}, render() {} }),
+    wants: {},
+    create: () => ({ id: 'shared', kind, render() {} }),
   });
   const unregisterSpectrum = registerAudioVisual(makeDefinition('spectrum'));
   const overlayDefinition = makeDefinition('overlay');
@@ -147,13 +151,13 @@ check('canvas runtime reuses one instance per canvas and clamps long frame delta
   const unregister = registerAudioVisual({
     id: 'runtime',
     kind: 'overlay',
+    wants: { bands: true },
     defaultParams: { density: 0.25 },
     create: () => {
       const generation = ++creates;
       return {
         id: 'runtime',
         kind: 'overlay',
-        wants: { bands: true },
         update(_frame, dt) {
           updates.push([generation, dt]);
         },

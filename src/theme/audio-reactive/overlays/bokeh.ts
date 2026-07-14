@@ -84,7 +84,6 @@ export function drawBokehBackdrop(
 class BokehVisual implements AudioVisual {
   readonly id = 'bokeh';
   readonly kind = 'overlay' as const;
-  readonly wants = { bands: true } as const;
   readonly supportedLayouts = ['linear', 'radial', 'centered'] as const;
 
   private initialized = false;
@@ -178,6 +177,7 @@ export const BOKEH_VISUAL_DEFINITION: AudioVisualDefinition = {
   // WHY: the orb field reads as bubbles, while existing styles must continue to resolve.
   label: BUBBLES_OVERLAY_LABEL,
   kind: 'overlay',
+  wants: Object.freeze({ bands: true }),
   family: 'soft-orb-depth',
   maxElements: BOKEH_MAX_ORBS,
   defaultParams: {

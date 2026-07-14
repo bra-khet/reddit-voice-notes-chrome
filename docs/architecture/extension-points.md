@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.22 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 2 Central Pulse gate PASS**
+**Version:** v1.23 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 2 core spectra complete — Oscilloscope gate PASS**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.22 — **Central Pulse + consumed centered/flow-field helpers** (2026-07-14): fifth production spectrum definition; guarded centered-origin/contour mapping and a deterministic layered 2D sampler are immediately consumed by a capped 36–72 point organic orb with ≤3 envelope echoes, energy-gated spectral detail, band weighting, Pulse Speed, High Contrast, and reduced motion. Capture and preview reuse the existing registry slot; Node 9/9; no new message/store/context/layer/ADR. v1.21 — Radial Spectrum + consumed polar helpers. Earlier history remains in git.
+**Changelog:** v1.23 — **Oscilloscope + waveform-on-demand** (2026-07-14): sixth core spectrum and first optional-input consumer. Static `AudioVisualDefinition.wants` metadata gates both live `getByteTimeDomainData` and synthetic preview waveform creation without instantiating the visual. A zero-crossing-stabilized 96–160 point sweep feeds a preallocated ≤6-frame / 960-element history ring, with linear/circular layouts, High Contrast, reduced motion, and stale-history reset after render gaps. Node 10/10; focused v6 suite 81/81; no new message/store/context/layer/ADR. v1.22 — Central Pulse + consumed centered/flow-field helpers. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -87,12 +87,12 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Gotcha:** Profile at 24 fps before merge — expensive per-frame work can drop below `WAVEFORM_TARGET_FPS` and cause dup-storm on slow machines (BUG-007 trigger class).
 - **Layout constants:** keep waveform bar counts/spacing fixed in v4 scope — changing them breaks the preview WYSIWYG guarantee for clips already recorded.
 
-## Audio-reactive visual system — v7 (v6 Phase 2 Central)
+## Audio-reactive visual system — v8 (v6 Phase 2 core complete)
 
-- **Carrier:** `src/theme/audio-reactive/audio-frame.ts` owns `AudioVizFrame`: normalized energy (0–1), exactly 32 log-spaced bands (0–1), optional waveform (-1–1), shared `timeMs`, and optional transient. `WaveformRenderer.drawFrame()` supplies live analyser data; `renderThemePreview()` supplies `PREVIEW_BAND_LEVELS` + representative energy. Never invent a second preview-only frame shape (I22).
-- **Registry/runtime:** `src/theme/audio-reactive/index.ts` registers `AudioVisualDefinition` factories by `kind:id` (`spectrum` / `overlay`). `renderAudioVisualForCanvas()` creates once and reuses state through a `WeakMap<HTMLCanvasElement, …>`, clamps `dt` to 100 ms, and resolves normalized defaults/overrides. Never call `definition.create()` per frame.
+- **Carrier:** `src/theme/audio-reactive/audio-frame.ts` owns `AudioVizFrame`: normalized energy (0–1), exactly 32 log-spaced bands (0–1), optional waveform (-1–1), shared `timeMs`, and optional transient. `WaveformRenderer.drawFrame()` supplies live analyser data; `renderThemePreview()` supplies representative synthetic data. Raw time-domain bytes and the deterministic preview waveform are normalized only when the active definition requests them. Never invent a second preview-only frame shape (I22).
+- **Registry/runtime:** `src/theme/audio-reactive/index.ts` registers `AudioVisualDefinition` factories by `kind:id` (`spectrum` / `overlay`). Optional input demand lives in static `definition.wants`; producers call `getAudioVisualWants()` before frame construction and must never create a visual just to inspect capabilities. `renderAudioVisualForCanvas()` creates once and reuses state through a `WeakMap<HTMLCanvasElement, …>`, clamps `dt` to 100 ms, and resolves normalized defaults/overrides.
 - **Draw slots:** overlay visuals generalize `drawDesignEffectOverlays` below the bars; spectrum visuals replace the 32-bar loop. This is a generalization of existing Canvas-2D slots, not a fourth compositing layer. Subtitles remain post-base (I3).
-- **Registered spectra:** `audio-reactive/spectra/classic-neon.ts` owns the prior 32-bar transfer curve and default/fallback. `minimal.ts` is the 8–16 mark accessibility definition. `phosphor.ts` is a hard-capped 12–24 × 6–10 physical-cell CRT (≤240) with asymmetric persistence. `radial-spectrum.ts` is a mirrored 24–64 segment polar ring with bounded envelope persistence. `central-pulse.ts` is a 36–72 point centered organic orb with ≤3 envelope echoes, energy-gated spectral detail, weighted bands, contextual Pulse Speed, and a palette radial body/core. High Contrast removes soft passes; reduced motion fixes the silhouette and suppresses glow/echoes. All five use the same capture/preview definition and shared alignment environment. If a saved additive spectrum ID has no registered definition yet, capture falls back to Classic rather than drawing blank.
+- **Registered spectra:** `audio-reactive/spectra/classic-neon.ts` owns the prior 32-bar transfer curve and default/fallback. `minimal.ts` is the 8–16 mark accessibility definition. `phosphor.ts` is a ≤240-cell CRT. `radial-spectrum.ts` is a mirrored 24–64 segment polar ring. `central-pulse.ts` is a 36–72 point organic orb with ≤3 envelope echoes. `oscilloscope.ts` is the sole `wants.waveform` consumer: rising-zero-crossing triggering downsamples the analyser snapshot to 96–160 points, then a preallocated six-slot ring provides at most 960 trace elements and clears across long render gaps. It supports linear/circular layouts, an instrument graticule, High Contrast without history/glow, and a fixed energy-scaled reduced-motion wave. All six use the same capture/preview definition and shared alignment environment. If a saved additive spectrum ID has no registered definition, capture falls back to Classic rather than drawing blank.
 - **Non-linear layout seam:** `audio-reactive/layout.ts` owns only consumed, pure coordinate vocabulary. `polarToCartesian()` and `mapRadialSegment()` define Radial's guarded ring geometry; `resolveCenteredOrigin()` and `mapCenteredContourPoint()` define Central's alignment-aware contour geometry. `audio-reactive/simulation/flow-field.ts` owns the deterministic, allocation-free layered 2D sampler Central consumes. Spatial partition, reactive-agent, and neighbor-query abstractions remain deferred until a Phase 3 preset actually needs them.
 - **Founding overlays:** `audio-reactive/overlays/sparkle.ts` (twinkle/particle, 18–64) and `bokeh.ts` (public **Bubbles**, serialized ID `bokeh`; soft-lens depth/parallax, 5–14) are deterministic registry-native algorithms. Old placeholder pixels are intentionally not preserved (ADR-0009/0010).
 - **Persistence:** `DesignOverrides` carries optional `spectrumPreset`, `visualizerParams`, `overlayPreset`, and `stackables`. `normalizeDesignOverrides`/`normalizeVisualizerParams` allowlist IDs/layouts, clamp controls/weights, normalize ≤7 palette colors, and dedupe/cap stackables at three. No new store, signal, message, or `USER_PREFS_VERSION` bump.
@@ -464,11 +464,11 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.22 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
-Map v3.8 · v6 Phase 2 Central Pulse automated gate PASS; Phase 1 user browser QA PASS.
+Extension points v1.23 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
+Map v3.9 · v6 Phase 2 all six core spectra complete; Oscilloscope automated gate PASS; Phase 1 user browser QA PASS.
 Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
-Audio-reactive visual system v7; no new context/message/store/signal/compositing layer.
-AudioVizFrame: normalized energy + 32 bands + optional waveform + shared clock (I22).
+Audio-reactive visual system v8; no new context/message/store/signal/compositing layer.
+AudioVizFrame: normalized energy + 32 bands + registry-gated optional waveform + shared clock (I22).
 AudioVisual registry uses a WeakMap per-canvas runtime; two slots only: overlay below spectrum; both record-time capture.
 Classic owns default/fallback; Minimal is the a11y meter; Phosphor is a ≤240-cell CRT; Radial is a capped 24–64 segment mirrored polar ring; Central is a capped 36–72 point centered organic orb with ≤3 envelope echoes.
 Sparkle/Bubbles replacements active (caps 64/14); `bokeh` remains the serialized stability key (ADR-0009/0010).
@@ -476,5 +476,5 @@ Shared Cividis contract: tokens.ts ↔ studio-palette.css, sync-tested; pair col
 Novel effects remain Canvas 2D and must pass the real-artifact 120 s base≤25 MiB / baked≤30 MiB CLI gate.
 Prefs remain rvnUserPrefs IDB + enqueuePrefsOp; new visual fields must normalize, no version bump.
 H6/H8/H13/H14 and browser-composite fallback contracts remain unchanged.
-Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: Oscilloscope; make it the first and only core spectrum to request waveform samples.
+Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: Phase 3 simulation backbone + Forest Spirits; add only spatial/agent primitives that the first chaining-boids preset consumes.
 ```

@@ -66,7 +66,6 @@ export function getSparkleParticleCount(density: number): number {
 class SparkleVisual implements AudioVisual {
   readonly id = 'sparkle';
   readonly kind = 'overlay' as const;
-  readonly wants = { bands: true } as const;
   readonly supportedLayouts = ['linear', 'radial', 'centered'] as const;
 
   private initialized = false;
@@ -153,6 +152,7 @@ export const SPARKLE_VISUAL_DEFINITION: AudioVisualDefinition = {
   id: 'sparkle',
   label: 'Sparkle',
   kind: 'overlay',
+  wants: Object.freeze({ bands: true }),
   family: 'twinkle-particle',
   maxElements: SPARKLE_MAX_PARTICLES,
   defaultParams: {

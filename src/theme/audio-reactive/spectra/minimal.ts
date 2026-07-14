@@ -154,7 +154,6 @@ function railY(
 class MinimalVisual implements AudioVisual {
   readonly id = MINIMAL_SPECTRUM_ID;
   readonly kind = 'spectrum' as const;
-  readonly wants = Object.freeze({ bands: true });
   readonly supportedLayouts = Object.freeze(['linear'] as const);
 
   private displayedLevels: number[] = [];
@@ -263,6 +262,7 @@ export const MINIMAL_VISUAL_DEFINITION: AudioVisualDefinition = Object.freeze({
   id: MINIMAL_SPECTRUM_ID,
   label: 'Minimal',
   kind: 'spectrum',
+  wants: Object.freeze({ bands: true }),
   family: 'accessible-spectrum',
   maxElements: MINIMAL_MAX_BAR_COUNT,
   defaultParams: Object.freeze({

@@ -138,7 +138,7 @@ check('definition is a capped, registry-native linear segmented spectrum', () =>
   );
   const visual = PHOSPHOR_VISUAL_DEFINITION.create();
   assert.deepEqual(visual.supportedLayouts, ['linear']);
-  assert.equal(visual.wants.bands, true);
+  assert.equal(PHOSPHOR_VISUAL_DEFINITION.wants.bands, true);
   assert.equal(visual.supportsAfterimage, true);
   registerCoreSpectrumVisuals();
   registerCoreSpectrumVisuals();

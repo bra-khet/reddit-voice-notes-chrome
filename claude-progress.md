@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Central Pulse complete 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 core spectra complete — Oscilloscope PASS 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -190,4 +190,12 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Central/helpers **9/9** · focused v6 regression set **71/71** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.8** / I22 · extension-points **v1.22**. ADR-0007 already owns the spectrum seam; no new ADR/context/message/store/signal/dependency/compositing layer.
 
-**Immediate next actions:** Oscilloscope as the first core spectrum to request waveform samples, with bounded waveform history for its afterimage.
+### Track A Phase 2 — Oscilloscope + waveform-on-demand (**DONE 2026-07-14; automated gate**)
+
+- Added registry-native `oscilloscope`, completing the six core spectra. Static `AudioVisualDefinition.wants` metadata is now the single source of optional input demand: only Oscilloscope declares waveform, so live capture calls `getByteTimeDomainData` and synthetic preview generates a representative time-domain signal only for that definition.
+- Each analyser snapshot is rising-zero-crossing triggered and downsampled to an even **96–160 points**. Afterimage uses a preallocated **six-slot ring** capped at **960 path elements**; it stores neither canvas pixels nor full analyser buffers, and clears across long render gaps so a hot-swap cannot replay stale voice traces.
+- Linear and circular layouts share a scope graticule, palette trail/glow, top/center/bottom alignment, Gain/Smoothing/Persistence/timebase behavior, and stable capture↔preview paths. High Contrast removes glow/history and strengthens the line. Reduced motion ignores waveform order/time and renders a fixed energy-scaled standing wave.
+- **Automated:** Oscilloscope/lazy waveform **10/10** · focused v6 regression set **81/81** · production build PASS · built recorder + Studio shared chunks contain Oscilloscope. Compile reports only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.9** / I22 · extension-points **v1.23**. ADR-0007 already owns the lazy optional-input seam; no new ADR/context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** Phase 3 simulation backbone + Forest Spirits; add `SpatialPartition`, agent pooling, and vector flow behavior only where the first chaining-boids overlay immediately consumes them.

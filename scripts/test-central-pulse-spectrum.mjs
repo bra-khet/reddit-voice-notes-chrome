@@ -175,7 +175,7 @@ check('definition is a capped, registry-native centered organic spectrum', () =>
   assert.equal(CENTRAL_PULSE_MAX_ELEMENTS, CENTRAL_PULSE_MAX_POINTS * (1 + CENTRAL_PULSE_MAX_ECHO_RINGS));
   const visual = CENTRAL_PULSE_VISUAL_DEFINITION.create();
   assert.deepEqual(visual.supportedLayouts, ['centered']);
-  assert.equal(visual.wants.bands, true);
+  assert.equal(CENTRAL_PULSE_VISUAL_DEFINITION.wants.bands, true);
   assert.equal(visual.supportsAfterimage, true);
   registerCoreSpectrumVisuals();
   registerCoreSpectrumVisuals();

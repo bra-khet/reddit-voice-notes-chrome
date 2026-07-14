@@ -122,7 +122,6 @@ function isLitSegment(
 class PhosphorVisual implements AudioVisual {
   readonly id = PHOSPHOR_SPECTRUM_ID;
   readonly kind = 'spectrum' as const;
-  readonly wants = Object.freeze({ bands: true });
   readonly supportsAfterimage = true;
   readonly supportedLayouts = Object.freeze(['linear'] as const);
 
@@ -256,6 +255,7 @@ export const PHOSPHOR_VISUAL_DEFINITION: AudioVisualDefinition = Object.freeze({
   id: PHOSPHOR_SPECTRUM_ID,
   label: 'Phosphor',
   kind: 'spectrum',
+  wants: Object.freeze({ bands: true }),
   family: 'segmented-spectrum',
   maxElements: PHOSPHOR_MAX_SEGMENTS,
   defaultParams: Object.freeze({

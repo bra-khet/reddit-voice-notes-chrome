@@ -46,7 +46,6 @@ export interface AudioVisualRenderEnvironment {
 export interface AudioVisual {
   readonly id: string;
   readonly kind: AudioVisualKind;
-  readonly wants: AudioVisualWants;
   readonly supportsAfterimage?: boolean;
   readonly supportedLayouts?: readonly LayoutMode[];
   update?(frame: AudioVizFrame, dt: number): void;
@@ -64,6 +63,8 @@ export interface AudioVisualDefinition {
   /** Human label used by registry-driven picker surfaces. */
   readonly label?: string;
   readonly kind: AudioVisualKind;
+  /** Static input capability metadata; frame producers inspect this before acquiring optional data. */
+  readonly wants: Readonly<AudioVisualWants>;
   /** Broad family name for future Style-panel grouping. */
   readonly family?: string;
   /** Hard element ceiling used by density/performance affordances. */
@@ -104,6 +105,19 @@ export function getAudioVisualDefinition(
   id: string,
 ): AudioVisualDefinition | null {
   return definitions.get(definitionKey(kind, id)) ?? null;
+}
+
+const NO_AUDIO_VISUAL_WANTS: Readonly<AudioVisualWants> = Object.freeze({});
+
+/**
+ * CHANGED: optional audio inputs are discoverable from registry metadata without creating a visual.
+ * WHY: live capture must decide whether to sample the analyser waveform before it builds the frame.
+ */
+export function getAudioVisualWants(
+  kind: AudioVisualKind,
+  id: string,
+): Readonly<AudioVisualWants> {
+  return getAudioVisualDefinition(kind, id)?.wants ?? NO_AUDIO_VISUAL_WANTS;
 }
 
 /** Creates a fresh preset instance so afterimages/agents never leak across canvases. */

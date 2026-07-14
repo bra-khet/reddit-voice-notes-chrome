@@ -119,7 +119,6 @@ function traceContour(ctx: CanvasRenderingContext2D, geometry: ContourGeometry):
 class CentralPulseVisual implements AudioVisual {
   readonly id = CENTRAL_PULSE_ID;
   readonly kind = 'spectrum' as const;
-  readonly wants = Object.freeze({ bands: true });
   readonly supportsAfterimage = true;
   readonly supportedLayouts = Object.freeze(['centered'] as const);
 
@@ -304,6 +303,7 @@ export const CENTRAL_PULSE_VISUAL_DEFINITION: AudioVisualDefinition = Object.fre
   id: CENTRAL_PULSE_ID,
   label: 'Central Pulse',
   kind: 'spectrum',
+  wants: Object.freeze({ bands: true }),
   family: 'organic-spectrum',
   maxElements: CENTRAL_PULSE_MAX_ELEMENTS,
   defaultParams: Object.freeze({

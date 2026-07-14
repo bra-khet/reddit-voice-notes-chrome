@@ -24,7 +24,9 @@ import {
   AUDIO_VIZ_BAND_COUNT,
   buildAudioVizFrame,
   buildSyntheticAudioVizFrame,
+  getAudioVisualWants,
   renderAudioVisualForCanvas,
+  type AudioVisualWants,
   type AudioVizFrame,
   type SpectrumAlignment,
 } from '@/src/theme/audio-reactive';
@@ -151,11 +153,26 @@ function drawThemeSpectrum(
   }
 }
 
+/**
+ * CHANGED: time-domain sampling is capability-gated before the shared frame is built.
+ * WHY: Oscilloscope is the only current spectrum that should pay for waveform acquisition.
+ */
+export function readAnalyserWaveformOnDemand(
+  analyser: Pick<AnalyserNode, 'getByteTimeDomainData'>,
+  target: Uint8Array,
+  wants: Readonly<AudioVisualWants>,
+): Uint8Array | undefined {
+  if (!wants.waveform) return undefined;
+  analyser.getByteTimeDomainData(target as Uint8Array<ArrayBuffer>);
+  return target;
+}
+
 export class WaveformRenderer {
   readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly analyser: AnalyserNode;
   private readonly frequencyData: Uint8Array;
+  private readonly timeDomainData: Uint8Array;
   private theme: WaveformTheme;
   private customBackgroundId: string | null = null;
   private userBackgroundLayout: UserBackgroundLayout = userBackgroundLayoutFromAppearance({});
@@ -202,6 +219,7 @@ export class WaveformRenderer {
     this.ctx = ctx;
 
     this.frequencyData = new Uint8Array(this.analyser.frequencyBinCount);
+    this.timeDomainData = new Uint8Array(this.analyser.fftSize);
     this.sampleRate = this.analyser.context?.sampleRate ?? 48000;
     // CHANGED: defer first background load until setCustomBackgroundId / setTheme.
     // WHY: constructor used to race an id=null load against the prefs-driven personal bg load.
@@ -366,12 +384,20 @@ export class WaveformRenderer {
       ? this.userAnimatedBackground.frameAt(animationTimeMs)
       : this.userBackgroundImage;
 
-    // CHANGED: capture now publishes normalized energy + all 32 FFT bands to the draw seam.
-    // WHY: v6 spectrum/overlay presets must share the same record-time input and clock.
+    const requestedSpectrumId = theme.designEffects?.spectrumPreset ?? CLASSIC_NEON_SPECTRUM_ID;
+    const waveformBytes = readAnalyserWaveformOnDemand(
+      this.analyser,
+      this.timeDomainData,
+      getAudioVisualWants('spectrum', requestedSpectrumId),
+    );
+
+    // CHANGED: capture publishes optional waveform data only when registry metadata requests it.
+    // WHY: v6 presets share one frame while non-Oscilloscope captures retain the common-path cost.
     const audioFrame = buildAudioVizFrame({
       energy: this.smoothedAudioEnergy,
       bands: bandValues,
       bandScale: 255,
+      waveformBytes,
       timeMs: animationTimeMs,
     });
 
@@ -429,9 +455,12 @@ export async function renderThemePreview(
     ? userAnimatedBackground.frameAt(timeMs)
     : userBackgroundImage;
 
-  // CHANGED: the no-mic preview emits the same complete carrier as live capture.
-  // WHY: representative synthetic bands keep future presets honest about the fidelity gap.
-  const audioFrame = buildSyntheticAudioVizFrame(PREVIEW_BAND_LEVELS, timeMs, 0.32);
+  const requestedSpectrumId = theme.designEffects?.spectrumPreset ?? CLASSIC_NEON_SPECTRUM_ID;
+  // CHANGED: preview consults the same registry capability metadata as live capture.
+  // WHY: representative waveform motion should exist for Oscilloscope and nowhere else.
+  const audioFrame = buildSyntheticAudioVizFrame(PREVIEW_BAND_LEVELS, timeMs, 0.32, {
+    waveform: getAudioVisualWants('spectrum', requestedSpectrumId).waveform === true,
+  });
 
   drawThemeBackground(
     ctx,

@@ -98,7 +98,6 @@ function centerYForAlignment(
 class RadialSpectrumVisual implements AudioVisual {
   readonly id = RADIAL_SPECTRUM_ID;
   readonly kind = 'spectrum' as const;
-  readonly wants = Object.freeze({ bands: true });
   readonly supportsAfterimage = true;
   readonly supportedLayouts = Object.freeze(['radial'] as const);
 
@@ -272,6 +271,7 @@ export const RADIAL_SPECTRUM_VISUAL_DEFINITION: AudioVisualDefinition = Object.f
   id: RADIAL_SPECTRUM_ID,
   label: 'Radial Spectrum',
   kind: 'spectrum',
+  wants: Object.freeze({ bands: true }),
   family: 'polar-spectrum',
   maxElements: RADIAL_MAX_SEGMENTS,
   defaultParams: Object.freeze({

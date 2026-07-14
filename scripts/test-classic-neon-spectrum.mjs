@@ -188,7 +188,7 @@ check('definition is a capped linear spectrum with stable discovery metadata', (
   );
   const visual = CLASSIC_NEON_VISUAL_DEFINITION.create();
   assert.deepEqual(visual.supportedLayouts, ['linear']);
-  assert.equal(visual.wants.bands, true);
+  assert.equal(CLASSIC_NEON_VISUAL_DEFINITION.wants.bands, true);
   registerCoreSpectrumVisuals();
   registerCoreSpectrumVisuals();
 });

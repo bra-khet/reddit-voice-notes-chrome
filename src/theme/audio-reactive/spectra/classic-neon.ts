@@ -116,7 +116,6 @@ function resolveTargetLevels(
 class ClassicNeonVisual implements AudioVisual {
   readonly id = CLASSIC_NEON_SPECTRUM_ID;
   readonly kind = 'spectrum' as const;
-  readonly wants = Object.freeze({ bands: true });
   readonly supportsAfterimage = true;
   readonly supportedLayouts = Object.freeze(['linear'] as const);
 
@@ -179,6 +178,7 @@ export const CLASSIC_NEON_VISUAL_DEFINITION: AudioVisualDefinition = Object.free
   id: CLASSIC_NEON_SPECTRUM_ID,
   label: 'Classic (Neon Glow)',
   kind: 'spectrum',
+  wants: Object.freeze({ bands: true }),
   family: 'bar-spectrum',
   maxElements: CLASSIC_NEON_BAR_COUNT,
   defaultParams: Object.freeze({

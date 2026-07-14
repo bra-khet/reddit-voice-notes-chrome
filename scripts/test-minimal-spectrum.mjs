@@ -121,7 +121,7 @@ check('definition is a low-density, capped linear accessibility spectrum', () =>
   );
   const visual = MINIMAL_VISUAL_DEFINITION.create();
   assert.deepEqual(visual.supportedLayouts, ['linear']);
-  assert.equal(visual.wants.bands, true);
+  assert.equal(MINIMAL_VISUAL_DEFINITION.wants.bands, true);
   assert.equal(visual.supportsAfterimage, undefined);
   registerCoreSpectrumVisuals();
   registerCoreSpectrumVisuals();
