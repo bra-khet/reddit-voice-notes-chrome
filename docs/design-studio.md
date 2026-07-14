@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v5.11.0 preferences-IDB implementation** (manual browser QA pending). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.12, seams v1.26, backlog v2.13.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.13, seams v1.27, backlog v2.13.
 
 ---
 
@@ -875,7 +875,7 @@ reddit.com).
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
-| v6 visual maturity | Style / Background | **In progress:** Track A carrier/runtime, guarded prefs, registry-native Sparkle/Bubbles/Forest Spirits/Digital Rain/Inferno, all six core spectra through waveform-on-demand Oscilloscope, consumed layout/flow/spatial/agent/grid/emitter helpers, and real-artifact size harness landed. Inferno uses a 28–72 particle flow field and exposes Void Inferno through High Contrast; Aurora follows. Track B background direct manipulation remains planned. |
+| v6 visual maturity | Style / Background | **In progress:** Track A carrier/runtime, guarded prefs, all six spectra, Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora, consumed layout/flow/spatial/agent/grid/emitter helpers, and real-artifact size harness landed. Aurora is a 100–200-shard flow-field curtain with bar-top, opposing-side, and radial-rim layouts; Glitch follows. Track B background direct manipulation remains planned. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -906,7 +906,7 @@ reddit.com).
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; all six spectra plus Sparkle/Bubbles/Forest/Digital Rain/Inferno and the size harness are complete, remaining Phase 3 simulations/UI follow (ADR-0007/0009/0010 Accepted) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; all six spectra plus Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora and the size harness are complete, remaining Phase 3 simulations/UI follow (ADR-0007/0009/0010 Accepted) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 (planned)** direct-manipulation background layout — Design-phase; `dim`→field, `customPosition` (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |
@@ -1010,5 +1010,5 @@ Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Stu
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
 H8 resolved + browser QA PASS: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result even if resume-time prefs were mutated/nuked. Legacy drafts disclose current-prefs fallback. No H8 re-run for v5.11.
 Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix only.
-Read docs/architecture/architecture-map.md v3.12 before changing cross-context behavior. Track A next: Aurora, reusing flow and the bounded emitter and adding only ribbon state/geometry it immediately consumes.
+Read docs/architecture/architecture-map.md v3.13 before changing cross-context behavior. Track A next: Glitch, adding only bounded transient-responsive scanline/split/tear state it directly consumes.
 ```

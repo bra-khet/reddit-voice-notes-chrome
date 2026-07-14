@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Inferno / Void Inferno PASS 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Aurora PASS 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -226,3 +226,14 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Architecture:** map **v3.12** / I22 · extension-points **v1.26** (audio-reactive v11). ADR-0007 already owns the simulation/overlay seam and the lifetime pool stayed non-structural, so no new ADR.
 
 **Immediate next actions:** continue Phase 3 with Aurora; reuse the existing flow field and bounded emitter, adding only ribbon state/geometry Aurora immediately consumes.
+
+### Track A Phase 3 — Aurora flow-field ribbons (**DONE 2026-07-14; automated gate**)
+
+- Added registry-native `aurora` without another shared framework: the existing `BoundedParticleEmitter` owns lifetimes/slot reuse, the existing caller-buffered flow field owns coherent motion, and Aurora keeps its immediately consumed ribbon state/geometry local to the preset.
+- Density resolves to **100–200 preallocated ribbon shards**, hard-capping output at **403 paint elements**. Linear emits from 32 audio-shaped bar tops, centered emits from opposing side spectra, and radial emits from a circular spectrum rim. Bass gives the curtain body/lift, mids steer flow, and treble/transients sharpen luminous folds.
+- Each particle paints a tapered Bézier veil plus a bright fold filament, building layered curtains rather than dots. Band weights alter source height/radius and trajectory, capture silence stays empty, and Studio preview uses a deterministic slow tide. High Contrast removes blur and switches to crisp cyan/green/white structure; reduced motion is a fixed audio-scaled curtain sculpture.
+- State remains per-canvas, fixed-allocation, Canvas 2D, and record-time only. No new preference field, message, store, signal, dependency, compositing layer, bake renderer, scene graph, stackable interface, or generalized ribbon API.
+- **Automated:** Aurora **10/10** · focused v6 regression set **125/125** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.13** / I22 · extension-points **v1.27** (audio-reactive v12). ADR-0007 already owns the simulation/overlay seam; no new ADR.
+
+**Immediate next actions:** continue Phase 3 with Glitch; add only the bounded transient-responsive scanline, RGB-split, and chunk-tear state it directly consumes.
