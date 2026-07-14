@@ -23,6 +23,16 @@
 }
 
 :root {
+  /* CHANGED: shared v6 Cividis stops mirror src/ui/tokens.ts exactly.
+     WHY: both Style and Background tracks need one CVD-safe intensity/cost language. */
+  --rvn-cividis-0: #00204d;
+  --rvn-cividis-16: #223d6c;
+  --rvn-cividis-33: #565c6c;
+  --rvn-cividis-50: #7b7b78;
+  --rvn-cividis-67: #a69c75;
+  --rvn-cividis-84: #d3c065;
+  --rvn-cividis-100: #ffea46;
+
   --studio-bg-deep: #12001f;
   --studio-panel: #1d1f6e;
   --studio-panel-edge: #0a0014;

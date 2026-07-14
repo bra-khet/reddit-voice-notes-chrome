@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v5.11.0 preferences-IDB implementation** (manual browser QA pending). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.0, seams v1.14, backlog v2.11.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.2, seams v1.16, backlog v2.13.
 
 ---
 
@@ -228,6 +228,8 @@ Implement new Studio surfaces via `studio-save-pathways.ts` and `studio-exit.ts`
 
 **Panel id:** `data-studio-panel="bar-style"`  
 **Summary:** `renderBarStyleSummaryHtml` — style name, color swatch, S/V, alignment badge, effects chip.
+
+**v6 transition (Phase 0 landed 2026-07-14):** this user-facing section and its `data-studio-panel="bar-style"` contract remain unchanged until the integrated Style-panel UI milestone. Underneath, capture and preview now share a normalized `AudioVizFrame` + instance-safe preset registry contract (`src/theme/audio-reactive/`, I22); bokeh/sparkle formulas and the 32-bar renderer remain direct, so Phase 0 introduces no visible or persistence behavior change. Phase 1 lands legacy adapters and normalized `DesignOverrides` fields before any novel preset.
 
 ### 4.1 Controls inventory
 
@@ -873,7 +875,7 @@ reddit.com).
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
-| v6 visual maturity | Shell / Background | Theme/background/elevation/reduced-motion audit after the functional editing arc |
+| v6 visual maturity | Style / Background | **In progress:** Track A Phase 0 shared Cividis + audio-reactive carrier/registry scaffold landed; next legacy adapters/guards. Track B background direct manipulation remains planned. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -904,7 +906,7 @@ reddit.com).
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (planned)** audio-reactive visuals + six spectrum presets + simulation backbone (ADR-0007) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; Phase 0 carrier/registry + shared Cividis complete, presets/simulation follow (ADR-0007 Accepted) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 (planned)** direct-manipulation background layout — Design-phase; `dim`→field, `customPosition` (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |

@@ -1,9 +1,9 @@
 # ADR-0007: Audio-reactive visualizer core (generalized spectrum + simulation layer)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-14
 - **Reflects branch/tag:** `feature/v6.0.0-custom-styles-refactor` (from `main@98c37ab`, v5.11.0)
-- **Deciders:** v6 planning session (roadmap synthesis)
+- **Deciders:** v6 planning session + user confirmation to begin implementation
 
 ## Context
 

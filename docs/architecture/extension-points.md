@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.15 · **Updated:** 2026-07-13 · **Reflects:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` · **browser QA PASS**
+**Version:** v1.16 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 0 automated gate PASS**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.15 — **v5.11 prefs browser QA PASS** (2026-07-13): fresh/upgrade/relay/Export-Import/DevTools matrix closed; no seam contract change. v1.14 — **preferences storage v2 seam:** full `UserPreferencesV1` truth moves to `rvnUserPrefs` IDB (`global`/`profiles`/`customStyles`), published through signal-only `rvnUserPrefs.v2`; v1 migration is retryable/delete-after-success. Reddit content scripts use background load/replace requests; Studio gains Export/Import and size telemetry. ADR-0006; 12 focused checks; browser QA pending. v1.13 — **H8 recovery provenance:** the Take lifecycle seam gains optional `captureVoiceIntent` (normalized voice config + id-free key) written before render; recovery consumes it and promotes `TakeVoiceStamp`, while legacy drafts use current prefs with a visible note. No new writer/store/key/message/context. v1.12 — **BUG-038 / message pipelines v3:** an accepted transcribe job's terminal persistence and 125 s watchdog now belong to background, not the initiating tab. `TranscribeStartRequest` carries optional duration for failure scaffolding; cancelled/superseded/late jobs cannot publish. No new family/store/key/UI. v1.11 — **H13 shipped:** the Storage seam's persist-before-publish rule is now enforced by the stores themselves — `saveLastBaseMp4` / `saveLastBakedMp4` / `saveLastRecording` throw on unpersistable size + IDB failure and return the authoritative persisted meta (`LAST_BASE_MP4_*` / `LAST_BAKED_MP4_*` bounds exported alongside the v5.10 recording bounds); all four mutation choke points stamp/signal only from that meta (`TakeBakeResult.savedAt` added for the bake path). No seam/contract shape change beyond the save return type. Earlier history remains in git.
+**Changelog:** v1.16 — **audio-reactive visual seam, Phase 0** (2026-07-14): normalized `AudioVizFrame` threads live/synthetic energy + 32 bands through the record-time background/effect path; `AudioVisual` definitions are factory-created for per-canvas state; shared Cividis tokens land in TS + Studio CSS. Legacy pixels remain direct pending Phase 1 adapters. ADR-0007 Accepted; Node 8 + token sync 7 + build PASS; no new message/store/context/layer. v1.15 — **v5.11 prefs browser QA PASS** (2026-07-13): fresh/upgrade/relay/Export-Import/DevTools matrix closed; no seam contract change. v1.14 — **preferences storage v2 seam:** full `UserPreferencesV1` truth moves to `rvnUserPrefs` IDB (`global`/`profiles`/`customStyles`), published through signal-only `rvnUserPrefs.v2`; v1 migration is retryable/delete-after-success. Reddit content scripts use background load/replace requests; Studio gains Export/Import and size telemetry. ADR-0006; 12 focused checks; browser QA pending. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -86,6 +86,17 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Preview=bake?** YES by construction — canvas capture becomes the video track; theme changes appear in every recorded frame.
 - **Gotcha:** Profile at 24 fps before merge — expensive per-frame work can drop below `WAVEFORM_TARGET_FPS` and cause dup-storm on slow machines (BUG-007 trigger class).
 - **Layout constants:** keep waveform bar counts/spacing fixed in v4 scope — changing them breaks the preview WYSIWYG guarantee for clips already recorded.
+
+## Audio-reactive visual system — v1 (v6 Phase 0 foundation)
+
+- **Carrier:** `src/theme/audio-reactive/audio-frame.ts` owns `AudioVizFrame`: normalized energy (0–1), exactly 32 log-spaced bands (0–1), optional waveform (-1–1), shared `timeMs`, and optional transient. `WaveformRenderer.drawFrame()` supplies live analyser data; `renderThemePreview()` supplies `PREVIEW_BAND_LEVELS` + representative energy. Never invent a second preview-only frame shape (I22).
+- **Registry:** `src/theme/audio-reactive/index.ts` registers `AudioVisualDefinition` factories by `kind:id` (`spectrum` / `overlay`). Resolve a fresh instance for each canvas/renderer so afterimage rings, particles, grids, and agents cannot leak between Studio preview and capture.
+- **Draw slots:** overlay visuals generalize `drawDesignEffectOverlays` below the bars; spectrum visuals replace the 32-bar loop. This is a generalization of existing Canvas-2D slots, not a fourth compositing layer. Subtitles remain post-base (I3).
+- **Phase 0 compatibility:** bokeh/sparkle consume the carrier but retain their exact formulas; the bar loop remains direct. Phase 1 must land legacy registry adapters before any novel visual, then browser-check saved styles/profiles.
+- **Persistence (Phase 1 gate):** extend normalized `DesignOverrides`; every new optional field must be clamped/allowlisted by `normalizeDesignOverrides`. No new store, signal, message, or `USER_PREFS_VERSION` bump (ADR-0006 precedent).
+- **Shared UI ramp:** `CIVIDIS` in `src/ui/tokens.ts` mirrors `--rvn-cividis-*` in `studio-palette.css`; `test-ui-tokens.mjs` prevents branch drift. Pair color with labels/icons—never encode governor state by hue alone.
+- **Performance/size:** Canvas 2D only; no WebGL/WASM/dependency. Density and stackables must respect both frame smoothness and the 120 s encoded caps (base ≤25 MB, baked ≤30 MB). The heavy-preset harness gates novel presets, not the carrier scaffold.
+- **Decision/canonical design:** ADR-0007 (Accepted) + `docs/v6.0.0-custom-styles-refactor.md`. Browser visual parity remains Medium confidence until Phase 1 adapter QA.
 
 ## Design Studio surfaces — v1
 
@@ -451,25 +462,16 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.15 (2026-07-13), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0.
-Map v3.1 · v5.11 browser QA PASS · merge-ready.
-Seams: voice v5 · subtitle/font v1 · messages v3 · storage v1 · theme/Studio/live-mic v1 ·
-overlay backbone v1 · take lifecycle v1 · capture host v1 · audio editing/re-apply v1 ·
-partial splice v1 · timeline editor v1. No new seam/context/store/message in v5.9/v5.10.
-Default subtitle bake: browser decodes base → shared painter → encode/mux directly.
-Fallbacks: dual-IVF+FFmpeg → MediaRecorder+FFmpeg → drawtext.
-Studio pipeline progress is the offscreen runtime broadcast; skip-tab maps suppress duplicates.
-Transcribe terminal result/scaffold + 125s watchdog belong to background (BUG-038); tab may close after ACK.
-Take state syncs through rvn.take.current (ADR-0002); H6 is mandatory before blob adoption.
-H8: captureVoiceIntent is durable before transcode; recovery uses it and stamps the result;
-legacy drafts alone use current prefs and disclose that fallback in the ready deck.
-Trim apply: H6 base cut + raw-WebM audio-only cut (planRawTrimLeg; failure = honest stamp drop) +
-live/baseline cue shift + intent/stale-stamp clear in ONE take write; next bake is full;
-post-trim voice re-apply available when rawAudio === 'trimmed' (emergent Voice panel).
-Storage rule (H13 ENFORCED): saveLast* throw on size/IDB failure and return persisted meta;
-stamps/signals build only from that meta (all three stores export *_MIN/MAX_BYTES bounds).
-Prefs v2 (QA PASS): rvnUserPrefs IDB owns global/profiles/customStyles; rvnUserPrefs.v2 is signal-only;
-Reddit content scripts use background LOAD/REPLACE requests; all mutations stay under enqueuePrefsOp.
-Rule of thumb: state → storage key + onChanged; work-with-progress → MSG_ pipeline;
-one-shot question → query message. New editing UI → reuse the edit/dirty/trim seams, don't add a wire.
+Extension points v1.16 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
+Map v3.2 · v6 audio-reactive Phase 0 automated gate PASS; browser visual parity pending.
+Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
+New seam: audio-reactive visual system v1; no new context/message/store/signal/compositing layer.
+AudioVizFrame: normalized energy + 32 bands + optional waveform + shared clock (I22).
+AudioVisual registry uses factories per canvas; two slots only: overlay below spectrum; both record-time capture.
+Phase 0: bokeh/sparkle formulas + bar loop unchanged; Phase 1 = legacy adapters + normalized prefs guards.
+Shared Cividis contract: tokens.ts ↔ studio-palette.css, sync-tested; pair color with text/icon.
+Novel effects remain Canvas 2D and must pass 120 s base≤25 MB / baked≤30 MB size QA.
+Prefs remain rvnUserPrefs IDB + enqueuePrefsOp; new visual fields must normalize, no version bump.
+H6/H8/H13/H14 and browser-composite fallback contracts remain unchanged.
+Read ADR-0007 + v6 custom-styles roadmap. Next: legacy adapters/guards → Classic-Neon parity.
 ```

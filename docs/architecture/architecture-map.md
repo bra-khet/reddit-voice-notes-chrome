@@ -1,11 +1,12 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v3.1 · **Reflects branch/tag:** `feature/v5.11.0-prefs-storage-refactor` @ package `5.11.0` · **browser QA PASS** · **Updated:** 2026-07-13
+**Version:** v3.2 · **Reflects branch/tag:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 0 automated gate PASS** · **Updated:** 2026-07-14
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v3.2` (2026-07-14) — **v6 audio-reactive Phase 0 foundation:** one normalized `AudioVizFrame` now carries smoothed energy, exactly 32 FFT bands, optional waveform data, and the shared clock through both record-time capture and Studio synthetic preview. The `AudioVisual` factory registry contract creates stateful presets per canvas; legacy bokeh/sparkle read the new carrier with their paint formulas unchanged. Added shared seven-stop Cividis TS/CSS tokens, I22, and a Medium-confidence subsystem row pending browser visual parity. No new context, message, store, signal, or compositing layer. Node 8 + token sync 7; production build PASS; ADR-0007 Accepted; extension-points **v1.16**.
 - `v3.1` (2026-07-13) — **v5.11.0 real-browser QA PASS** (Chrome, `ebca7cb` dev build). I21 + confidence ledger raised to **High (single machine)**. Matrix: fresh install, real+planted v1 upgrade, profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools rows, size telemetry, product smoke all PASS. §3 force-fail PARTIAL accepted (fallback verified; Node inject covers hard fail). No post-QA code fixes. Extension-points **v1.15** · backlog **v2.13**. Merge-ready.
 - `v3.0` (2026-07-12) — **new structured storage class:** full `UserPreferencesV1` truth moved from the large `rvnUserPrefs` local blob into extension-origin `rvnUserPrefs` IDB (`global`, `profiles`, `customStyles`) behind the preserved `user-preferences.ts` API and BUG-023 queue. `rvnUserPrefs.v2` is marker/revision signal only and publishes after the atomic IDB transaction. Reddit content scripts use bounded background load/replace requests because host-origin code cannot open extension IDB. One-time v1 migration is delete-after-success/retry-on-failure; versioned Export/Import + size telemetry ship in Studio. ADR-0006; focused tests 12/12; build PASS; browser matrix pending. Extension-points **v1.14**.
 - `v2.12` (2026-07-12) — **H8 recovery voice provenance resolved in code** (no product version bump). The take snapshot gains optional, JSON-safe `captureVoiceIntent`; recorder writes it at begin and refreshes it in the awaited pre-transcode stop patch, then recovery prefers it over mutable prefs and promotes the successful/fallback render to `TakeVoiceStamp`. Legacy drafts retain current-prefs behavior with a visible deck note. Updated state ownership, Trace B, confidence, and carry-forward. TakeManager 37/37; deck 13/13; build PASS. Extension-points **v1.13** · backlog **v2.10**. No new context, message family, storage key/store, writer, or ADR.
@@ -217,6 +218,8 @@ The single canvas in `waveform.ts` (`canvas.captureStream`) is the video-track s
 
 **Animated GIF backgrounds — no gap (canvas-native case):** decoded once, advanced by elapsed time in the RAF, captured straight into `base.mp4`. See `docs/gif-animation-design-implementation.md`.
 
+**Audio-reactive visuals (v6 Phase 0 carrier):** `WaveformRenderer.drawFrame()` builds a normalized `AudioVizFrame` from the live analyser's smoothed energy + 32 log-spaced bands; `renderThemePreview()` builds the same shape from `PREVIEW_BAND_LEVELS` and the established representative energy `0.32`. Both pass through `drawThemeBackground()` before the unchanged bar loop. This makes the future preset input seam shared by construction while keeping the honest gap explicit: preview audio is synthetic; capture reacts to the microphone. Waveform samples remain absent until a preset explicitly requests them. — `src/theme/audio-reactive/audio-frame.ts`; `src/recorder/waveform.ts`.
+
 **Where it could silently drift:** a preview-only canvas effect with no bake path, or an encoder strategy that paints at chunk-local rather than global timestamps (breaks animation-phase invariance).
 
 **ADR-0003 pointer:** See `docs/architecture/adr/0003-composite-stage-elimination.md` for the full decision (browser full composite accepted), consequences, new risks, phases, and the verification strategy (global-frame fidelity harness for the new blend surface). The map diagrams and invariants above reflect the post-decision shape for the primary path.
@@ -236,6 +239,8 @@ Compositing order (bottom → top) in the final MP4 — unchanged:
 3. **Subtitles** — composited onto `base.mp4` in a post pass. **Never drawn into the capture canvas stream.** The pass is now: overlay video composite (`alphamerge`+`unpremultiply` for WebCodecs IVF, or WebM `overlay` for MediaRecorder paths) with `drawtext` as final fallback.
 
 **Voice effect** applies to the audio track via `-af`/`-filter_complex` in the transcode pass (graph-native, `resolveVoiceGraph` → `buildStylizedGraph`) — not a visual layer.
+
+**v6 Phase 0 does not add a layer or change pixels.** It threads `AudioVizFrame` through the existing background/effect slot and defines an instance-safe `AudioVisual` factory registry for the two existing draw slots: overlay under bars and spectrum in place of bars. Bokeh/sparkle formulas and the 32-bar loop remain direct legacy code until Phase 1 adapters / Classic-Neon parity activate registry dispatch. Cividis tokens are shared control semantics only; they do not recolor the current Studio or capture output.
 
 **Invariant (reworded in v2.0, refined ADR-0003):** *Subtitles are always a post-`base.mp4` composite pass on the export; they never enter the live capture stream.* The primary browser-composite executor decodes the base and invokes the shared painter directly at each decoded frame PTS, then VideoEncoder+mux produces the MP4. It does **not** first render dual-IVF overlay streams. Those streams, MediaRecorder overlays, and drawtext are permanent FFmpeg-backed fallback tiers. The "no canvas subtitles" rule applies to the live capture RAF, not the offline painter. — `browser-composite.ts`; `subtitle-canvas-bake.ts`; ADR-0003.
 
@@ -329,6 +334,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | I19 | A `baseRecording` stamp published by trim apply always describes bytes the store can hold: the raw leg pre-checks the trimmed blob against `last-recording-db.ts`'s exported persistability bounds and demotes to an honest stamp drop otherwise (never a lying stamp). Post-trim voice re-apply is available only when that stamp survives | state | `trim-apply.ts` raw-leg guard + `planRawTrimLeg` (`trim.ts`) — Node-tested (`test-timeline` 22: leg truth table) + real-browser QA PASS 2026-07-12 (happy path + store-mismatch fallback) | High (single machine) |
 | I20 | Once a transcribe START is accepted, a non-cancelled terminal outcome is persisted by background before its ready signal; the initiating tab may disappear without dropping success/failure/timeout, and a superseded job cannot publish | messages, state | `background.ts` transcribe context/watchdog + `transcribe-completion.ts`; BUG-038 — Node-tested (`test-transcribe-failure` 12) + real-browser QA item 7 PASS 2026-07-12 | High (single machine) |
 | I21 | A `rvnUserPrefs.v2` revision never advertises uncommitted preference data: the atomic `global`/`profiles`/`customStyles` transaction (direct or background-relayed) resolves first; failed first migration retains v1 | state, messages | `user-prefs-db.ts`; `user-preferences.ts`; `background.ts`; ADR-0006 — Node-tested 12 checks + **real-browser QA PASS 2026-07-13** (fresh/upgrade/relay/Export-Import; §3 force-fail PARTIAL accepted) | High (single machine) |
+| I22 | Preview and capture deliver visual effects one normalized carrier: clamped energy + exactly 32 normalized bands + one animation clock; optional waveform data is absent unless requested. Visual state is factory-created per canvas, and every visual remains record-time capture rather than a bake-time renderer | preview↔bake, composition | `audio-frame.ts`; live + synthetic builders in `waveform.ts`; `AudioVisualDefinition.create` in `audio-reactive/index.ts` — Node-tested (`test-audio-frame` 8) + production build PASS; browser visual parity pending | Medium |
 
 ---
 
@@ -414,6 +420,7 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 | Raw-WebM trim + post-trim voice re-apply (v5.10.0) | **High (single machine)** | Node: timeline 22 (`planRawTrimLeg` truth table) + take-manager 34 (dual-stamp one-write). **Real-browser QA PASS 2026-07-12:** post-trim Change Voice / re-apply / bake, edges, recovery, deck/Download/attach, raw-leg store-mismatch → honest lock, regressions. Accepted non-defect: manual DevTools IDB nuke of `rvnLastRecording` needs extension reload to recreate open path. No post-QA code fixes. As-built: `docs/v5.10.0-raw-trim-apply-roadmap.md` §10 |
 | Artifact-store write acknowledgment | **High** | **H13 shipped 2026-07-12 (merged):** all three saves throw on size/IDB failure and return persisted meta; callers stamp/signal only from it — Node-tested (`test-artifact-store-writes.mjs` 28). Real-browser regression covered with H13 checklist + item 7 PASS |
 | User-preferences full-IDB migration (v5.11.0) | **High (single machine)** | Node: `test-user-prefs-storage.mjs` **12/12** + build PASS. **Real-browser QA PASS 2026-07-13** (checklist `.ignore/QA-5.11.0/`): fresh IDB layout, real+planted v1 upgrade (legacy removed), profile/style CRUD, hot-swap, Reddit cold-load relay + capture, Export/Import, DevTools per-entity rows, size telemetry, product smoke. §3 force-fail PARTIAL accepted (fallback surface + Node inject). No post-QA code fixes. As-built: `docs/v5.11.0-prefs-storage-refactor.md` §9/§12 |
+| Audio-reactive visual carrier + registry scaffold (v6 Phase 0) | **Medium** | Structural preview/capture seam verified in code; `AudioVizFrame` normalization + isolated factory instances Node-tested 8/8; TS/CSS Cividis sync 7/7; production build PASS. Bokeh/sparkle formulas are unchanged but browser frame parity and saved-style migration remain the Phase 1 QA gate before raising confidence |
 | Vosk model caching | **Low (accepted)** | ~40 MB re-download per session; BUG-013 tradeoff stands |
 | Demo site (`demo/`) parity with v5.4.0 | **Low (out of scope)** | No capture pipeline there; explicitly deferred |
 
@@ -495,22 +502,18 @@ Studio reads `rvnImageDb` directly; the Reddit recorder receives chunked base64 
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3/WXT), feature/v5.11.0-prefs-storage-refactor @ package 5.11.0.
-Map v3.1 · browser QA PASS 2026-07-13 · merge-ready.
+Repo: Reddit Voice Notes (Chrome MV3/WXT), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
+Map v3.2 · v6 Audio-reactive Phase 0 automated gate PASS; browser visual parity pending Phase 1.
 Contexts (6): content / background SW / offscreen FFmpeg / Vosk sandbox / Design Studio / popup.
 Spine:
-  preview=bake: direct shared painter on browser composite; timeline frame-snap I17; trim preview=APPLY I18.
-  composition: bg→bars in capture; subtitles post-base. Full default = browser decode→paint→encode; FFmpeg tiers persist.
+  preview=bake: AudioVizFrame feeds capture + synthetic preview (I22); timeline frame-snap I17; trim preview=APPLY I18.
+  composition: bg→overlay→bars in record-time canvas; subtitles post-base. No v6 bake layer/message/store.
   messages: types.ts has 3 pipelines + idempotent query + chunked relays; Studio progress is direct runtime broadcast (H12).
   state: TakeManager owns rvn.take.current; H6 validates single-slot blobs; prefs truth is rvnUserPrefs IDB
   (global/profiles/customStyles), with signal-only rvnUserPrefs.v2 and Reddit→background DB requests (I21 High);
-  H8 captureVoiceIntent makes recovery voice-stable;
-  trim cuts base + raw WebM (audio-only,
-  re-stamped or honestly dropped — I19), clears the baked stamp, forces full re-bake; post-trim voice re-apply works.
-  H13 (2026-07-12): saveLast* throw on size/IDB failure + return persisted meta; stamps/signals only from that meta.
-  BUG-038/H14: background owns terminal transcript persistence + 125s watchdog; tab close cannot drop success/timeout (browser QA PASS).
-Editing arc CLOSED: v5.6 audio → v5.7 splice → v5.8 timeline → v5.9 atomic trim → v5.10 raw-WebM trim (both QA PASS).
-Hardening v2.13: H8/H13/H14 fully closed; v5.11 prefs QA PASS; H10 deferred; R18 mitigated.
-Extension points v1.15. ADRs 0001–0006 Accepted; v5.11 adds one IDB class + two DB requests, no context/pipeline.
-Next: merge v5.11.0 → main + tag/notes; then scope v6.0. Read architecture-map.md then /architecture-hardening resume.
+  H8/H13/H14 remain closed; trim raw WebM is re-stamped or honestly dropped (I19).
+Audio visual seam: src/theme/audio-reactive; carrier normalization + factory registry; legacy formulas still direct.
+Shared Cividis: src/ui/tokens.ts ↔ studio-palette.css; sync test 7/7.
+Extension points v1.16 · backlog v2.13 · ADR-0007 Accepted. Node 8/8 + build PASS.
+Next: Phase 1 legacy sparkle/bokeh registry adapters + DesignOverrides normalize guards, then Classic-Neon parity.
 ```

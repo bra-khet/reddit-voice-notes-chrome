@@ -19,16 +19,16 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
-## Next — **v6.0 "Polish & Visual Maturity" · SCOPED (roadmaps 2026-07-14) · not yet implemented**
+## Current work — **v6.0 "Polish & Visual Maturity" · Track A IN PROGRESS · Phase 0 foundation complete (2026-07-14)**
 
-Two branches exist off `main@98c37ab`; roadmaps synthesized from the three `.ignore/prep-v6.0.0/` supplements via `/architecture-hardening`. **User-preferred start = `feature/v6.0.0-custom-styles-refactor`.**
+Two branches exist off `main@98c37ab`; roadmaps synthesized from the three `.ignore/prep-v6.0.0/` supplements via `/architecture-hardening`. Active branch = `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
 | **A — audio-reactive visuals** (preferred) | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) | 6 spectrum presets (generalize 32-bar loop) + simulation backbone (generalize sparkle/bokeh overlays); legacy adapters; perf governor |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) | Direct drag/zoom/snap on hero preview; `dim`→field; `customPosition`; new `interaction-utils.ts` |
 
-**Prioritized start (Track A):** (1) shared cividis tokens in `src/ui/tokens.ts` (both tracks need them; do not exist yet) → (2) Phase 0 scaffold: thread `AudioVizFrame` through `drawThemeBackground` with defaults (zero visual change, build clean) → (3) legacy sparkle/bokeh → registry adapters first (proves registry + guarantees migration) → (4) Classic-Neon preset reproduces current bars pixel-for-pixel (regression-guard) → (5) land the 120 s heavy-preset **size-QA harness** (assert base ≤25 MB / baked ≤30 MB) so it gates every subsequent preset.
+**Track A status:** ✅ shared seven-stop Cividis TS/CSS tokens + sync test · ✅ Phase 0 `AudioVizFrame`/factory-registry scaffold threaded through capture + synthetic preview (legacy formulas unchanged) · Node **8/8 + 7/7** · build PASS · compile only the same 2 pre-existing subtitle diagnostics · architecture map **v3.2** / seams **v1.16** / I22. **NEXT:** (1) legacy sparkle/bokeh registry adapters + fully guarded `DesignOverrides` fields → (2) Classic-Neon pixel parity → (3) land the 120 s heavy-preset **size-QA harness** (base ≤25 MB / baked ≤30 MB) before novel presets.
 
 **Non-negotiables (both):** capture-time visuals (Design-phase, not post-capture); `normalize*` guards on every new prefs field, no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no bake-size/perf/legibility regression vs v5.11.0.
 

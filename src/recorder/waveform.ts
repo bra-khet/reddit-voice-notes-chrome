@@ -20,6 +20,10 @@ import type { AnimatedBackground } from '@/src/storage/animated-background';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import { DEFAULT_THEME_ID, getThemeById } from '@/src/theme/presets';
 import {
+  buildAudioVizFrame,
+  buildSyntheticAudioVizFrame,
+} from '@/src/theme/audio-reactive/audio-frame';
+import {
   drawSubtitlePreview,
   type SubtitlePreviewOptions,
 } from '@/src/transcription/subtitle-preview';
@@ -387,15 +391,21 @@ export class WaveformRenderer {
       ? this.userAnimatedBackground.frameAt(animationTimeMs)
       : this.userBackgroundImage;
 
+    // CHANGED: capture now publishes normalized energy + all 32 FFT bands to the draw seam.
+    // WHY: v6 spectrum/overlay presets must share the same record-time input and clock.
+    const audioFrame = buildAudioVizFrame({
+      energy: this.smoothedAudioEnergy,
+      bands: bandValues,
+      bandScale: 255,
+      timeMs: animationTimeMs,
+    });
+
     drawThemeBackground(
       ctx,
       canvas,
       theme,
       this.bundledBackgroundImage,
-      {
-        timeMs: animationTimeMs,
-        audioEnergy: this.smoothedAudioEnergy,
-      },
+      audioFrame,
       backgroundFrame,
       this.userBackgroundLayout,
     );
@@ -503,15 +513,16 @@ export async function renderThemePreview(
     ? userAnimatedBackground.frameAt(timeMs)
     : userBackgroundImage;
 
+  // CHANGED: the no-mic preview emits the same complete carrier as live capture.
+  // WHY: representative synthetic bands keep future presets honest about the fidelity gap.
+  const audioFrame = buildSyntheticAudioVizFrame(PREVIEW_BAND_LEVELS, timeMs, 0.32);
+
   drawThemeBackground(
     ctx,
     canvas,
     theme,
     bundledBackgroundImage,
-    {
-      timeMs,
-      audioEnergy: 0.32,
-    },
+    audioFrame,
     backgroundFrame,
     userBackgroundLayout,
   );

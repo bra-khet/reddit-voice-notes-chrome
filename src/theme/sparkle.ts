@@ -1,9 +1,8 @@
 import { deriveSparkleAccentColor, hexToRgb } from '@/src/theme/color-utils';
-
-export interface SparkleDrawOptions {
-  timeMs?: number;
-  audioEnergy?: number;
-}
+import {
+  EMPTY_AUDIO_VIZ_FRAME,
+  type AudioVizFrame,
+} from '@/src/theme/audio-reactive/audio-frame';
 
 interface SparklePoint {
   x: number;
@@ -56,10 +55,11 @@ export function drawSparkleOverlay(
   canvas: HTMLCanvasElement,
   barColor: string,
   _glowColor: string,
-  options: SparkleDrawOptions = {},
+  frame: AudioVizFrame = EMPTY_AUDIO_VIZ_FRAME,
 ): void {
-  const timeMs = options.timeMs ?? 0;
-  const audioEnergy = Math.min(1, Math.max(0, options.audioEnergy ?? 0));
+  // CHANGED: legacy sparkle reads the shared v6 frame while retaining its exact formulas.
+  // WHY: Phase 1 can wrap it as a registry adapter without a second compatibility carrier.
+  const { timeMs, energy: audioEnergy } = frame;
   const primary = stripAlphaHex(barColor);
   const accent = deriveSparkleAccentColor(primary);
   const scale = Math.min(canvas.width, canvas.height);

@@ -1,4 +1,8 @@
 import type { ThemeBackground } from './types';
+import {
+  EMPTY_AUDIO_VIZ_FRAME,
+  type AudioVizFrame,
+} from './audio-reactive/audio-frame';
 
 /** Single soft-focus orb — positions normalized 0–1 against canvas size. */
 export interface BokehOrb {
@@ -40,12 +44,6 @@ export const BOKEH_STYLES: Record<string, BokehBackgroundStyle> = {
     ],
   },
 };
-
-export interface BokehDrawOptions {
-  timeMs?: number;
-  /** 0–1 smoothed audio level for live waveform. */
-  audioEnergy?: number;
-}
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const normalized = hex.length === 4
@@ -114,10 +112,11 @@ export function drawBokehBackground(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   style: BokehBackgroundStyle,
-  options: BokehDrawOptions = {},
+  frame: AudioVizFrame = EMPTY_AUDIO_VIZ_FRAME,
 ): void {
-  const timeMs = options.timeMs ?? 0;
-  const audioEnergy = Math.min(1, Math.max(0, options.audioEnergy ?? 0));
+  // CHANGED: legacy bokeh reads the shared v6 audio carrier without changing its paint math.
+  // WHY: registry adapters must preserve current pixels while gaining normalized FFT context.
+  const { timeMs, energy: audioEnergy } = frame;
 
   ctx.fillStyle = style.baseColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -181,13 +180,12 @@ export function drawBokehOverlay(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   style: BokehBackgroundStyle,
-  options: BokehDrawOptions = {},
+  frame: AudioVizFrame = EMPTY_AUDIO_VIZ_FRAME,
   /** Alpha-only tint overlays use source-over; preset blue orbs keep screen on dark bases. */
   blendMode: GlobalCompositeOperation = 'screen',
   overlayMode = false,
 ): void {
-  const timeMs = options.timeMs ?? 0;
-  const audioEnergy = Math.min(1, Math.max(0, options.audioEnergy ?? 0));
+  const { timeMs, energy: audioEnergy } = frame;
 
   ctx.save();
   ctx.globalCompositeOperation = blendMode;

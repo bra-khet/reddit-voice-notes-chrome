@@ -1,13 +1,13 @@
 # Project History — Reddit Voice Notes
 
-**Living milestone index.** Updated **2026-07-13** · Current on `main`: **v5.11.0 — Preferences full-IDB migration** (browser QA PASS · **tagged `v5.11.0`**, push deferred) · Post-ship hardening: **H8 + H13 + H14/BUG-038 closed** · Docs-archiving: **Refresh #3 complete** (Refresh #4 due once `claude-progress.md` grows post-v5.11).
+**Living milestone index.** Updated **2026-07-14** · Current stable on `main`: **v5.11.0 — Preferences full-IDB migration** (browser QA PASS · tagged, push deferred) · Current development: **v6.0 Track A audio-reactive visuals, Phase 0 foundation complete** · Post-ship hardening: **H8 + H13 + H14/BUG-038 closed** · Docs-archiving: **Refresh #3 complete**.
 
 This is the go-to orientation doc: it indexes every major milestone and points to both the **living** documents (current work) and their **archived** history. Read this first when you need to know "what happened before the current feature branch?" — then follow a pointer into [`archive/`](../archive/) only if you need the full detail.
 
-- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — v5.11.0 shipped (merged to `main` + tagged, push deferred); next is v6.0.
+- **Current session log (living):** [`claude-progress.md`](../claude-progress.md) — v5.11.0 shipped; v6.0 Track A Phase 0 carrier/registry scaffold now in progress on its feature branch.
 - **Archived progress logs:** [`claude-progress-through-v5.10.0.md`](../archive/progress/claude-progress-through-v5.10.0.md) (v5.9.0 → v5.10.0) · [`claude-progress-through-v5.9.0.md`](../archive/progress/claude-progress-through-v5.9.0.md) (v5.8.0 → v5.9.0) · [`claude-progress-pre-v5.8.0.md`](../archive/progress/claude-progress-pre-v5.8.0.md) (v5.7.0 → v5.4.0) · [`claude-progress-pre-v5.4.0.md`](../archive/progress/claude-progress-pre-v5.4.0.md) (v5.3.10 → v1.0.0 MVP).
-- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map **v3.1**, extension-points **v1.15**, hardening backlog **v2.13**, ADRs 0001–0006 (v5.11 prefs browser QA PASS 2026-07-13).
-- **Next planned:** the **v6.0 "Polish & Visual Maturity"** arc — now **scoped** (roadmaps opened 2026-07-14): audio-reactive visuals + spectrum presets ([`v6.0.0-custom-styles-refactor.md`](v6.0.0-custom-styles-refactor.md), [ADR-0007](architecture/adr/0007-audio-reactive-visualizer-core.md)) and direct-manipulation background layout ([`v6.0.0-background-panel-refactor.md`](v6.0.0-background-panel-refactor.md), [ADR-0008](architecture/adr/0008-background-direct-manipulation-layout.md)). Both branches exist off `main@98c37ab`; user-preferred start = custom-styles. Not yet implemented.
+- **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map **v3.2**, extension-points **v1.16**, hardening backlog **v2.13**, ADRs 0001–0007 Accepted.
+- **Current development:** the **v6.0 "Polish & Visual Maturity"** arc. Track A audio-reactive visuals ([roadmap](v6.0.0-custom-styles-refactor.md), [ADR-0007](architecture/adr/0007-audio-reactive-visualizer-core.md)) has completed its zero-visual-change Phase 0 carrier/registry + shared Cividis foundation; legacy adapters are next. Track B direct-manipulation background layout ([roadmap](v6.0.0-background-panel-refactor.md), [ADR-0008](architecture/adr/0008-background-direct-manipulation-layout.md)) remains planned on its sibling branch.
 
 ---
 

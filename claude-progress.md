@@ -122,13 +122,22 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **PLANNING (roadmaps synthesized 2026-07-14, not yet implemented)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 0 foundation complete 2026-07-14)**
 
-Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADR stubs. **User-preferred start = `feature/v6.0.0-custom-styles-refactor`.**
+Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
 - **Roadmap A — audio-reactive visuals + spectrum presets:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · [ADR-0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md). Six curated spectrum presets (generalize the 32-bar loop) + simulation backbone (generalize `drawDesignEffectOverlays`); legacy sparkle/bokeh → registry adapters.
 - **Roadmap B — direct-manipulation background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · [ADR-0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md). Drag/zoom/snap on the hero preview; promote `dim` to a field; `customPosition`; new `interaction-utils.ts`.
 
 **Pivotal resolution (both):** bars/background/effects are **captured at record time** into `baseRecording` (`WaveformRenderer.drawFrame` → `captureStream`); the bake never re-renders them, only subtitles (I3). So both features are **Design/Capture-phase**, not post-capture editors — WYSIWYG = "arranges the next recording" (I1). The `AnalyserNode` + 32-band FFT (`computeBandValues`) + `smoothedAudioEnergy` **already exist**; no new audio infra. **Hard ceiling = the encoded-size caps** (base ≤25 MB / baked ≤30 MB): visuals are captured→transcoded, so high-entropy effects inflate the MP4 — density caps + perf slider protect size *and* CPU. No new deps/WASM, no version bump (additive `normalize`-guarded fields), no fourth compositing layer.
 
-**Immediate next actions:** shared cividis tokens in `src/ui/tokens.ts` (both need them; they don't exist yet) → Roadmap A Phase 0 scaffold (`AudioVizFrame` threaded through the draw seam, zero visual change) → legacy adapters first (prove registry + migration) → Classic-Neon pixel-parity → land a 120 s heavy-preset size-QA harness before adding more presets.
+### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
+
+- Added one seven-stop Cividis contract in `src/ui/tokens.ts` + `studio-palette.css`, guarded by `test-ui-tokens.mjs` so Track B cannot drift.
+- Added `src/theme/audio-reactive/`: normalized `AudioVizFrame`, layout/parameter vocabulary, and a `kind:id` factory registry that creates stateful visuals per canvas.
+- Live `WaveformRenderer` now sends clamped energy + all 32 normalized bands + its animation clock through `drawThemeBackground`; Studio preview sends the same shape from `PREVIEW_BAND_LEVELS` + existing representative energy `0.32`.
+- Bokeh/sparkle consume the carrier with unchanged formulas; the 32-bar renderer remains direct. No visible feature/persistence change yet; browser frame parity is intentionally the Phase 1 legacy-adapter gate.
+- **Automated:** `test-audio-frame.mjs` **8/8** · `test-ui-tokens.mjs` **7/7** · `npm run build` **PASS** · `npm run compile` only the same 2 pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.2** + I22 · extension-points **v1.16** · ADR-0007 **Accepted**. No new context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** Phase 1 legacy sparkle/bokeh registry adapters + fully guarded `DesignOverrides` persistence → Classic-Neon pixel parity → land the 120 s heavy-preset size-QA harness before novel presets.

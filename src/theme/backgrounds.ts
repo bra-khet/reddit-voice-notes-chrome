@@ -4,9 +4,12 @@ import {
   drawBokehBackground,
   drawBokehOverlay,
   resolveBokehStyle,
-  type BokehDrawOptions,
 } from './bokeh';
 import { drawSparkleOverlay } from './sparkle';
+import {
+  EMPTY_AUDIO_VIZ_FRAME,
+  type AudioVizFrame,
+} from './audio-reactive/audio-frame';
 import {
   type DrawableBackgroundImage,
   getDrawableBackgroundSize,
@@ -31,8 +34,6 @@ import type {
 
 export { DEFAULT_USER_BACKGROUND_LAYOUT, normalizeUserBackgroundLayout } from './background-layout';
 export type { UserBackgroundLayout } from './types';
-
-export type { BokehDrawOptions };
 
 /** Bundled static backgrounds under `public/assets/backgrounds/`. */
 export const BACKGROUND_ASSETS = {
@@ -183,7 +184,7 @@ function drawUserBackgroundLayer(
   theme: WaveformTheme,
   image: DrawableBackgroundImage,
   bundledBackgroundImage: HTMLImageElement | null,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
   layout: UserBackgroundLayout,
 ): void {
   if (!isDrawableBackgroundReady(image)) {
@@ -192,7 +193,7 @@ function drawUserBackgroundLayer(
   }
 
   if (layout.scaleMode === 'fit') {
-    drawBundledThemeBackground(ctx, canvas, theme, bundledBackgroundImage, bokehOptions);
+    drawBundledThemeBackground(ctx, canvas, theme, bundledBackgroundImage, audioFrame);
     drawImageBackground({
       ctx,
       canvas,
@@ -225,7 +226,7 @@ function drawBundledThemeBackground(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
 ): void {
   const { background, colors } = theme;
 
@@ -274,7 +275,7 @@ function drawBundledThemeBackground(
     case 'bokeh': {
       const style = resolveBokehStyle(background);
       if (style) {
-        drawBokehBackground(ctx, canvas, style, bokehOptions);
+        drawBokehBackground(ctx, canvas, style, audioFrame);
       } else {
         ctx.fillStyle = colors.bg;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -291,12 +292,12 @@ function drawPresetBokehOverlay(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   background: ThemeBackground,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
 ): void {
   if (background.type !== 'bokeh' || typeof background.value !== 'string') return;
   const style = buildPresetBokehOverlayStyle(background.value);
   if (!style) return;
-  drawBokehOverlay(ctx, canvas, style, bokehOptions, 'screen', false);
+  drawBokehOverlay(ctx, canvas, style, audioFrame, 'screen', false);
 }
 
 export function drawThemeBackground(
@@ -304,7 +305,7 @@ export function drawThemeBackground(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
-  bokehOptions: BokehDrawOptions = {},
+  audioFrame: AudioVizFrame = EMPTY_AUDIO_VIZ_FRAME,
   userBackgroundImage: DrawableBackgroundImage | null = null,
   userLayout: UserBackgroundLayout = DEFAULT_USER_BACKGROUND_LAYOUT,
 ): void {
@@ -317,39 +318,41 @@ export function drawThemeBackground(
       theme,
       userBackgroundImage,
       backgroundImage,
-      bokehOptions,
+      audioFrame,
       layout,
     );
     // BUG FIX: Midnight Bokeh missing over personal backgrounds (fill mode)
     // Fix: Preset bokeh draws as orb overlay when fill mode replaces the dark bokeh base
     // Sync: skip when fit mode — letterbox already shows the full preset backdrop
     if (layout.scaleMode === 'fill') {
-      drawPresetBokehOverlay(ctx, canvas, theme.background, bokehOptions);
+      drawPresetBokehOverlay(ctx, canvas, theme.background, audioFrame);
     }
   } else {
-    drawBundledThemeBackground(ctx, canvas, theme, backgroundImage, bokehOptions);
+    drawBundledThemeBackground(ctx, canvas, theme, backgroundImage, audioFrame);
   }
 
-  drawDesignEffectOverlays(ctx, canvas, theme, bokehOptions);
+  // CHANGED: one normalized frame now crosses the background + overlay draw seam.
+  // WHY: v6 presets need bands without splitting Studio preview from captured output.
+  drawDesignEffectOverlays(ctx, canvas, theme, audioFrame);
 }
 
 function drawDesignEffectOverlays(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
 ): void {
   const overlay = theme.designEffects?.backgroundOverlay;
   if (!overlay) return;
 
   if (overlay === 'bokeh') {
     const style = buildTintedBokehOverlayStyle(theme.colors.bar);
-    drawBokehOverlay(ctx, canvas, style, bokehOptions, 'screen', true);
+    drawBokehOverlay(ctx, canvas, style, audioFrame, 'screen', true);
     return;
   }
 
   if (overlay === 'sparkle') {
-    drawSparkleOverlay(ctx, canvas, theme.colors.bar, theme.colors.glow, bokehOptions);
+    drawSparkleOverlay(ctx, canvas, theme.colors.bar, theme.colors.glow, audioFrame);
   }
 }
 
