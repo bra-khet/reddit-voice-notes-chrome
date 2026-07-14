@@ -121,3 +121,14 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 ### Architecture hardening — v5.9→v5.10 incremental refresh (2026-07-12) — **DONE** (superseded by H13/H14 merge above)
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
+
+## v6.0 "Polish & Visual Maturity" — **PLANNING (roadmaps synthesized 2026-07-14, not yet implemented)**
+
+Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADR stubs. **User-preferred start = `feature/v6.0.0-custom-styles-refactor`.**
+
+- **Roadmap A — audio-reactive visuals + spectrum presets:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · [ADR-0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md). Six curated spectrum presets (generalize the 32-bar loop) + simulation backbone (generalize `drawDesignEffectOverlays`); legacy sparkle/bokeh → registry adapters.
+- **Roadmap B — direct-manipulation background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · [ADR-0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md). Drag/zoom/snap on the hero preview; promote `dim` to a field; `customPosition`; new `interaction-utils.ts`.
+
+**Pivotal resolution (both):** bars/background/effects are **captured at record time** into `baseRecording` (`WaveformRenderer.drawFrame` → `captureStream`); the bake never re-renders them, only subtitles (I3). So both features are **Design/Capture-phase**, not post-capture editors — WYSIWYG = "arranges the next recording" (I1). The `AnalyserNode` + 32-band FFT (`computeBandValues`) + `smoothedAudioEnergy` **already exist**; no new audio infra. **Hard ceiling = the encoded-size caps** (base ≤25 MB / baked ≤30 MB): visuals are captured→transcoded, so high-entropy effects inflate the MP4 — density caps + perf slider protect size *and* CPU. No new deps/WASM, no version bump (additive `normalize`-guarded fields), no fourth compositing layer.
+
+**Immediate next actions:** shared cividis tokens in `src/ui/tokens.ts` (both need them; they don't exist yet) → Roadmap A Phase 0 scaffold (`AudioVizFrame` threaded through the draw seam, zero visual change) → legacy adapters first (prove registry + migration) → Classic-Neon pixel-parity → land a 120 s heavy-preset size-QA harness before adding more presets.
