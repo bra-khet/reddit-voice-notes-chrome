@@ -1,9 +1,11 @@
 import { registerAudioVisualIfAbsent } from '@/src/theme/audio-reactive';
 import { BOKEH_VISUAL_DEFINITION } from './bokeh';
+import { DIGITAL_RAIN_VISUAL_DEFINITION } from './digital-rain';
 import { FOREST_SPIRITS_VISUAL_DEFINITION } from './forest-spirits';
 import { SPARKLE_VISUAL_DEFINITION } from './sparkle';
 
 export * from './bokeh';
+export * from './digital-rain';
 export * from './forest-spirits';
 export * from './sparkle';
 
@@ -12,4 +14,5 @@ export function registerCoreOverlayVisuals(): void {
   registerAudioVisualIfAbsent(SPARKLE_VISUAL_DEFINITION);
   registerAudioVisualIfAbsent(BOKEH_VISUAL_DEFINITION);
   registerAudioVisualIfAbsent(FOREST_SPIRITS_VISUAL_DEFINITION);
+  registerAudioVisualIfAbsent(DIGITAL_RAIN_VISUAL_DEFINITION);
 }

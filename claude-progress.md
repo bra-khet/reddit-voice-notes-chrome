@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Forest Spirits PASS 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Digital Rain PASS 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -207,4 +207,13 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Forest/backbone **11/11** · focused v6 regression set **92/92** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.10** / I22 · extension-points **v1.24** (audio-reactive v9). ADR-0007 already owns the simulation layer and the cost model stayed non-structural, so no new ADR/context/message/store/signal/dependency/compositing layer.
 
-**Immediate next actions:** continue Phase 3 with Digital Rain; add only the bounded grid activation/propagation helper that preset immediately consumes.
+### Track A Phase 3 — Digital Rain + consumed activation grid (**DONE 2026-07-14; automated gate**)
+
+- Added only the lattice primitive Digital Rain consumes: `BoundedActivationGrid` preallocates two typed-array buffers, hard-clamps generic capacity to **64×64 / 4,096 cells**, changes active topology without reallocating, max-blends bounded activations, and advances local directional generations through retain/forward/diagonal-spread/threshold rules. It is not a general Conway/scene-graph/emitter API.
+- Added registry-native `digital-rain`: density resolves to **14×9–32×18**, hard-capping the overlay at **576 glyphs + one axis accent (577 elements)**. One logical grid becomes vertical codefall (`linear`), horizontal streams (`centered`), or outward radial spokes (`radial`), with a diverse deterministic numeral/Latin/Katakana/symbol alphabet, palette heads/trails, audio-weighted source gates, and immediate transient-only interior forks.
+- Studio preview adds a deterministic tide over the same grid; capture silence remains quiet and live bands/energy drive the source edge. High Contrast removes glow and strengthens the axis; reduced motion renders a fixed audio-scaled glyph field independent of time. State remains per-canvas, fixed-allocation, Canvas 2D, and capture-time only.
+- Two transient defects found by the focused gate were fixed in-sprint: forks now seed deterministic interior cells instead of collapsing onto an occupied edge, and one-frame onset hints inject immediately rather than waiting for the next fixed grid step.
+- **Automated:** Digital Rain/grid **12/12** · focused v6 regression set **104/104** · production build PASS · compile only the same two pre-existing subtitle diagnostics. Built recorder + Studio bundles contain Digital Rain.
+- **Architecture:** map **v3.11** / I22 · extension-points **v1.25** (audio-reactive v10). ADR-0007 already owns the simulation/overlay seam; no new ADR/context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** continue Phase 3 with Inferno (+Void); add only any bounded emitter primitive the preset immediately consumes and reuse the existing flow field.
