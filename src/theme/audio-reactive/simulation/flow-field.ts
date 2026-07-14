@@ -7,6 +7,11 @@ export interface LayeredFlowFieldOptions {
   seed?: number;
 }
 
+export interface FlowFieldVector {
+  x: number;
+  y: number;
+}
+
 function finiteOr(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -65,4 +70,43 @@ export function sampleLayeredFlowField(
     -1,
     1,
   );
+}
+
+/**
+ * CHANGED: Forest Spirits consumes a normalized curl vector derived from the shared scalar field.
+ * WHY: roaming leaders need coherent direction, while a caller-owned target keeps agent updates allocation-free.
+ */
+export function sampleLayeredVectorFlowField(
+  x: number,
+  y: number,
+  timeSeconds: number,
+  options: LayeredFlowFieldOptions = {},
+  target: FlowFieldVector = { x: 0, y: 0 },
+): FlowFieldVector {
+  const safeX = finiteOr(x, 0);
+  const safeY = finiteOr(y, 0);
+  const epsilon = 0.025;
+  const horizontalDelta = sampleLayeredFlowField(
+    safeX + epsilon,
+    safeY,
+    timeSeconds,
+    options,
+  ) - sampleLayeredFlowField(safeX - epsilon, safeY, timeSeconds, options);
+  const verticalDelta = sampleLayeredFlowField(
+    safeX,
+    safeY + epsilon,
+    timeSeconds,
+    options,
+  ) - sampleLayeredFlowField(safeX, safeY - epsilon, timeSeconds, options);
+  const length = Math.hypot(horizontalDelta, verticalDelta);
+
+  if (length > 1e-6) {
+    target.x = verticalDelta / length;
+    target.y = -horizontalDelta / length;
+  } else {
+    const angle = sampleLayeredFlowField(safeX, safeY, timeSeconds, options) * Math.PI;
+    target.x = Math.cos(angle);
+    target.y = Math.sin(angle);
+  }
+  return target;
 }

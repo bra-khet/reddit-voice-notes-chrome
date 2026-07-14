@@ -7,7 +7,10 @@ export * from './audio-frame';
 export * from './catalog';
 export * from './layout';
 export * from './params';
+export * from './simulation/agent';
 export * from './simulation/flow-field';
+export * from './simulation/simulation';
+export * from './simulation/spatial-partition';
 
 export type AudioVisualKind = 'spectrum' | 'overlay';
 
@@ -36,6 +39,10 @@ export interface SpectrumRenderEnvironment {
 }
 
 export interface AudioVisualRenderEnvironment {
+  /** Shared capture/preview identity for overlay behavior that has an honest synthetic-preview gap. */
+  amplitudeMode?: 'capture' | 'preview';
+  /** Explicit accessibility state for simulations; spectra keep their richer nested environment. */
+  reduceMotion?: boolean;
   spectrum?: SpectrumRenderEnvironment;
 }
 

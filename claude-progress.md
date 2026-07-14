@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 core spectra complete — Oscilloscope PASS 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Forest Spirits PASS 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -198,4 +198,13 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Oscilloscope/lazy waveform **10/10** · focused v6 regression set **81/81** · production build PASS · built recorder + Studio shared chunks contain Oscilloscope. Compile reports only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.9** / I22 · extension-points **v1.23**. ADR-0007 already owns the lazy optional-input seam; no new ADR/context/message/store/signal/dependency/compositing layer.
 
-**Immediate next actions:** Phase 3 simulation backbone + Forest Spirits; add `SpatialPartition`, agent pooling, and vector flow behavior only where the first chaining-boids overlay immediately consumes them.
+### Track A Phase 3 — simulation backbone + Forest Spirits (**DONE 2026-07-14; automated gate**)
+
+- Added only the simulation primitives the first agent overlay consumes: exact-radius `SpatialPartition<T>` with the roadmap's 48 px default and caller-reused result buffers; a maximum-preallocated active-prefix `ReactiveAgentPool`; a thin `AudioReactiveSimulation` owner for pool/grid lifecycle; and a normalized curl-vector sampler extending Central's deterministic scalar field. No stackable, scene-graph, emitter, or governor abstraction landed early.
+- Added registry-native `forest-spirits`: three balanced 6–16-node will-o'-wisp chains (**18–48 pooled agents**) whose leaders ride coherent vector flow while followers use spring/lag, local grid separation, and audio-weighted undulation. Audio onsets fracture selected filaments; a bounded decay knits them back together. The normal renderer uses curved palette filaments, restrained additive light, seeded spirit motes, and crowned leaders; High Contrast removes the soft pass and reduced motion freezes both agents and filament phase.
+- Overlay render environments now carry only capture-vs-synthetic-preview and reduced-motion state. Forest's Studio-only tide is explicitly representative; capture remains band/energy driven. The Studio reduced-motion gate now redraws every animated overlay at time zero, fixing the prior GIF-only freeze branch. Work remains record-time Canvas 2D; no bake re-render, retained pixels, new input, message, store, signal, dependency, or compositing layer.
+- Hard ceiling: **≤48 live agents / ≤192 render elements**. Forest state is fixed-size, spatial queries avoid all-pairs scans, long registry deltas remain clamped, and the built recorder + Studio bundles both contain the preset.
+- **Automated:** Forest/backbone **11/11** · focused v6 regression set **92/92** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.10** / I22 · extension-points **v1.24** (audio-reactive v9). ADR-0007 already owns the simulation layer and the cost model stayed non-structural, so no new ADR/context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** continue Phase 3 with Digital Rain; add only the bounded grid activation/propagation helper that preset immediately consumes.

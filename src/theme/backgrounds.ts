@@ -1,6 +1,7 @@
 import {
   EMPTY_AUDIO_VIZ_FRAME,
   renderAudioVisualForCanvas,
+  type AudioVisualRenderEnvironment,
   type AudioVizFrame,
   type VisualizerParams,
 } from './audio-reactive';
@@ -195,6 +196,7 @@ function drawUserBackgroundLayer(
   bundledBackgroundImage: HTMLImageElement | null,
   audioFrame: AudioVizFrame,
   layout: UserBackgroundLayout,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   if (!isDrawableBackgroundReady(image)) {
     drawThemeFallbackBackground(ctx, canvas, theme.colors);
@@ -202,7 +204,14 @@ function drawUserBackgroundLayer(
   }
 
   if (layout.scaleMode === 'fit') {
-    drawBundledThemeBackground(ctx, canvas, theme, bundledBackgroundImage, audioFrame);
+    drawBundledThemeBackground(
+      ctx,
+      canvas,
+      theme,
+      bundledBackgroundImage,
+      audioFrame,
+      visualEnvironment,
+    );
     drawImageBackground({
       ctx,
       canvas,
@@ -236,6 +245,7 @@ function drawBundledThemeBackground(
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
   audioFrame: AudioVizFrame,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   const { background, colors } = theme;
 
@@ -290,6 +300,7 @@ function drawBundledThemeBackground(
         canvas,
         audioFrame,
         MIDNIGHT_BOKEH_PARAMS,
+        visualEnvironment,
       );
       break;
     }
@@ -304,6 +315,7 @@ function drawBokehThemeOverlay(
   canvas: HTMLCanvasElement,
   background: ThemeBackground,
   audioFrame: AudioVizFrame,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   if (background.type !== 'bokeh') return;
   renderAudioVisualForCanvas(
@@ -313,6 +325,7 @@ function drawBokehThemeOverlay(
     canvas,
     audioFrame,
     MIDNIGHT_BOKEH_PARAMS,
+    visualEnvironment,
   );
 }
 
@@ -324,6 +337,7 @@ export function drawThemeBackground(
   audioFrame: AudioVizFrame = EMPTY_AUDIO_VIZ_FRAME,
   userBackgroundImage: DrawableBackgroundImage | null = null,
   userLayout: UserBackgroundLayout = DEFAULT_USER_BACKGROUND_LAYOUT,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   const layout = normalizeUserBackgroundLayout(userLayout);
 
@@ -336,20 +350,28 @@ export function drawThemeBackground(
       backgroundImage,
       audioFrame,
       layout,
+      visualEnvironment,
     );
     // BUG FIX: Midnight Bokeh missing over personal backgrounds (fill mode)
     // Fix: Preset bokeh draws as orb overlay when fill mode replaces the dark bokeh base
     // Sync: skip when fit mode — letterbox already shows the full preset backdrop
     if (layout.scaleMode === 'fill') {
-      drawBokehThemeOverlay(ctx, canvas, theme.background, audioFrame);
+      drawBokehThemeOverlay(ctx, canvas, theme.background, audioFrame, visualEnvironment);
     }
   } else {
-    drawBundledThemeBackground(ctx, canvas, theme, backgroundImage, audioFrame);
+    drawBundledThemeBackground(
+      ctx,
+      canvas,
+      theme,
+      backgroundImage,
+      audioFrame,
+      visualEnvironment,
+    );
   }
 
-  // CHANGED: one normalized frame now crosses the background + overlay draw seam.
-  // WHY: v6 presets need bands without splitting Studio preview from captured output.
-  drawDesignEffectOverlays(ctx, canvas, theme, audioFrame);
+  // CHANGED: one normalized frame plus capture/preview accessibility context crosses the overlay seam.
+  // WHY: Forest Spirits needs honest synthetic-preview motion and the same reduced-motion state as capture.
+  drawDesignEffectOverlays(ctx, canvas, theme, audioFrame, visualEnvironment);
 }
 
 function drawDesignEffectOverlays(
@@ -357,6 +379,7 @@ function drawDesignEffectOverlays(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   audioFrame: AudioVizFrame,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   const effects = theme.designEffects;
   const overlay = effects?.overlayPreset !== undefined
@@ -369,7 +392,7 @@ function drawDesignEffectOverlays(
   renderAudioVisualForCanvas('overlay', overlay, ctx, canvas, audioFrame, {
     ...effects?.visualizerParams,
     color: effects?.visualizerParams?.color ?? fallbackPalette,
-  });
+  }, visualEnvironment);
 }
 
 export function backgroundNeedsImage(background: ThemeBackground): boolean {

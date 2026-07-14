@@ -409,6 +409,10 @@ export class WaveformRenderer {
       audioFrame,
       backgroundFrame,
       this.userBackgroundLayout,
+      {
+        amplitudeMode: 'capture',
+        reduceMotion: this.reduceMotion,
+      },
     );
 
     drawThemeSpectrum(
@@ -470,6 +474,10 @@ export async function renderThemePreview(
     audioFrame,
     backgroundFrame,
     userBackgroundLayout,
+    {
+      amplitudeMode: 'preview',
+      reduceMotion: timeMs === 0,
+    },
   );
   drawThemeSpectrum(ctx, canvas, theme, alignment, audioFrame, false, 'preview');
   if (subtitlePreview) {

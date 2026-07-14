@@ -581,8 +581,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const shouldAnimate = presetBokeh || animatedOverlay || animatedBackground;
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
-      // Freeze the GIF to its first frame so the reduced-motion preview matches the recorder.
-      if (animatedBackground) freezePreviewFirstFrame();
+      // BUG FIX: Reduced-motion overlays retained an animated frame
+      // Fix: Redraw every animated preview at time zero, not only animated GIF backgrounds.
+      freezePreviewFirstFrame();
       return;
     }
     if (!shouldAnimate) {
