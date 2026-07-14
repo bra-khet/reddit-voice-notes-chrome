@@ -7,6 +7,7 @@ export * from './audio-frame';
 export * from './catalog';
 export * from './layout';
 export * from './params';
+export * from './simulation/flow-field';
 
 export type AudioVisualKind = 'spectrum' | 'overlay';
 

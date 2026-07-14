@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Radial Spectrum complete 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Central Pulse complete 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -182,4 +182,12 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Radial/helpers **8/8** · focused v6 regression set **62/62** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.7** / I22 · extension-points **v1.21**. ADR-0007 already owns the spectrum seam; no new ADR/context/message/store/signal/dependency/compositing layer.
 
-**Immediate next actions:** Central Pulse + only the centered/flow-field helpers it consumes → Oscilloscope waveform-on-demand.
+### Track A Phase 2 — Central Pulse + consumed centered/flow-field helpers (**DONE 2026-07-14; automated gate**)
+
+- Added registry-native `central-pulse`: a continuous organic orb rather than a radial-bar variant. Density resolves to an even **36–72 point** contour; optional afterimage uses at most **three stateful echo envelopes**, hard-capping total contour work at **288 elements** without retaining canvas pixels.
+- `layout.ts` now owns guarded alignment-aware centered origins and contour-point mapping. New `simulation/flow-field.ts` owns the deterministic, allocation-free layered 2D sampler Central consumes; spatial partition, reactive agents, and neighbor-query abstractions remain deferred until Phase 3 needs them.
+- Weighted whole-spectrum energy drives body scale while energy-gated spectral detail suppresses analyser-floor shimmer. The contextual smoothing control becomes **Pulse Speed**; frame-rate-aware attack/release, a palette radial body, and a stable core give the effect its pulse identity. High Contrast removes gradient/glow/echo passes and strengthens the outline. Reduced motion fixes time/field complexity and ignores FFT rearrangement.
+- **Automated:** Central/helpers **9/9** · focused v6 regression set **71/71** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.8** / I22 · extension-points **v1.22**. ADR-0007 already owns the spectrum seam; no new ADR/context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** Oscilloscope as the first core spectrum to request waveform samples, with bounded waveform history for its afterimage.

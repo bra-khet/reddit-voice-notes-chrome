@@ -61,3 +61,35 @@ export function mapRadialSegment(
     angle,
   };
 }
+
+/** Resolve a canvas-centered origin with a bounded vertical composition bias. */
+export function resolveCenteredOrigin(
+  width: number,
+  height: number,
+  verticalBias = 0,
+): CartesianPoint {
+  const safeWidth = Math.max(0, finiteOr(width, 0));
+  const safeHeight = Math.max(0, finiteOr(height, 0));
+  const safeBias = Math.min(1, Math.max(-1, finiteOr(verticalBias, 0)));
+  return {
+    x: safeWidth / 2,
+    y: safeHeight / 2 + safeHeight * safeBias / 2,
+  };
+}
+
+/**
+ * CHANGED: centered contours add a guarded radial displacement at one shared coordinate seam.
+ * WHY: Central Pulse needs a closed organic outline without duplicating polar math or negative-radius guards.
+ */
+export function mapCenteredContourPoint(
+  index: number,
+  count: number,
+  centerX: number,
+  centerY: number,
+  baseRadius: number,
+  displacement = 0,
+  startAngle = -Math.PI / 2,
+): RadialSegmentPoint {
+  const radius = Math.max(0, finiteOr(baseRadius, 0) + finiteOr(displacement, 0));
+  return mapRadialSegment(index, count, centerX, centerY, radius, startAngle);
+}
