@@ -9,6 +9,7 @@ export * from './layout';
 export * from './params';
 export * from './simulation/agent';
 export * from './simulation/activation-grid';
+export * from './simulation/bounded-emitter';
 export * from './simulation/flow-field';
 export * from './simulation/simulation';
 export * from './simulation/spatial-partition';

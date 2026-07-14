@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Digital Rain PASS 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Inferno / Void Inferno PASS 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -216,4 +216,13 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Digital Rain/grid **12/12** · focused v6 regression set **104/104** · production build PASS · compile only the same two pre-existing subtitle diagnostics. Built recorder + Studio bundles contain Digital Rain.
 - **Architecture:** map **v3.11** / I22 · extension-points **v1.25** (audio-reactive v10). ADR-0007 already owns the simulation/overlay seam; no new ADR/context/message/store/signal/dependency/compositing layer.
 
-**Immediate next actions:** continue Phase 3 with Inferno (+Void); add only any bounded emitter primitive the preset immediately consumes and reuse the existing flow field.
+### Track A Phase 3 — Inferno / Void Inferno + consumed bounded emitter (**DONE 2026-07-14; automated gate**)
+
+- Added only the lifetime primitive Inferno consumes: `BoundedParticleEmitter<T>` preallocates a fixed object set, hard-clamps generic capacity at **256**, supports a smaller live slot limit, expires lifetimes, and deterministically reuses slots. It owns no physics, drawing, stackable, scene-graph, or governor policy.
+- Added registry-native `inferno`: density resolves to **28–72 particles**, hard-capping output at **219 paint elements**. Linear is a floor-wide hearth, centered is a bonfire, and radial is a corona. Bass/energy shape heat and emission; mids feed the existing caller-buffered curl field and layered smoke; treble/transients throw immediate bounded sparks. Stretched Bézier tongues cool through the supplied palette instead of reading as circles.
+- The shared High Contrast control is intentionally the named **Void Inferno** variant: near-black negative-space flame bodies with hard violet/cyan/white edges and no blur. Reduced motion replaces simulation with one fixed audio-scaled flame sculpture. Capture silence stays empty; Studio preview is deterministic and gently alive.
+- State is per-canvas, fixed-allocation, Canvas 2D, and record-time only. The production recorder and Studio both consume the shared bundle containing Inferno. No new input, preference field, message, store, signal, dependency, compositing layer, or bake renderer.
+- **Automated:** Inferno/emitter **11/11** · focused v6 regression set **115/115** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.12** / I22 · extension-points **v1.26** (audio-reactive v11). ADR-0007 already owns the simulation/overlay seam and the lifetime pool stayed non-structural, so no new ADR.
+
+**Immediate next actions:** continue Phase 3 with Aurora; reuse the existing flow field and bounded emitter, adding only ribbon state/geometry Aurora immediately consumes.
