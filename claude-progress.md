@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Phosphor spectrum complete 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 2 Radial Spectrum complete 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -174,4 +174,12 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Phosphor **7/7** · focused v6 regression set **54/54**. Build PASS; compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.6** / I22 · extension-points **v1.20**. ADR-0007 already owns the spectrum seam; no new ADR/context/message/store/signal/dependency/compositing layer or speculative non-linear helper.
 
-**Immediate next actions:** Radial Spectrum + its first consumed non-linear coordinate helpers → Central Pulse → Oscilloscope waveform-on-demand.
+### Track A Phase 2 — Radial Spectrum + consumed polar helpers (**DONE 2026-07-14; automated gate**)
+
+- Added registry-native `radial-spectrum`: density resolves to an even **24–64 segments**, mapping a full 32-band semicircle into an exact mirrored ring. Palette-cycled spokes, endpoint beads, a stable inner rail, and one bounded outer contour make it read as a circular spectrum rather than a generic sunburst.
+- `layout.ts` now owns the first actually consumed non-linear primitives: guarded polar→Cartesian conversion and wrapped, evenly spaced ring-segment mapping. Radial uses the helpers for inner, outer, and trail geometry; centered/flow-field helpers remain deferred to Central Pulse.
+- Live peak normalization is energy-gated; band weighting is prominent; smoothing is frame-rate-aware. Optional afterimage uses a deterministic second envelope with bounded decay instead of retained canvas pixels. High Contrast removes soft glow/trails and thickens structure. Reduced motion ignores FFT rearrangement and suppresses glow/trails with a fixed energy-scaled silhouette.
+- **Automated:** Radial/helpers **8/8** · focused v6 regression set **62/62** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.7** / I22 · extension-points **v1.21**. ADR-0007 already owns the spectrum seam; no new ADR/context/message/store/signal/dependency/compositing layer.
+
+**Immediate next actions:** Central Pulse + only the centered/flow-field helpers it consumes → Oscilloscope waveform-on-demand.
