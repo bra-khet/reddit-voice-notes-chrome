@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 Aurora PASS 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 primary overlays PASS 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -237,3 +237,15 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Architecture:** map **v3.13** / I22 · extension-points **v1.27** (audio-reactive v12). ADR-0007 already owns the simulation/overlay seam; no new ADR.
 
 **Immediate next actions:** continue Phase 3 with Glitch; add only the bounded transient-responsive scanline, RGB-split, and chunk-tear state it directly consumes.
+
+### Track A Phase 3 — Glitch signal corruption (**DONE 2026-07-14; automated gate**)
+
+- Added registry-native `glitch` with no new shared simulation framework. Density resolves to **12–36 stable scanlines** and burst state is a fixed **10-slot tear pool**, hard-capping the complete overlay at **81 paint/copy elements**.
+- Voice energy sustains restrained chromatic ghosting; explicit `AudioVizFrame.transient` hints and preset-local positive spectral flux trigger short-lived chunk displacement. Each active tear copies one bounded source rectangle and adds magenta/cyan registration fringes plus a palette seam. Band weighting changes displacement strength, not only color.
+- Linear mode is horizontal VHS-like tearing, centered mode corrupts opposing half-frame slabs, and radial mode scatters tangential blocks through concentric interference rings. Capture silence retains only a stable low-entropy scan texture; Studio preview demonstrates deterministic bursts on a bounded cadence.
+- High Contrast removes filtered RGB ghosts and uses hard source-over fringes. Reduced motion performs no canvas self-copy and paints a fixed audio-scaled scan/sync sculpture; the focused gate caught and fixed synthetic preview tide leaking into that time-independent mode.
+- State remains per-canvas, fixed-size, Canvas 2D, and record-time only. No new preference field, optional input, message, store, signal, dependency, compositing layer, bake renderer, scene graph, generalized glitch framework, or ADR.
+- **Automated:** Glitch **12/12** · focused v6 regression set **137/137** · production build PASS · recorder + Studio bundles contain Glitch · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.14** / I22 · extension-points **v1.28** (audio-reactive v13). ADR-0007 already owns the overlay seam; no new ADR.
+
+**Immediate next actions:** continue Phase 3 with Rising Ember, adding only the minimal ordered stackable contract and bounded ember state its first consumer requires.
