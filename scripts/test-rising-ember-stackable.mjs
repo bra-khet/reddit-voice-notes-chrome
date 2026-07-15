@@ -32,10 +32,16 @@ await build({
   },
 });
 
+// BUG FIX: Built-in Neon Glow fixture collision
+// Fix: Import the real Neon definition and bounded-cost metadata instead of registering a colliding stub.
+// Sync: Fake canvas contract and ordered runtime fixture below
 const {
   MAX_STACKABLE_EFFECTS,
   LAYERED_SMOKE_EFFECT_DEFINITION,
   LAYERED_SMOKE_NODES_PER_PLUME,
+  NEON_GLOW_EFFECT_DEFINITION,
+  NEON_GLOW_PULSES_PER_TUBE,
+  NEON_GLOW_POINTS_PER_TUBE,
   RISING_EMBER_EFFECT_DEFINITION,
   RISING_EMBER_ID,
   RISING_EMBER_LABEL,
@@ -48,6 +54,7 @@ const {
   registerStackableEffect,
   renderStackableEffectsForCanvas,
   resolveLayeredSmokePlumeLimit,
+  resolveNeonGlowTubeLimit,
   resolveRisingEmberParticleLimit,
 } = await import(pathToFileURL(outfile).href);
 
@@ -89,8 +96,13 @@ function createContext() {
       operations.push(['restore']);
     },
     beginPath() { operations.push(['beginPath']); },
+    // BUG FIX: Built-in Neon Glow fixture collision
+    // Fix: Extend the fake canvas with the curved-path calls used by the real Neon fixture.
+    // Sync: Real-definition imports and ordered runtime fixture in this script
+    closePath() { operations.push(['closePath']); },
     moveTo(...args) { operations.push(['moveTo', ...args]); },
     lineTo(...args) { operations.push(['lineTo', ...args]); },
+    quadraticCurveTo(...args) { operations.push(['quadraticCurveTo', ...args]); },
     arc(...args) { operations.push(['arc', ...args]); },
     fillRect(...args) { operations.push(['fillRect', state.fillStyle, ...args]); },
     stroke() { operations.push(['stroke', state.strokeStyle, state.lineWidth]); },
@@ -159,9 +171,10 @@ check('density resolves only the documented 16–44 particle range', () => {
 
 check('the runtime preserves saved order, deduplicates, caps at three, and sums cost', () => {
   const renderOrder = [];
-  // BUG FIX: Built-in Layered Smoke fixture collision
-  // Fix: Stub only the two catalog IDs still lacking implementations and use real Smoke as the third bounded effect.
-  const unregister = ['particle-burst', 'neon-glow'].map((id, index) => (
+  // BUG FIX: Built-in Neon Glow fixture collision
+  // Fix: Stub only Particle Burst and use real Smoke plus Neon Glow for the remaining bounded effects.
+  // Sync: Real-definition imports and fake canvas contract above
+  const unregister = ['particle-burst'].map((id, index) => (
     registerStackableEffect({
       id,
       label: id,
@@ -179,11 +192,15 @@ check('the runtime preserves saved order, deduplicates, caps at three, and sums 
     { width: 320, height: 180 },
     frame,
   );
-  assert.deepEqual(renderOrder, ['particle-burst', 'neon-glow']);
+  assert.deepEqual(renderOrder, ['particle-burst']);
   const smokeCost = resolveLayeredSmokePlumeLimit(
     LAYERED_SMOKE_EFFECT_DEFINITION.defaultParams.density,
   ) * (LAYERED_SMOKE_NODES_PER_PLUME * 3 + 1);
-  assert.equal(cost, smokeCost + 1 + 2);
+  const neonCost = resolveNeonGlowTubeLimit(
+    NEON_GLOW_EFFECT_DEFINITION.defaultParams.density,
+  ) * (3 + NEON_GLOW_PULSES_PER_TUBE * 2);
+  assert.equal(NEON_GLOW_POINTS_PER_TUBE, 18);
+  assert.equal(cost, smokeCost + 1 + neonCost);
   assert.equal(MAX_STACKABLE_EFFECTS, 3);
   unregister.forEach((remove) => remove());
 });

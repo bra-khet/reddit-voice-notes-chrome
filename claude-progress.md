@@ -290,4 +290,13 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Layered Smoke/plume **15/15** · focused v6 regression set **192/192** · production build PASS · recorder + Studio shared bundles contain Layered Smoke · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.18** / I22 · extension-points **v1.32** (audio-reactive v17).
 
-**Immediate next actions:** continue Phase 3 with Neon Glow as a bounded stackable; keep its glow geometry/state consumer-local and do not duplicate the Classic spectrum renderer.
+### Track A Phase 3 — Neon Glow bounded sign-tube atmosphere (**DONE 2026-07-14; automated gate**)
+
+- Added `Neon Glow` (`neon-glow`) as a registered ordered stackable with no shared geometry framework. Density resolves to **3–7 continuous tubes**, each backed by exactly **18 preallocated points**; two fixed charge-knot phases per tube keep all live state in typed arrays local to the canvas instance (**≤126 geometry points / ≤49 paint passes**).
+- The effect is deliberately not a second spectrum renderer: linear mode flows parallel neon rails through the frame, centered mode builds nested rounded sign contours, and radial mode builds organic orbit rings. Broad weighted bands reshape the continuous contours; energy controls glow, treble drives charge travel, and transients surge existing cores/knots without spawning geometry.
+- Each tube receives an atmospheric bloom, saturated body, and white-hot core plus two halo/core charge pairs. Capture silence stays empty; synthetic preview is deterministic. High Contrast removes additive blur and retains hard outlined tube structure; reduced motion paints a fixed time-independent neon sculpture.
+- The existing ordered runtime composes Ember + Smoke + Neon as a real bounded three-stack. No Classic dependency, spectrum bars, shared glow primitive, new preference field/version, UI, message, store, signal, dependency, compositing layer, bake renderer, scene graph, auto-governor, migration, or ADR. ADR-0007 continues to own the record-time seam.
+- **Automated:** Neon Glow **13/13** · focused v6 regression set **205/205** · production build PASS · recorder + Studio shared bundles contain Neon Glow · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.19** / I22 · extension-points **v1.33** (audio-reactive v18).
+
+**Immediate next actions:** continue Phase 3 with Particle Burst, adding only the bounded one-shot burst behavior that consumer requires.
