@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 stackables underway 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 visual catalog complete 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -299,4 +299,13 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Neon Glow **13/13** · focused v6 regression set **205/205** · production build PASS · recorder + Studio shared bundles contain Neon Glow · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.19** / I22 · extension-points **v1.33** (audio-reactive v18).
 
-**Immediate next actions:** continue Phase 3 with Particle Burst, adding only the bounded one-shot burst behavior that consumer requires.
+### Track A Phase 3 — Particle Burst bounded one-shot punctuation (**DONE 2026-07-14; automated gate**)
+
+- Added `Particle Burst` (`particle-burst`) as the final registered ordered stackable. Density resolves to **14–28 shards per bloom**; the existing lifetime emitter caps three overlapping bloom loads at **42–84 particles**, while three fixed consumer-local shock shells keep the complete effect at **≤261 paint elements**.
+- The effect is onset-only rather than a second continuous ember field. Explicit `AudioVizFrame.transient` hints trigger immediately, and a preset-local positive spectral-flux fallback makes real capture react to speech attacks even though the live carrier does not yet publish onset hints. Falling/steady spectra do not false-trigger; a smoothing-scaled cooldown bounds repeated attacks.
+- Linear mode throws an upward fan from the dominant-band horizon, centered mode creates a full nova, and radial mode launches an outward cone from a spectrum-selected rim contact. Every shard owns a comet trail, rotating diamond body, and hot tip; each bloom owns two expanding shock rings plus one core flash. Capture silence is empty, preview demonstrates deterministic punctuated blooms, High Contrast removes additive blur, and reduced motion is a fixed time-independent burst sculpture.
+- All trigger history, shell state, origins, physics, and geometry remain consumer-local; only the existing lifetime/slot-reuse emitter is shared. No generalized event/onset/burst framework, new preference field/version, UI, message, store, signal, dependency, compositing layer, bake renderer, scene graph, auto-governor, migration, or ADR. ADR-0007 continues to own the record-time seam.
+- **Automated:** Particle Burst **15/15** · Rising Ember fixture **12/12** · focused v6 regression set **220/220** · production build PASS · recorder + Studio shared bundles contain Particle Burst · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.20** / I22 · extension-points **v1.34** (audio-reactive v19). Phase 3's complete curated visual catalog remains Medium confidence until browser visual/FPS and real heavy three-stack artifact gates land.
+
+**Immediate next actions:** begin Phase 4 with the integrated Style Control Center and performance governor, then run the documented browser visual/size/a11y matrix.

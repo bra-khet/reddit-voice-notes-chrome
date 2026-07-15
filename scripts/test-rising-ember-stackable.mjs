@@ -32,8 +32,8 @@ await build({
   },
 });
 
-// BUG FIX: Built-in Neon Glow fixture collision
-// Fix: Import the real Neon definition and bounded-cost metadata instead of registering a colliding stub.
+// BUG FIX: Built-in stackable fixture collisions
+// Fix: Consume real Smoke/Neon definitions and reserve a private non-catalog id for runtime-order instrumentation.
 // Sync: Fake canvas contract and ordered runtime fixture below
 const {
   MAX_STACKABLE_EFFECTS,
@@ -96,8 +96,8 @@ function createContext() {
       operations.push(['restore']);
     },
     beginPath() { operations.push(['beginPath']); },
-    // BUG FIX: Built-in Neon Glow fixture collision
-    // Fix: Extend the fake canvas with the curved-path calls used by the real Neon fixture.
+    // BUG FIX: Built-in stackable fixture collisions
+    // Fix: Keep the fake canvas compatible with the real Neon effect used by the collision-free fixture.
     // Sync: Real-definition imports and ordered runtime fixture in this script
     closePath() { operations.push(['closePath']); },
     moveTo(...args) { operations.push(['moveTo', ...args]); },
@@ -171,10 +171,10 @@ check('density resolves only the documented 16–44 particle range', () => {
 
 check('the runtime preserves saved order, deduplicates, caps at three, and sums cost', () => {
   const renderOrder = [];
-  // BUG FIX: Built-in Neon Glow fixture collision
-  // Fix: Stub only Particle Burst and use real Smoke plus Neon Glow for the remaining bounded effects.
+  // BUG FIX: Built-in stackable fixture collisions
+  // Fix: Use a private non-catalog runtime id now that every public stackable id has a built-in definition.
   // Sync: Real-definition imports and fake canvas contract above
-  const unregister = ['particle-burst'].map((id, index) => (
+  const unregister = ['runtime-order-fixture'].map((id, index) => (
     registerStackableEffect({
       id,
       label: id,
@@ -187,12 +187,12 @@ check('the runtime preserves saved order, deduplicates, caps at three, and sums 
     })
   ));
   const cost = renderStackableEffectsForCanvas(
-    ['smoke', 'particle-burst', 'smoke', 'neon-glow', RISING_EMBER_ID],
+    ['smoke', 'runtime-order-fixture', 'smoke', 'neon-glow', RISING_EMBER_ID],
     createContext(),
     { width: 320, height: 180 },
     frame,
   );
-  assert.deepEqual(renderOrder, ['particle-burst']);
+  assert.deepEqual(renderOrder, ['runtime-order-fixture']);
   const smokeCost = resolveLayeredSmokePlumeLimit(
     LAYERED_SMOKE_EFFECT_DEFINITION.defaultParams.density,
   ) * (LAYERED_SMOKE_NODES_PER_PLUME * 3 + 1);

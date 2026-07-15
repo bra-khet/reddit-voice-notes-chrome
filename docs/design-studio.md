@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v5.11.0 preferences-IDB implementation** (manual browser QA pending). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.19, seams v1.33, backlog v2.13.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.20, seams v1.34, backlog v2.13.
 
 ---
 
@@ -229,7 +229,7 @@ Implement new Studio surfaces via `studio-save-pathways.ts` and `studio-exit.ts`
 **Panel id:** `data-studio-panel="bar-style"`  
 **Summary:** `renderBarStyleSummaryHtml` — style name, color swatch, S/V, alignment badge, effects chip.
 
-**v6 transition (Phase 3 in progress 2026-07-14):** this user-facing section and its `data-studio-panel="bar-style"` contract remain unchanged until the integrated Style-panel UI milestone. Underneath, capture and preview share `AudioVizFrame` plus per-canvas registry state (`src/theme/audio-reactive/`, I22). Sparkle/Bubbles, all six core spectra, and all five primary overlays through Glitch are complete. The ordered stackable seam renders normalized saved IDs after the primary overlay and before spectrum: Rising Ember uses 16–44 pooled cinders / ≤132 passes, Electric Arc uses 6–18 conductor-rooted corona streamers / ≤300 passes, Lightning uses a sustained 14–30-point contact channel with ≤5 branches / ≤158 passes, Conway Life uses a fixed dead-edge 48×16 B3/S23 lattice / ≤769 passes, and Layered Smoke uses 4–10 plumes × 9 fixed-ring nodes / ≤280 passes. Overlay environments explicitly distinguish capture from representative synthetic preview, including fixed reduced-motion redraws. `DesignOverrides` already guards and caps stackables at three; the integrated picker still follows. User Phase 1 browser QA passed; Phase 2/3 browser visual/FPS and heavy artifact evidence remain release gates.
+**v6 transition (Phase 3 catalog complete 2026-07-14):** this user-facing section and its `data-studio-panel="bar-style"` contract remain unchanged until the integrated Style-panel UI milestone. Underneath, capture and preview share `AudioVizFrame` plus per-canvas registry state (`src/theme/audio-reactive/`, I22). Sparkle/Bubbles, all six core spectra, all five primary overlays through Glitch, and all seven ordered stackable IDs are complete. The stackable seam renders normalized saved IDs after the primary overlay and before spectrum: Rising Ember uses 16–44 pooled cinders / ≤132 passes, Electric Arc uses 6–18 conductor-rooted corona streamers / ≤300 passes, Lightning uses a sustained 14–30-point contact channel with ≤5 branches / ≤158 passes, Conway Life uses a fixed dead-edge 48×16 B3/S23 lattice / ≤769 passes, Layered Smoke uses 4–10 plumes × 9 fixed-ring nodes / ≤280 passes, Neon Glow uses 3–7 continuous tubes / ≤49 passes, and Particle Burst uses 14–28 onset shards with at most three concurrent blooms / ≤261 passes. Overlay environments explicitly distinguish capture from representative synthetic preview, including fixed reduced-motion redraws. `DesignOverrides` already guards and caps stackables at three; the Phase 4 Style Control Center picker/governor follows. User Phase 1 browser QA passed; Phase 2/3 browser visual/FPS and heavy artifact evidence remain release gates.
 
 ### 4.1 Controls inventory
 
@@ -875,7 +875,7 @@ reddit.com).
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
-| v6 visual maturity | Style / Background | **In progress:** Track A carrier/runtime, guarded prefs, all six spectra, Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora/Glitch, consumed layout/flow/spatial/agent/grid/emitter/plume helpers, real-artifact size harness, and ordered stackables landed. Rising Ember adds 16–44 pooled cinders / ≤132 elements; Electric Arc adds 6–18 conductor-rooted corona streamers / ≤300; Lightning sustains a 14–30-point channel with ≤5 branches / ≤158; Conway Life runs a fixed 48×16 dead-edge B3/S23 colony / ≤769; Layered Smoke rolls 4–10 plumes × 9 fixed nodes / ≤280; Neon Glow keeps 3–7 continuous 18-point tubes and two charge knots each / ≤49. Particle Burst is next. Track B background direct manipulation remains planned. |
+| v6 visual maturity | Style / Background | **In progress:** Track A Phase 3 catalog complete—carrier/runtime, guarded prefs, all six spectra, Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora/Glitch, consumed layout/flow/spatial/agent/grid/emitter/plume helpers, real-artifact size harness, and all seven ordered stackable IDs landed. Particle Burst closes the catalog with 14–28 onset shards, ≤3 concurrent shock blooms, and ≤261 elements. Phase 4 Style Control Center + performance governor integration is next. Track B background direct manipulation remains planned. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -906,7 +906,7 @@ reddit.com).
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; all six spectra plus Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora and the size harness are complete, remaining Phase 3 simulations/UI follow (ADR-0007/0009/0010 Accepted) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; Phase 3's six spectra, seven overlay families, seven stackable IDs, and size harness are complete; Phase 4 Style panel/governor/QA follows (ADR-0007/0009/0010 Accepted) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 (planned)** direct-manipulation background layout — Design-phase; `dim`→field, `customPosition` (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |
@@ -1010,5 +1010,5 @@ Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Stu
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
 H8 resolved + browser QA PASS: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result even if resume-time prefs were mutated/nuked. Legacy drafts disclose current-prefs fallback. No H8 re-run for v5.11.
 Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix only.
-Read docs/architecture/architecture-map.md v3.19 before changing cross-context behavior. Track A next: Particle Burst with only its consumed bounded one-shot behavior.
+Read docs/architecture/architecture-map.md v3.20 before changing cross-context behavior. Track A next: Phase 4 Style Control Center + performance governor integration.
 ```
