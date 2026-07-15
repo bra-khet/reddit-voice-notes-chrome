@@ -156,7 +156,9 @@ check('density resolves only the documented 16–44 particle range', () => {
 
 check('the runtime preserves saved order, deduplicates, caps at three, and sums cost', () => {
   const renderOrder = [];
-  const unregister = ['lightning', 'smoke', 'conway', 'neon-glow'].map((id, index) => (
+  // CHANGED: synthetic registry entries avoid the now-active Lightning built-in.
+  // WHY: this check isolates generic ordering/cost behavior from the electricity consumer.
+  const unregister = ['particle-burst', 'smoke', 'conway', 'neon-glow'].map((id, index) => (
     registerStackableEffect({
       id,
       label: id,
@@ -169,12 +171,12 @@ check('the runtime preserves saved order, deduplicates, caps at three, and sums 
     })
   ));
   const cost = renderStackableEffectsForCanvas(
-    ['smoke', 'lightning', 'smoke', 'conway', 'neon-glow'],
+    ['smoke', 'particle-burst', 'smoke', 'conway', 'neon-glow'],
     createContext(),
     { width: 320, height: 180 },
     frame,
   );
-  assert.deepEqual(renderOrder, ['smoke', 'lightning', 'conway']);
+  assert.deepEqual(renderOrder, ['smoke', 'particle-burst', 'conway']);
   assert.equal(renderOrder.length, MAX_STACKABLE_EFFECTS);
   assert.equal(cost, 2 + 1 + 3);
   unregister.forEach((remove) => remove());

@@ -259,4 +259,13 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Rising Ember/stackable **12/12** · focused v6 regression set **149/149** · production build PASS · recorder + Studio shared bundles contain Rising Ember · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.15** / I22 · extension-points **v1.29** (audio-reactive v14). ADR-0007 already owns ordered stackables in the record-time overlay slot; no new ADR.
 
-**Immediate next actions:** continue Phase 3 with Electric Arc / Lightning on the existing ordered seam, keeping its bounded arc state local.
+### Track A Phase 3 — Electric Arc corona + sustained Lightning (**DONE 2026-07-14; automated gate**)
+
+- Split the roadmap's electricity concept into two independently selectable stackables. **Electric Arc** (`electric-arc`) is a corona-discharge family: density resolves to **6–18 preallocated streamers** rooted on **3–6 visible conductors**, with short ionization paths and at most eight bounded forks (**≤300 logical segment/contact passes**). **Lightning** retains the existing `lightning` ID and sustains one **14–30-point connected plasma channel between two contacts**, slowly reroutes the live channel, and caps secondary branching at five (**≤158 elements**).
+- Linear, centered, and radial layouts produce floor-electrode/facing-contact/ring-corona arrangements for Electric Arc and diagonal/horizontal/center-to-rim contact strikes for Lightning. Mids shape channel instability, treble controls forks/branches, bass/energy shape current and halo, and explicit transients immediately lengthen corona streamers or surge/rebranch the conducting channel.
+- Capture silence stays empty; synthetic preview demonstrates both families deterministically. High Contrast removes additive blur, and reduced motion replaces temporal rerouting with fixed electrical sculptures. All path/contact/branch buffers are maximum-preallocated and local to `stackables/electricity.ts`; no generalized arc graph/path solver landed.
+- The existing ordered runtime composes Rising Ember + Electric Arc + Lightning as a real capped three-stack. `electric-arc` is an additive normalized catalog key; no migration, preference version, UI field, message, store, signal, dependency, compositing layer, bake renderer, or scene graph was added.
+- **Automated:** Electric Arc/Lightning **13/13** · focused v6 regression set **162/162** · production build PASS · recorder + Studio shared bundles contain both labels · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.16** / I22 · extension-points **v1.30** (audio-reactive v15). ADR-0007 already owns ordered record-time stackables; the two local consumers create no new structural decision or ADR.
+
+**Immediate next actions:** continue Phase 3 with Conway Life, adding only the bounded cellular contract that consumer requires.

@@ -3,7 +3,7 @@
 **Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v5.11.0 preferences-IDB implementation** (manual browser QA pending). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.15, seams v1.29, backlog v2.13.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.16, seams v1.30, backlog v2.13.
 
 ---
 
@@ -229,7 +229,7 @@ Implement new Studio surfaces via `studio-save-pathways.ts` and `studio-exit.ts`
 **Panel id:** `data-studio-panel="bar-style"`  
 **Summary:** `renderBarStyleSummaryHtml` — style name, color swatch, S/V, alignment badge, effects chip.
 
-**v6 transition (Phase 3 in progress 2026-07-14):** this user-facing section and its `data-studio-panel="bar-style"` contract remain unchanged until the integrated Style-panel UI milestone. Underneath, capture and preview share `AudioVizFrame` plus per-canvas registry state (`src/theme/audio-reactive/`, I22). Sparkle/Bubbles, all six core spectra, and all five primary overlays through Glitch are complete. The first stackable seam now renders normalized saved IDs in order after the primary overlay and before spectrum; Rising Ember consumes 16–44 pooled cinders / ≤132 passes. Overlay environments explicitly distinguish capture from representative synthetic preview, including fixed reduced-motion redraws. `DesignOverrides` already guards and caps stackables at three; the integrated picker still follows. User Phase 1 browser QA passed; Phase 2/3 browser visual/FPS and heavy artifact evidence remain release gates.
+**v6 transition (Phase 3 in progress 2026-07-14):** this user-facing section and its `data-studio-panel="bar-style"` contract remain unchanged until the integrated Style-panel UI milestone. Underneath, capture and preview share `AudioVizFrame` plus per-canvas registry state (`src/theme/audio-reactive/`, I22). Sparkle/Bubbles, all six core spectra, and all five primary overlays through Glitch are complete. The ordered stackable seam renders normalized saved IDs after the primary overlay and before spectrum: Rising Ember uses 16–44 pooled cinders / ≤132 passes, Electric Arc uses 6–18 conductor-rooted corona streamers / ≤300 passes, and Lightning uses a sustained 14–30-point contact channel with ≤5 branches / ≤158 passes. Overlay environments explicitly distinguish capture from representative synthetic preview, including fixed reduced-motion redraws. `DesignOverrides` already guards and caps stackables at three; the integrated picker still follows. User Phase 1 browser QA passed; Phase 2/3 browser visual/FPS and heavy artifact evidence remain release gates.
 
 ### 4.1 Controls inventory
 
@@ -875,7 +875,7 @@ reddit.com).
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
-| v6 visual maturity | Style / Background | **In progress:** Track A carrier/runtime, guarded prefs, all six spectra, Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora/Glitch, consumed layout/flow/spatial/agent/grid/emitter helpers, real-artifact size harness, and first ordered stackable landed. Rising Ember adds 16–44 pooled cinders / ≤132 paint elements after the primary overlay and before bars; Electric Arc / Lightning is next. Track B background direct manipulation remains planned. |
+| v6 visual maturity | Style / Background | **In progress:** Track A carrier/runtime, guarded prefs, all six spectra, Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora/Glitch, consumed layout/flow/spatial/agent/grid/emitter helpers, real-artifact size harness, and ordered stackables landed. Rising Ember adds 16–44 pooled cinders / ≤132 elements; Electric Arc adds 6–18 conductor-rooted corona streamers / ≤300; Lightning sustains a 14–30-point channel with ≤5 branches / ≤158. Conway Life is next. Track B background direct manipulation remains planned. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -1010,5 +1010,5 @@ Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Stu
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
 H8 resolved + browser QA PASS: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result even if resume-time prefs were mutated/nuked. Legacy drafts disclose current-prefs fallback. No H8 re-run for v5.11.
 Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix only.
-Read docs/architecture/architecture-map.md v3.15 before changing cross-context behavior. Track A next: Electric Arc / Lightning on the existing ordered stackable seam, keeping bounded arc state local.
+Read docs/architecture/architecture-map.md v3.16 before changing cross-context behavior. Track A next: Conway Life with only the bounded cellular contract it consumes.
 ```

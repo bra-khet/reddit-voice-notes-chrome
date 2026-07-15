@@ -32,6 +32,7 @@ export const BUBBLES_OVERLAY_LABEL = 'Bubbles' as const;
 
 export const STACKABLE_EFFECT_IDS = [
   'ember',
+  'electric-arc',
   'lightning',
   'conway',
   'smoke',

@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 3 stackables underway** · **Map:** v3.15 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 3 stackables underway** · **Map:** v3.16 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,8 +12,8 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I22, preference publication/relay, recovery traces, and v6 registry visuals | v3.15 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: audio-reactive visuals v14, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.29 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I22, preference publication/relay, recovery traces, and v6 registry visuals | v3.16 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: audio-reactive visuals v15, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, and trim | v1.30 |
 | [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 fully closed (browser QA PASS); R18 prefs gate closed; H10 deferred | v2.13 |
 | `adr/` | [0001 WebCodecs backbone](adr/0001-webcodecs-encoding-backbone.md) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) · [0004 Audio decoupling](adr/0004-audio-decoupling-voice-reapply.md) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) · [0006 Full-IDB preferences](adr/0006-user-preferences-full-idb.md) · [0007 Audio-reactive core](adr/0007-audio-reactive-visualizer-core.md) · [0008 Background layout](adr/0008-background-direct-manipulation-layout.md) · [0009 Registry-native Sparkle/Bokeh](adr/0009-registry-native-sparkle-bokeh.md) · [0010 Bubbles label / stable key](adr/0010-bubbles-label-stable-bokeh-id.md) | 0001–0007 + 0009–0010 Accepted · **0008 Proposed (v6)** |
 
@@ -35,7 +35,7 @@ This directory holds the **living, versioned** architecture index for the extens
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built (v5.9.0) |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw-WebM trim as-built (v5.10.0) — post-trim voice re-apply restored; real-browser QA PASS 2026-07-12 |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration + relay + Export/Import — **browser QA PASS 2026-07-13 · merge-ready** |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 in progress** — all six spectra, Sparkle/Bubbles, five primary overlays, consumed simulation helpers, real-artifact size harness, and first ordered stackable Rising Ember landed; Electric Arc / Lightning is next (ADR-0007/0009/0010) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 in progress** — all six spectra, Sparkle/Bubbles, five primary overlays, consumed simulation helpers, real-artifact size harness, and Rising Ember/Electric Arc/Lightning stackables landed; Conway Life is next (ADR-0007/0009/0010) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 planned** — direct-manipulation background layout (Design-phase); wins on that topic (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes on `main` (prior versions under `archive/docs/`); write `release-notes-v5.11.0.md` at tag |
 | `src/session/take-manager.ts` (header) | Take lifecycle contract |
@@ -75,16 +75,16 @@ This directory holds the **living, versioned** architecture index for the extens
 ```
 architecture-hardening resume.
 Repo: Reddit Voice Notes, feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
-Map v3.15 · seams v1.29 · backlog v2.13 · ADRs 0001–0007 + 0009–0010 Accepted; six contexts unchanged.
+Map v3.16 · seams v1.30 · backlog v2.13 · ADRs 0001–0007 + 0009–0010 Accepted; six contexts unchanged.
 v5.11 prefs remain rvnUserPrefs IDB truth + signal-only rvnUserPrefs.v2 (I21 High).
 H8/H13/H14 remain closed; raw trim + recovery invariants unchanged.
 v6 Track A Phase 1 user QA PASS; Sparkle + Bubbles (`bokeh` stability key) are registry-native and capped.
 I22: live capture and synthetic preview share normalized energy, 32 bands, optional waveform, clock, and bounded per-canvas visual state.
 Composition stays record-time background→overlay→bars; subtitles are the only post-base visual pass (I3).
 Classic owns default/fallback; Minimal is the a11y meter; Phosphor is a ≤240-cell CRT; Radial adds a capped mirrored polar ring; Central adds a capped centered organic orb.
-Forest Spirits uses ≤48 pooled agents / ≤192 elements. Digital Rain uses a 14×9–32×18 activation grid / ≤577 elements. Inferno uses curl flow + 28–72 lifetime particles / ≤219 elements. Aurora reuses flow/emitter for 100–200 local-geometry ribbon shards / ≤403 elements. Glitch uses 12–36 scanlines + ≤10 source-copy tears / ≤81 elements. Rising Ember is the first ordered stackable at 16–44 pooled cinders / ≤132 elements. Phase 3 primary-overlay gates remain 56/56; Ember/stackable adds 12/12.
+Forest Spirits uses ≤48 pooled agents / ≤192 elements. Digital Rain uses a 14×9–32×18 activation grid / ≤577 elements. Inferno uses curl flow + 28–72 lifetime particles / ≤219 elements. Aurora reuses flow/emitter for 100–200 local-geometry ribbon shards / ≤403 elements. Glitch uses 12–36 scanlines + ≤10 source-copy tears / ≤81 elements. Ordered stackables are Rising Ember at 16–44 cinders / ≤132, Electric Arc at 6–18 corona streamers / ≤300, and sustained Lightning at 14–30 route points + ≤5 branches / ≤158. Focused v6 gates are 162/162.
 Automated artifact harness: npm run qa:visual-size -- --preset <id> --base <base.mp4> --baked <baked.mp4>.
 Size ceiling for novel effects: base ≤25 MB / baked ≤30 MB on 120 s QA.
 Read architecture-map.md, extension-points.md, ADR-0007/0009/0010, and the v6 custom-styles roadmap.
-Next: Electric Arc / Lightning; use the existing ordered stackable seam and keep bounded arc state consumer-local.
+Next: Conway Life; add only the bounded cellular contract it consumes.
 ```
