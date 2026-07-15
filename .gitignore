@@ -8,6 +8,13 @@ coverage/
 mcps/
 terminals/
 
+# QA workspaces (qa/QA-*.*/…): track structure + checklists/progress;
+# ignore evidence at any depth so QA-7.0.0 etc. need no new rules.
+# ** = zero or more path segments (e.g. qa/QA-6.0.0/track-a/logs/).
+qa/**/logs/
+qa/**/screenshot/
+qa/**/artifacts/
+
 # Logs
 logs
 *.log

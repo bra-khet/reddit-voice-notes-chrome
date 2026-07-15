@@ -122,12 +122,23 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 4 Style/governor integrated 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A Phase 4 complete · confidence QA open (2026-07-15)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
 - **Roadmap A — audio-reactive visuals + spectrum presets:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · [ADR-0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [ADR-0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [ADR-0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md). Six curated spectra + simulation backbone; Sparkle/Bubbles are complete v6 replacements rather than legacy adapters.
 - **Roadmap B — direct-manipulation background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · [ADR-0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md). Drag/zoom/snap on the hero preview; promote `dim` to a field; `customPosition`; new `interaction-utils.ts`.
+
+**QA workspace (scoped nested project — all QA churn lives here, not in this file):**
+
+| | |
+|--|--|
+| Root | [`qa/QA-6.0.0/`](qa/QA-6.0.0/) |
+| TODO | [`qa/QA-6.0.0/TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) |
+| Progress | [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) |
+| Checklist | [`qa/QA-6.0.0/track-a/qa-checklist.md`](qa/QA-6.0.0/track-a/qa-checklist.md) |
+| Evidence | `qa/QA-6.0.0/track-a/{logs,screenshot,artifacts}/` |
+| Track B | placeholder only · [`qa/QA-6.0.0/track-b/`](qa/QA-6.0.0/track-b/) |
 
 **Pivotal resolution (both):** bars/background/effects are **captured at record time** into `baseRecording` (`WaveformRenderer.drawFrame` → `captureStream`); the bake never re-renders them, only subtitles (I3). So both features are **Design/Capture-phase**, not post-capture editors — WYSIWYG = "arranges the next recording" (I1). The `AnalyserNode` + 32-band FFT (`computeBandValues`) + `smoothedAudioEnergy` **already exist**; no new audio infra. **Hard ceiling = the encoded-size caps** (base ≤25 MB / baked ≤30 MB): visuals are captured→transcoded, so high-entropy effects inflate the MP4 — density caps + perf slider protect size *and* CPU. No new deps/WASM, no version bump (additive `normalize`-guarded fields), no fourth compositing layer.
 
@@ -320,4 +331,11 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Browser fixture QA:** desktop + narrow responsive containment PASS; intended Spectrum/Atmosphere local rails scroll; signal chain stacks on mobile; max-three unlock, paused label, semantic warning transition, and keyboard Detail restoration PASS. QA found and fixed CSS Grid min-content page overflow. Browser console had no fixture-origin errors (unrelated installed-extension warnings only).
 - **Architecture:** map **v3.21** / I22 · extension-points **v1.35** (audio-reactive v20). Complete live capture/FPS/a11y and 120-second heavy preset/three-stack artifact evidence before raising confidence/release readiness.
 
-**Immediate next actions:** run the documented Phase 4 live reactive capture/FPS/a11y matrix and attach real 120-second base/baked reports for Digital Rain, Aurora, Glitch, and Inferno + a heavy three-stack.
+**Immediate next actions:** Track A confidence QA in [`qa/QA-6.0.0/`](qa/QA-6.0.0/) — live reactive capture/FPS/a11y matrix + real 120-second base/baked reports for Digital Rain, Aurora, Glitch, Inferno + a heavy three-stack. Use scoped [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) / [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md); keep this global file to short verdicts only.
+
+### 2026-07-15 — Track A QA workspace scaffold
+
+- Nested QA project established under `qa/QA-6.0.0/` (out of `.ignore/` for lasting scope).
+- Scoped ledger + progress: `TODO-6.0.0.md`, `progress-QA-6.0.0.md`; Track A checklist + `logs/` / `screenshot/` / `artifacts/`; Track B placeholder only.
+- Early dumps already present under `track-a/logs/` (notes-before-bed voice re-apply note; offscreen fail/success pair) — triage inside the scoped workspace.
+- Root `TODO.md` + this file now **point** at the workspace by path/name; do not append long QA session churn here.

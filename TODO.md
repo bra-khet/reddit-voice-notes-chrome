@@ -19,7 +19,7 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
-## Current work — **v6.0 "Polish & Visual Maturity" · Track A IN PROGRESS · Phase 4 Style integration complete (2026-07-14)**
+## Current work — **v6.0 "Polish & Visual Maturity" · Track A Phase 4 complete · confidence QA open (2026-07-15)**
 
 Two branches exist off `main@98c37ab`; roadmaps synthesized from the three `.ignore/prep-v6.0.0/` supplements via `/architecture-hardening`. Active branch = `feature/v6.0.0-custom-styles-refactor`; ADR-0007 and superseding ADR-0009/0010 are Accepted.
 
@@ -28,7 +28,19 @@ Two branches exist off `main@98c37ab`; roadmaps synthesized from the three `.ign
 | **A — audio-reactive visuals** (preferred) | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectrum presets + simulation backbone; registry-native Sparkle/Bubbles; perf governor |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) | Direct drag/zoom/snap on hero preview; `dim`→field; `customPosition`; new `interaction-utils.ts` |
 
-**Track A status:** ✅ complete 6-spectrum / 7-overlay / 7-stackable registry · ✅ existing normalized prefs/save path · ✅ former Bar Style contract renamed to **Style** · ✅ production-registry thumbnail rails, max-three ordered Accents, tuning/palettes/band weights, contextual geometry/afterimage/High Contrast, Classic halo, caption-safe dim · ✅ shared `maxElements` governor wired to UI **and capture renderer**, preserving saved selections while pausing one expensive accent · ✅ identity hot-swap state reset · ✅ reusable responsive visual fixture · ✅ focused desktop/mobile browser QA (including overflow fix, keyboard Detail, max-three and governor transitions) · ✅ focused v6 regression set **226/226** · ✅ production build PASS · compile only the same 2 pre-existing subtitle diagnostics · map **v3.21** / seams **v1.35** / I22 / ADR-0007/0009/0010. **NEXT:** live reactive capture/FPS/a11y matrix + real 120-second heavy preset/three-stack artifact reports.
+**Track A status:** ✅ complete 6-spectrum / 7-overlay / 7-stackable registry · ✅ existing normalized prefs/save path · ✅ former Bar Style contract renamed to **Style** · ✅ production-registry thumbnail rails, max-three ordered Accents, tuning/palettes/band weights, contextual geometry/afterimage/High Contrast, Classic halo, caption-safe dim · ✅ shared `maxElements` governor wired to UI **and capture renderer**, preserving saved selections while pausing one expensive accent · ✅ identity hot-swap state reset · ✅ reusable responsive visual fixture · ✅ focused desktop/mobile browser QA (including overflow fix, keyboard Detail, max-three and governor transitions) · ✅ focused v6 regression set **226/226** · ✅ production build PASS · compile only the same 2 pre-existing subtitle diagnostics · map **v3.21** / seams **v1.35** / I22 / ADR-0007/0009/0010. **NEXT:** Track A confidence QA — live reactive capture/FPS/a11y matrix + real 120-second heavy preset/three-stack artifact reports.
+
+**QA workspace (scoped — use these, not this file, for QA churn):**
+
+| | |
+|--|--|
+| Root | [`qa/QA-6.0.0/`](qa/QA-6.0.0/) |
+| TODO | [`qa/QA-6.0.0/TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) |
+| Progress | [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) |
+| Checklist | [`qa/QA-6.0.0/track-a/qa-checklist.md`](qa/QA-6.0.0/track-a/qa-checklist.md) |
+| Evidence | `qa/QA-6.0.0/track-a/{logs,screenshot,artifacts}/` |
+
+**Track B:** not started; placeholder only under [`qa/QA-6.0.0/track-b/`](qa/QA-6.0.0/track-b/).
 
 **Non-negotiables (both):** capture-time visuals (Design-phase, not post-capture); `normalize*` guards on every new prefs field, no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no bake-size/perf/legibility regression vs v5.11.0.
 
