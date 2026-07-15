@@ -11,6 +11,7 @@ export * from './simulation/agent';
 export * from './simulation/activation-grid';
 export * from './simulation/bounded-life-grid';
 export * from './simulation/bounded-emitter';
+export * from './simulation/bounded-plume';
 export * from './simulation/flow-field';
 export * from './simulation/simulation';
 export * from './simulation/spatial-partition';

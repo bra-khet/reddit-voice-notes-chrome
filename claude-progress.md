@@ -279,3 +279,15 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Architecture:** map **v3.17** / I22 · extension-points **v1.31** (audio-reactive v16). ADR-0007 already owns ordered record-time stackables; the consumed lattice does not create a new structural decision.
 
 **Immediate next actions:** continue Phase 3 with Layered Smoke, adding only the bounded plume contract that consumer requires.
+
+### Track A Phase 3 — Layered Smoke + bounded plume history (**DONE 2026-07-14; automated gate**)
+
+- Added only the plume history primitive the effect consumes: `BoundedPlumeField<T>` preallocates fixed per-plume rings, hard-clamps the generic shape at **16×16 / 256 nodes**, varies a live plume ceiling, appends/recycles within one plume, reads newest-first, expires by age, and clears without reallocating. It owns no airflow, pressure, fluid cells, solver, geometry, renderer, or stackable policy.
+- Added `Layered Smoke` (`smoke`) as a registered ordered stackable using **4–10 plumes × 9 fixed nodes**. Each node paints three translucent strata and each plume at most one connective spine, hard-capping work at **280 paint elements**. The result is rolling volume and coherent wisps rather than recolored point particles.
+- Bass/energy shape buoyancy and volume, mids drive curl/shear, treble influences diffusion/lifetime, and explicit transients immediately shed alternating bounded wisps. Linear is a floor-wide smoke bank, centered a chimney column, and radial an outward mist wreath.
+- Capture silence stays empty and synthetic preview is deterministic. High Contrast removes blur for crisp source-over layers; reduced motion paints a fixed time-independent audio sculpture. The runtime composes Ember + Conway + Smoke as a real ordered three-stack.
+- No new preference field/version, UI, message, store, signal, dependency, compositing layer, bake renderer, scene graph, auto-governor, general fluid solver, migration, or ADR. ADR-0007 continues to own the record-time stackable seam.
+- **Automated:** Layered Smoke/plume **15/15** · focused v6 regression set **192/192** · production build PASS · recorder + Studio shared bundles contain Layered Smoke · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.18** / I22 · extension-points **v1.32** (audio-reactive v17).
+
+**Immediate next actions:** continue Phase 3 with Neon Glow as a bounded stackable; keep its glow geometry/state consumer-local and do not duplicate the Classic spectrum renderer.

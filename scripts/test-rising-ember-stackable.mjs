@@ -34,6 +34,8 @@ await build({
 
 const {
   MAX_STACKABLE_EFFECTS,
+  LAYERED_SMOKE_EFFECT_DEFINITION,
+  LAYERED_SMOKE_NODES_PER_PLUME,
   RISING_EMBER_EFFECT_DEFINITION,
   RISING_EMBER_ID,
   RISING_EMBER_LABEL,
@@ -45,6 +47,7 @@ const {
   registerCoreStackableEffects,
   registerStackableEffect,
   renderStackableEffectsForCanvas,
+  resolveLayeredSmokePlumeLimit,
   resolveRisingEmberParticleLimit,
 } = await import(pathToFileURL(outfile).href);
 
@@ -156,9 +159,9 @@ check('density resolves only the documented 16–44 particle range', () => {
 
 check('the runtime preserves saved order, deduplicates, caps at three, and sums cost', () => {
   const renderOrder = [];
-  // BUG FIX: Built-in Conway fixture collision
-  // Fix: Keep the generic ordering fixture on the three catalog IDs that still have no registered implementation.
-  const unregister = ['particle-burst', 'smoke', 'neon-glow'].map((id, index) => (
+  // BUG FIX: Built-in Layered Smoke fixture collision
+  // Fix: Stub only the two catalog IDs still lacking implementations and use real Smoke as the third bounded effect.
+  const unregister = ['particle-burst', 'neon-glow'].map((id, index) => (
     registerStackableEffect({
       id,
       label: id,
@@ -176,9 +179,12 @@ check('the runtime preserves saved order, deduplicates, caps at three, and sums 
     { width: 320, height: 180 },
     frame,
   );
-  assert.deepEqual(renderOrder, ['smoke', 'particle-burst', 'neon-glow']);
-  assert.equal(renderOrder.length, MAX_STACKABLE_EFFECTS);
-  assert.equal(cost, 2 + 1 + 3);
+  assert.deepEqual(renderOrder, ['particle-burst', 'neon-glow']);
+  const smokeCost = resolveLayeredSmokePlumeLimit(
+    LAYERED_SMOKE_EFFECT_DEFINITION.defaultParams.density,
+  ) * (LAYERED_SMOKE_NODES_PER_PLUME * 3 + 1);
+  assert.equal(cost, smokeCost + 1 + 2);
+  assert.equal(MAX_STACKABLE_EFFECTS, 3);
   unregister.forEach((remove) => remove());
 });
 
