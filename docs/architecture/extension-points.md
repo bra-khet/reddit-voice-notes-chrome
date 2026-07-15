@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.34 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 3 visual catalog complete**
+**Version:** v1.35 · **Updated:** 2026-07-14 · **Reflects:** `feature/v6.0.0-custom-styles-refactor` @ package `5.11.0` · **v6 Phase 4 Style Control Center/governor integrated**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.34 — **Particle Burst / complete stackable catalog** (2026-07-14): registered an onset-only 14–28-shard stackable that reuses the lifetime emitter for at most three overlapping loads (42–84 particles), owns three fixed shock shells and local spectral-flux history, and caps work at ≤261 passes. Explicit hints or positive speech attacks trigger linear fans, centered novas, or radial rim cones; silence, steady/falling spectra, preview cadence, High Contrast, reduced motion, expiry, and a real Ember + Neon + Particle three-stack are Node-tested 15/15; focused v6 suite 220/220; build PASS. No shared onset/event/burst API, preference/UI/context/message/store/signal/dependency/layer/bake renderer/ADR. v1.33 — bounded consumer-local Neon Glow. Earlier history remains in git.
+**Changelog:** v1.35 — **Style Control Center + shared performance policy** (2026-07-14): renamed the panel contract to `style`; production registries now drive six-spectrum/seven-atmosphere/seven-accent pickers and the summary. Shared normalized controls persist through the existing `DesignOverrides` pathway. `performance-governor.ts` maps registry ceilings + Detail to Comfortable/Elevated/Guarded and returns an active accent list that both UI and capture consume; one expensive accent pauses without changing saved order. Identity swaps reset per-canvas state; `subtitleSafeDim` paints below captions. Focused total 226/226; build and responsive fixture QA PASS. No new context/message/store/signal/dependency/layer/version/ADR. v1.34 — Particle Burst / complete stackable catalog. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -87,7 +87,7 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Gotcha:** Profile at 24 fps before merge — expensive per-frame work can drop below `WAVEFORM_TARGET_FPS` and cause dup-storm on slow machines (BUG-007 trigger class).
 - **Layout constants:** keep waveform bar counts/spacing fixed in v4 scope — changing them breaks the preview WYSIWYG guarantee for clips already recorded.
 
-## Audio-reactive visual system — v19 (v6 Phase 3 catalog complete)
+## Audio-reactive visual system — v20 (v6 Phase 4 Style/governor integration)
 
 - **Carrier:** `src/theme/audio-reactive/audio-frame.ts` owns `AudioVizFrame`: normalized energy (0–1), exactly 32 log-spaced bands (0–1), optional waveform (-1–1), shared `timeMs`, and optional transient. `WaveformRenderer.drawFrame()` supplies live analyser data; `renderThemePreview()` supplies representative synthetic data. Raw time-domain bytes and the deterministic preview waveform are normalized only when the active definition requests them. Never invent a second preview-only frame shape (I22).
 - **Registry/runtime:** `src/theme/audio-reactive/index.ts` registers `AudioVisualDefinition` factories by `kind:id` (`spectrum` / `overlay`). Optional input demand lives in static `definition.wants`; producers call `getAudioVisualWants()` before frame construction and must never create a visual just to inspect capabilities. `renderAudioVisualForCanvas()` creates once and reuses state through a `WeakMap<HTMLCanvasElement, …>`, clamps `dt` to 100 ms, and resolves normalized defaults/overrides. Overlay render environments carry only `amplitudeMode` and `reduceMotion`, which Forest immediately consumes; do not grow them into a second frame carrier.
@@ -98,12 +98,15 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Registered stackables:** `audio-reactive/stackables/ember.ts` is Rising Ember: 16–44 lifetime-pooled cinders / ≤132 elements. `stackables/electricity.ts` exports two definitions: Electric Arc (`electric-arc`) uses 6–18 short corona streamers rooted on 3–6 conductors with ≤8 forks / ≤300 passes; Lightning (`lightning`) keeps one continuously connected 14–30-point route between two contacts plus ≤5 branches / ≤158 elements. `stackables/conway.ts` owns one fixed 48×16 Life field, deterministic glider/R-pentomino/acorn/oscillator audio stamps, 80–220 ms generations, and ≤769 paints. `stackables/smoke.ts` owns 4–10 plume histories of 9 fixed nodes each, audio-weighted buoyancy/curl, three-pass volumetric lobes and one spine per plume, capped at ≤280 elements. `stackables/neon-glow.ts` owns 3–7 continuous 18-point tubes and two charge phases per tube, capped at 126 geometry points / 49 bloom-body-core and knot passes; its path atmosphere is intentionally independent from Classic's bar spectrum. `stackables/particle-burst.ts` owns 14–28 onset shards, ≤3 fixed shock shells, local positive-flux history, and a ≤261-pass ceiling. All seven IDs support linear/centered/radial geometry, empty capture silence, deterministic preview, no-blur High Contrast, and fixed reduced motion.
 - **Persistence:** `DesignOverrides` carries optional `spectrumPreset`, `visualizerParams`, `overlayPreset`, and `stackables`. `normalizeDesignOverrides`/`normalizeVisualizerParams` allowlist IDs/layouts, clamp controls/weights, normalize ≤7 palette colors, and dedupe/cap stackables at three. No new store, signal, message, or `USER_PREFS_VERSION` bump.
 - **Shared UI ramp:** `CIVIDIS` in `src/ui/tokens.ts` mirrors `--rvn-cividis-*` in `studio-palette.css`; `test-ui-tokens.mjs` prevents branch drift. Pair color with labels/icons—never encode governor state by hue alone.
-- **Performance/size:** Canvas 2D only; no WebGL/WASM/dependency. `npm run qa:visual-size -- --preset <id> --base <base.mp4> --baked <baked.mp4>` reads real MP4 metadata, requires a near-120-second pair, and enforces base ≤25 MiB / baked ≤30 MiB plus ≤0.1 s drift. Run it for every heavy preset and keep the artifact report with QA evidence.
-- **Decision/canonical design:** ADR-0007 + ADR-0009 + ADR-0010 (Accepted) + `docs/v6.0.0-custom-styles-refactor.md`. ADR-0007 already specifies ordered ≤3 stackables, so the first minimal runtime introduces no new structural decision or ADR. A future auto-governor policy may require one. Browser visual/FPS and real heavy-preset/three-stack artifacts remain confidence gates.
+- **Style discovery/persistence:** `style-controls.ts` registers and discovers production definitions, renders the signal chain and pickers, and commits only normalized `DesignOverrides` patches through `mount-clip-studio.ts`'s existing local-preview/debounced-save pathway. Do not recreate the retired Background Flair bridge or add a second save channel. Runtime-only spectrum layout/afterimage discovery is cached once per ID; picker rows may scroll, but the Control Center grid must retain `minmax(0, 1fr)` / card `min-width:0` containment.
+- **Performance/size:** `performance-governor.ts` is a pure policy shared by Style and `backgrounds.ts`: cost scales definition `maxElements` by Detail; Comfortable ≤560, Elevated ≤980, Guarded above 980. Guarded suspends exactly the costliest selected accent from `activeStackables`; never rewrite the saved list. Canvas 2D only; no WebGL/WASM/dependency. `npm run qa:visual-size -- --preset <id> --base <base.mp4> --baked <baked.mp4>` reads real MP4 metadata, requires a near-120-second pair, and enforces base ≤25 MiB / baked ≤30 MiB plus ≤0.1 s drift. Run it for every heavy preset and keep the artifact report with QA evidence.
+- **Legibility/hot-swap:** `subtitle-safe-dim.ts` paints after spectrum and before post-base captions in preview/capture. `WaveformRenderer.setTheme()` and Studio local changes reset audio-visual + stackable canvas state only when spectrum/overlay/stackable identity changes; tuning edits retain smoothing histories.
+- **Decision/canonical design:** ADR-0007 + ADR-0009 + ADR-0010 (Accepted) + `docs/v6.0.0-custom-styles-refactor.md`. ADR-0007 already specifies the ordered ≤3 stackables and performance-governor direction; this pure policy changes no structural ownership, so no new ADR. Live browser FPS and real heavy-preset/three-stack artifacts remain confidence gates.
 
-## Design Studio surfaces — v1
+## Design Studio surfaces — v2 (Style panel contract)
 
-- **New section/control:** nest inside the four bounded sections (bar style / background / voice / subtitles); reuse `studio-save-pathways.ts` + `studio-subpanel-guard.ts` — do NOT hand-roll `window.confirm` patterns.
+- **New section/control:** nest inside the four bounded sections (Style / Background / Voice / Subtitles); reuse `studio-save-pathways.ts` + `studio-subpanel-guard.ts` — do NOT hand-roll `window.confirm` patterns.
+- **Style contract:** the live identifiers are `data-studio-panel="style"` and `data-summary-style`; `bar-style` is retired. The waveform icon remains the intentional Style/signal glyph. Registry choices call `applyLocalDesignOverrides` and the existing debounced custom-style save.
 - **Dirty state:** respect the four independent dirty layers — profile / custom style / transcript panel / segment modal. Never collapse to one boolean (`docs/design-studio.md §3.5`).
 - **Data contracts:** `data-studio-panel`, `data-summary-*`, `data-studio-panel-open` are checked by multiple consumers — do not rename without a grep audit.
 - **Preview coupling:** new controls that affect clip appearance must call `applyLocalDesignOverrides()` → immediate preview; debounced persist for HSV-style rapid input.
@@ -465,10 +468,10 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.34 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
-Map v3.20 · v6 Phase 3 visual catalog complete; all six core spectra + five primary overlays + seven stackable IDs complete; Phase 1 user browser QA PASS.
+Extension points v1.35 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
+Map v3.21 · v6 Phase 4 Style Control Center + governor integrated; focused desktop/mobile production-fixture QA PASS.
 Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
-Audio-reactive visual system v19; no new context/message/store/signal/compositing layer.
+Audio-reactive visual system v20; no new context/message/store/signal/compositing layer.
 AudioVizFrame: normalized energy + 32 bands + registry-gated optional waveform + shared clock (I22).
 AudioVisual registry uses a WeakMap per-canvas runtime; two slots only: overlay below spectrum; both record-time capture.
 Classic owns default/fallback; Minimal is the a11y meter; Phosphor is a ≤240-cell CRT; Radial is a capped 24–64 segment mirrored polar ring; Central is a capped 36–72 point centered organic orb with ≤3 envelope echoes.
@@ -477,5 +480,6 @@ Shared Cividis contract: tokens.ts ↔ studio-palette.css, sync-tested; pair col
 Novel effects remain Canvas 2D and must pass the real-artifact 120 s base≤25 MiB / baked≤30 MiB CLI gate.
 Prefs remain rvnUserPrefs IDB + enqueuePrefsOp; new visual fields must normalize, no version bump.
 H6/H8/H13/H14 and browser-composite fallback contracts remain unchanged.
-Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: Phase 4 Style Control Center + performance governor integration.
+Style uses the complete registries + existing DesignOverrides/save path; the shared governor returns active vs saved accents; caption-safe dim stays below captions.
+Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: live capture/FPS/a11y matrix + heavy 120-second artifact reports.
 ```

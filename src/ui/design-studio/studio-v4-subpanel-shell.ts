@@ -4,17 +4,17 @@ import {
   renderStudioSubpanelGuardFields,
 } from '@/src/ui/design-studio/studio-subpanel-guard';
 
-export type StudioPanelId = 'bar-style' | 'background' | 'voice' | 'subtitles';
+export type StudioPanelId = 'style' | 'background' | 'voice' | 'subtitles';
 
 const PANEL_TITLES: Record<StudioPanelId, string> = {
-  'bar-style': 'Bar style',
+  style: 'Style',
   background: 'Background',
   voice: 'Voice',
   subtitles: 'Subtitles',
 };
 
 const PANEL_ICON_BY_ID: Record<StudioPanelId, string> = {
-  'bar-style': STUDIO_V4_ASSETS.icons.barStyle32,
+  style: STUDIO_V4_ASSETS.icons.barStyle32,
   background: STUDIO_V4_ASSETS.icons.background32,
   voice: STUDIO_V4_ASSETS.icons.voice32,
   subtitles: STUDIO_V4_ASSETS.icons.subtitles32,

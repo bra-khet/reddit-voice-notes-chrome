@@ -42,17 +42,20 @@ import {
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import type { DesignOverrides } from '@/src/theme/design-overrides';
+import {
+  resetAudioVisualCanvas,
+  resetStackableEffectsCanvas,
+} from '@/src/theme/audio-reactive';
 import { populateProfileSelect } from '@/src/ui/clip-style-select';
 import {
   mountColorPickerControls,
   renderColorPickerFields,
 } from '@/src/ui/design-studio/color-picker';
 import {
-  mountBackgroundFlairControls,
-  mountBarGlowControl,
-  renderBackgroundFlairFields,
-  renderBarGlowField,
-} from '@/src/ui/design-studio/effect-controls';
+  mountStyleControlCenter,
+  renderStyleControlCenterFields,
+  type StyleControlsHandle,
+} from '@/src/ui/design-studio/style-controls';
 import {
   mountBackgroundLayoutControls,
   renderBackgroundLayoutFields,
@@ -211,16 +214,28 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
           ${renderPreviewBlock('primary')}
         </div>
         <div class="studio__panel-strip">
-      <section class="studio__panel studio-v4__status-card" data-studio-panel="bar-style">
-        ${renderStudioV4PanelCard('Bar style', 'data-summary-bar-style', 'bar-style')}
+      <section class="studio__panel studio-v4__status-card" data-studio-panel="style">
+        ${renderStudioV4PanelCard('Style', 'data-summary-style', 'style')}
         <div class="studio__panel-body" hidden>
           ${renderPreviewBlock('subpanel')}
-          <label class="popup__field studio__field--compact">
-            <span class="popup__field-label">Clip style</span>
-            <select class="popup__select" data-theme-select aria-label="Clip style"></select>
-          </label>
+          <div class="studio__style-foundation">
+            <label class="popup__field studio__field--compact">
+              <span class="popup__field-label">Style collection</span>
+              <select class="popup__select" data-theme-select aria-label="Style collection"></select>
+            </label>
+            <label class="popup__field studio__field--compact">
+              <span class="popup__field-label">Spectrum anchor</span>
+              <select class="popup__select" data-alignment-select aria-label="Spectrum anchor"></select>
+            </label>
+          </div>
           <div data-custom-style-panel hidden>
-            ${renderColorPickerFields()}
+            <section class="studio__style-bay studio__style-bay--color-lab" aria-labelledby="style-color-lab-title">
+              <div class="studio__style-section-heading">
+                <div><p class="studio__style-eyebrow">Custom instrument</p><h3 id="style-color-lab-title">Clip color lab</h3></div>
+                <span>Fine control</span>
+              </div>
+              ${renderColorPickerFields()}
+            </section>
             <div class="popup__profile-actions studio__inline-actions">
               <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-style>
                 Save as style
@@ -238,15 +253,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
               </button>
             </div>
           </div>
-          <label class="popup__field studio__field--compact">
-            <span class="popup__field-label">Bar alignment</span>
-            <select class="popup__select" data-alignment-select aria-label="Bar alignment"></select>
-          </label>
-          <div class="studio__subsection studio__subsection--effects">
-            <h3 class="studio__subsection-title">Effects</h3>
-            ${renderBarGlowField()}
-            ${renderBackgroundFlairFields()}
-          </div>
+          ${renderStyleControlCenterFields()}
         </div>
       </section>
       <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
@@ -375,6 +382,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let prefsHydrated = false;
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
+  let styleControls: StyleControlsHandle | null = null;
   let subpanelShell!: StudioSubpanelShellHandle;
   let workflowBanner!: WorkflowBannerHandle;
   const PREVIEW_ANIM_FPS = 12;
@@ -672,19 +680,39 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   }
 
   function syncStyleControlsFromPrefs(prefs: UserPreferencesV1, forceColorSync = false): void {
-    backgroundFlairControls.sync(prefs.appearance.designOverrides);
+    styleControls?.sync(
+      prefs.appearance.designOverrides,
+      resolveAppearanceTheme(prefs.appearance),
+    );
 
     if (!isStylePanelVisible(prefs)) return;
 
     if (forceColorSync || !colorPicker.isUserAdjusting()) {
       colorPicker.endInteraction();
       colorPicker.sync(prefs.appearance.designOverrides);
-      barGlowControl.sync(prefs.appearance.designOverrides);
     }
   }
 
   function applyLocalDesignOverrides(overrides: DesignOverrides): void {
     if (!activePrefs) return;
+    const previousIdentity = JSON.stringify([
+      activePrefs.appearance.designOverrides?.spectrumPreset,
+      activePrefs.appearance.designOverrides?.overlayPreset,
+      activePrefs.appearance.designOverrides?.stackables ?? [],
+    ]);
+    const nextIdentity = JSON.stringify([
+      overrides.spectrumPreset,
+      overrides.overlayPreset,
+      overrides.stackables ?? [],
+    ]);
+    // CHANGED: preview hot-swaps discard only identity-bound visual state, not slider smoothing edits.
+    // WHY: switching back to a preset must not revive an old trail, grid, or particle simulation.
+    if (previousIdentity !== nextIdentity) {
+      for (const canvas of previewCanvases()) {
+        resetAudioVisualCanvas(canvas);
+        resetStackableEffectsCanvas(canvas);
+      }
+    }
     activePrefs = {
       ...activePrefs,
       appearance: {
@@ -696,6 +724,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     resetStyleUpdateConfirm();
     syncProfileButton(activePrefs);
     syncStyleButton(activePrefs);
+    styleControls?.sync(overrides, resolvedTheme());
     stopPreviewLoop();
     void refreshPreview();
   }
@@ -810,29 +839,21 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   }
 
   const colorPicker = mountColorPickerControls(root, (overrides) => {
-    const merged = mergeDesignOverrides(overrides);
+    const currentParams = activePrefs?.appearance.designOverrides?.visualizerParams;
+    // CHANGED: the Clip color palette mode follows fine HSV edits as one coherent control.
+    // WHY: otherwise the legacy bar swatch would change while a string visual color stayed stale.
+    const visualizerParams = typeof currentParams?.color === 'string'
+      ? { ...currentParams, color: overrides.barColor }
+      : currentParams;
+    const merged = mergeDesignOverrides({ ...overrides, visualizerParams });
     if (!merged) return;
     applyLocalDesignOverrides(merged);
     syncSectionSummaries();
     scheduleDesignPersist(merged);
   });
 
-  const backgroundFlairControls = mountBackgroundFlairControls(root, (backgroundEffect) => {
-    // BUG FIX: Background flair selection masked by a persisted v6 overlay preset
-    // Fix: Treat the still-shipping dropdown as an explicit overlay choice and update both fields.
-    // Sync: Remove this bridge when the refactored Style panel writes overlayPreset directly.
-    const merged = mergeDesignOverrides({
-      backgroundEffect,
-      overlayPreset: backgroundEffect === 'none' ? null : backgroundEffect,
-    });
-    if (!merged) return;
-    applyLocalDesignOverrides(merged);
-    syncSectionSummaries();
-    scheduleDesignPersist(merged);
-  });
-
-  const barGlowControl = mountBarGlowControl(root, (barGlow) => {
-    const merged = mergeDesignOverrides({ barGlow });
+  styleControls = mountStyleControlCenter(root, (patch) => {
+    const merged = mergeDesignOverrides(patch);
     if (!merged) return;
     applyLocalDesignOverrides(merged);
     syncSectionSummaries();
@@ -928,12 +949,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
   subpanelShell = mountStudioV4SubpanelShell(studioShell, {
     isPanelDirty: (panelId) => {
-      if (panelId === 'bar-style') return hasPendingColorEdit();
+      if (panelId === 'style') return hasPendingColorEdit();
       if (panelId === 'subtitles') return subtitleControls.isTranscriptDirty();
       return false;
     },
     onApplyPanel: async (panelId) => {
-      if (panelId === 'bar-style') {
+      if (panelId === 'style') {
         await flushPendingDesignPersist();
         return;
       }
@@ -942,7 +963,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       }
     },
     onDiscardPanel: async (panelId) => {
-      if (panelId === 'bar-style') {
+      if (panelId === 'style') {
         cancelPendingColorSave();
         if (activePrefs) {
           syncStyleControlsFromPrefs(activePrefs, true);
@@ -1258,6 +1279,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     takeDeck?.dispose();
     workflowBanner.dispose();
     subpanelShell.dispose();
+    styleControls?.dispose();
     voiceControls.dispose();
     subtitleControls.dispose();
     window.removeEventListener('beforeunload', beforeUnloadHandler);

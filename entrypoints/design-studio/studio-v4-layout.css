@@ -792,8 +792,8 @@ body:has(.studio-v4) {
 /* Cividis section ramp — each card declares one --card-accent; title, head divider,
    and enter-chip ride it. Always paired with the section icon + label, so the ramp is
    reinforcement, never color-only (design-studio.md §10.3). */
-.studio-v4 .studio__panel[data-studio-panel='bar-style'] {
-  --card-accent: var(--studio-accent-bars);
+.studio-v4 .studio__panel[data-studio-panel='style'] {
+  --card-accent: var(--studio-accent-style);
 }
 .studio-v4 .studio__panel[data-studio-panel='background'] {
   --card-accent: var(--studio-accent-background);
@@ -1019,7 +1019,7 @@ body:has(.studio-v4) {
   padding: 0 8px 12px;
 }
 
-/* Compact WYSIWYG preview — Bar style / Background sub-panels (same frame logic as hero). */
+/* Compact WYSIWYG preview — Style / Background sub-panels (same frame logic as hero). */
 .studio-v4 .studio__subpanel-content .studio__preview-wrap--subpanel {
   --studio-v4-preview-w: 628;
   --studio-v4-preview-h: 348;

@@ -11,6 +11,7 @@ import {
   registerCoreOverlayVisuals,
 } from './audio-reactive/overlays';
 import { registerCoreStackableEffects } from './audio-reactive/stackables';
+import { evaluateVisualPerformance } from './audio-reactive/performance-governor';
 import {
   type DrawableBackgroundImage,
   getDrawableBackgroundSize,
@@ -406,8 +407,16 @@ function drawDesignEffectOverlays(
   // CHANGED: stackables paint in saved order after the primary overlay and before the spectrum.
   // WHY: Rising Ember must remain independently selectable while preserving the existing layer model.
   if (effects?.stackables?.length) {
+    // CHANGED: the red-zone governor suspends one bounded accent in the real render path.
+    // WHY: a warning that only changes the Studio UI would not protect capture FPS or encoded size.
+    const performance = evaluateVisualPerformance({
+      spectrumPreset: effects.spectrumPreset,
+      overlayPreset: overlay,
+      stackables: effects.stackables,
+      density: effects.visualizerParams?.density,
+    });
     renderStackableEffectsForCanvas(
-      effects.stackables,
+      performance.activeStackables,
       ctx,
       canvas,
       audioFrame,

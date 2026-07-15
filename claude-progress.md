@@ -122,7 +122,7 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 3 visual catalog complete 2026-07-14)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A IN PROGRESS (Phase 4 Style/governor integrated 2026-07-14)**
 
 Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
 
@@ -309,3 +309,15 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Architecture:** map **v3.20** / I22 · extension-points **v1.34** (audio-reactive v19). Phase 3's complete curated visual catalog remains Medium confidence until browser visual/FPS and real heavy three-stack artifact gates land.
 
 **Immediate next actions:** begin Phase 4 with the integrated Style Control Center and performance governor, then run the documented browser visual/size/a11y matrix.
+
+### Track A Phase 4 — Style Control Center + shared performance governor (**IMPLEMENTED 2026-07-14; focused browser QA PASS**)
+
+- Renamed the live `bar-style` panel/summary/guard contract to `style` and removed the dead legacy effect-control bridge. The new audio-instrument rack exposes every production spectrum, atmosphere, and accent from the same registries capture uses; CSS-native thumbnails reuse the v4 waveform icon, physical sliders, 9-slice/Cividis/indigo/amber language, and add no image payload.
+- Added shared tuning, palettes, 0–2× band response, contextual geometry/afterimage, High Contrast, Classic halo, caption-safe dim, and Detail. Existing `DesignOverrides`, `applyLocalDesignOverrides`, `saveCustomStyleColors`, and normalization remain the only persistence path; no preference version/store/message/signal/dependency/compositing layer.
+- Added a pure registry `maxElements` governor (Comfortable ≤560, Elevated ≤980, Guarded above). Guarded scenes suspend the most expensive selected accent in both preview/capture while retaining the saved ordered list; lowering Detail restores it. Identity hot-swaps reset per-canvas spectrum/overlay/stackable state without resetting tuning-only smoothing.
+- Caption-safe dim is one bounded lower-center ellipse after record-time visuals and below post-base captions. ADR-0007 already owns the governor direction and composition, so no new ADR.
+- **Automated:** new Style/governor/dim **6/6**; focused v6 total **226/226**; production MV3 build PASS; compile only the same two pre-existing subtitle diagnostics.
+- **Browser fixture QA:** desktop + narrow responsive containment PASS; intended Spectrum/Atmosphere local rails scroll; signal chain stacks on mobile; max-three unlock, paused label, semantic warning transition, and keyboard Detail restoration PASS. QA found and fixed CSS Grid min-content page overflow. Browser console had no fixture-origin errors (unrelated installed-extension warnings only).
+- **Architecture:** map **v3.21** / I22 · extension-points **v1.35** (audio-reactive v20). Complete live capture/FPS/a11y and 120-second heavy preset/three-stack artifact evidence before raising confidence/release readiness.
+
+**Immediate next actions:** run the documented Phase 4 live reactive capture/FPS/a11y matrix and attach real 120-second base/baked reports for Digital Rain, Aurora, Glitch, and Inferno + a heavy three-stack.

@@ -26,10 +26,13 @@ import {
   buildSyntheticAudioVizFrame,
   getAudioVisualWants,
   renderAudioVisualForCanvas,
+  resetAudioVisualCanvas,
+  resetStackableEffectsCanvas,
   type AudioVisualWants,
   type AudioVizFrame,
   type SpectrumAlignment,
 } from '@/src/theme/audio-reactive';
+import { drawSubtitleSafeDim } from '@/src/theme/audio-reactive/subtitle-safe-dim';
 import {
   CLASSIC_NEON_SPECTRUM_ID,
   registerCoreSpectrumVisuals,
@@ -231,6 +234,22 @@ export class WaveformRenderer {
   }
 
   setTheme(theme: WaveformTheme): void {
+    const previousVisuals = JSON.stringify([
+      this.theme.designEffects?.spectrumPreset,
+      this.theme.designEffects?.overlayPreset,
+      this.theme.designEffects?.stackables ?? [],
+    ]);
+    const nextVisuals = JSON.stringify([
+      theme.designEffects?.spectrumPreset,
+      theme.designEffects?.overlayPreset,
+      theme.designEffects?.stackables ?? [],
+    ]);
+    // CHANGED: visual identity hot-swaps start with fresh bounded state on the capture canvas.
+    // WHY: returning to an old preset must not resurrect stale trails, grids, or particle ages.
+    if (previousVisuals !== nextVisuals) {
+      resetAudioVisualCanvas(this.canvas);
+      resetStackableEffectsCanvas(this.canvas);
+    }
     this.theme = theme;
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }
@@ -424,6 +443,13 @@ export class WaveformRenderer {
       this.reduceMotion,
       'capture',
     );
+    // CHANGED: the shared caption-safe vignette paints after every record-time visual layer.
+    // WHY: post-base subtitles remain above it while dense spectra and accents stay below it.
+    drawSubtitleSafeDim(
+      ctx,
+      canvas,
+      theme.designEffects?.visualizerParams?.subtitleSafeDim === true,
+    );
   }
 }
 
@@ -480,6 +506,11 @@ export async function renderThemePreview(
     },
   );
   drawThemeSpectrum(ctx, canvas, theme, alignment, audioFrame, false, 'preview');
+  drawSubtitleSafeDim(
+    ctx,
+    canvas,
+    theme.designEffects?.visualizerParams?.subtitleSafeDim === true,
+  );
   if (subtitlePreview) {
     drawSubtitlePreview(ctx, canvas, { ...subtitlePreview, previewTimeMs: timeMs });
   }

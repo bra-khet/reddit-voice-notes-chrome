@@ -18,6 +18,7 @@ export interface VisualizerParams {
   layoutMode?: LayoutMode;
   highContrast?: boolean;
   afterimageStrength?: number;
+  subtitleSafeDim?: boolean;
 }
 
 export const DEFAULT_VISUALIZER_PARAMS: Readonly<VisualizerParams> = Object.freeze({
@@ -74,6 +75,9 @@ export function normalizeVisualizerParams(
   if (color !== undefined) normalized.color = color;
   if (isLayoutMode(raw.layoutMode)) normalized.layoutMode = raw.layoutMode;
   if (typeof raw.highContrast === 'boolean') normalized.highContrast = raw.highContrast;
+  // CHANGED: the caption-safe dim is a guarded visual parameter, not an untyped UI-only flag.
+  // WHY: imported styles must reach preview and capture with the same explicit boolean.
+  if (typeof raw.subtitleSafeDim === 'boolean') normalized.subtitleSafeDim = raw.subtitleSafeDim;
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }

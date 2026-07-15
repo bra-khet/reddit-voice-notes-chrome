@@ -1,0 +1,101 @@
+html {
+  min-width: 320px;
+  background: #070b18;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(108, 99, 255, 0.2), transparent 34rem),
+    linear-gradient(145deg, #070b18 0%, #0d1024 54%, #090b14 100%);
+}
+
+.style-qa {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 72px;
+}
+
+.style-qa__masthead {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  color: #f4f3ff;
+}
+
+.style-qa__masthead p,
+.style-qa__masthead h1 {
+  margin: 0;
+}
+
+.style-qa__masthead p {
+  color: #ffd54f;
+  font: 700 0.72rem/1.2 "DejaVu Sans Mono", monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.style-qa__masthead h1 {
+  margin-top: 5px;
+  font: 700 clamp(1.8rem, 4vw, 3.6rem)/0.95 "Chakra Petch", sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.style-qa__masthead aside {
+  max-width: 30rem;
+  padding-left: 14px;
+  border-left: 2px solid rgba(255, 213, 79, 0.72);
+  color: #b8bbd4;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.style-qa__panel {
+  padding: clamp(14px, 3vw, 28px);
+  border: 1px solid rgba(143, 147, 230, 0.42);
+  border-radius: 18px;
+  background: rgba(10, 13, 30, 0.86);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42), inset 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.style-qa .studio__panel-body {
+  display: block;
+  max-width: none;
+  padding: 0;
+}
+
+.style-qa__foundation {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 720px) {
+  .style-qa {
+    width: min(100% - 16px, 1180px);
+    padding-top: 14px;
+  }
+
+  .style-qa__masthead {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .style-qa__masthead aside {
+    max-width: none;
+  }
+
+  .style-qa__panel {
+    padding: 10px;
+    border-radius: 13px;
+  }
+
+  .style-qa__foundation {
+    grid-template-columns: 1fr;
+  }
+}

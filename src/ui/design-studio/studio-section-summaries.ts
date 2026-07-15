@@ -2,7 +2,16 @@ import type { BarAlignment } from '@/src/recorder/waveform';
 import { resolveAppearanceTheme } from '@/src/theme';
 import { hexToHsv } from '@/src/theme/color-utils';
 import { userBackgroundLayoutFromAppearance } from '@/src/theme/background-layout';
-import { BUBBLES_OVERLAY_LABEL } from '@/src/theme/audio-reactive/catalog';
+import {
+  getAudioVisualDefinition,
+  getStackableEffectDefinition,
+  type OverlayPresetId,
+  type SpectrumPresetId,
+} from '@/src/theme/audio-reactive';
+import { evaluateVisualPerformance } from '@/src/theme/audio-reactive/performance-governor';
+import { registerCoreOverlayVisuals } from '@/src/theme/audio-reactive/overlays';
+import { registerCoreSpectrumVisuals } from '@/src/theme/audio-reactive/spectra';
+import { registerCoreStackableEffects } from '@/src/theme/audio-reactive/stackables';
 import { getCustomStyleById } from '@/src/settings/custom-styles';
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 import { formatVoiceEffectSummary } from '@/src/voice/voice-summary';
@@ -58,7 +67,7 @@ function alignmentBadgeHtml(alignment: BarAlignment): string {
   return `<span class="studio__align-badge" title="${ALIGNMENT_TITLES[alignment]}" aria-hidden="true">${bars}</span>`;
 }
 
-export function renderBarStyleSummaryHtml(ctx: StudioSummaryContext): string {
+export function renderStyleSummaryHtml(ctx: StudioSummaryContext): string {
   const { prefs } = ctx;
   const label = styleLabel(prefs);
   const color = barColor(prefs);
@@ -66,29 +75,45 @@ export function renderBarStyleSummaryHtml(ctx: StudioSummaryContext): string {
   const sat = Math.round(hsv?.s ?? 0);
   const val = Math.round(hsv?.v ?? 0);
   const alignment = prefs.appearance.barAlignment ?? 'center';
-  const overrides = prefs.appearance.designOverrides;
-  const flair =
-    overrides?.backgroundEffect && overrides.backgroundEffect !== 'none'
-      ? overrides.backgroundEffect
-      : null;
-  const glowBoost = overrides?.barGlow === 'boosted';
+  const theme = resolveAppearanceTheme(prefs.appearance);
+  const effects = theme.designEffects;
+  const spectrumId = (effects?.spectrumPreset ?? 'classic-neon') as SpectrumPresetId;
+  const overlayId = (effects?.overlayPreset !== undefined
+    ? effects.overlayPreset
+    : effects?.backgroundOverlay) as OverlayPresetId | null | undefined;
+  const stackables = effects?.stackables ?? [];
+  const performance = evaluateVisualPerformance({
+    spectrumPreset: spectrumId,
+    overlayPreset: overlayId,
+    stackables,
+    density: effects?.visualizerParams?.density,
+  });
 
   const effectParts: string[] = [];
-  // CHANGED: translate stable effect ids before they reach user-visible summary text.
-  // WHY: saved `bokeh` values remain loadable while the v6 effect is presented as Bubbles.
-  if (flair) effectParts.push(flair === 'bokeh' ? BUBBLES_OVERLAY_LABEL : 'Sparkle');
-  if (glowBoost) effectParts.push('glow');
+  if (overlayId) effectParts.push(getAudioVisualDefinition('overlay', overlayId)?.label ?? overlayId);
+  if (stackables.length > 0) effectParts.push(`${stackables.length} accent${stackables.length === 1 ? '' : 's'}`);
   const effectsChip =
     effectParts.length > 0
       ? `<span class="studio__meta-chip studio__meta-chip--effects">${effectParts.join(' · ')}</span>`
       : '';
+  const spectrumLabel = getAudioVisualDefinition('spectrum', spectrumId)?.label ?? 'Classic';
+  const suspendedLabel = performance.suspendedStackableId
+    ? getStackableEffectDefinition(performance.suspendedStackableId)?.label
+    : null;
+  const governorLabel = performance.level === 'comfortable'
+    ? 'Comfortable'
+    : performance.level === 'elevated'
+      ? 'Elevated'
+      : suspendedLabel ? `Guarded · ${suspendedLabel}` : 'Guarded';
 
   return `
     <span class="studio__meta-style-name">${label}</span>
+    <span class="studio__meta-chip studio__meta-chip--spectrum">${spectrumLabel}</span>
     <span class="studio__meta-swatch" style="background:${color}" title="${color}"></span>
     <span class="studio__meta-sv">S${sat} V${val}</span>
     ${alignmentBadgeHtml(alignment)}
     ${effectsChip}
+    <span class="studio__meta-chip studio__meta-chip--performance studio__meta-chip--${performance.level}">${governorLabel}</span>
   `;
 }
 
@@ -125,13 +150,19 @@ export function renderSubtitleSummaryHtml(ctx: StudioSummaryContext): string {
 }
 
 export function syncStudioSectionSummaries(root: HTMLElement, ctx: StudioSummaryContext): void {
-  const barStyleEl = root.querySelector<HTMLElement>('[data-summary-bar-style]');
+  const styleEl = root.querySelector<HTMLElement>('[data-summary-style]');
   const backgroundEl = root.querySelector<HTMLElement>('[data-summary-background]');
   const voiceEl = root.querySelector<HTMLElement>('[data-summary-voice]');
   const subtitleEl = root.querySelector<HTMLElement>('[data-summary-subtitles]');
 
-  if (barStyleEl) barStyleEl.innerHTML = renderBarStyleSummaryHtml(ctx);
+  if (styleEl) styleEl.innerHTML = renderStyleSummaryHtml(ctx);
   if (backgroundEl) backgroundEl.innerHTML = renderBackgroundSummaryHtml(ctx);
   if (voiceEl) voiceEl.innerHTML = renderVoiceSummaryHtml(ctx);
   if (subtitleEl) subtitleEl.innerHTML = renderSubtitleSummaryHtml(ctx);
 }
+
+// CHANGED: the Style card summary reads the same production labels and cost ceilings as the panel.
+// WHY: saved IDs such as `bokeh` must never leak into user-facing status or drift from governor state.
+registerCoreSpectrumVisuals();
+registerCoreOverlayVisuals();
+registerCoreStackableEffects();

@@ -92,7 +92,8 @@
   /* v5 section ramp — four perceptually-uniform stops along the indigo→amber Cividis axis
      (monotonic luminance, cool→warm). ALWAYS paired with the section icon + label, never
      color-only (design-studio.md §10.3). Order follows the card strip. */
-  --studio-accent-bars: #8f93e6;        /* Bar style — indigo-violet */
+  --studio-accent-bars: #8f93e6;        /* Waveform/timeline compatibility token */
+  --studio-accent-style: var(--studio-accent-bars); /* v6 Style — audio-reactive visual system */
   --studio-accent-background: #7aa6c8;  /* Background — steel blue */
   --studio-accent-voice: #d8b24a;       /* Voice — warm gold (amber energy) */
   --studio-accent-subtitles: #ffd54f;   /* Subtitles — full amber */
