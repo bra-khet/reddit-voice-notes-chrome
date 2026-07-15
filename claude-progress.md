@@ -268,4 +268,14 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Automated:** Electric Arc/Lightning **13/13** · focused v6 regression set **162/162** · production build PASS · recorder + Studio shared bundles contain both labels · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** map **v3.16** / I22 · extension-points **v1.30** (audio-reactive v15). ADR-0007 already owns ordered record-time stackables; the two local consumers create no new structural decision or ADR.
 
-**Immediate next actions:** continue Phase 3 with Conway Life, adding only the bounded cellular contract that consumer requires.
+### Track A Phase 3 — Conway Life + bounded binary lattice (**DONE 2026-07-14; automated gate**)
+
+- Added only the cellular primitive Conway consumes: `BoundedLifeGrid` is a fixed-allocation, double-buffered binary lattice capped at **64×64 / 4,096 cells**, with immutable topology, dead edges, direct cell reads/writes, neighbor counts, and exactly one B3/S23 generation step. It does not add resizing, toroidal topology, arbitrary rules, multistate cells, events, or a general CA framework; Digital Rain keeps its separate directional activation contract.
+- Added `Conway Life` (`conway`) as a registered ordered stackable on a fixed **48×16** logical field. Audio deterministically stamps gliders, R-pentominoes, acorns, and oscillators; generations advance on a smoothing-controlled **80–220 ms** cadence with at most two steps per render, while explicit transients stamp organisms immediately. Density controls seeding richness rather than reallocating topology.
+- Linear paints a full living circuit tapestry, centered creates an inset terrarium, and radial projects the same dead-edge colony into rings. Each live cell is one glowing rectangle plus one shared boundary accent, hard-capping paint at **769 elements**. Capture silence starts empty; synthetic preview is deterministic; weighted frequency families affect seed selection/population.
+- High Contrast removes additive blur and strengthens hard structure. Reduced motion bypasses temporal generations and paints a fixed, time-independent audio constellation. State stays per-canvas, typed-array-backed, Canvas 2D, and record-time only.
+- The existing ordered runtime composes Conway in a real Ember + Electric Arc + Conway three-stack. No new preference field/version, UI, message, store, signal, dependency, compositing layer, bake renderer, scene graph, auto-governor, migration, or ADR.
+- **Automated:** Conway/grid **15/15** · Rising Ember **12/12** · electricity **13/13** · Digital Rain **12/12** · focused v6 regression set **177/177** · production build PASS · recorder + Studio shared bundles contain Conway Life · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** map **v3.17** / I22 · extension-points **v1.31** (audio-reactive v16). ADR-0007 already owns ordered record-time stackables; the consumed lattice does not create a new structural decision.
+
+**Immediate next actions:** continue Phase 3 with Layered Smoke, adding only the bounded plume contract that consumer requires.

@@ -156,9 +156,9 @@ check('density resolves only the documented 16–44 particle range', () => {
 
 check('the runtime preserves saved order, deduplicates, caps at three, and sums cost', () => {
   const renderOrder = [];
-  // CHANGED: synthetic registry entries avoid the now-active Lightning built-in.
-  // WHY: this check isolates generic ordering/cost behavior from the electricity consumer.
-  const unregister = ['particle-burst', 'smoke', 'conway', 'neon-glow'].map((id, index) => (
+  // BUG FIX: Built-in Conway fixture collision
+  // Fix: Keep the generic ordering fixture on the three catalog IDs that still have no registered implementation.
+  const unregister = ['particle-burst', 'smoke', 'neon-glow'].map((id, index) => (
     registerStackableEffect({
       id,
       label: id,
@@ -171,12 +171,12 @@ check('the runtime preserves saved order, deduplicates, caps at three, and sums 
     })
   ));
   const cost = renderStackableEffectsForCanvas(
-    ['smoke', 'particle-burst', 'smoke', 'conway', 'neon-glow'],
+    ['smoke', 'particle-burst', 'smoke', 'neon-glow', RISING_EMBER_ID],
     createContext(),
     { width: 320, height: 180 },
     frame,
   );
-  assert.deepEqual(renderOrder, ['smoke', 'particle-burst', 'conway']);
+  assert.deepEqual(renderOrder, ['smoke', 'particle-burst', 'neon-glow']);
   assert.equal(renderOrder.length, MAX_STACKABLE_EFFECTS);
   assert.equal(cost, 2 + 1 + 3);
   unregister.forEach((remove) => remove());

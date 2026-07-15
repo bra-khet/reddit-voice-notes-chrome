@@ -1,7 +1,9 @@
 import { registerStackableEffectIfAbsent } from '@/src/theme/audio-reactive';
+import { CONWAY_LIFE_EFFECT_DEFINITION } from './conway';
 import { RISING_EMBER_EFFECT_DEFINITION } from './ember';
 import { ELECTRIC_ARC_EFFECT_DEFINITION, LIGHTNING_EFFECT_DEFINITION } from './electricity';
 
+export * from './conway';
 export * from './ember';
 export * from './electricity';
 
@@ -10,4 +12,5 @@ export function registerCoreStackableEffects(): void {
   registerStackableEffectIfAbsent(RISING_EMBER_EFFECT_DEFINITION);
   registerStackableEffectIfAbsent(ELECTRIC_ARC_EFFECT_DEFINITION);
   registerStackableEffectIfAbsent(LIGHTNING_EFFECT_DEFINITION);
+  registerStackableEffectIfAbsent(CONWAY_LIFE_EFFECT_DEFINITION);
 }
