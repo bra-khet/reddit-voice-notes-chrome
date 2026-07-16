@@ -18,6 +18,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8099"],
       "port": 8099
+    },
+    {
+      "name": "visual-fixture",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8873", "--directory", "qa/QA-6.0.0/track-a/artifacts/visual-fixture"],
+      "port": 8873
     }
   ]
 }

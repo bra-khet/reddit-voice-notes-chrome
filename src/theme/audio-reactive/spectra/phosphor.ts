@@ -119,6 +119,20 @@ function isLitSegment(
   return normalizedDistance <= litRows / rows;
 }
 
+/** 0 at the advancing lit edge (the hottest segment), 1 at the column base. */
+function tipDistance(
+  row: number,
+  litRows: number,
+  rows: number,
+  alignment: SpectrumRenderEnvironment['alignment'],
+): number {
+  if (litRows <= 1) return 0;
+  if (alignment === 'top') return 1 - (row + 1) / litRows;
+  if (alignment === 'bottom') return (row - (rows - litRows)) / (litRows - 1);
+  const normalizedDistance = Math.abs((row + 0.5) / rows - 0.5) * 2;
+  return clamp01(1 - normalizedDistance / Math.max(1 / rows, litRows / rows));
+}
+
 class PhosphorVisual implements AudioVisual {
   readonly id = PHOSPHOR_SPECTRUM_ID;
   readonly kind = 'spectrum' as const;
@@ -126,6 +140,7 @@ class PhosphorVisual implements AudioVisual {
   readonly supportedLayouts = Object.freeze(['linear'] as const);
 
   private displayedLevels: number[] = [];
+  private trailLevels: number[] = [];
   private elapsedSeconds = 0;
 
   update(_frame: AudioVizFrame, dt: number): void {
@@ -144,23 +159,36 @@ class PhosphorVisual implements AudioVisual {
 
     const grid = resolvePhosphorGrid(params.density);
     const targets = resolveTargets(frame, params, environment, grid.columns);
+    const smoothing = clamp01(params.smoothing);
+    const persistence = clamp01(params.afterimageStrength ?? 0);
     if (this.displayedLevels.length !== grid.columns) {
       this.displayedLevels = [...targets];
+      this.trailLevels = [...targets];
     } else {
-      // CHANGED: attack stays crisp while decay follows a longer, user-tunable phosphor tail.
-      // WHY: persistence should read as stored light, not generic symmetric bar smoothing.
-      const smoothing = clamp01(params.smoothing);
-      const persistence = Math.max(smoothing, clamp01(params.afterimageStrength ?? 0));
+      // CHANGED: the level itself now falls with a fast meter ballistic, while a separate slower
+      //          trail envelope stores the light and decays behind it as a dim afterglow band.
+      // WHY: putting the whole 0.6 s persistence on the level made columns sink as sluggish
+      //      blocks — real phosphor extinguishes the segment quickly but the glow lingers above.
       for (let index = 0; index < grid.columns; index += 1) {
         const current = this.displayedLevels[index] ?? 0;
         const target = targets[index] ?? 0;
         const timeConstant = target >= current
-          ? 0.025 + smoothing * 0.08
-          : 0.1 + persistence * 0.72;
+          ? 0.02 + smoothing * 0.055
+          : 0.07 + smoothing * 0.3;
         const follow = this.elapsedSeconds > 0
           ? 1 - Math.exp(-this.elapsedSeconds / timeConstant)
           : smoothing <= 0 ? 1 : 0;
         this.displayedLevels[index] = current + (target - current) * follow;
+
+        const trail = this.trailLevels[index] ?? 0;
+        const displayed = this.displayedLevels[index] ?? 0;
+        const trailTimeConstant = displayed >= trail
+          ? 0.03
+          : 0.18 + persistence * 0.85;
+        const trailFollow = this.elapsedSeconds > 0
+          ? 1 - Math.exp(-this.elapsedSeconds / trailTimeConstant)
+          : smoothing <= 0 ? 1 : 0;
+        this.trailLevels[index] = trail + (displayed - trail) * trailFollow;
       }
     }
     this.elapsedSeconds = 0;
@@ -170,6 +198,7 @@ class PhosphorVisual implements AudioVisual {
     const slotWidth = availableWidth / grid.columns;
     const slotHeight = gridHeight / grid.rows;
     const highContrast = params.highContrast === true;
+    const reduceMotion = environment.reduceMotion;
     const gap = highContrast ? 1.5 : 2.5;
     const cellWidth = Math.max(1, slotWidth - gap);
     const cellHeight = Math.max(1, slotHeight - gap);
@@ -181,9 +210,10 @@ class PhosphorVisual implements AudioVisual {
     const hotTint = palette[1] ?? mixVisualColors(tint, '#ffffff', highContrast ? 0.55 : 0.32);
     const shadowTint = mixVisualColors(tint, '#000000', highContrast ? 0.72 : 0.58);
     const unlitTint = mixVisualColors(tint, '#000000', 0.78);
-    const aberrationOffset = environment.reduceMotion || highContrast
+    const aberrationOffset = reduceMotion || highContrast
       ? 0
       : 0.7 + clamp01(params.intensity) * 1.6 + (frame.transient ? 0.8 : 0);
+    const softLight = !highContrast && !reduceMotion;
 
     ctx.shadowBlur = 0;
     ctx.shadowColor = 'transparent';
@@ -200,21 +230,65 @@ class PhosphorVisual implements AudioVisual {
       }
     }
 
+    // CHANGED: one shadow-blurred backing rect per lit column blooms the whole run into the glass.
+    // WHY: crisp zero-blur blocks read as an LCD; phosphor light visibly bleeds past the segment
+    //      mask, and a single per-column pass buys that bloom for ≤24 extra rects per frame.
+    if (softLight) {
+      for (let column = 0; column < grid.columns; column += 1) {
+        const level = clamp01(this.displayedLevels[column] ?? 0);
+        const litRows = Math.min(grid.rows, Math.ceil(level * grid.rows));
+        if (litRows <= 0) continue;
+        const run = this.resolveLitRun(litRows, grid.rows, environment.alignment);
+        const x = startX + column * slotWidth + gap / 2;
+        const y = startY + run.firstRow * slotHeight + gap / 2;
+        const height = (run.lastRow - run.firstRow) * slotHeight + cellHeight;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = colorWithAlpha(tint, 0.08 + level * 0.1);
+        ctx.shadowColor = tint;
+        ctx.shadowBlur = (5 + level * 9) * intensity;
+        ctx.fillRect(x, y, cellWidth, height);
+      }
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
+    }
+
     for (let column = 0; column < grid.columns; column += 1) {
       const level = clamp01(this.displayedLevels[column] ?? 0);
+      const trailLevel = clamp01(this.trailLevels[column] ?? 0);
       const litRows = Math.min(grid.rows, Math.ceil(level * grid.rows));
+      const ghostRows = softLight
+        ? Math.min(grid.rows, Math.ceil(trailLevel * grid.rows))
+        : litRows;
       const x = startX + column * slotWidth + gap / 2;
       for (let row = 0; row < grid.rows; row += 1) {
-        if (!isLitSegment(row, litRows, grid.rows, environment.alignment)) continue;
+        const lit = isLitSegment(row, litRows, grid.rows, environment.alignment);
+        if (!lit) {
+          // CHANGED: segments between the fallen level and the slower trail render as afterglow.
+          // WHY: this dim, decaying band above the live column is the actual phosphor-decay
+          //      signature; without it persistence is invisible whenever the level moves.
+          if (ghostRows > litRows
+            && isLitSegment(row, ghostRows, grid.rows, environment.alignment)) {
+            const y = startY + row * slotHeight + gap / 2;
+            const span = Math.max(1, ghostRows - litRows);
+            const depth = clamp01(tipDistance(row, ghostRows, grid.rows, environment.alignment)
+              * ghostRows / span);
+            // depth ≈ 0 at the ghost tip (oldest light) and ≈ 1 beside the live column (freshest).
+            ctx.globalAlpha = clamp01((0.1 + depth * 0.2) * (0.4 + persistence * 0.6) * intensity);
+            ctx.fillStyle = tint;
+            ctx.fillRect(x, y, cellWidth, cellHeight);
+          }
+          continue;
+        }
         const y = startY + row * slotHeight + gap / 2;
-        const rowEnergy = environment.alignment === 'center'
-          ? 1 - Math.abs((row + 0.5) / grid.rows - 0.5)
-          : environment.alignment === 'top'
-            ? 1 - row / grid.rows
-            : (row + 1) / grid.rows;
-        const alpha = clamp01((0.48 + level * 0.5 + rowEnergy * 0.12) * intensity);
+        const heat = 1 - tipDistance(row, litRows, grid.rows, environment.alignment) * 0.55;
+        // CHANGED: brightness now ramps toward the advancing tip instead of the column base.
+        // WHY: the newest segment is the one being struck by the beam — a flat column with a
+        //      slightly brighter base read as upside-down and hid all level motion.
+        const alpha = clamp01((0.26 + level * 0.28 + heat * 0.48) * intensity);
 
-        if (aberrationOffset > 0) {
+        if (aberrationOffset > 0 && heat > 0.9) {
+          // Misconvergence fringes belong at the advancing edge only; repeating them under
+          // every interior cell doubled the paint cost and muddied the fill toward gray.
           ctx.globalAlpha = 0.2 + level * 0.18;
           ctx.fillStyle = 'rgba(255, 70, 92, 0.72)';
           ctx.fillRect(x - aberrationOffset, y, cellWidth, cellHeight);
@@ -226,9 +300,16 @@ class PhosphorVisual implements AudioVisual {
         ctx.fillStyle = tint;
         ctx.fillRect(x, y, cellWidth, cellHeight);
 
+        if (softLight && heat > 0.9) {
+          // A hot cap on the tip segment: the beam dwell point burns toward white.
+          ctx.globalAlpha = clamp01((0.24 + level * 0.5) * intensity);
+          ctx.fillStyle = hotTint;
+          ctx.fillRect(x, y, cellWidth, Math.max(1, cellHeight * 0.45));
+        }
+
         const bevel = Math.min(highContrast ? 2 : 1, cellHeight / 3);
         ctx.fillStyle = hotTint;
-        ctx.globalAlpha = highContrast ? 0.92 : 0.54;
+        ctx.globalAlpha = highContrast ? 0.92 : 0.42 + heat * 0.24;
         ctx.fillRect(x, y, cellWidth, bevel);
         ctx.fillStyle = shadowTint;
         ctx.globalAlpha = highContrast ? 0.88 : 0.62;
@@ -239,7 +320,9 @@ class PhosphorVisual implements AudioVisual {
     // One horizontal pass per row suggests a scanline mask without per-pixel noise.
     if (!highContrast) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
-      ctx.globalAlpha = 0.32;
+      // CHANGED: the mask rows are actually visible now (0.32 → 0.55 effective weight).
+      // WHY: at 0.077 effective alpha the scanline pass changed nothing on screen.
+      ctx.globalAlpha = 0.55;
       for (let row = 1; row < grid.rows; row += 1) {
         ctx.fillRect(startX, startY + row * slotHeight - 0.5, availableWidth, 1);
       }
@@ -248,6 +331,22 @@ class PhosphorVisual implements AudioVisual {
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     ctx.shadowColor = 'transparent';
+  }
+
+  /** Contiguous lit row span for the column bloom pass (top/bottom/center all form one band). */
+  private resolveLitRun(
+    litRows: number,
+    rows: number,
+    alignment: SpectrumRenderEnvironment['alignment'],
+  ): { firstRow: number; lastRow: number } {
+    let firstRow = rows - 1;
+    let lastRow = 0;
+    for (let row = 0; row < rows; row += 1) {
+      if (!isLitSegment(row, litRows, rows, alignment)) continue;
+      if (row < firstRow) firstRow = row;
+      if (row > lastRow) lastRow = row;
+    }
+    return firstRow > lastRow ? { firstRow: 0, lastRow: 0 } : { firstRow, lastRow };
   }
 }
 

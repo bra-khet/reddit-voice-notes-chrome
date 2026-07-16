@@ -186,6 +186,9 @@ class InfernoVisual implements AudioVisual {
         : 'flame';
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
     const intensity = 0.72 + this.drive * 0.72;
+    // CHANGED: squared size texture gives a natural few-large/many-small tongue distribution.
+    // WHY: near-uniform sizes read as confetti; real fire is a handful of dominant licks over small ones.
+    const bulk = 0.55 + seededUnit(serial, 41) ** 2 * 1.6;
 
     particle.kind = kind;
     particle.phase = seededUnit(serial, 17) * Math.PI * 2;
@@ -193,13 +196,13 @@ class InfernoVisual implements AudioVisual {
     particle.drift = (seededUnit(serial, 23) - 0.5) * 2;
     particle.size = minDimension * (
       kind === 'smoke'
-        ? 0.018 + texture * 0.018
+        ? 0.02 + texture * 0.02
         : kind === 'ember'
           ? 0.0028 + texture * 0.0035
-          : 0.008 + texture * 0.009
+          : (0.009 + texture * 0.01) * bulk
     ) * intensity;
     particle.lifetime = kind === 'smoke'
-      ? 1.7 + texture * 1.5
+      ? 1.9 + texture * 1.6
       : kind === 'ember'
         ? 0.75 + texture * 0.95
         : 0.62 + texture * 0.92;
@@ -207,7 +210,7 @@ class InfernoVisual implements AudioVisual {
     if (this.layout === 'radial') {
       const angle = source * Math.PI * 2;
       const radius = minDimension * (0.07 + seededUnit(serial, 29) * 0.035);
-      const speed = (kind === 'smoke' ? 16 : kind === 'ember' ? 78 : 42)
+      const speed = (kind === 'smoke' ? 16 : kind === 'ember' ? 84 : 46)
         * (0.7 + this.drive * 1.05);
       particle.x = this.canvasWidth / 2 + Math.cos(angle) * radius;
       particle.y = this.canvasHeight / 2 + Math.sin(angle) * radius;
@@ -218,8 +221,8 @@ class InfernoVisual implements AudioVisual {
         ? (source - 0.5) * (0.18 + this.bassDrive * 0.22)
         : source - 0.5;
       particle.x = this.canvasWidth * (0.5 + spread * (this.layout === 'centered' ? 1 : 0.92));
-      particle.y = this.canvasHeight * (0.91 + seededUnit(serial, 31) * 0.055);
-      const speed = (kind === 'smoke' ? 19 : kind === 'ember' ? 94 : 48)
+      particle.y = this.canvasHeight * (0.93 + seededUnit(serial, 31) * 0.04);
+      const speed = (kind === 'smoke' ? 18 : kind === 'ember' ? 98 : 52)
         * (0.66 + this.drive * 1.08);
       particle.vx = particle.drift * (kind === 'smoke' ? 7 : 15 + this.midDrive * 17);
       particle.vy = -speed;
@@ -328,9 +331,11 @@ class InfernoVisual implements AudioVisual {
     environment: AudioVisualRenderEnvironment | undefined,
   ): void {
     const previewMinimum = environment?.amplitudeMode === 'preview' ? 4 : 0;
+    // CHANGED: higher continuous birth rate (pool-capped) packs the hearth row.
+    // WHY: at speech drive the base read as isolated licks; fire needs overlapping tongues.
     const rate = this.drive <= 0.01
       ? previewMinimum
-      : 5 + this.drive * (17 + clamp01(params.density) * 36);
+      : 7 + this.drive * (22 + clamp01(params.density) * 40);
     this.emissionCarry += rate * this.pendingDt;
     if (frame.transient) {
       // CHANGED: onset bursts enter the already-bounded pool immediately.
@@ -339,7 +344,10 @@ class InfernoVisual implements AudioVisual {
     }
 
     let emitted = 0;
-    while (this.emissionCarry >= 1 && emitted < 10 && this.emitter.activeCount <= particleLimit) {
+    // BUG FIX: Inferno mid-life flame pop-out at the particle cap
+    // Fix: `<=` allowed emission at a full pool, which force-recycled a live slot and visibly
+    //      deleted a mid-life tongue every tick during sustained loud speech; `<` waits for expiry.
+    while (this.emissionCarry >= 1 && emitted < 10 && this.emitter.activeCount < particleLimit) {
       this.emitter.emit(this.initializeParticle);
       this.emissionCarry -= 1;
       emitted += 1;
@@ -354,17 +362,20 @@ class InfernoVisual implements AudioVisual {
   ): void {
     if (dt <= 0) return;
     const timeSeconds = frame.timeMs / 1000;
-    const flowStrength = 12 + this.midDrive * 30 + clamp01(params.intensity) * 13;
-    const smoothingDrag = Math.exp(-dt * (0.28 + clamp01(params.smoothing) * 0.72));
+    const flowStrength = 24 + this.midDrive * 44 + clamp01(params.intensity) * 15;
+    const smoothingDrag = Math.exp(-dt * (0.42 + clamp01(params.smoothing) * 0.88));
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
-    this.flowOptions.complexity = 0.42 + this.midDrive * 0.42;
-    this.flowOptions.speed = 0.32 + (1 - clamp01(params.smoothing)) * 0.72;
+    this.flowOptions.complexity = 0.46 + this.midDrive * 0.4;
+    this.flowOptions.speed = 0.5 + (1 - clamp01(params.smoothing)) * 0.85;
 
     for (const particle of this.emitter.particles) {
       if (!particle.active) continue;
       const normalizedX = particle.x / this.canvasWidth * 2 - 1;
       const normalizedY = particle.y / this.canvasHeight * 2 - 1;
-      this.flowOptions.seed = 61 + particle.index * 0.17;
+      // CHANGED: one shared convection field per kind (smoke rides a lagged copy of the flame field).
+      // WHY: per-particle seeds destroyed spatial coherence — neighbouring tongues must lean into the
+      //      same gust or the column reads as independent jitter instead of convection.
+      this.flowOptions.seed = particle.kind === 'smoke' ? 67 : 61;
       const flow = sampleLayeredVectorFlowField(
         normalizedX,
         normalizedY,
@@ -373,24 +384,37 @@ class InfernoVisual implements AudioVisual {
         this.flowVector,
       );
       const life = clamp01(particle.age / particle.lifetime);
-      const buoyancy = particle.kind === 'smoke' ? 13 : particle.kind === 'ember' ? 24 : 34;
+      // CHANGED: buoyancy decays over life (embers can stall and flutter downward).
+      // WHY: constant lift made every particle coast upward forever; cooling gas decelerates.
+      const buoyancy = particle.kind === 'smoke'
+        ? 15
+        : particle.kind === 'ember'
+          ? 30 * (1 - life * 1.2)
+          : 40 * (1 - life * 0.55);
+      const turbulence = flowStrength
+        * (particle.kind === 'smoke' ? 0.7 : 0.45 + life * 0.85);
 
       if (this.layout === 'radial') {
         const dx = particle.x - this.canvasWidth / 2;
         const dy = particle.y - this.canvasHeight / 2;
         const length = Math.max(1, Math.hypot(dx, dy));
-        particle.vx += (dx / length * buoyancy + flow.x * flowStrength) * dt;
-        particle.vy += (dy / length * buoyancy + flow.y * flowStrength) * dt;
+        particle.vx += (dx / length * buoyancy + flow.x * turbulence) * dt;
+        particle.vy += (dy / length * buoyancy + flow.y * turbulence) * dt;
       } else {
-        particle.vx += (flow.x * flowStrength + Math.sin(particle.phase + life * 8) * 8) * dt;
-        particle.vy += (-buoyancy + flow.y * flowStrength * 0.35) * dt;
+        const flutter = particle.kind === 'ember'
+          ? Math.sin(particle.phase + life * 13) * 24
+          : Math.sin(particle.phase + life * 7.5) * 10;
+        particle.vx += (flow.x * turbulence + flutter) * dt;
+        particle.vy += (-buoyancy + flow.y * turbulence * 0.4) * dt;
       }
 
       particle.vx *= smoothingDrag;
-      particle.vy *= particle.kind === 'ember' ? 0.998 : smoothingDrag;
+      particle.vy *= particle.kind === 'ember' ? 0.995 : smoothingDrag;
       particle.x += particle.vx * dt;
       particle.y += particle.vy * dt;
-      if (particle.kind === 'smoke') particle.size += minDimension * 0.009 * dt;
+      if (particle.kind === 'smoke') {
+        particle.size += minDimension * (0.014 + this.midDrive * 0.008) * dt;
+      }
     }
   }
 
@@ -411,11 +435,17 @@ class InfernoVisual implements AudioVisual {
       }
     }
 
+    // CHANGED: flames paint as one additive pass, then embers paint above them.
+    // WHY: interleaving kinds by pool slot let recycled sparks flicker under/over tongues;
+    //      additive light is order-independent but the spark layer should stay in front.
     ctx.globalCompositeOperation = variant === 'void-inferno' ? 'source-over' : 'lighter';
     for (const particle of this.emitter.particles) {
-      if (!particle.active || particle.kind === 'smoke') continue;
-      if (particle.kind === 'ember') this.drawEmber(ctx, particle, palette, variant);
-      else this.drawFlame(ctx, particle, params, palette, variant);
+      if (!particle.active || particle.kind !== 'flame') continue;
+      this.drawFlame(ctx, particle, params, palette, variant);
+    }
+    for (const particle of this.emitter.particles) {
+      if (!particle.active || particle.kind !== 'ember') continue;
+      this.drawEmber(ctx, particle, palette, variant);
     }
     ctx.restore();
   }
@@ -429,14 +459,13 @@ class InfernoVisual implements AudioVisual {
     if (this.drive <= 0.01) return;
     const minDimension = Math.max(24, Math.min(canvas.width, canvas.height));
     const centerX = canvas.width / 2;
-    const centerY = this.layout === 'radial' ? canvas.height / 2 : canvas.height * 0.94;
-    const radius = this.layout === 'linear'
-      ? Math.max(canvas.width * 0.52, minDimension)
-      : minDimension * (this.layout === 'radial' ? 0.17 : 0.31);
-    const hot = paletteColorAt(palette, 1);
-    const low = paletteColorAt(palette, variant === 'void-inferno' ? 0.2 : 0.52);
+    const centerY = this.layout === 'radial' ? canvas.height / 2 : canvas.height * 0.93;
 
     if (variant === 'void-inferno') {
+      const radius = this.layout === 'linear'
+        ? Math.max(canvas.width * 0.52, minDimension)
+        : minDimension * (this.layout === 'radial' ? 0.17 : 0.31);
+      const hot = paletteColorAt(palette, 1);
       ctx.fillStyle = '#030106';
       ctx.strokeStyle = colorWithAlpha(hot, 0.9);
       ctx.lineWidth = 1.7;
@@ -452,13 +481,29 @@ class InfernoVisual implements AudioVisual {
       return;
     }
 
-    const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-    glow.addColorStop(0, colorWithAlpha(hot, 0.3 + this.drive * 0.24));
-    glow.addColorStop(0.35, colorWithAlpha(low, 0.14 + this.drive * 0.16));
-    glow.addColorStop(1, colorWithAlpha(low, 0));
-    ctx.fillStyle = glow;
+    // CHANGED: the single canvas-wide dome became a broad ambient wash plus a tight hot bed.
+    // WHY: one huge gradient at 0.3+ alpha pre-saturated the lower half, so additive tongues
+    //      clipped to white; a compact bright core over a faint wash keeps headroom for the flames.
+    const wideRadius = this.layout === 'linear'
+      ? canvas.width * 0.36
+      : minDimension * (this.layout === 'radial' ? 0.24 : 0.3);
+    const ambient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, wideRadius);
+    ambient.addColorStop(0, colorWithAlpha(paletteColorAt(palette, 0.45), 0.1 + this.drive * 0.12));
+    ambient.addColorStop(0.55, colorWithAlpha(paletteColorAt(palette, 0.22), 0.05 + this.drive * 0.07));
+    ambient.addColorStop(1, colorWithAlpha(paletteColorAt(palette, 0.12), 0));
+    ctx.fillStyle = ambient;
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY, wideRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    const coreRadius = wideRadius * 0.42;
+    const bed = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius);
+    bed.addColorStop(0, colorWithAlpha(paletteColorAt(palette, 0.96), 0.3 + this.drive * 0.32));
+    bed.addColorStop(0.55, colorWithAlpha(paletteColorAt(palette, 0.72), 0.13 + this.drive * 0.17));
+    bed.addColorStop(1, colorWithAlpha(paletteColorAt(palette, 0.5), 0));
+    ctx.fillStyle = bed;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -469,30 +514,58 @@ class InfernoVisual implements AudioVisual {
     variant: InfernoVariant,
   ): void {
     const life = clamp01(particle.age / particle.lifetime);
-    const fade = Math.sin(life * Math.PI) * (0.12 + this.midDrive * 0.18);
-    const radius = particle.size * (1.1 + life * 1.5);
-    const color = variant === 'void-inferno'
-      ? paletteColorAt(palette, 0.26 + life * 0.22)
-      : mixVisualColors(paletteColorAt(palette, 0.05), '#5d6268', 0.58);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = colorWithAlpha(color, variant === 'void-inferno' ? 0.58 : fade);
-    ctx.strokeStyle = colorWithAlpha(
-      paletteColorAt(palette, variant === 'void-inferno' ? 0.78 : 0.34),
-      variant === 'void-inferno' ? 0.72 : fade * 0.44,
+    const radius = Math.max(1, particle.size * (1 + life * 2.2));
+
+    if (variant === 'void-inferno') {
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.26 + life * 0.22), 0.58);
+      ctx.strokeStyle = colorWithAlpha(paletteColorAt(palette, 0.78), 0.72);
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      ctx.ellipse(
+        particle.x,
+        particle.y,
+        radius * (1.05 + particle.drift * 0.08),
+        radius * 0.72,
+        particle.phase + life * 0.35,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.stroke();
+      return;
+    }
+
+    // CHANGED: smoke is a soft radial-gradient puff with an off-center dense lobe and no outline.
+    // WHY: hard-edged stroked ellipses at ~0.15 alpha read as gray balloons; smoke needs a feathered
+    //      edge, an early density peak just above the flames, and a long transparent dissolve.
+    const birth = Math.min(1, life * 3.2);
+    const fade = birth * (1 - life) ** 1.6 * (0.16 + this.midDrive * 0.2);
+    const body = mixVisualColors(paletteColorAt(palette, 0.08), '#6b6f75', 0.66);
+    const puff = ctx.createRadialGradient(
+      particle.x - radius * 0.2,
+      particle.y - radius * 0.24,
+      radius * 0.1,
+      particle.x,
+      particle.y,
+      radius,
     );
-    ctx.lineWidth = variant === 'void-inferno' ? 1.25 : 0.7;
+    puff.addColorStop(0, colorWithAlpha(body, fade));
+    puff.addColorStop(0.62, colorWithAlpha(body, fade * 0.55));
+    puff.addColorStop(1, colorWithAlpha(body, 0));
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = puff;
     ctx.beginPath();
     ctx.ellipse(
       particle.x,
       particle.y,
-      radius * (1.05 + particle.drift * 0.08),
-      radius * 0.72,
-      particle.phase + life * 0.35,
+      radius * (1.12 + particle.drift * 0.1),
+      radius * 0.78,
+      particle.phase + life * 0.6,
       0,
       Math.PI * 2,
     );
     ctx.fill();
-    ctx.stroke();
   }
 
   private drawFlame(
@@ -504,14 +577,18 @@ class InfernoVisual implements AudioVisual {
   ): void {
     const life = clamp01(particle.age / particle.lifetime);
     const heat = (1 - life) ** 0.64 * particle.heat;
-    const outer = paletteColorAt(palette, 0.08 + heat * 0.8);
-    const inner = paletteColorAt(palette, 0.48 + heat * 0.52);
-    const opacity = Math.sin(Math.min(1, life * 1.5) * Math.PI / 2) * (1 - life) ** 0.42;
+    // CHANGED: the sheath sits low on the palette (deep red/orange) and the core sits high.
+    // WHY: mapping both near the pale end painted flat yellow petals — the red envelope around
+    //      an amber-white core is what makes fire read as fire, and it must cool as tongues rise.
+    const sheath = paletteColorAt(palette, 0.16 + heat * 0.34);
+    const core = paletteColorAt(palette, 0.55 + heat * 0.45);
+    // Brightest at ignition, decaying upward — with a fast fade-in so births do not pop.
+    const opacity = Math.min(1, life * 5) * (1 - life) ** 1.25;
 
     if (variant === 'void-inferno') {
-      this.traceFlameTongue(ctx, particle, 1.16);
+      this.traceFlameTongue(ctx, particle, 1.16, 1, 1);
       ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.04), 0.96);
-      ctx.strokeStyle = colorWithAlpha(inner, 0.9);
+      ctx.strokeStyle = colorWithAlpha(core, 0.9);
       ctx.lineWidth = 1.35 + heat * 0.85;
       ctx.shadowBlur = 0;
       ctx.fill();
@@ -519,22 +596,30 @@ class InfernoVisual implements AudioVisual {
       return;
     }
 
-    this.traceFlameTongue(ctx, particle, 1.22);
-    ctx.fillStyle = colorWithAlpha(outer, opacity * (0.28 + clamp01(params.intensity) * 0.32));
-    ctx.shadowColor = colorWithAlpha(outer, 0.7);
-    ctx.shadowBlur = 5 + heat * 8;
+    this.traceFlameTongue(ctx, particle, 1.18, 1, 1);
+    ctx.fillStyle = colorWithAlpha(sheath, opacity * (0.24 + clamp01(params.intensity) * 0.24));
+    ctx.shadowColor = colorWithAlpha(core, 0.8);
+    ctx.shadowBlur = 4 + heat * 7;
     ctx.fill();
 
-    this.traceFlameTongue(ctx, particle, 0.58);
-    ctx.fillStyle = colorWithAlpha(inner, opacity * (0.54 + heat * 0.35));
+    this.traceFlameTongue(ctx, particle, 0.62, 0.5, 0.8);
+    ctx.fillStyle = colorWithAlpha(core, opacity * (0.42 + heat * 0.34));
     ctx.shadowBlur = 0;
     ctx.fill();
   }
 
+  /**
+   * CHANGED: tongues are asymmetric — a wide rounded base, a mid bulge, and a thin tip that is
+   * displaced laterally by a life-advancing whip phase (the tip travels, not just its controls).
+   * WHY: the previous symmetric lens kept every apex locked on the velocity axis, producing a
+   * field of identical flat petals; a licking flame needs its tip to whip off-axis as it cools.
+   */
   private traceFlameTongue(
     ctx: CanvasRenderingContext2D,
     particle: InfernoParticle,
-    scale: number,
+    lengthScale: number,
+    widthScale: number,
+    whipScale: number,
   ): void {
     const speed = Math.max(1, Math.hypot(particle.vx, particle.vy));
     const directionX = particle.vx / speed;
@@ -542,31 +627,43 @@ class InfernoVisual implements AudioVisual {
     const normalX = -directionY;
     const normalY = directionX;
     const life = clamp01(particle.age / particle.lifetime);
-    const length = particle.size * scale * (3.2 + (1 - life) * 2.7);
-    const width = particle.size * scale * (0.66 + (1 - life) * 0.46);
-    const baseX = particle.x - directionX * length * 0.24;
-    const baseY = particle.y - directionY * length * 0.24;
-    const tipX = particle.x + directionX * length * 0.76;
-    const tipY = particle.y + directionY * length * 0.76;
-    const bend = Math.sin(particle.phase + life * 7) * width * 0.72;
+    // CHANGED: tongues shrink as they cool instead of only fading.
+    // WHY: full-size faded tongues hovered detached above the bed; dying licks contract.
+    const length = particle.size * lengthScale * (2.4 + (1 - life) * 3.4);
+    const width = particle.size * widthScale * (0.55 + (1 - life) * 0.85);
+    // Tips flutter harder than roots: whip amplitude grows over life.
+    const whip = Math.sin(particle.phase * 1.7 + life * 9.5)
+      * (0.3 + life * 1.1) * whipScale;
+    const baseX = particle.x - directionX * length * 0.22;
+    const baseY = particle.y - directionY * length * 0.22;
+    const tipX = particle.x + directionX * length * 0.78 + normalX * whip * width * 1.5;
+    const tipY = particle.y + directionY * length * 0.78 + normalY * whip * width * 1.5;
 
     ctx.beginPath();
     ctx.moveTo(baseX - normalX * width, baseY - normalY * width);
     ctx.bezierCurveTo(
-      particle.x - normalX * width * 1.18,
-      particle.y - normalY * width * 1.18,
-      tipX + normalX * bend,
-      tipY + normalY * bend,
+      baseX - normalX * width * 1.3 + directionX * length * 0.3,
+      baseY - normalY * width * 1.3 + directionY * length * 0.3,
+      tipX - directionX * length * 0.3 - normalX * width * 0.5,
+      tipY - directionY * length * 0.3 - normalY * width * 0.5,
       tipX,
       tipY,
     );
     ctx.bezierCurveTo(
-      tipX - normalX * bend * 0.35,
-      tipY - normalY * bend * 0.35,
-      particle.x + normalX * width * 1.18,
-      particle.y + normalY * width * 1.18,
+      tipX - directionX * length * 0.34 + normalX * width * 0.34,
+      tipY - directionY * length * 0.34 + normalY * width * 0.34,
+      baseX + normalX * width * 1.24 + directionX * length * 0.34,
+      baseY + normalY * width * 1.24 + directionY * length * 0.34,
       baseX + normalX * width,
       baseY + normalY * width,
+    );
+    ctx.bezierCurveTo(
+      baseX + normalX * width * 0.55 - directionX * width * 0.6,
+      baseY + normalY * width * 0.55 - directionY * width * 0.6,
+      baseX - normalX * width * 0.55 - directionX * width * 0.6,
+      baseY - normalY * width * 0.55 - directionY * width * 0.6,
+      baseX - normalX * width,
+      baseY - normalY * width,
     );
     ctx.closePath();
   }
@@ -587,11 +684,20 @@ class InfernoVisual implements AudioVisual {
       particle.x - particle.vx / speed * trail,
       particle.y - particle.vy / speed * trail,
     );
-    ctx.strokeStyle = colorWithAlpha(color, variant === 'void-inferno' ? 0.95 : (1 - life) * 0.82);
+    ctx.strokeStyle = colorWithAlpha(color, variant === 'void-inferno' ? 0.95 : (1 - life) * 0.72);
     ctx.lineWidth = variant === 'void-inferno' ? 1.65 : Math.max(0.8, particle.size * 0.48);
     ctx.shadowColor = variant === 'void-inferno' ? 'transparent' : color;
-    ctx.shadowBlur = variant === 'void-inferno' ? 0 : 5;
+    ctx.shadowBlur = variant === 'void-inferno' ? 0 : 4;
     ctx.stroke();
+
+    // CHANGED: each spark carries a bright head point over its trail.
+    // WHY: a bare motion streak has no locus; the eye tracks embers by their incandescent head.
+    const head = mixVisualColors(color, '#fff7d6', 0.7);
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, Math.max(0.6, particle.size * 0.85), 0, Math.PI * 2);
+    ctx.fillStyle = colorWithAlpha(head, variant === 'void-inferno' ? 0.95 : (1 - life) * 0.92);
+    ctx.shadowBlur = 0;
+    ctx.fill();
   }
 
   private drawReducedMotion(
@@ -617,8 +723,8 @@ class InfernoVisual implements AudioVisual {
       const particle = this.reducedParticle;
       particle.index = index;
       particle.phase = seededUnit(index, 73) * Math.PI * 2;
-      particle.age = particle.lifetime * (0.22 + texture * 0.32);
-      particle.size = minDimension * (0.009 + texture * 0.009) * (0.7 + this.drive * 0.65);
+      particle.age = particle.lifetime * (0.18 + texture * 0.42);
+      particle.size = minDimension * (0.009 + texture * 0.01) * (0.7 + this.drive * 0.65);
       particle.heat = clamp01(0.64 + this.drive * 0.3);
       if (this.layout === 'radial') {
         const angle = unit * Math.PI * 2;
@@ -631,7 +737,7 @@ class InfernoVisual implements AudioVisual {
         const spread = this.layout === 'centered' ? 0.24 : 0.86;
         particle.x = canvas.width * (0.5 + (unit - 0.5) * spread);
         particle.y = canvas.height * (0.91 + texture * 0.025);
-        particle.vx = (texture - 0.5) * 0.24;
+        particle.vx = (texture - 0.5) * 0.8;
         particle.vy = -1;
       }
       this.drawFlame(ctx, particle, params, palette, variant);
