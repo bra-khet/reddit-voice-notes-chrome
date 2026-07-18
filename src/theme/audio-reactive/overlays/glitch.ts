@@ -13,8 +13,11 @@ export const GLITCH_LABEL = 'Glitch' as const;
 export const GLITCH_MIN_SCANLINES = 12;
 export const GLITCH_MAX_SCANLINES = 36;
 export const GLITCH_MAX_TEAR_COUNT = 10;
-/** 36 scanlines + two global split ghosts + ten four-pass tears + three sync rails. */
-export const GLITCH_MAX_ELEMENTS = GLITCH_MAX_SCANLINES + 2 + GLITCH_MAX_TEAR_COUNT * 4 + 3;
+/** Burst-gated sinusoidal row/column displacement slices (the CRT "wave" pass). */
+export const GLITCH_MAX_WAVE_ROWS = 6;
+/** 36 scanlines + two split ghosts + ten four-pass tears + six wave slices + three sync rails. */
+export const GLITCH_MAX_ELEMENTS =
+  GLITCH_MAX_SCANLINES + 2 + GLITCH_MAX_TEAR_COUNT * 4 + GLITCH_MAX_WAVE_ROWS + 3;
 
 interface GlitchTear {
   active: boolean;
@@ -93,6 +96,10 @@ class GlitchVisual implements AudioVisual {
   private spawnSerial = 0;
   private lastPreviewBeat = -1;
   private activeTearCount = 0;
+  /** Sustained-speech accumulator that fires seeded micro-glitches between true onsets. */
+  private simmer = 0;
+  private simmerSerial = 0;
+  private waveSeed = 0;
 
   update(_frame: AudioVizFrame, dt: number): void {
     this.pendingDt = Math.min(0.1, Math.max(0, Number.isFinite(dt) ? dt : 0));
@@ -122,7 +129,20 @@ class GlitchVisual implements AudioVisual {
     this.advanceState(this.pendingDt, params);
     if (onset) {
       this.burst = Math.max(this.burst, 0.68 + drives.treble * 0.32);
+      this.waveSeed += 1;
       this.spawnTears(params, drives.treble);
+    }
+    // CHANGED: sustained speech accumulates toward seeded micro-glitches between true onsets.
+    // WHY: QA found the effect rarely activated — splicing should simmer through normal
+    //      speech, not only on sharp attacks (§3g / §5b).
+    this.simmer += (drives.mid * 0.45 + drives.treble * 0.55) * this.pendingDt;
+    const simmerGate = 0.9 + seededUnit(this.simmerSerial, 29) * 1.4;
+    if (this.simmer >= simmerGate) {
+      this.simmer = 0;
+      this.simmerSerial += 1;
+      this.burst = Math.max(this.burst, 0.3 + drives.treble * 0.3);
+      this.waveSeed += 1;
+      this.spawnTears(params, drives.treble * 0.7);
     }
     this.pendingDt = 0;
 
@@ -130,6 +150,7 @@ class GlitchVisual implements AudioVisual {
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     this.drawRgbSplit(ctx, canvas, params, drives);
+    this.drawWaveSlices(ctx, canvas, layout, params, drives);
     this.drawTears(ctx, canvas, layout, params, palette, drives);
     this.drawScanlines(ctx, width, height, layout, params, palette, drives);
     this.drawSyncRails(ctx, width, height, layout, params, drives);
@@ -168,12 +189,23 @@ class GlitchVisual implements AudioVisual {
     reduceMotion: boolean,
   ): boolean {
     let positiveFlux = 0;
+    let risingBands = 0;
     for (let index = 0; index < GLITCH_BAND_COUNT; index += 1) {
       const next = clamp01(frame.bands[index] ?? 0);
-      if (this.hasAudioSample) positiveFlux += Math.max(0, next - this.previousBands[index]);
+      if (this.hasAudioSample) {
+        const delta = Math.max(0, next - (this.previousBands[index] ?? 0));
+        if (delta > 0.012) {
+          positiveFlux += delta;
+          risingBands += 1;
+        }
+      }
       this.previousBands[index] = next;
     }
-    positiveFlux /= GLITCH_BAND_COUNT;
+    // BUG FIX: Glitch onset flux diluted across the whole spectrum (QA §3g / §5b)
+    // Fix: averaging positive flux over all 32 bands buried localized speech attacks
+    //      (a strong 6-band consonant rise ÷ 32 fell under threshold, so the effect
+    //      "rarely activated"). Flux now averages over the rising bands only.
+    const focusedFlux = risingBands > 0 ? positiveFlux / Math.max(4, risingBands) : 0;
     const energyRise = this.hasAudioSample ? Math.max(0, frame.energy - this.previousEnergy) : 0;
     this.previousEnergy = clamp01(frame.energy);
 
@@ -182,10 +214,10 @@ class GlitchVisual implements AudioVisual {
       && (this.lastPreviewBeat < 0 || previewBeat !== this.lastPreviewBeat);
     this.lastPreviewBeat = previewBeat;
 
-    const threshold = 0.072 - clamp01(params.sensitivity) * 0.038;
+    const threshold = 0.055 - clamp01(params.sensitivity) * 0.028;
     const detected = this.hasAudioSample
-      && drive > 0.035
-      && (positiveFlux + energyRise * 0.72) > threshold;
+      && drive > 0.03
+      && (focusedFlux + energyRise * 0.72) > threshold;
     this.hasAudioSample = true;
     return !reduceMotion && (frame.transient === true || detected || previewOnset);
   }
@@ -235,6 +267,7 @@ class GlitchVisual implements AudioVisual {
     for (const tear of this.tears) tear.active = false;
     this.activeTearCount = 0;
     this.burst = 0;
+    this.simmer = 0;
   }
 
   private drawRgbSplit(
@@ -254,6 +287,51 @@ class GlitchVisual implements AudioVisual {
     ctx.filter = 'sepia(1) saturate(7) hue-rotate(125deg)';
     ctx.drawImage(canvas, shift, 0);
     ctx.filter = 'none';
+  }
+
+  /**
+   * CHANGED: burst-gated sinusoidal slice displacement (rows for linear/radial, columns
+   * for centered) self-copies thin strips with per-slice offsets.
+   * WHY: QA asked for "a real shader" feel with more aberrations — this is the classic
+   *      CRT horizontal-hold wobble, bounded to GLITCH_MAX_WAVE_ROWS unfiltered copies (§3g).
+   */
+  private drawWaveSlices(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    layout: LayoutMode,
+    params: VisualizerParams,
+    drives: { bass: number; mid: number; treble: number; total: number },
+  ): void {
+    if (this.burst < 0.12) return;
+    const width = Math.max(1, canvas.width);
+    const height = Math.max(1, canvas.height);
+    const vertical = layout === 'centered';
+    const along = vertical ? height : width;
+    const across = vertical ? width : height;
+    const magnitude = Math.min(
+      along * 0.05,
+      (3 + drives.treble * 14) * this.burst * (0.5 + clamp01(params.intensity)),
+    );
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.filter = 'none';
+    for (let index = 0; index < GLITCH_MAX_WAVE_ROWS; index += 1) {
+      const position = seededUnit(this.waveSeed * 7 + index, 37);
+      const sliceSpan = Math.max(2, across * (0.012 + seededUnit(this.waveSeed + index, 41) * 0.03));
+      const start = clampRectOrigin(position * across, sliceSpan, across);
+      const offset = Math.round(
+        Math.sin(this.waveSeed * 2.71 + index * 2.393 + this.burst * 5.3) * magnitude,
+      );
+      const span = along - Math.abs(offset);
+      if (span < 8 || offset === 0) continue;
+      const sourceStart = offset > 0 ? 0 : -offset;
+      const destinationStart = offset > 0 ? offset : 0;
+      ctx.globalAlpha = Math.min(0.9, 0.35 + this.burst * 0.5);
+      if (vertical) {
+        ctx.drawImage(canvas, start, sourceStart, sliceSpan, span, start, destinationStart, sliceSpan, span);
+      } else {
+        ctx.drawImage(canvas, sourceStart, start, span, sliceSpan, destinationStart, start, span, sliceSpan);
+      }
+    }
   }
 
   private drawTears(

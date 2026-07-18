@@ -37,6 +37,7 @@ const {
   GLITCH_MAX_ELEMENTS,
   GLITCH_MAX_SCANLINES,
   GLITCH_MAX_TEAR_COUNT,
+  GLITCH_MAX_WAVE_ROWS,
   GLITCH_MIN_SCANLINES,
   GLITCH_VISUAL_DEFINITION,
   getAudioVisualDefinition,
@@ -155,7 +156,7 @@ check('definition is registered, band-aware, layout-capable, and hard-capped', (
   );
   assert.equal(
     GLITCH_MAX_ELEMENTS,
-    GLITCH_MAX_SCANLINES + 2 + GLITCH_MAX_TEAR_COUNT * 4 + 3,
+    GLITCH_MAX_SCANLINES + 2 + GLITCH_MAX_TEAR_COUNT * 4 + GLITCH_MAX_WAVE_ROWS + 3,
   );
   registerCoreOverlayVisuals();
   registerCoreOverlayVisuals();
@@ -184,7 +185,8 @@ check('explicit transients immediately create bounded chunk tears and RGB ghosts
     { ...frame, transient: true },
   );
   assert.ok(tearCopies(operations).length >= 2);
-  assert.ok(tearCopies(operations).length <= GLITCH_MAX_TEAR_COUNT);
+  // Nine-argument copies now include the burst-gated wave slices as well as the tears.
+  assert.ok(tearCopies(operations).length <= GLITCH_MAX_TEAR_COUNT + GLITCH_MAX_WAVE_ROWS);
   assert.equal(fullSplitCopies(operations).length, 2);
   assert.ok(operations.some(([operation, value]) => operation === 'filter' && String(value).includes('hue-rotate')));
   assert.ok(elementOperations(operations).length <= GLITCH_MAX_ELEMENTS);
