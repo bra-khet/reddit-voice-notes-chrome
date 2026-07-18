@@ -110,7 +110,11 @@ export function sampleOscilloscopeTrace(
 }
 
 function reducedMotionTrace(pointCount: number, frame: AudioVizFrame): Float32Array {
-  const energy = Math.pow(clamp01(frame.energy * 2.4), 0.68);
+  // BUG FIX: reduced-motion trace clipped flat at the rails (QA §7b)
+  // Fix: full-scale sine × gain saturated clampSample, flattening peaks/troughs into a
+  //      square wave. The calm trace now peaks at 0.8 and renders with a fixed sub-unity
+  //      gain so the curve keeps its shape at any loudness.
+  const energy = Math.pow(clamp01(frame.energy * 1.6), 0.68) * 0.8;
   return Float32Array.from({ length: pointCount }, (_, index) => {
     const progress = index / Math.max(1, pointCount - 1);
     const envelope = 0.68 + Math.sin(progress * Math.PI) ** 2 * 0.32;
@@ -328,7 +332,13 @@ class OscilloscopeVisual implements AudioVisual {
     const primary = palette[0] ?? environment.colors.bar;
     const hot = palette[palette.length - 1] ?? environment.colors.glow;
     const contrast = mixVisualColors(hot, '#ffffff', 0.38);
-    const gain = 0.55 + clamp01(params.sensitivity) * 1.9;
+    // CHANGED: slightly hotter gain curve (0.55+1.9x → 0.6+1.95x) plus a fixed calm
+    //          sub-unity gain under reduced motion.
+    // WHY: QA wanted marginally more voice-band sensitivity, and the reduced trace must
+    //      never be pushed back into the clamp rails (§2f / §7b).
+    const gain = environment.reduceMotion
+      ? 0.85
+      : 0.6 + clamp01(params.sensitivity) * 1.95;
     const intensity = 0.62 + clamp01(params.intensity) * 0.72;
 
     ctx.lineCap = 'round';
@@ -398,7 +408,7 @@ export const OSCILLOSCOPE_VISUAL_DEFINITION: AudioVisualDefinition = Object.free
   family: 'waveform-spectrum',
   maxElements: OSCILLOSCOPE_MAX_ELEMENTS,
   defaultParams: Object.freeze({
-    sensitivity: 0.58,
+    sensitivity: 0.64,
     intensity: 0.62,
     smoothing: 0.34,
     color: Object.freeze(['#38bdf8', '#a78bfa', '#f8fafc']),

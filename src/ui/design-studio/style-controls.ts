@@ -118,6 +118,15 @@ function paletteStyle(colors: readonly string[]): string {
   return `--style-color-a:${first};--style-color-b:${middle};--style-color-c:${last}`;
 }
 
+// CHANGED: spectrum/overlay cards carry the same cost badge accents already have.
+// WHY: Oscilloscope's budget weight was invisible, so new users picked it and hit the
+//      governor cap without understanding why (QA §2f).
+function costBadge(kind: 'spectrum' | 'overlay', id: string): string {
+  const cost = getAudioVisualDefinition(kind, id)?.maxElements ?? 0;
+  const costBand = cost > 500 ? 'heavy' : cost > 220 ? 'medium' : 'light';
+  return `<span class="studio__accent-cost studio__accent-cost--${costBand}">${costBand}</span>`;
+}
+
 function renderSpectrumChoices(): string {
   return SPECTRUM_PRESET_IDS.map((id) => {
     const definition = getAudioVisualDefinition('spectrum', id);
@@ -132,6 +141,7 @@ function renderSpectrumChoices(): string {
           <span>${copy.description}</span>
         </span>
         <span class="studio__visual-mode">${copy.mode}</span>
+        ${costBadge('spectrum', id)}
       </button>`;
   }).join('');
 }
@@ -153,6 +163,7 @@ function renderOverlayChoices(): string {
         </span>
         <span class="studio__visual-choice-copy"><strong>${definition?.label ?? id}</strong><span>${copy.description}</span></span>
         <span class="studio__visual-mode">${copy.mode}</span>
+        ${costBadge('overlay', id)}
       </button>`;
   }).join('');
 }
