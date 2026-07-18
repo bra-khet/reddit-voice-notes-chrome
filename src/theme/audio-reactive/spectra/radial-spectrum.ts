@@ -47,6 +47,19 @@ function bandWeight(index: number, params: VisualizerParams): number {
   return params.trebleWeight ?? 1;
 }
 
+/** Continuous palette interpolation; the mirrored band position keeps the ring seam-free. */
+function paletteGradientAt(palette: readonly string[], amount: number): string {
+  if (palette.length === 1) return palette[0] ?? '#ffffff';
+  const position = clamp01(amount) * (palette.length - 1);
+  const left = Math.min(palette.length - 1, Math.floor(position));
+  const right = Math.min(palette.length - 1, left + 1);
+  return mixVisualColors(
+    palette[left] ?? '#ffffff',
+    palette[right] ?? palette[left] ?? '#ffffff',
+    position - left,
+  );
+}
+
 function resolveTargets(
   frame: AudioVizFrame,
   params: VisualizerParams,
@@ -61,7 +74,19 @@ function resolveTargets(
       const shapeIndex = Math.round(
         bandIndex * (RADIAL_REDUCED_MOTION_SHAPE.length - 1) / 31,
       );
-      return energy * (RADIAL_REDUCED_MOTION_SHAPE[shapeIndex] ?? 0.5);
+      // CHANGED: reduced motion responds to the spoken band level through a
+      //          reversal-invariant symmetric pair average (QA §7b).
+      // WHY: the a11y contract is a stable silhouette that ignores FFT rearrangement,
+      //      not a frozen ring with zero audio connection.
+      const symmetricLevel = clamp01((
+        clamp01(frame.bands[bandIndex] ?? 0)
+        + clamp01(frame.bands[31 - bandIndex] ?? 0)
+      ) / 2);
+      return clamp01(
+        energy
+        * (RADIAL_REDUCED_MOTION_SHAPE[shapeIndex] ?? 0.5)
+        * (0.6 + symmetricLevel * 0.55),
+      );
     });
   }
 
@@ -121,22 +146,30 @@ class RadialSpectrumVisual implements AudioVisual {
 
     const segmentCount = resolveRadialSegmentCount(params.density);
     const targets = resolveTargets(frame, params, environment, segmentCount);
-    if (this.displayedLevels.length !== segmentCount) {
+    if (this.displayedLevels.length !== segmentCount || environment.reduceMotion) {
+      // BUG FIX: Radial Spectrum frozen (stuck at zero) under reduced motion (QA §7b)
+      // Fix: the smoothing envelope only advances when update() supplies dt, which the
+      //      reduced-motion path never does — so a session that started in reduced
+      //      motion kept its initial (often zero) levels forever. Reduced motion now
+      //      bypasses the envelope and paints the calm targets directly each frame.
       this.displayedLevels = [...targets];
       this.trailLevels = [...targets];
     } else {
-      const smoothing = environment.reduceMotion
-        ? Math.max(0.82, clamp01(params.smoothing))
-        : clamp01(params.smoothing);
-      const follow = smoothing <= 0
-        ? 1
-        : this.elapsedSeconds > 0
-          ? 1 - Math.exp(-this.elapsedSeconds / (0.035 + smoothing * 0.38))
-          : 0;
+      const smoothing = clamp01(params.smoothing);
       const persistence = clamp01(params.afterimageStrength ?? 0);
       for (let index = 0; index < segmentCount; index += 1) {
         const target = targets[index] ?? 0;
         const displayed = this.displayedLevels[index] ?? 0;
+        // CHANGED: asymmetric ballistics — fast attack, slower release.
+        // WHY: one shared 0.25 s constant made the ring feel sluggish on speech (§2d).
+        const timeConstant = target >= displayed
+          ? 0.025 + smoothing * 0.1
+          : 0.06 + smoothing * 0.3;
+        const follow = smoothing <= 0
+          ? 1
+          : this.elapsedSeconds > 0
+            ? 1 - Math.exp(-this.elapsedSeconds / timeConstant)
+            : 0;
         this.displayedLevels[index] = displayed + (target - displayed) * follow;
 
         // CHANGED: afterimage is stored as a second radial envelope, not retained canvas pixels.
@@ -172,6 +205,15 @@ class RadialSpectrumVisual implements AudioVisual {
     ctx.shadowColor = 'transparent';
     ctx.lineCap = 'round';
 
+    // CHANGED: the whole ring rocks gently and each spoke rides a slow radial swell.
+    // WHY: QA read the static ring as "sluggish and boring" — the undulation keeps it
+    //      alive between speech peaks without extra paint passes (§2d).
+    const timeSeconds = frame.timeMs / 1000;
+    const rock = reducedMotion
+      ? 0
+      : Math.sin(timeSeconds * 0.42) * (0.14 + clamp01(frame.energy) * 0.12);
+    const startAngle = -Math.PI / 2 + rock;
+
     // A stable inner rail keeps the shape legible even while the audio envelope settles.
     ctx.beginPath();
     ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
@@ -186,17 +228,20 @@ class RadialSpectrumVisual implements AudioVisual {
     for (let segment = 0; segment < segmentCount; segment += 1) {
       const level = clamp01(this.displayedLevels[segment] ?? 0);
       const trailLevel = clamp01(this.trailLevels[segment] ?? 0);
-      const radius = innerRadius + 3 + level * amplitudeSpan;
-      const paletteIndex = Math.min(
-        palette.length - 1,
-        Math.floor(segment * palette.length / segmentCount),
-      );
+      const swell = reducedMotion
+        ? 0
+        : Math.sin(segment / segmentCount * Math.PI * 6 + timeSeconds * 1.3)
+          * amplitudeSpan * 0.04 * (0.35 + clamp01(frame.energy)) * (0.4 + level);
+      const radius = innerRadius + 3 + Math.max(0, level * amplitudeSpan + swell);
+      // CHANGED: spoke color interpolates continuously along the mirrored band position.
+      // WHY: the four-block discrete spectrum read as strange color banding (§2d).
+      const colorPosition = resolveRadialBandIndex(segment, segmentCount) / 31;
       const baseColor = reducedMotion
         ? palette[0] ?? environment.colors.bar
-        : palette[paletteIndex] ?? environment.colors.bar;
+        : paletteGradientAt(palette, colorPosition) ?? environment.colors.bar;
       const color = highContrast ? contrastColor : baseColor;
-      const inner = mapRadialSegment(segment, segmentCount, centerX, centerY, innerRadius);
-      const outer = mapRadialSegment(segment, segmentCount, centerX, centerY, radius);
+      const inner = mapRadialSegment(segment, segmentCount, centerX, centerY, innerRadius, startAngle);
+      const outer = mapRadialSegment(segment, segmentCount, centerX, centerY, radius, startAngle);
       outerPoints.push(outer);
 
       if (persistence > 0 && trailLevel > level + 0.01) {
@@ -206,6 +251,7 @@ class RadialSpectrumVisual implements AudioVisual {
           centerX,
           centerY,
           innerRadius + 3 + trailLevel * amplitudeSpan,
+          startAngle,
         );
         ctx.beginPath();
         ctx.moveTo(outer.x, outer.y);

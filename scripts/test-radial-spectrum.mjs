@@ -229,6 +229,23 @@ check('reduced motion ignores FFT rearrangement and removes glow/trails', () => 
   assert.deepEqual(first, second);
   assert.equal(first.some(([operation, , , , shadowBlur]) => operation === 'stroke' && shadowBlur > 0), false);
   assert.equal(first.some(([operation, , lineWidth]) => operation === 'stroke' && lineWidth === 1.5), false);
+
+  // QA §7b: reduced motion must react to the voice even when it is the first-selected
+  // spectrum (the dt-starved envelope previously froze it at its initial levels).
+  const stuckStart = RADIAL_SPECTRUM_VISUAL_DEFINITION.create();
+  const silentStart = renderRadial(
+    { ...frame, energy: 0, bands: Array(32).fill(0) },
+    reduced,
+    params,
+    stuckStart,
+  ).ctx.operations;
+  const laterSpeech = renderRadial(
+    { ...frame, energy: 0.5, bands: Array(32).fill(0.5) },
+    reduced,
+    params,
+    stuckStart,
+  ).ctx.operations;
+  assert.ok(average(bodyRadii(laterSpeech)) > average(bodyRadii(silentStart)));
 });
 
 check('High Contrast removes soft passes and thickens every reactive spoke', () => {
