@@ -34,6 +34,7 @@ await build({
 const {
   AURORA_ID,
   AURORA_LABEL,
+  AURORA_LANE_COUNT,
   AURORA_MAX_ELEMENTS,
   AURORA_MAX_PARTICLES,
   AURORA_MIN_PARTICLES,
@@ -62,6 +63,18 @@ const frame = {
   transient: false,
 };
 
+// Prototype methods keep gradient stubs deepEqual-comparable across context instances.
+class MockGradient {
+  constructor(args) {
+    this.args = args;
+    this.stops = [];
+  }
+
+  addColorStop(offset, color) {
+    this.stops.push([offset, color]);
+  }
+}
+
 function createContext() {
   const operations = [];
   const state = {};
@@ -69,6 +82,11 @@ function createContext() {
   let path = [];
   const ctx = {
     operations,
+    createLinearGradient(...args) {
+      const gradient = new MockGradient(args);
+      operations.push(['createLinearGradient', ...args]);
+      return gradient;
+    },
     save() { stack.push({ ...state }); operations.push(['save']); },
     restore() {
       const restored = stack.pop();
@@ -135,7 +153,15 @@ function paintOperations(operations) {
 function ribbonFills(operations) {
   return operations.filter(
     ([operation, , , , path]) => operation === 'fill'
-      && path?.filter(([pathOperation]) => pathOperation === 'bezierCurveTo').length === 2,
+      && path?.filter(([pathOperation]) => pathOperation === 'bezierCurveTo').length >= 2,
+  );
+}
+
+function ribbonPointBudget(operations) {
+  return ribbonFills(operations).reduce(
+    (sum, [, , , , path]) =>
+      sum + path.filter(([pathOperation]) => pathOperation === 'bezierCurveTo').length,
+    0,
   );
 }
 
@@ -170,23 +196,25 @@ check('definition is registered, audio-aware, layout-capable, and hard-capped', 
     AURORA_VISUAL_DEFINITION.create().supportedLayouts,
     ['linear', 'centered', 'radial'],
   );
-  assert.equal(AURORA_MAX_ELEMENTS, AURORA_MAX_PARTICLES * 2 + 3);
+  assert.equal(AURORA_MAX_ELEMENTS, AURORA_LANE_COUNT * 2 + 3);
   registerCoreOverlayVisuals();
   registerCoreOverlayVisuals();
   assert.equal(getAudioVisualDefinition('overlay', AURORA_ID), AURORA_VISUAL_DEFINITION);
 });
 
-check('density resolves only the documented 100–200 particle range', () => {
+check('density resolves only the documented 42–84 control-point range', () => {
   assert.equal(resolveAuroraParticleLimit(-2), AURORA_MIN_PARTICLES);
   assert.equal(resolveAuroraParticleLimit(2), AURORA_MAX_PARTICLES);
-  assert.equal(resolveAuroraParticleLimit(0.5), 150);
+  assert.equal(resolveAuroraParticleLimit(0.5), 63);
 });
 
 check('two instances render deterministic finite ribbons inside the element cap', () => {
   const first = renderAurora(AURORA_VISUAL_DEFINITION.create());
   const second = renderAurora(AURORA_VISUAL_DEFINITION.create());
   assert.deepEqual(first, second);
-  assert.ok(ribbonFills(first).length >= 34);
+  // One joined ribbon per populated lane (plus the source front stroke).
+  assert.ok(ribbonFills(first).length >= 4);
+  assert.ok(ribbonFills(first).length <= AURORA_LANE_COUNT);
   assert.equal(ribbonFills(first).length, ribbonStrokes(first).length - 1);
   assert.ok(first.flat(Infinity).filter((value) => typeof value === 'number').every(Number.isFinite));
   assert.ok(paintOperations(first).length <= AURORA_MAX_ELEMENTS);
@@ -216,7 +244,7 @@ check('capture silence stays empty while voice energy forms a layered curtain', 
   const quietOps = renderAurora(AURORA_VISUAL_DEFINITION.create(), quiet);
   const loudOps = renderAurora(AURORA_VISUAL_DEFINITION.create(), loud);
   assert.equal(paintOperations(quietOps).length, 0);
-  assert.ok(ribbonFills(loudOps).length > 60);
+  assert.ok(ribbonFills(loudOps).length >= 6);
   assert.ok(loudOps.some(([operation, value]) => operation === 'globalCompositeOperation' && value === 'lighter'));
 });
 
@@ -254,7 +282,8 @@ check('transients inject an immediate bounded set of sharp folds', () => {
     captureEnvironment,
     0.1,
   );
-  assert.ok(ribbonFills(transientOps).length > ribbonFills(steadyOps).length);
+  // Transient spawns add control points, so the joined ribbons carry more curve segments.
+  assert.ok(ribbonPointBudget(transientOps) > ribbonPointBudget(steadyOps));
   assert.ok(paintOperations(transientOps).length <= AURORA_MAX_ELEMENTS);
 });
 
@@ -294,7 +323,7 @@ check('reduced motion is one frozen audio-scaled curtain sculpture', () => {
   const first = renderAurora(visual, { ...frame, timeMs: 0 }, params, reduced, 0);
   const second = renderAurora(visual, { ...frame, timeMs: 9000 }, params, reduced, 0.1);
   assert.deepEqual(second, first);
-  assert.ok(ribbonFills(first).length > 20);
+  assert.ok(ribbonFills(first).length >= 6);
   assert.ok(paintOperations(first).length <= AURORA_MAX_ELEMENTS);
 });
 

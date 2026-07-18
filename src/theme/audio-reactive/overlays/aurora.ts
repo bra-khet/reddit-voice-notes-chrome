@@ -21,10 +21,15 @@ import {
 
 export const AURORA_ID = 'aurora' as const;
 export const AURORA_LABEL = 'Aurora' as const;
-export const AURORA_MIN_PARTICLES = 100;
-export const AURORA_MAX_PARTICLES = 200;
-/** Each shard has one translucent body and one luminous fold, plus three source accents. */
-export const AURORA_MAX_ELEMENTS = AURORA_MAX_PARTICLES * 2 + 3;
+export const AURORA_LANE_COUNT = 7;
+// BUG FIX: Aurora one-frame shards + UI sluggishness (QA §3f)
+// Fix: shards drawn per-particle (up to 200 fills+strokes per frame) read as disjoint pieces
+//      and dragged the frame budget. Particles are halved and now serve as control points for
+//      AURORA_LANE_COUNT connected ribbons, so the paint cost is per-lane, not per-particle.
+export const AURORA_MIN_PARTICLES = 42;
+export const AURORA_MAX_PARTICLES = 84;
+/** One ribbon body fill and one fold stroke per lane, plus the source front accents. */
+export const AURORA_MAX_ELEMENTS = AURORA_LANE_COUNT * 2 + 3;
 
 interface AuroraRibbonParticle extends BoundedParticle {
   index: number;
@@ -44,7 +49,8 @@ interface AuroraRibbonParticle extends BoundedParticle {
 }
 
 const AURORA_BAND_COUNT = 32;
-const AURORA_LANE_COUNT = 7;
+/** Sampled points along the linear emission front curve. */
+const AURORA_FRONT_SAMPLES = 16;
 const HIGH_CONTRAST_PALETTE = Object.freeze([
   '#00f5ff',
   '#39ff88',
@@ -93,8 +99,9 @@ function bandWeight(index: number, params: VisualizerParams): number {
 }
 
 /**
- * CHANGED: Aurora is a registry-native field of finite, flow-advected ribbon shards.
- * WHY: layered curtains need coherent audio-shaped folds without retained canvas pixels or RAF allocation.
+ * CHANGED: Aurora is a field of flow-advected control points joined into per-lane ribbons.
+ * WHY: audio-shaped curtains must read as coherent waves; disjoint one-frame shards read as
+ *      debris and cost a paint pass each (QA §3f).
  */
 class AuroraVisual implements AudioVisual {
   readonly id = AURORA_ID;
@@ -130,25 +137,15 @@ class AuroraVisual implements AudioVisual {
     speed: 0.46,
     seed: 83,
   };
-  private readonly reducedParticle: AuroraRibbonParticle = {
-    index: 0,
-    active: true,
-    age: 0.35,
-    lifetime: 1,
-    band: 0,
-    lane: 0,
-    x: 0,
-    y: 0,
-    previousX: 0,
-    previousY: 0,
-    vx: 0,
-    vy: -1,
-    width: 1,
-    phase: 0,
-    depth: 1,
-    colorPosition: 0,
-    sourceDrive: 0,
-  };
+  /** Per-lane member slots (fixed stride) plus reusable path point buffers. */
+  private readonly laneMembers = new Int16Array(AURORA_LANE_COUNT * AURORA_MAX_PARTICLES);
+  private readonly laneCounts = new Int16Array(AURORA_LANE_COUNT);
+  private readonly pathX = new Float32Array(AURORA_MAX_PARTICLES);
+  private readonly pathY = new Float32Array(AURORA_MAX_PARTICLES);
+  private readonly pathWidth = new Float32Array(AURORA_MAX_PARTICLES);
+  private readonly pathFold = new Float32Array(AURORA_MAX_PARTICLES);
+  private readonly normalX = new Float32Array(AURORA_MAX_PARTICLES);
+  private readonly normalY = new Float32Array(AURORA_MAX_PARTICLES);
 
   private canvasWidth = 0;
   private canvasHeight = 0;
@@ -171,7 +168,6 @@ class AuroraVisual implements AudioVisual {
     const band = serial % AURORA_BAND_COUNT;
     const lane = serial % AURORA_LANE_COUNT;
     const texture = seededUnit(serial, 3);
-    const side = serial % 2 === 0 ? -1 : 1;
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
     const sourceDrive = this.bandDrives[band] ?? 0;
 
@@ -193,9 +189,12 @@ class AuroraVisual implements AudioVisual {
       const speed = 19 + sourceDrive * 38 + particle.depth * 13;
       particle.x = this.canvasWidth / 2 + Math.cos(angle) * radius;
       particle.y = this.canvasHeight / 2 + Math.sin(angle) * radius;
-      particle.vx = Math.cos(angle) * speed - Math.sin(angle) * side * 7;
-      particle.vy = Math.sin(angle) * speed + Math.cos(angle) * side * 7;
+      particle.vx = Math.cos(angle) * speed - Math.sin(angle) * 7;
+      particle.vy = Math.sin(angle) * speed + Math.cos(angle) * 7;
     } else if (this.layout === 'centered') {
+      // CHANGED: centered lanes keep one side each (even left, odd right).
+      // WHY: a joined lane ribbon must not zigzag between opposite screen edges.
+      const side = lane % 2 === 0 ? -1 : 1;
       const verticalUnit = (Math.floor(band / 2) + 0.5) / (AURORA_BAND_COUNT / 2);
       particle.x = side < 0 ? this.canvasWidth * 0.08 : this.canvasWidth * 0.92;
       particle.y = this.canvasHeight * (0.2 + verticalUnit * 0.65)
@@ -264,7 +263,7 @@ class AuroraVisual implements AudioVisual {
     }
 
     if (this.emitter.activeCount === 0 && this.drive > 0.012) {
-      const primeCount = Math.min(particleLimit, Math.round(34 + this.drive * 54));
+      const primeCount = Math.min(particleLimit, Math.round(18 + this.drive * 30));
       this.priming = true;
       for (let index = 0; index < primeCount; index += 1) {
         this.emitter.emit(this.initializeParticle);
@@ -326,24 +325,24 @@ class AuroraVisual implements AudioVisual {
     particleLimit: number,
     environment: AudioVisualRenderEnvironment | undefined,
   ): void {
-    const previewMinimum = environment?.amplitudeMode === 'preview' ? 18 : 0;
+    const previewMinimum = environment?.amplitudeMode === 'preview' ? 8 : 0;
+    // CHANGED: emission rates track the halved control-point pool.
+    // WHY: ribbons need enough points per lane for a smooth curve, not a dense particle field.
     const rate = this.drive <= 0.01
       ? previewMinimum
-      : 24 + this.drive * (44 + clamp01(params.density) * 76);
+      : 10 + this.drive * (18 + clamp01(params.density) * 30);
     this.emissionCarry += rate * this.pendingDt;
     if (frame.transient) {
-      // CHANGED: transients inject bright folds into the existing bounded curtain pool.
-      // WHY: consonants and beats should visibly crease Aurora without a second burst system.
-      this.emissionCarry += 10 + Math.round(this.trebleDrive * 8);
+      this.emissionCarry += 6 + Math.round(this.trebleDrive * 5);
     }
 
     let emitted = 0;
-    while (this.emissionCarry >= 1 && emitted < 20 && this.emitter.activeCount < particleLimit) {
+    while (this.emissionCarry >= 1 && emitted < 10 && this.emitter.activeCount < particleLimit) {
       this.emitter.emit(this.initializeParticle);
       this.emissionCarry -= 1;
       emitted += 1;
     }
-    this.emissionCarry = Math.min(this.emissionCarry, 20);
+    this.emissionCarry = Math.min(this.emissionCarry, 10);
   }
 
   private advanceParticles(
@@ -364,7 +363,9 @@ class AuroraVisual implements AudioVisual {
       particle.previousY = particle.y;
       const normalizedX = particle.x / this.canvasWidth * 2 - 1;
       const normalizedY = particle.y / this.canvasHeight * 2 - 1;
-      this.flowOptions.seed = 83 + particle.lane * 2.71 + particle.depth * 0.4;
+      // CHANGED: every point in a lane samples the exact same flow layer.
+      // WHY: shared gusts are what bind a lane's control points into one wave.
+      this.flowOptions.seed = 83 + particle.lane * 2.71;
       const flow = sampleLayeredVectorFlowField(
         normalizedX,
         normalizedY,
@@ -408,10 +409,172 @@ class AuroraVisual implements AudioVisual {
     ctx.save();
     this.drawSourceGlow(ctx, canvas, palette, params.highContrast === true);
     ctx.globalCompositeOperation = params.highContrast ? 'source-over' : 'lighter';
-    for (const particle of this.emitter.particles) {
-      if (particle.active) this.drawRibbonShard(ctx, particle, params, palette);
+    this.collectLanes();
+    for (let lane = 0; lane < AURORA_LANE_COUNT; lane += 1) {
+      this.drawLaneRibbon(ctx, lane, params, palette);
     }
     ctx.restore();
+  }
+
+  /** Bucket active particles per lane, ordered along the lane's travel axis. */
+  private collectLanes(): void {
+    this.laneCounts.fill(0);
+    const centerX = this.canvasWidth / 2;
+    const centerY = this.canvasHeight / 2;
+    for (const particle of this.emitter.particles) {
+      if (!particle.active) continue;
+      const lane = particle.lane;
+      const key = this.layout === 'radial'
+        ? Math.atan2(particle.y - centerY, particle.x - centerX)
+        : this.layout === 'centered'
+          ? particle.y
+          : particle.x;
+      this.insertLaneMember(lane, particle.index, key);
+    }
+  }
+
+  private insertLaneMember(lane: number, particleIndex: number, key: number): void {
+    const stride = lane * AURORA_MAX_PARTICLES;
+    const count = this.laneCounts[lane] ?? 0;
+    let position = count;
+    // Insertion sort on the small per-lane slice keeps ordering allocation-free.
+    while (position > 0) {
+      const existing = this.laneMembers[stride + position - 1] ?? 0;
+      const existingKey = this.sortKeyOf(existing);
+      if (existingKey <= key) break;
+      this.laneMembers[stride + position] = existing;
+      position -= 1;
+    }
+    this.laneMembers[stride + position] = particleIndex;
+    this.laneCounts[lane] = count + 1;
+  }
+
+  private sortKeyOf(particleIndex: number): number {
+    const particle = this.emitter.particles[particleIndex];
+    if (!particle) return 0;
+    if (this.layout === 'radial') {
+      return Math.atan2(
+        particle.y - this.canvasHeight / 2,
+        particle.x - this.canvasWidth / 2,
+      );
+    }
+    return this.layout === 'centered' ? particle.y : particle.x;
+  }
+
+  private drawLaneRibbon(
+    ctx: CanvasRenderingContext2D,
+    lane: number,
+    params: VisualizerParams,
+    palette: readonly string[],
+  ): void {
+    const count = this.laneCounts[lane] ?? 0;
+    if (count < 3) return;
+    const stride = lane * AURORA_MAX_PARTICLES;
+    let laneEnergy = 0;
+    for (let index = 0; index < count; index += 1) {
+      const particle = this.emitter.particles[this.laneMembers[stride + index] ?? 0];
+      if (!particle) return;
+      const life = clamp01(particle.age / particle.lifetime);
+      const envelope = Math.sin(life * Math.PI) ** 0.72;
+      this.pathX[index] = particle.x;
+      this.pathY[index] = particle.y;
+      this.pathWidth[index] = particle.width * (0.35 + envelope * 0.9);
+      this.pathFold[index] = Math.sin(particle.phase + life * 13)
+        * particle.width * 0.42 * envelope;
+      laneEnergy += particle.sourceDrive * envelope;
+    }
+    laneEnergy /= count;
+
+    const highContrast = params.highContrast === true;
+    const intensity = 0.34 + clamp01(params.intensity) * 0.66;
+    const bodyColor = paletteColorAt(
+      palette,
+      clamp01(lane / Math.max(1, AURORA_LANE_COUNT - 1) * 0.85 + laneEnergy * 0.15),
+    );
+    const foldColor = paletteColorAt(
+      palette,
+      clamp01(lane / Math.max(1, AURORA_LANE_COUNT - 1) + 0.18 + laneEnergy * 0.22),
+    );
+
+    this.traceRibbonBand(ctx, count);
+    ctx.fillStyle = colorWithAlpha(
+      bodyColor,
+      intensity * (highContrast ? 0.6 : 0.14 + laneEnergy * 0.2),
+    );
+    ctx.shadowColor = bodyColor;
+    ctx.shadowBlur = highContrast ? 0 : 7 + laneEnergy * 8;
+    ctx.fill();
+
+    this.traceRibbonSpine(ctx, count);
+    ctx.strokeStyle = colorWithAlpha(
+      highContrast ? '#ffffff' : foldColor,
+      highContrast ? 0.9 : 0.3 + laneEnergy * 0.45,
+    );
+    ctx.lineWidth = Math.max(0.7, (this.pathWidth[Math.floor(count / 2)] ?? 1) * 0.14);
+    ctx.shadowBlur = highContrast ? 0 : 3 + this.trebleDrive * 6;
+    ctx.shadowColor = foldColor;
+    ctx.stroke();
+  }
+
+  /** Closed variable-width band through the ordered lane points (Catmull-Rom smoothed). */
+  private traceRibbonBand(ctx: CanvasRenderingContext2D, count: number): void {
+    for (let index = 0; index < count; index += 1) {
+      const previous = Math.max(0, index - 1);
+      const next = Math.min(count - 1, index + 1);
+      const dx = (this.pathX[next] ?? 0) - (this.pathX[previous] ?? 0);
+      const dy = (this.pathY[next] ?? 0) - (this.pathY[previous] ?? 0);
+      const length = Math.max(1e-4, Math.hypot(dx, dy));
+      this.normalX[index] = -dy / length;
+      this.normalY[index] = dx / length;
+    }
+    const topX = (index: number): number =>
+      (this.pathX[index] ?? 0) + (this.normalX[index] ?? 0) * (this.pathWidth[index] ?? 0);
+    const topY = (index: number): number =>
+      (this.pathY[index] ?? 0) + (this.normalY[index] ?? 0) * (this.pathWidth[index] ?? 0);
+    const bottomX = (index: number): number =>
+      (this.pathX[index] ?? 0) - (this.normalX[index] ?? 0) * (this.pathWidth[index] ?? 0);
+    const bottomY = (index: number): number =>
+      (this.pathY[index] ?? 0) - (this.normalY[index] ?? 0) * (this.pathWidth[index] ?? 0);
+
+    ctx.beginPath();
+    ctx.moveTo(topX(0), topY(0));
+    this.catmullTo(ctx, topX, topY, count, false);
+    ctx.lineTo(bottomX(count - 1), bottomY(count - 1));
+    this.catmullTo(ctx, bottomX, bottomY, count, true);
+    ctx.closePath();
+  }
+
+  /** Luminous fold line traced along the lane spine with per-point fold displacement. */
+  private traceRibbonSpine(ctx: CanvasRenderingContext2D, count: number): void {
+    const spineX = (index: number): number => (this.pathX[index] ?? 0);
+    const spineY = (index: number): number => (this.pathY[index] ?? 0) + (this.pathFold[index] ?? 0);
+    ctx.beginPath();
+    ctx.moveTo(spineX(0), spineY(0));
+    this.catmullTo(ctx, spineX, spineY, count, false);
+  }
+
+  private catmullTo(
+    ctx: CanvasRenderingContext2D,
+    xAt: (index: number) => number,
+    yAt: (index: number) => number,
+    count: number,
+    reverse: boolean,
+  ): void {
+    const at = (index: number): number => {
+      const clamped = Math.min(count - 1, Math.max(0, index));
+      return reverse ? count - 1 - clamped : clamped;
+    };
+    for (let step = 0; step < count - 1; step += 1) {
+      const i0 = at(step - 1);
+      const i1 = at(step);
+      const i2 = at(step + 1);
+      const i3 = at(step + 2);
+      ctx.bezierCurveTo(
+        xAt(i1) + (xAt(i2) - xAt(i0)) / 6, yAt(i1) + (yAt(i2) - yAt(i0)) / 6,
+        xAt(i2) - (xAt(i3) - xAt(i1)) / 6, yAt(i2) - (yAt(i3) - yAt(i1)) / 6,
+        xAt(i2), yAt(i2),
+      );
+    }
   }
 
   private drawSourceGlow(
@@ -421,128 +584,76 @@ class AuroraVisual implements AudioVisual {
     highContrast: boolean,
   ): void {
     const color = paletteColorAt(palette, 0.55 + this.trebleDrive * 0.35);
-    ctx.shadowBlur = highContrast ? 0 : 9 + this.drive * 14;
+    const peakAlpha = highContrast ? 0.86 : 0.16 + this.drive * 0.2;
+    ctx.shadowBlur = highContrast ? 0 : 8 + this.drive * 10;
     ctx.shadowColor = color;
-    ctx.strokeStyle = colorWithAlpha(color, highContrast ? 0.86 : 0.2 + this.drive * 0.24);
-    ctx.lineWidth = highContrast ? 1.8 : 1 + this.drive * 1.2;
+    ctx.lineWidth = highContrast ? 1.8 : 2.4 + this.drive * 3.2;
     ctx.beginPath();
     if (this.layout === 'radial') {
       const radius = Math.min(canvas.width, canvas.height) * (0.17 + this.bassDrive * 0.095);
       ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
+      ctx.strokeStyle = colorWithAlpha(color, peakAlpha);
     } else if (this.layout === 'centered') {
       ctx.moveTo(canvas.width * 0.08, canvas.height * 0.2);
       ctx.lineTo(canvas.width * 0.08, canvas.height * 0.85);
       ctx.moveTo(canvas.width * 0.92, canvas.height * 0.2);
       ctx.lineTo(canvas.width * 0.92, canvas.height * 0.85);
+      // CHANGED: the vertical bounding lines fade out toward both ends (QA §3 general note).
+      ctx.strokeStyle = highContrast
+        ? colorWithAlpha(color, peakAlpha)
+        : this.taperGradient(ctx, 0, canvas.height * 0.2, 0, canvas.height * 0.85, color, peakAlpha);
     } else {
-      ctx.moveTo(canvas.width * 0.055, canvas.height * (0.89 - this.bassDrive * 0.17));
-      ctx.bezierCurveTo(
-        canvas.width * 0.3,
-        canvas.height * (0.91 - this.midDrive * 0.22),
-        canvas.width * 0.7,
-        canvas.height * (0.87 - this.trebleDrive * 0.19),
-        canvas.width * 0.945,
-        canvas.height * (0.89 - this.bassDrive * 0.17),
-      );
+      // BUG FIX: Aurora "thin bow line" hovering near the bottom (QA §3f)
+      // Fix: the decorative three-point bezier ran independently of where ribbons spawn.
+      //      The front now traces the actual per-band emission envelope (the same
+      //      0.89 - drive * 0.31 curve initializeParticle uses), widened into a soft
+      //      end-tapered glow, so ribbon roots visibly grow out of it.
+      const xAt = (index: number): number => {
+        const unit = (Math.min(AURORA_FRONT_SAMPLES - 1, Math.max(0, index)) + 0.5)
+          / AURORA_FRONT_SAMPLES;
+        return canvas.width * (0.055 + unit * 0.89);
+      };
+      const yAt = (index: number): number => {
+        const clamped = Math.min(AURORA_FRONT_SAMPLES - 1, Math.max(0, index));
+        const band = Math.min(
+          AURORA_BAND_COUNT - 1,
+          Math.round((clamped + 0.5) / AURORA_FRONT_SAMPLES * (AURORA_BAND_COUNT - 1)),
+        );
+        return canvas.height * 0.89 - (this.bandDrives[band] ?? 0) * canvas.height * 0.31;
+      };
+      ctx.moveTo(xAt(0), yAt(0));
+      for (let index = 0; index < AURORA_FRONT_SAMPLES - 1; index += 1) {
+        ctx.bezierCurveTo(
+          xAt(index) + (xAt(index + 1) - xAt(index - 1)) / 6,
+          yAt(index) + (yAt(index + 1) - yAt(index - 1)) / 6,
+          xAt(index + 1) - (xAt(index + 2) - xAt(index)) / 6,
+          yAt(index + 1) - (yAt(index + 2) - yAt(index)) / 6,
+          xAt(index + 1),
+          yAt(index + 1),
+        );
+      }
+      ctx.strokeStyle = highContrast
+        ? colorWithAlpha(color, peakAlpha)
+        : this.taperGradient(ctx, canvas.width * 0.055, 0, canvas.width * 0.945, 0, color, peakAlpha);
     }
     ctx.stroke();
   }
 
-  private drawRibbonShard(
+  private taperGradient(
     ctx: CanvasRenderingContext2D,
-    particle: AuroraRibbonParticle,
-    params: VisualizerParams,
-    palette: readonly string[],
-  ): void {
-    const life = clamp01(particle.age / particle.lifetime);
-    const envelope = Math.sin(life * Math.PI) ** 0.72;
-    const intensity = 0.34 + clamp01(params.intensity) * 0.66;
-    const bodyColor = paletteColorAt(palette, particle.colorPosition);
-    const foldColor = paletteColorAt(
-      palette,
-      clamp01(particle.colorPosition + 0.18 + particle.sourceDrive * 0.22),
-    );
-
-    this.traceRibbonShard(ctx, particle, 1);
-    ctx.fillStyle = colorWithAlpha(
-      bodyColor,
-      envelope * intensity * (params.highContrast ? 0.64 : 0.13 + particle.depth * 0.16),
-    );
-    ctx.shadowColor = bodyColor;
-    ctx.shadowBlur = params.highContrast ? 0 : 5 + particle.depth * 9;
-    ctx.fill();
-
-    this.traceRibbonFold(ctx, particle);
-    ctx.strokeStyle = colorWithAlpha(
-      params.highContrast ? '#ffffff' : foldColor,
-      envelope * (params.highContrast ? 0.9 : 0.28 + particle.sourceDrive * 0.48),
-    );
-    ctx.lineWidth = Math.max(0.7, particle.width * (params.highContrast ? 0.16 : 0.1));
-    ctx.shadowBlur = params.highContrast ? 0 : 3 + this.trebleDrive * 7;
-    ctx.shadowColor = foldColor;
-    ctx.stroke();
-  }
-
-  private traceRibbonShard(
-    ctx: CanvasRenderingContext2D,
-    particle: AuroraRibbonParticle,
-    scale: number,
-  ): void {
-    const dx = particle.x - particle.previousX;
-    const dy = particle.y - particle.previousY;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const normalX = -dy / length;
-    const normalY = dx / length;
-    const life = clamp01(particle.age / particle.lifetime);
-    const width = particle.width * scale * (0.48 + Math.sin(life * Math.PI) * 1.3);
-    const fold = Math.sin(particle.phase + life * 13) * width * 0.7;
-    const headX = particle.x + normalX * fold;
-    const headY = particle.y + normalY * fold;
-    const tailX = particle.previousX - particle.vx * 0.045;
-    const tailY = particle.previousY - particle.vy * 0.045;
-
-    ctx.beginPath();
-    ctx.moveTo(tailX - normalX * width * 0.45, tailY - normalY * width * 0.45);
-    ctx.bezierCurveTo(
-      particle.previousX - normalX * width,
-      particle.previousY - normalY * width,
-      headX - normalX * width * 0.65,
-      headY - normalY * width * 0.65,
-      headX,
-      headY,
-    );
-    ctx.bezierCurveTo(
-      headX + normalX * width * 0.65,
-      headY + normalY * width * 0.65,
-      particle.previousX + normalX * width,
-      particle.previousY + normalY * width,
-      tailX + normalX * width * 0.45,
-      tailY + normalY * width * 0.45,
-    );
-    ctx.closePath();
-  }
-
-  private traceRibbonFold(
-    ctx: CanvasRenderingContext2D,
-    particle: AuroraRibbonParticle,
-  ): void {
-    const dx = particle.x - particle.previousX;
-    const dy = particle.y - particle.previousY;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const normalX = -dy / length;
-    const normalY = dx / length;
-    const life = clamp01(particle.age / particle.lifetime);
-    const fold = Math.sin(particle.phase + life * 13) * particle.width * 0.42;
-    ctx.beginPath();
-    ctx.moveTo(particle.previousX, particle.previousY);
-    ctx.bezierCurveTo(
-      particle.previousX + normalX * fold,
-      particle.previousY + normalY * fold,
-      particle.x + normalX * fold,
-      particle.y + normalY * fold,
-      particle.x,
-      particle.y,
-    );
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    color: string,
+    peakAlpha: number,
+  ): CanvasGradient {
+    const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+    gradient.addColorStop(0, colorWithAlpha(color, 0));
+    gradient.addColorStop(0.14, colorWithAlpha(color, peakAlpha));
+    gradient.addColorStop(0.86, colorWithAlpha(color, peakAlpha));
+    gradient.addColorStop(1, colorWithAlpha(color, 0));
+    return gradient;
   }
 
   private drawReducedMotion(
@@ -555,50 +666,66 @@ class AuroraVisual implements AudioVisual {
     ctx.save();
     this.drawSourceGlow(ctx, canvas, palette, params.highContrast === true);
     ctx.globalCompositeOperation = params.highContrast ? 'source-over' : 'lighter';
-    const count = Math.min(
-      resolveAuroraParticleLimit(params.density),
-      Math.round(28 + this.drive * 38),
-    );
     const minDimension = Math.max(24, Math.min(canvas.width, canvas.height));
-    for (let index = 0; index < count; index += 1) {
-      const particle = this.reducedParticle;
-      const band = index % AURORA_BAND_COUNT;
-      const unit = (band + 0.5) / AURORA_BAND_COUNT;
-      const sourceDrive = this.bandDrives[band] ?? 0;
-      const texture = seededUnit(index, 41);
-      particle.index = index;
-      particle.band = band;
-      particle.lane = index % AURORA_LANE_COUNT;
-      particle.phase = seededUnit(index, 43) * Math.PI * 2;
-      particle.depth = 0.5 + texture * 0.5;
-      particle.colorPosition = particle.lane / Math.max(1, AURORA_LANE_COUNT - 1);
-      particle.sourceDrive = sourceDrive;
-      particle.width = minDimension * (0.01 + texture * 0.012);
-      particle.age = 0.28 + texture * 0.34;
-      particle.lifetime = 1;
-      if (this.layout === 'radial') {
-        const angle = unit * Math.PI * 2;
-        const sourceRadius = minDimension * (0.17 + sourceDrive * 0.095);
-        const outerRadius = sourceRadius + minDimension * (0.08 + texture * 0.17);
-        particle.previousX = canvas.width / 2 + Math.cos(angle) * sourceRadius;
-        particle.previousY = canvas.height / 2 + Math.sin(angle) * sourceRadius;
-        particle.x = canvas.width / 2 + Math.cos(angle + (texture - 0.5) * 0.18) * outerRadius;
-        particle.y = canvas.height / 2 + Math.sin(angle + (texture - 0.5) * 0.18) * outerRadius;
-      } else if (this.layout === 'centered') {
-        const side = index % 2 === 0 ? -1 : 1;
-        particle.previousX = side < 0 ? canvas.width * 0.08 : canvas.width * 0.92;
-        particle.previousY = canvas.height * (0.2 + unit * 0.65);
-        particle.x = particle.previousX - side * canvas.width * (0.08 + texture * 0.17);
-        particle.y = particle.previousY - minDimension * (0.05 + sourceDrive * 0.11);
-      } else {
-        particle.previousX = canvas.width * (0.055 + unit * 0.89);
-        particle.previousY = canvas.height * 0.89 - sourceDrive * canvas.height * 0.31;
-        particle.x = particle.previousX + (texture - 0.5) * minDimension * 0.11;
-        particle.y = particle.previousY - minDimension * (0.08 + texture * 0.19);
+    const pointCount = 9;
+    for (let lane = 0; lane < AURORA_LANE_COUNT; lane += 1) {
+      let laneEnergy = 0;
+      for (let index = 0; index < pointCount; index += 1) {
+        const unit = (index + 0.5) / pointCount;
+        const band = Math.min(
+          AURORA_BAND_COUNT - 1,
+          Math.round(unit * (AURORA_BAND_COUNT - 1)),
+        );
+        const sourceDrive = this.bandDrives[band] ?? 0;
+        const texture = seededUnit(lane * pointCount + index, 41);
+        laneEnergy += sourceDrive;
+        if (this.layout === 'radial') {
+          const angle = unit * Math.PI * 1.72 + lane * 0.24;
+          const radius = minDimension
+            * (0.19 + lane * 0.028 + sourceDrive * 0.08 + (texture - 0.5) * 0.02);
+          this.pathX[index] = canvas.width / 2 + Math.cos(angle) * radius;
+          this.pathY[index] = canvas.height / 2 + Math.sin(angle) * radius;
+        } else if (this.layout === 'centered') {
+          const side = lane % 2 === 0 ? -1 : 1;
+          const edgeX = side < 0 ? canvas.width * 0.08 : canvas.width * 0.92;
+          this.pathX[index] = edgeX - side * canvas.width
+            * (0.03 + Math.floor(lane / 2) * 0.05 + sourceDrive * 0.1);
+          this.pathY[index] = canvas.height * (0.2 + unit * 0.65)
+            - sourceDrive * minDimension * 0.06;
+        } else {
+          this.pathX[index] = canvas.width * (0.055 + unit * 0.89);
+          this.pathY[index] = canvas.height * 0.89
+            - sourceDrive * canvas.height * 0.31
+            - minDimension * (0.05 + lane * 0.042 + (texture - 0.5) * 0.02);
+        }
+        this.pathWidth[index] = minDimension * (0.008 + texture * 0.01)
+          * (0.7 + sourceDrive * 0.7);
+        this.pathFold[index] = (texture - 0.5) * minDimension * 0.012;
       }
-      particle.vx = particle.x - particle.previousX;
-      particle.vy = particle.y - particle.previousY;
-      this.drawRibbonShard(ctx, particle, params, palette);
+      laneEnergy /= pointCount;
+
+      const highContrast = params.highContrast === true;
+      const bodyColor = paletteColorAt(
+        palette,
+        clamp01(lane / Math.max(1, AURORA_LANE_COUNT - 1) * 0.85 + laneEnergy * 0.15),
+      );
+      this.traceRibbonBand(ctx, pointCount);
+      ctx.fillStyle = colorWithAlpha(
+        bodyColor,
+        (0.34 + clamp01(params.intensity) * 0.66) * (highContrast ? 0.6 : 0.14 + laneEnergy * 0.2),
+      );
+      ctx.shadowColor = bodyColor;
+      ctx.shadowBlur = highContrast ? 0 : 6;
+      ctx.fill();
+      this.traceRibbonSpine(ctx, pointCount);
+      ctx.strokeStyle = colorWithAlpha(
+        highContrast ? '#ffffff' : bodyColor,
+        highContrast ? 0.9 : 0.3 + laneEnergy * 0.4,
+      );
+      ctx.lineWidth = Math.max(0.7, (this.pathWidth[4] ?? 1) * 0.14);
+      ctx.shadowBlur = highContrast ? 0 : 3;
+      ctx.shadowColor = bodyColor;
+      ctx.stroke();
     }
     ctx.restore();
   }
