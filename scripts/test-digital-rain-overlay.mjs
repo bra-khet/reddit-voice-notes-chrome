@@ -40,6 +40,7 @@ const {
   DIGITAL_RAIN_MAX_ELEMENTS,
   DIGITAL_RAIN_MAX_GLYPHS,
   DIGITAL_RAIN_MAX_ROWS,
+  DIGITAL_RAIN_MAX_TRAIL_CELLS,
   DIGITAL_RAIN_MIN_COLUMNS,
   DIGITAL_RAIN_MIN_ROWS,
   DIGITAL_RAIN_VISUAL_DEFINITION,
@@ -67,12 +68,29 @@ const frame = {
   transient: false,
 };
 
+// Prototype methods keep gradient stubs deepEqual-comparable across context instances.
+class MockGradient {
+  constructor(args) {
+    this.args = args;
+    this.stops = [];
+  }
+
+  addColorStop(offset, color) {
+    this.stops.push([offset, color]);
+  }
+}
+
 function createContext() {
   const operations = [];
   const state = {};
   const stack = [];
   const ctx = {
     operations,
+    createLinearGradient(...args) {
+      const gradient = new MockGradient(args);
+      operations.push(['createLinearGradient', ...args]);
+      return gradient;
+    },
     save() { stack.push({ ...state }); operations.push(['save']); },
     restore() {
       const restored = stack.pop();
@@ -153,7 +171,10 @@ check('definition is registered, audio-aware, layout-capable, and hard-capped', 
     DIGITAL_RAIN_VISUAL_DEFINITION.create().supportedLayouts,
     ['linear', 'centered', 'radial'],
   );
-  assert.equal(DIGITAL_RAIN_MAX_ELEMENTS, DIGITAL_RAIN_MAX_GLYPHS + 1);
+  assert.equal(
+    DIGITAL_RAIN_MAX_ELEMENTS,
+    DIGITAL_RAIN_MAX_COLUMNS * DIGITAL_RAIN_MAX_TRAIL_CELLS + 1,
+  );
   registerCoreOverlayVisuals();
   registerCoreOverlayVisuals();
   assert.equal(getAudioVisualDefinition('overlay', DIGITAL_RAIN_ID), DIGITAL_RAIN_VISUAL_DEFINITION);
@@ -302,6 +323,43 @@ check('synthetic preview evolves deterministically without changing the capture 
   }
   assert.deepEqual(firstOps, secondOps);
   assert.notDeepEqual(glyphOps(firstOps), glyphOps(initial));
+});
+
+check('lanes stay desynchronized with mostly-stable trail glyph identity', () => {
+  const visual = DIGITAL_RAIN_VISUAL_DEFINITION.create();
+  const loud = { ...frame, energy: 0.8, bands: Array(32).fill(0.8) };
+  renderRain(visual, loud);
+  let previousIdentity = null;
+  let sharedRatioTotal = 0;
+  let samples = 0;
+  const perColumnCounts = new Map();
+  for (let step = 1; step <= 12; step += 1) {
+    const ops = renderRain(
+      visual,
+      { ...loud, timeMs: 1000 + step * 100 },
+      params,
+      captureEnvironment,
+      0.1,
+    );
+    const glyphs = glyphOps(ops);
+    const identity = new Set(glyphs.map(([, glyph, x, y]) => `${glyph}@${x},${y}`));
+    if (previousIdentity) {
+      let shared = 0;
+      for (const key of identity) if (previousIdentity.has(key)) shared += 1;
+      sharedRatioTotal += shared / Math.max(1, identity.size);
+      samples += 1;
+    }
+    previousIdentity = identity;
+    perColumnCounts.clear();
+    for (const [, , x] of glyphs) perColumnCounts.set(x, (perColumnCounts.get(x) ?? 0) + 1);
+    for (const count of perColumnCounts.values()) {
+      assert.ok(count <= DIGITAL_RAIN_MAX_TRAIL_CELLS);
+    }
+  }
+  // Desync: simultaneous lit-run lengths differ across columns (no global stepping).
+  assert.ok(new Set(perColumnCounts.values()).size >= 3);
+  // Encoder friendliness: most glyph cells persist frame-to-frame (no full-lattice strobe).
+  assert.ok(sharedRatioTotal / Math.max(1, samples) > 0.5);
 });
 
 check('High Contrast removes glow and reduced motion freezes glyph identity and geometry', () => {
