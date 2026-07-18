@@ -51,7 +51,14 @@ function resolveTargetEnergy(
 ): number {
   const sensitivity = 0.62 + clamp01(params.sensitivity) * 0.98;
   if (environment.reduceMotion) {
-    return Math.pow(clamp01(frame.energy * sensitivity * 2), 0.68);
+    // CHANGED: reduced motion blends the (reversal-invariant) whole-spectrum average
+    //          into the energy so the orb visibly follows the voice (QA §7b).
+    let bandSum = 0;
+    for (let index = 0; index < frame.bands.length; index += 1) {
+      bandSum += clamp01(frame.bands[index] ?? 0);
+    }
+    const bandAverage = bandSum / Math.max(1, frame.bands.length);
+    return Math.pow(clamp01((frame.energy * 0.7 + bandAverage * 0.5) * sensitivity * 2), 0.68);
   }
 
   let spectralSum = 0;
@@ -86,14 +93,19 @@ interface ContourGeometry {
   complexity: number;
   speed: number;
   seed: number;
+  /** Optional extra radial offset per contour point (e.g. mirrored band deformation). */
+  radialOffsetAt?: (index: number, pointCount: number) => number;
 }
 
 function traceContour(ctx: CanvasRenderingContext2D, geometry: ContourGeometry): void {
   ctx.beginPath();
   for (let index = 0; index < geometry.pointCount; index += 1) {
     const angle = -Math.PI / 2 + index * Math.PI * 2 / geometry.pointCount;
+    // CHANGED: the noise field is sampled with the horizontal coordinate folded (|cos|).
+    // WHY: bilaterally mirrored deformation reads as one organism swelling, not a
+    //      lopsided blob — QA asked for "somewhat symmetrical" organic deformation (§2e).
     const field = sampleLayeredFlowField(
-      Math.cos(angle),
+      Math.abs(Math.cos(angle)),
       Math.sin(angle),
       geometry.timeSeconds,
       {
@@ -102,13 +114,14 @@ function traceContour(ctx: CanvasRenderingContext2D, geometry: ContourGeometry):
         seed: geometry.seed,
       },
     );
+    const extra = geometry.radialOffsetAt?.(index, geometry.pointCount) ?? 0;
     const point = mapCenteredContourPoint(
       index,
       geometry.pointCount,
       geometry.centerX,
       geometry.centerY,
       geometry.radius,
-      field * geometry.displacement,
+      field * geometry.displacement + extra,
     );
     if (index === 0) ctx.moveTo(point.x, point.y);
     else ctx.lineTo(point.x, point.y);
@@ -143,14 +156,17 @@ class CentralPulseVisual implements AudioVisual {
 
     const targetEnergy = resolveTargetEnergy(frame, params, environment);
     const afterimageStrength = clamp01(params.afterimageStrength ?? 0);
-    if (!this.initialized) {
+    if (!this.initialized || environment.reduceMotion) {
+      // BUG FIX: Central Pulse zero reactivity under reduced motion (QA §7b)
+      // Fix: the energy envelope only advances when update() supplies dt, which the
+      //      reduced-motion path never does — the orb froze at its initial energy.
+      //      Reduced motion now paints the calm target directly each frame.
       this.displayedEnergy = targetEnergy;
       this.echoEnergies.fill(targetEnergy);
       this.initialized = true;
     } else {
-      const responseTime = environment.reduceMotion
-        ? 0.38
-        : targetEnergy >= this.displayedEnergy ? 0.07 : 0.24;
+      // CHANGED: snappier attack (0.07 → 0.05 s) for more exaggerated speech response (§2e).
+      const responseTime = targetEnergy >= this.displayedEnergy ? 0.05 : 0.24;
       const follow = this.elapsedSeconds > 0
         ? 1 - Math.exp(-this.elapsedSeconds / responseTime)
         : 0;
@@ -185,9 +201,11 @@ class CentralPulseVisual implements AudioVisual {
     const pulse = environment.reduceMotion
       ? 0
       : Math.sin(timeSeconds * pulseSpeed * Math.PI * 2) * this.displayedEnergy;
+    // CHANGED: the energy-driven radius share grew (0.025-0.065 → 0.045-0.105 of minDim).
+    // WHY: QA asked for more exaggerated, balanced reactivity from the orb (§2e).
     const radius = minDimension * (
       0.135
-      + this.displayedEnergy * (0.025 + clamp01(params.intensity) * 0.04)
+      + this.displayedEnergy * (0.045 + clamp01(params.intensity) * 0.06)
       + pulse * (0.006 + clamp01(params.intensity) * 0.012)
     );
     const displacement = minDimension
@@ -213,7 +231,7 @@ class CentralPulseVisual implements AudioVisual {
       const echoEnergy = clamp01(this.echoEnergies[echoIndex] ?? 0);
       const echoRadius = minDimension * (
         0.135
-        + echoEnergy * (0.025 + clamp01(params.intensity) * 0.04)
+        + echoEnergy * (0.045 + clamp01(params.intensity) * 0.06)
       ) + (echoIndex + 1) * (2.5 + afterimageStrength * 4);
       traceContour(ctx, {
         centerX: origin.x,
@@ -234,6 +252,24 @@ class CentralPulseVisual implements AudioVisual {
       ctx.stroke();
     }
 
+    // CHANGED: a mirrored per-band deformation rides on top of the noise contour.
+    // WHY: QA wanted the orb to deform with the spectrum "somewhat symmetrically" for an
+    //      organic feel instead of reading like a wrapped linear spectrum (§2e).
+    const bandReach = minDimension * 0.032 * intensity * (0.2 + this.displayedEnergy * 0.8);
+    const mirroredBandOffset = environment.reduceMotion
+      ? undefined
+      : (index: number, count: number): number => {
+        const unit = index / Math.max(1, count);
+        const mirrored = unit <= 0.5 ? unit : 1 - unit;
+        const position = mirrored * 2 * (frame.bands.length - 1);
+        const left = Math.floor(position);
+        const right = Math.min(frame.bands.length - 1, left + 1);
+        const mix = position - left;
+        const leftLevel = clamp01(frame.bands[left] ?? 0) * bandWeight(left, params);
+        const rightLevel = clamp01(frame.bands[right] ?? 0) * bandWeight(right, params);
+        return Math.pow(clamp01(leftLevel + (rightLevel - leftLevel) * mix), 0.82) * bandReach;
+      };
+
     const contour: ContourGeometry = {
       centerX: origin.x,
       centerY: origin.y,
@@ -244,6 +280,7 @@ class CentralPulseVisual implements AudioVisual {
       complexity: environment.reduceMotion ? 0.32 : complexity,
       speed: environment.reduceMotion ? 0 : pulseSpeed,
       seed: 29,
+      ...(mirroredBandOffset ? { radialOffsetAt: mirroredBandOffset } : {}),
     };
     traceContour(ctx, contour);
 
