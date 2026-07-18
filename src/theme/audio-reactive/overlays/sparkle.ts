@@ -70,6 +70,7 @@ class SparkleVisual implements AudioVisual {
 
   private initialized = false;
   private smoothedEnergy = 0;
+  private travel = 0;
   private readonly smoothedBands = new Float32Array(32);
 
   update(frame: AudioVizFrame, dt: number): void {
@@ -85,6 +86,12 @@ class SparkleVisual implements AudioVisual {
     for (let index = 0; index < this.smoothedBands.length; index += 1) {
       this.smoothedBands[index] += ((frame.bands[index] ?? 0) - this.smoothedBands[index]) * blend;
     }
+    // BUG FIX: Sparkle motes teleported on loudness changes late in a clip (QA §3a)
+    // Fix: rise was computed as current-audio × total elapsed seconds, so a level swing
+    //      displaced positions proportionally to clip age. The audio-scaled rise rate is
+    //      now integrated over dt into one bounded travel accumulator.
+    // (unwrapped: wrap01 at draw time handles overflow; wrapping here would jump depth-scaled motes)
+    this.travel += (0.0015 + this.smoothedEnergy * 0.0035) * Math.max(0, dt);
   }
 
   render(
@@ -116,7 +123,7 @@ class SparkleVisual implements AudioVisual {
 
       const drift = 0.006 + seed.depth * 0.012;
       const x = wrap01(seed.x + Math.sin(seconds * 0.11 + seed.phase) * drift) * canvas.width;
-      const y = wrap01(seed.y - seconds * (0.0015 + audio * 0.0035) * seed.depth +
+      const y = wrap01(seed.y - this.travel * seed.depth +
         Math.cos(seconds * 0.09 + seed.phase) * drift) * canvas.height;
       const radius = scale * (0.0023 + seed.size * 0.0034) * (0.72 + audio * 0.62);
       const color = palette[index % palette.length]!;

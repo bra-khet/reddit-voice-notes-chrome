@@ -421,13 +421,21 @@ class ForestSpiritsVisual implements AudioVisual {
       const leader = agent.order === 0;
       const color = palette[agent.chain % palette.length] ?? '#7ad151';
       const hot = mixVisualColors(color, '#ffffff', highContrast ? 0.72 : 0.42 + drive * 0.28);
-      const radius = minDimension
-        * (leader ? 0.009 : 0.0035 + agent.depth * 0.0018)
-        * (0.78 + drive * 0.62)
-        * intensity;
+      // CHANGED: node dots grew ~5× so their diameter roughly matches the chain spacing
+      //          (circles touch), capped just above half the link length.
+      // WHY: tiny dots on long links read as "a snake chained together with links" (QA §3c).
+      const chainSpacing = minDimension * (0.055 - clamp01(params.density) * 0.015);
+      const radius = Math.min(
+        chainSpacing * 0.58,
+        minDimension
+          * (leader ? 0.024 : 0.016 + agent.depth * 0.006)
+          * (0.82 + drive * 0.4)
+          * intensity,
+      );
 
       if (!highContrast && (leader || agent.index % 2 === 0)) {
-        const auraRadius = radius * (leader ? 4.5 : 3.1);
+        // Aura multiplier shrinks with the larger body so the glow stays a halo, not a fog.
+        const auraRadius = radius * (leader ? 2.2 : 1.8);
         const aura = ctx.createRadialGradient(agent.x, agent.y, 0, agent.x, agent.y, auraRadius);
         aura.addColorStop(0, colorWithAlpha(hot, leader ? 0.72 : 0.42));
         aura.addColorStop(0.24, colorWithAlpha(color, 0.24 + drive * 0.16));

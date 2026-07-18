@@ -98,7 +98,7 @@ check('definitions expose stable ids, labels, families, and hard ceilings', () =
   assert.deepEqual(
     [BOKEH_VISUAL_DEFINITION.id, BOKEH_VISUAL_DEFINITION.label,
       BOKEH_VISUAL_DEFINITION.family, BOKEH_VISUAL_DEFINITION.maxElements],
-    ['bokeh', 'Bubbles', 'soft-orb-depth', 14],
+    ['bokeh', 'Bubbles', 'soft-orb-depth', 20],
   );
 });
 

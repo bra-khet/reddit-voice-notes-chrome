@@ -8,8 +8,9 @@ import { BUBBLES_OVERLAY_LABEL } from '../catalog';
 import { normalizeHexColor } from '@/src/theme/color-utils';
 import { colorWithAlpha, mixVisualColors, resolveVisualPalette } from '../palette';
 
-export const BOKEH_MIN_ORBS = 5;
-export const BOKEH_MAX_ORBS = 14;
+// CHANGED: more, smaller bubbles (5–14 → 7–20) per QA §3b.
+export const BOKEH_MIN_ORBS = 7;
+export const BOKEH_MAX_ORBS = 20;
 
 interface BokehSeed {
   x: number;
@@ -21,20 +22,26 @@ interface BokehSeed {
 }
 
 const BOKEH_SEEDS: readonly BokehSeed[] = [
-  { x: 0.08, y: 0.18, depth: 0.28, radius: 0.13, phase: 0.2, bandIndex: 2 },
-  { x: 0.23, y: 0.67, depth: 0.76, radius: 0.19, phase: 2.1, bandIndex: 8 },
-  { x: 0.38, y: 0.28, depth: 0.52, radius: 0.11, phase: 4.4, bandIndex: 13 },
-  { x: 0.51, y: 0.82, depth: 0.34, radius: 0.16, phase: 1.2, bandIndex: 18 },
-  { x: 0.64, y: 0.17, depth: 0.88, radius: 0.22, phase: 3.6, bandIndex: 24 },
-  { x: 0.82, y: 0.55, depth: 0.6, radius: 0.14, phase: 5.1, bandIndex: 29 },
-  { x: 0.94, y: 0.24, depth: 0.4, radius: 0.09, phase: 2.8, bandIndex: 5 },
-  { x: 0.1, y: 0.9, depth: 0.92, radius: 0.1, phase: 4.9, bandIndex: 11 },
-  { x: 0.31, y: 0.08, depth: 0.66, radius: 0.08, phase: 0.8, bandIndex: 16 },
-  { x: 0.47, y: 0.49, depth: 0.24, radius: 0.12, phase: 3.1, bandIndex: 21 },
-  { x: 0.7, y: 0.72, depth: 0.48, radius: 0.18, phase: 1.9, bandIndex: 27 },
-  { x: 0.89, y: 0.86, depth: 0.8, radius: 0.12, phase: 5.7, bandIndex: 31 },
-  { x: 0.58, y: 0.04, depth: 0.58, radius: 0.07, phase: 2.5, bandIndex: 15 },
-  { x: 0.18, y: 0.42, depth: 0.44, radius: 0.09, phase: 3.9, bandIndex: 7 },
+  { x: 0.08, y: 0.18, depth: 0.28, radius: 0.11, phase: 0.2, bandIndex: 2 },
+  { x: 0.23, y: 0.67, depth: 0.76, radius: 0.16, phase: 2.1, bandIndex: 8 },
+  { x: 0.38, y: 0.28, depth: 0.52, radius: 0.09, phase: 4.4, bandIndex: 13 },
+  { x: 0.51, y: 0.82, depth: 0.34, radius: 0.13, phase: 1.2, bandIndex: 18 },
+  { x: 0.64, y: 0.17, depth: 0.88, radius: 0.18, phase: 3.6, bandIndex: 24 },
+  { x: 0.82, y: 0.55, depth: 0.6, radius: 0.12, phase: 5.1, bandIndex: 29 },
+  { x: 0.94, y: 0.24, depth: 0.4, radius: 0.08, phase: 2.8, bandIndex: 5 },
+  { x: 0.1, y: 0.9, depth: 0.92, radius: 0.09, phase: 4.9, bandIndex: 11 },
+  { x: 0.31, y: 0.08, depth: 0.66, radius: 0.07, phase: 0.8, bandIndex: 16 },
+  { x: 0.47, y: 0.49, depth: 0.24, radius: 0.1, phase: 3.1, bandIndex: 21 },
+  { x: 0.7, y: 0.72, depth: 0.48, radius: 0.15, phase: 1.9, bandIndex: 27 },
+  { x: 0.89, y: 0.86, depth: 0.8, radius: 0.1, phase: 5.7, bandIndex: 31 },
+  { x: 0.58, y: 0.04, depth: 0.58, radius: 0.06, phase: 2.5, bandIndex: 15 },
+  { x: 0.18, y: 0.42, depth: 0.44, radius: 0.08, phase: 3.9, bandIndex: 7 },
+  { x: 0.42, y: 0.65, depth: 0.7, radius: 0.07, phase: 1.5, bandIndex: 3 },
+  { x: 0.76, y: 0.36, depth: 0.32, radius: 0.06, phase: 4.1, bandIndex: 19 },
+  { x: 0.05, y: 0.52, depth: 0.56, radius: 0.08, phase: 5.4, bandIndex: 25 },
+  { x: 0.6, y: 0.55, depth: 0.84, radius: 0.05, phase: 0.5, bandIndex: 9 },
+  { x: 0.27, y: 0.33, depth: 0.38, radius: 0.06, phase: 3.3, bandIndex: 22 },
+  { x: 0.86, y: 0.1, depth: 0.64, radius: 0.07, phase: 2.3, bandIndex: 14 },
 ];
 
 function clamp01(value: number): number {
@@ -98,7 +105,8 @@ class BokehVisual implements AudioVisual {
       return;
     }
 
-    const blend = 1 - Math.exp(-Math.max(0, dt) * 4.5);
+    // CHANGED: audio smoothing sped up (4.5 → 7.5) so bubbles pulse with speech (§3b).
+    const blend = 1 - Math.exp(-Math.max(0, dt) * 7.5);
     this.smoothedEnergy += (frame.energy - this.smoothedEnergy) * blend;
     for (let index = 0; index < this.smoothedBands.length; index += 1) {
       this.smoothedBands[index] += ((frame.bands[index] ?? 0) - this.smoothedBands[index]) * blend;
@@ -117,7 +125,8 @@ class BokehVisual implements AudioVisual {
     const scale = Math.min(canvas.width, canvas.height);
     const sensitivity = 0.25 + params.sensitivity * 1.15;
     const intensity = 0.3 + params.intensity * 0.76;
-    const driftSpeed = 0.08 + (1 - params.smoothing) * 0.16;
+    // CHANGED: faster drift (more bob) per QA §3b.
+    const driftSpeed = 0.14 + (1 - params.smoothing) * 0.24;
 
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
@@ -126,11 +135,12 @@ class BokehVisual implements AudioVisual {
       const seed = BOKEH_SEEDS[index]!;
       const band = this.smoothedBands[seed.bandIndex] ?? 0;
       const audio = clamp01((band * 0.58 + this.smoothedEnergy * 0.62) * sensitivity);
-      const parallax = 0.007 + seed.depth * 0.02;
+      const parallax = 0.011 + seed.depth * 0.028;
       const x = (seed.x + Math.sin(seconds * driftSpeed + seed.phase) * parallax) * canvas.width;
       const y = (seed.y + Math.cos(seconds * driftSpeed * 0.74 + seed.phase) * parallax) * canvas.height;
-      const breathe = 0.94 + 0.06 * Math.sin(seconds * 0.62 + seed.phase);
-      const radius = seed.radius * scale * breathe * (0.82 + audio * 0.32);
+      // CHANGED: faster, deeper breathing and a stronger audio pulse share (§3b).
+      const breathe = 0.9 + 0.1 * Math.sin(seconds * 1.5 + seed.phase);
+      const radius = seed.radius * scale * breathe * (0.76 + audio * 0.46);
       const depthAlpha = 0.16 + seed.depth * 0.27;
       const alpha = clamp01(depthAlpha * intensity * (0.7 + audio * 0.72));
       const color = palette[index % palette.length]!;
