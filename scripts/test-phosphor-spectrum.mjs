@@ -134,7 +134,7 @@ check('definition is a capped, registry-native linear segmented spectrum', () =>
       PHOSPHOR_VISUAL_DEFINITION.family,
       PHOSPHOR_VISUAL_DEFINITION.maxElements,
     ],
-    [PHOSPHOR_SPECTRUM_ID, 'Phosphor', 'segmented-spectrum', 240],
+    [PHOSPHOR_SPECTRUM_ID, 'Phosphor', 'segmented-spectrum', 504],
   );
   const visual = PHOSPHOR_VISUAL_DEFINITION.create();
   assert.deepEqual(visual.supportedLayouts, ['linear']);
@@ -145,7 +145,7 @@ check('definition is a capped, registry-native linear segmented spectrum', () =>
   assert.equal(getAudioVisualDefinition('spectrum', PHOSPHOR_SPECTRUM_ID), PHOSPHOR_VISUAL_DEFINITION);
 });
 
-check('density clamps grain to a 12×6–24×10 grid beneath the hard segment cap', () => {
+check('density clamps grain to an 18×9–36×14 grid beneath the hard segment cap', () => {
   assert.deepEqual(resolvePhosphorGrid(-1), {
     columns: PHOSPHOR_MIN_COLUMNS,
     rows: PHOSPHOR_MIN_ROWS,
@@ -202,13 +202,22 @@ check('fast attack and slow decay create bounded phosphor persistence', () => {
   assert.ok(litRects(decaying).length > litRects(settledQuiet).length);
 });
 
-check('reduced motion fixes the silhouette and suppresses chromatic movement', () => {
+check('reduced motion breathes with voice level but suppresses chromatic movement', () => {
   const reducedEnvironment = { ...environment, reduceMotion: true };
-  const ascending = { ...frame, bands: Array.from({ length: 32 }, (_, index) => index / 31) };
-  const descending = { ...frame, bands: [...ascending.bands].reverse() };
-  const first = renderPhosphor(ascending, reducedEnvironment).ctx.operations;
-  const second = renderPhosphor(descending, reducedEnvironment).ctx.operations;
+  // Time-independent and deterministic: identical audio paints an identical frame.
+  const first = renderPhosphor({ ...frame, timeMs: 0 }, reducedEnvironment).ctx.operations;
+  const second = renderPhosphor({ ...frame, timeMs: 9000 }, reducedEnvironment).ctx.operations;
   assert.deepEqual(first, second);
+  // QA §7b: reduced motion must still respond to the spoken level, not freeze.
+  const louder = renderPhosphor(
+    {
+      ...frame,
+      energy: 0.6,
+      bands: frame.bands.map((band) => Math.min(1, band + 0.3)),
+    },
+    reducedEnvironment,
+  ).ctx.operations;
+  assert.ok(litRects(louder).length > litRects(first).length);
   assert.equal(rectsWithStyle(first, 'rgba(255, 70, 92, 0.72)').length, 0);
   assert.equal(rectsWithStyle(first, 'rgba(54, 188, 255, 0.68)').length, 0);
 });

@@ -9,10 +9,13 @@ import type { AudioVizFrame } from '../audio-frame';
 import type { VisualizerParams } from '../params';
 
 export const PHOSPHOR_SPECTRUM_ID = 'phosphor' as const;
-export const PHOSPHOR_MIN_COLUMNS = 12;
-export const PHOSPHOR_MAX_COLUMNS = 24;
-export const PHOSPHOR_MIN_ROWS = 6;
-export const PHOSPHOR_MAX_ROWS = 10;
+// CHANGED: grid resolution raised (12–24×6–10 → 18–36×9–14) for smaller blocks.
+// WHY: QA found the phosphor grain too coarse; fillRect cells are cheap enough that a
+//      finer matrix stays well inside the comfortable governor budget (§2c).
+export const PHOSPHOR_MIN_COLUMNS = 18;
+export const PHOSPHOR_MAX_COLUMNS = 36;
+export const PHOSPHOR_MIN_ROWS = 9;
+export const PHOSPHOR_MAX_ROWS = 14;
 export const PHOSPHOR_MAX_SEGMENTS = PHOSPHOR_MAX_COLUMNS * PHOSPHOR_MAX_ROWS;
 
 /** A stable CRT-like contour used when FFT motion is intentionally reduced. */
@@ -49,6 +52,22 @@ function bandWeight(index: number, params: VisualizerParams): number {
   return params.trebleWeight ?? 1;
 }
 
+/** Linear interpolation between adjacent (weighted, transformed) bands at a fractional index. */
+function interpolatedBandLevel(
+  frame: AudioVizFrame,
+  params: VisualizerParams,
+  position: number,
+  transform: (raw: number) => number,
+): number {
+  const clamped = Math.min(frame.bands.length - 1, Math.max(0, position));
+  const left = Math.floor(clamped);
+  const right = Math.min(frame.bands.length - 1, left + 1);
+  const mix = clamped - left;
+  const leftLevel = transform(clamp01(frame.bands[left] ?? 0)) * bandWeight(left, params);
+  const rightLevel = transform(clamp01(frame.bands[right] ?? 0)) * bandWeight(right, params);
+  return leftLevel + (rightLevel - leftLevel) * mix;
+}
+
 function resolveTargets(
   frame: AudioVizFrame,
   params: VisualizerParams,
@@ -64,7 +83,18 @@ function resolveTargets(
       const shapeIndex = Math.round(
         index * (PHOSPHOR_REDUCED_MOTION_SHAPE.length - 1) / Math.max(1, columns - 1),
       );
-      return energy * (PHOSPHOR_REDUCED_MOTION_SHAPE[shapeIndex] ?? 0.6);
+      const shape = PHOSPHOR_REDUCED_MOTION_SHAPE[shapeIndex] ?? 0.6;
+      // CHANGED: reduced motion keeps its stable silhouette but breathes per column
+      //          with the spoken band level instead of freezing entirely.
+      // WHY: QA §7b — reduced motion suppressed all motion; the a11y contract is "no
+      //      autonomous animation", not "no audio response".
+      const columnLevel = clamp01(interpolatedBandLevel(
+        frame,
+        params,
+        (index + 0.5) / columns * (frame.bands.length - 1),
+        (raw) => raw,
+      ));
+      return clamp01(energy * shape * (0.6 + columnLevel * 0.55));
     });
   }
 
@@ -80,20 +110,30 @@ function resolveTargets(
     : 1;
   const gain = 0.58 + clamp01(params.sensitivity) * 0.92;
 
+  const transform = environment.amplitudeMode === 'capture'
+    ? (raw: number): number => raw * peakScale * captureEnvelope
+    : (raw: number): number => raw;
+
   return Array.from({ length: columns }, (_, column) => {
-    const start = Math.floor(column * frame.bands.length / columns);
-    const end = Math.max(start + 1, Math.floor((column + 1) * frame.bands.length / columns));
-    let sum = 0;
-    let samples = 0;
-    for (let bandIndex = start; bandIndex < end; bandIndex += 1) {
-      const raw = clamp01(frame.bands[bandIndex] ?? 0);
-      const level = environment.amplitudeMode === 'capture'
-        ? raw * peakScale * captureEnvelope
-        : raw;
-      sum += level * bandWeight(bandIndex, params);
-      samples += 1;
+    const start = column * frame.bands.length / columns;
+    const end = (column + 1) * frame.bands.length / columns;
+    let level: number;
+    if (end - start >= 1.5) {
+      let sum = 0;
+      let samples = 0;
+      const last = Math.min(frame.bands.length, Math.ceil(end));
+      for (let bandIndex = Math.floor(start); bandIndex < last; bandIndex += 1) {
+        sum += transform(clamp01(frame.bands[bandIndex] ?? 0)) * bandWeight(bandIndex, params);
+        samples += 1;
+      }
+      level = samples > 0 ? sum / samples : 0;
+    } else {
+      // CHANGED: sub-bin columns linearly interpolate between adjacent bands.
+      // WHY: the finer grid can outnumber the 32 FFT bins; nearest-bin sampling would
+      //      duplicate columns and stairstep the contour (§2c).
+      level = interpolatedBandLevel(frame, params, (start + end) / 2 - 0.5, transform);
     }
-    return Math.pow(clamp01((samples > 0 ? sum / samples : 0) * gain), 0.76);
+    return Math.pow(clamp01(level * gain), 0.76);
   });
 }
 
