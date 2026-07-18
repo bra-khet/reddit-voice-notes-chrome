@@ -122,6 +122,10 @@ function createContext() {
       operations.push(['createRadialGradient', ...args]);
       return createGradient(args);
     },
+    createLinearGradient(...args) {
+      operations.push(['createLinearGradient', ...args]);
+      return createGradient(args);
+    },
   };
   for (const property of [
     'fillStyle', 'strokeStyle', 'lineWidth', 'shadowBlur', 'shadowColor',
@@ -187,7 +191,7 @@ check('definition is registered, audio-aware, layout-capable, and hard-capped', 
     INFERNO_VISUAL_DEFINITION.create().supportedLayouts,
     ['linear', 'centered', 'radial'],
   );
-  assert.equal(INFERNO_MAX_ELEMENTS, INFERNO_MAX_PARTICLES * 3 + 3);
+  assert.equal(INFERNO_MAX_ELEMENTS, INFERNO_MAX_PARTICLES * 3 + 6);
   registerCoreOverlayVisuals();
   registerCoreOverlayVisuals();
   assert.equal(getAudioVisualDefinition('overlay', INFERNO_ID), INFERNO_VISUAL_DEFINITION);
@@ -285,6 +289,14 @@ check('capture silence stays empty while voice energy grows a layered flame fiel
   assert.ok(flameFills(loudOps).length > flameFills(quietOps).length);
   assert.ok(loudOps.some(([operation]) => operation === 'ellipse'));
   assert.ok(loudOps.some(([operation]) => operation === 'createRadialGradient'));
+  // Flame front: a gradient-bodied crest paints over the tongue roots and stays in the
+  // lower half of the canvas (QA §3e).
+  assert.ok(loudOps.some(([operation]) => operation === 'createLinearGradient'));
+  const frontYs = loudOps
+    .filter(([operation]) => operation === 'createLinearGradient')
+    .map(([, , , , y1]) => y1);
+  assert.ok(frontYs.length > 0);
+  assert.ok(frontYs.every((y) => y >= canvas.height * 0.5 - 1));
 });
 
 check('transients throw an immediate bounded spark-and-flame burst', () => {

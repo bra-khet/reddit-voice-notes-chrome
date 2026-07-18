@@ -25,8 +25,10 @@ export const INFERNO_LABEL = 'Inferno' as const;
 export const VOID_INFERNO_LABEL = 'Void Inferno' as const;
 export const INFERNO_MIN_PARTICLES = 28;
 export const INFERNO_MAX_PARTICLES = 72;
-/** Three bounded paint passes per particle plus the hearth/body accent. */
-export const INFERNO_MAX_ELEMENTS = INFERNO_MAX_PARTICLES * 3 + 3;
+/** Sampled columns of the smoothed flame-front height/radius field. */
+export const INFERNO_FRONT_SAMPLES = 25;
+/** Three bounded paint passes per particle plus hearth (2) and flame front (3) accents. */
+export const INFERNO_MAX_ELEMENTS = INFERNO_MAX_PARTICLES * 3 + 6;
 
 export type InfernoVariant = 'inferno' | 'void-inferno';
 
@@ -78,6 +80,35 @@ export function resolveInfernoParticleLimit(density: number): number {
 /** Inferno's accessibility treatment is intentionally the product's named Void variant. */
 export function resolveInfernoVariant(params: Pick<VisualizerParams, 'highContrast'>): InfernoVariant {
   return params.highContrast === true ? 'void-inferno' : 'inferno';
+}
+
+function weightedBandAt(
+  frame: AudioVizFrame,
+  index: number,
+  params: VisualizerParams,
+): number {
+  const bandIndex = Math.min(frame.bands.length - 1, Math.max(0, Math.floor(index)));
+  const band = clamp01(frame.bands[bandIndex] ?? 0);
+  const normalized = bandIndex / Math.max(1, frame.bands.length - 1);
+  const weight = normalized < 1 / 3
+    ? params.bassWeight ?? 1
+    : normalized < 2 / 3
+      ? params.midWeight ?? 1
+      : params.trebleWeight ?? 1;
+  return clamp01(band * weight);
+}
+
+/** Linear interpolation between adjacent weighted bands for smooth cross-canvas sampling. */
+function weightedBandAtUnit(
+  frame: AudioVizFrame,
+  unit: number,
+  params: VisualizerParams,
+): number {
+  const position = clamp01(unit) * (frame.bands.length - 1);
+  const left = Math.floor(position);
+  const leftBand = weightedBandAt(frame, left, params);
+  const rightBand = weightedBandAt(frame, left + 1, params);
+  return leftBand + (rightBand - leftBand) * (position - left);
 }
 
 function weightedBandAverage(
@@ -169,6 +200,10 @@ class InfernoVisual implements AudioVisual {
   private sensitivity = 1;
   private priming = false;
   private wasReducedMotion = false;
+  /** Smoothed flame-front field: crest heights (linear/centered) or ring radii (radial). */
+  private readonly frontField = new Float32Array(INFERNO_FRONT_SAMPLES);
+  private readonly reducedFrontField = new Float32Array(INFERNO_FRONT_SAMPLES);
+  private frontPrimed = false;
 
   private readonly initializeParticle: BoundedParticleInitializer<InfernoParticle> = (
     particle,
@@ -272,7 +307,7 @@ class InfernoVisual implements AudioVisual {
       : resolveVisualPalette(params.color);
 
     if (reduceMotion) {
-      this.drawReducedMotion(ctx, canvas, params, palette, variant);
+      this.drawReducedMotion(ctx, canvas, frame, params, palette, variant);
       this.pendingDt = 0;
       return;
     }
@@ -286,6 +321,7 @@ class InfernoVisual implements AudioVisual {
       this.priming = false;
     }
 
+    this.updateFlameFront(frame, params, this.pendingDt);
     this.emitter.advance(this.pendingDt);
     this.advanceParticles(frame, params, this.pendingDt);
     this.emitParticles(frame, params, particleLimit, environment);
@@ -297,6 +333,7 @@ class InfernoVisual implements AudioVisual {
   private resetParticles(): void {
     this.emitter.clear();
     this.emissionCarry = 0;
+    this.frontPrimed = false;
   }
 
   private resolveAudioDrive(
@@ -322,6 +359,207 @@ class InfernoVisual implements AudioVisual {
         + previewLift)
       * this.sensitivity,
     );
+  }
+
+  /**
+   * CHANGED: a smoothed, band-lifted flame front rises from the emission edge and is drawn
+   * over the tongue roots, capped at half the canvas.
+   * WHY: QA read the bare particle field as "wobbling candle flames"; a coherent front with
+   * tongues licking out of its crest is what makes the scene read as one fire (§3e).
+   */
+  private frontTargetAt(
+    frame: AudioVizFrame,
+    params: VisualizerParams,
+    unit: number,
+    timeSeconds: number,
+    minDimension: number,
+  ): number {
+    const local = clamp01(
+      weightedBandAtUnit(frame, unit, params) * (0.55 + this.sensitivity * 0.5),
+    );
+    // Irrational spatial/temporal frequency ratios keep the crest from visibly looping.
+    const ripple = 1
+      + Math.sin(unit * Math.PI * 2 * 3.236 + timeSeconds * 0.73 + 1.7) * 0.2
+      + Math.sin(unit * Math.PI * 2 * 5.236 - timeSeconds * 1.181 + 3.9) * 0.12
+      + Math.sin(unit * Math.PI * 2 * 8.09 + timeSeconds * 1.91) * 0.07;
+    if (this.layout === 'radial') {
+      const radius = minDimension * (0.11 + this.drive * 0.12) * (0.62 + local * 0.75) * ripple;
+      return Math.min(minDimension * 0.3, Math.max(minDimension * 0.05, radius));
+    }
+    const envelope = this.layout === 'centered' ? Math.sin(Math.PI * clamp01(unit)) ** 1.3 : 1;
+    const height = minDimension * (0.05 + this.drive * 0.24) * (0.6 + local * 0.8) * ripple * envelope;
+    // 0.43 cap keeps even the 1.16×-scaled back halo at or below the half-screen ceiling.
+    return Math.min(this.canvasHeight * 0.43, Math.max(0, height));
+  }
+
+  private updateFlameFront(frame: AudioVizFrame, params: VisualizerParams, dt: number): void {
+    const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
+    const timeSeconds = frame.timeMs / 1000;
+    for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
+      const unit = index / (INFERNO_FRONT_SAMPLES - 1);
+      const target = this.frontTargetAt(frame, params, unit, timeSeconds, minDimension);
+      if (!this.frontPrimed) {
+        this.frontField[index] = target;
+        continue;
+      }
+      const previous = this.frontField[index] ?? 0;
+      // CHANGED: the crest climbs quickly but relaxes slowly (minor hysteresis).
+      // WHY: tongues must always overshoot a front that lags their release, not chase it.
+      const rate = target > previous ? 9 : 2.4;
+      this.frontField[index] = previous + (target - previous) * (1 - Math.exp(-rate * dt));
+    }
+    this.frontPrimed = true;
+  }
+
+  private frontFieldAt(field: Float32Array, unit: number): number {
+    const position = clamp01(unit) * (INFERNO_FRONT_SAMPLES - 1);
+    const left = Math.floor(position);
+    const right = Math.min(INFERNO_FRONT_SAMPLES - 1, left + 1);
+    const leftValue = field[left] ?? 0;
+    const rightValue = field[right] ?? leftValue;
+    return leftValue + (rightValue - leftValue) * (position - left);
+  }
+
+  /** Catmull-Rom-smoothed crest curve across the canvas; optionally closed along the bottom. */
+  private traceFrontCurve(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    field: Float32Array,
+    scale: number,
+    close: boolean,
+  ): void {
+    const count = INFERNO_FRONT_SAMPLES;
+    const xAt = (index: number): number => index / (count - 1) * canvas.width;
+    const yAt = (index: number): number => {
+      const clamped = Math.min(count - 1, Math.max(0, index));
+      return canvas.height - (field[clamped] ?? 0) * scale;
+    };
+    ctx.beginPath();
+    if (close) {
+      ctx.moveTo(-6, canvas.height + 4);
+      ctx.lineTo(-6, yAt(0));
+    } else {
+      ctx.moveTo(-6, yAt(0));
+    }
+    for (let index = 0; index < count - 1; index += 1) {
+      const x0 = xAt(Math.max(0, index - 1));
+      const y0 = yAt(index - 1);
+      const x1 = xAt(index);
+      const y1 = yAt(index);
+      const x2 = xAt(index + 1);
+      const y2 = yAt(index + 1);
+      const x3 = xAt(Math.min(count - 1, index + 2));
+      const y3 = yAt(index + 2);
+      ctx.bezierCurveTo(
+        x1 + (x2 - x0) / 6, y1 + (y2 - y0) / 6,
+        x2 - (x3 - x1) / 6, y2 - (y3 - y1) / 6,
+        x2, y2,
+      );
+    }
+    ctx.lineTo(canvas.width + 6, yAt(count - 1));
+    if (close) {
+      ctx.lineTo(canvas.width + 6, canvas.height + 4);
+      ctx.closePath();
+    }
+  }
+
+  /** Closed smoothed ring for the radial layout's corona front. */
+  private traceFrontRing(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    field: Float32Array,
+    scale: number,
+  ): void {
+    const count = INFERNO_FRONT_SAMPLES;
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const pointAt = (index: number): readonly [number, number] => {
+      const wrapped = ((index % count) + count) % count;
+      const angle = wrapped / count * Math.PI * 2 - Math.PI / 2;
+      const radius = (field[wrapped] ?? 0) * scale;
+      return [centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius];
+    };
+    ctx.beginPath();
+    const [startX, startY] = pointAt(0);
+    ctx.moveTo(startX, startY);
+    for (let index = 0; index < count; index += 1) {
+      const [x0, y0] = pointAt(index - 1);
+      const [x1, y1] = pointAt(index);
+      const [x2, y2] = pointAt(index + 1);
+      const [x3, y3] = pointAt(index + 2);
+      ctx.bezierCurveTo(
+        x1 + (x2 - x0) / 6, y1 + (y2 - y0) / 6,
+        x2 - (x3 - x1) / 6, y2 - (y3 - y1) / 6,
+        x2, y2,
+      );
+    }
+    ctx.closePath();
+  }
+
+  private drawFlameFront(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    palette: readonly string[],
+    variant: InfernoVariant,
+    field: Float32Array,
+  ): void {
+    if (this.drive <= 0.01) return;
+    let peak = 0;
+    for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
+      peak = Math.max(peak, field[index] ?? 0);
+    }
+    if (peak <= 1) return;
+    const radial = this.layout === 'radial';
+
+    if (variant === 'void-inferno') {
+      // Dark bulk with one hot crest outline keeps the Void treatment's inverted language.
+      if (radial) this.traceFrontRing(ctx, canvas, field, 1);
+      else this.traceFrontCurve(ctx, canvas, field, 1, true);
+      ctx.fillStyle = '#030106';
+      ctx.shadowBlur = 0;
+      ctx.fill();
+      if (radial) this.traceFrontRing(ctx, canvas, field, 1);
+      else this.traceFrontCurve(ctx, canvas, field, 1, false);
+      ctx.strokeStyle = colorWithAlpha(paletteColorAt(palette, 0.82), 0.92);
+      ctx.lineWidth = 1.7 + this.drive * 0.6;
+      ctx.stroke();
+      return;
+    }
+
+    if (radial) this.traceFrontRing(ctx, canvas, field, 1.16);
+    else this.traceFrontCurve(ctx, canvas, field, 1.16, true);
+    ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.3), 0.1 + this.drive * 0.1);
+    ctx.shadowBlur = 0;
+    ctx.fill();
+
+    if (radial) this.traceFrontRing(ctx, canvas, field, 1);
+    else this.traceFrontCurve(ctx, canvas, field, 1, true);
+    const body = radial
+      ? ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, peak * 0.12,
+        canvas.width / 2, canvas.height / 2, peak,
+      )
+      : ctx.createLinearGradient(0, canvas.height, 0, canvas.height - peak * 1.05);
+    if (radial) {
+      body.addColorStop(0, colorWithAlpha(paletteColorAt(palette, 0.97), 0.9));
+      body.addColorStop(0.6, colorWithAlpha(paletteColorAt(palette, 0.6), 0.86));
+      body.addColorStop(1, colorWithAlpha(paletteColorAt(palette, 0.2), 0.8));
+    } else {
+      body.addColorStop(0, colorWithAlpha(paletteColorAt(palette, 0.14), 0.78));
+      body.addColorStop(0.45, colorWithAlpha(paletteColorAt(palette, 0.5), 0.85));
+      body.addColorStop(0.82, colorWithAlpha(paletteColorAt(palette, 0.8), 0.88));
+      body.addColorStop(1, colorWithAlpha(paletteColorAt(palette, 0.97), 0.9));
+    }
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    if (radial) this.traceFrontRing(ctx, canvas, field, 1);
+    else this.traceFrontCurve(ctx, canvas, field, 1, false);
+    ctx.strokeStyle = colorWithAlpha(paletteColorAt(palette, 0.92), 0.5 + this.drive * 0.3);
+    ctx.lineWidth = 1.2 + this.drive * 1.2;
+    ctx.shadowColor = colorWithAlpha(paletteColorAt(palette, 0.9), 0.85);
+    ctx.shadowBlur = 5 + this.drive * 6;
+    ctx.stroke();
   }
 
   private emitParticles(
@@ -435,19 +673,42 @@ class InfernoVisual implements AudioVisual {
       }
     }
 
-    // CHANGED: flames paint as one additive pass, then embers paint above them.
-    // WHY: interleaving kinds by pool slot let recycled sparks flicker under/over tongues;
-    //      additive light is order-independent but the spark layer should stay in front.
+    // CHANGED: tongues paint first, then the flame front paints over their roots, then embers.
+    // WHY: occluding the lower tongue bodies behind the crest is what turns "a swarm of candle
+    //      flames" into tips licking out of one coherent front (§3e); sparks stay in front.
     ctx.globalCompositeOperation = variant === 'void-inferno' ? 'source-over' : 'lighter';
     for (const particle of this.emitter.particles) {
       if (!particle.active || particle.kind !== 'flame') continue;
+      if (this.tongueFullyBehindFront(particle)) continue;
       this.drawFlame(ctx, particle, params, palette, variant);
     }
+    ctx.globalCompositeOperation = 'source-over';
+    this.drawFlameFront(ctx, canvas, palette, variant, this.frontField);
+    ctx.globalCompositeOperation = variant === 'void-inferno' ? 'source-over' : 'lighter';
     for (const particle of this.emitter.particles) {
       if (!particle.active || particle.kind !== 'ember') continue;
       this.drawEmber(ctx, particle, palette, variant);
     }
     ctx.restore();
+  }
+
+  /** Skip painting tongues whose tips never clear the front — they would be fully occluded. */
+  private tongueFullyBehindFront(particle: InfernoParticle): boolean {
+    if (!this.frontPrimed) return false;
+    const life = clamp01(particle.age / particle.lifetime);
+    const length = particle.size * 1.18 * (2.4 + (1 - life) * 3.4);
+    const speed = Math.max(1, Math.hypot(particle.vx, particle.vy));
+    const tipX = particle.x + particle.vx / speed * length * 0.78;
+    const tipY = particle.y + particle.vy / speed * length * 0.78;
+    if (this.layout === 'radial') {
+      const dx = tipX - this.canvasWidth / 2;
+      const dy = tipY - this.canvasHeight / 2;
+      const angleUnit = (Math.atan2(dy, dx) + Math.PI / 2) / (Math.PI * 2);
+      const ring = this.frontFieldAt(this.frontField, angleUnit - Math.floor(angleUnit));
+      return Math.hypot(dx, dy) < ring * 0.72;
+    }
+    const front = this.frontFieldAt(this.frontField, tipX / Math.max(1, this.canvasWidth));
+    return tipY > this.canvasHeight - front * 0.72;
   }
 
   private drawHearth(
@@ -517,20 +778,25 @@ class InfernoVisual implements AudioVisual {
     const radius = Math.max(1, particle.size * (1 + life * 2.2));
 
     if (variant === 'void-inferno') {
+      // BUG FIX: Void smoke read as fast-growing large ovals (QA §7a)
+      // Fix: One stroked ellipse ballooning at 2.2× life-growth is replaced by three smaller
+      //      seeded-noise lobes in a single path with slower growth, so the silhouette reads
+      //      as a clustered smoke puff instead of an inflating balloon.
+      const puffRadius = Math.max(1, particle.size * (1 + life * 1.1));
       ctx.shadowBlur = 0;
       ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.26 + life * 0.22), 0.58);
       ctx.strokeStyle = colorWithAlpha(paletteColorAt(palette, 0.78), 0.72);
       ctx.lineWidth = 1.25;
       ctx.beginPath();
-      ctx.ellipse(
-        particle.x,
-        particle.y,
-        radius * (1.05 + particle.drift * 0.08),
-        radius * 0.72,
-        particle.phase + life * 0.35,
-        0,
-        Math.PI * 2,
-      );
+      for (let lobe = 0; lobe < 3; lobe += 1) {
+        const angle = particle.phase + lobe * 2.094 + life * 0.5;
+        const offset = puffRadius * (0.34 + seededUnit(particle.index * 3 + lobe, 53) * 0.22);
+        const lobeRadius = puffRadius * (0.42 + seededUnit(particle.index * 5 + lobe, 57) * 0.22);
+        const lobeX = particle.x + Math.cos(angle) * offset;
+        const lobeY = particle.y + Math.sin(angle) * offset * 0.7;
+        ctx.moveTo(lobeX + lobeRadius, lobeY);
+        ctx.arc(lobeX, lobeY, lobeRadius, 0, Math.PI * 2);
+      }
       ctx.fill();
       ctx.stroke();
       return;
@@ -703,12 +969,22 @@ class InfernoVisual implements AudioVisual {
   private drawReducedMotion(
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
+    frame: AudioVizFrame,
     params: VisualizerParams,
     palette: readonly string[],
     variant: InfernoVariant,
   ): void {
     ctx.save();
     this.drawHearth(ctx, canvas, palette, variant);
+    // CHANGED: reduced motion shows a frozen flame front sculpted from the same audio field.
+    // WHY: the front is the effect's new identity; the static treatment must include it.
+    const minDimension = Math.max(24, Math.min(canvas.width, canvas.height));
+    for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
+      const unit = index / (INFERNO_FRONT_SAMPLES - 1);
+      this.reducedFrontField[index] = this.frontTargetAt(frame, params, unit, 0, minDimension);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    this.drawFlameFront(ctx, canvas, palette, variant, this.reducedFrontField);
     ctx.globalCompositeOperation = variant === 'void-inferno' ? 'source-over' : 'lighter';
     const count = this.drive <= 0.01
       ? 0
@@ -716,7 +992,6 @@ class InfernoVisual implements AudioVisual {
         resolveInfernoParticleLimit(params.density),
         Math.round(7 + this.drive * 17),
       );
-    const minDimension = Math.max(24, Math.min(canvas.width, canvas.height));
     for (let index = 0; index < count; index += 1) {
       const unit = (index + 0.5) / Math.max(1, count);
       const texture = seededUnit(index, 71);

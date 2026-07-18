@@ -14,7 +14,7 @@ import {
   type VisualizerParams,
 } from '@/src/theme/audio-reactive';
 import { evaluateVisualPerformance } from '@/src/theme/audio-reactive/performance-governor';
-import { registerCoreOverlayVisuals } from '@/src/theme/audio-reactive/overlays';
+import { registerCoreOverlayVisuals, VOID_INFERNO_LABEL } from '@/src/theme/audio-reactive/overlays';
 import { registerCoreSpectrumVisuals } from '@/src/theme/audio-reactive/spectra';
 import { registerCoreStackableEffects } from '@/src/theme/audio-reactive/stackables';
 import type { DesignOverrides } from '@/src/theme/design-overrides';
@@ -292,6 +292,10 @@ export function renderStyleControlCenterFields(): string {
           <span class="popup__toggle-copy"><span class="popup__toggle-label">High contrast</span><p class="popup__field-desc">Remove soft glow and harden important edges.</p></span>
           <input class="popup__toggle-input" type="checkbox" data-style-high-contrast aria-label="High contrast visuals" />
         </label>
+        <label class="popup__toggle-row studio__style-toggle" data-style-inferno-only hidden>
+          <span class="popup__toggle-copy"><span class="popup__toggle-label">${VOID_INFERNO_LABEL} variant</span><p class="popup__field-desc">Render Inferno as its dark Void treatment. Linked to High contrast.</p></span>
+          <input class="popup__toggle-input" type="checkbox" data-style-void-variant aria-label="Void Inferno variant" />
+        </label>
         <label class="popup__toggle-row studio__style-toggle" data-style-classic-only>
           <span class="popup__toggle-copy"><span class="popup__toggle-label">Boost Classic halo</span><p class="popup__field-desc">Preserve the legacy extra-neon treatment for Classic bars.</p></span>
           <input class="popup__toggle-input" type="checkbox" data-style-bar-glow aria-label="Boost Classic halo" />
@@ -522,6 +526,12 @@ export function mountStyleControlCenter(
     const barGlow = host.querySelector<HTMLInputElement>('[data-style-bar-glow]');
     const safeDim = host.querySelector<HTMLInputElement>('[data-style-subtitle-safe-dim]');
     if (highContrast) highContrast.checked = params.highContrast === true;
+    // CHANGED: Inferno's Void treatment is surfaced as a named, semantically-linked toggle.
+    // WHY: QA found the High Contrast pathway to the Void variant undiscoverable (§3e).
+    const infernoOnly = host.querySelector<HTMLElement>('[data-style-inferno-only]');
+    if (infernoOnly) infernoOnly.hidden = overlay !== 'inferno';
+    const voidVariant = host.querySelector<HTMLInputElement>('[data-style-void-variant]');
+    if (voidVariant) voidVariant.checked = params.highContrast === true;
     if (barGlow) barGlow.checked = overrides?.barGlow === 'boosted';
     if (safeDim) safeDim.checked = params.subtitleSafeDim === true;
     syncPerformance(params);
@@ -572,7 +582,7 @@ export function mountStyleControlCenter(
 
   function onChange(event: Event): void {
     const target = event.target as HTMLInputElement;
-    if (target.matches('[data-style-high-contrast]')) {
+    if (target.matches('[data-style-high-contrast]') || target.matches('[data-style-void-variant]')) {
       commit({ visualizerParams: { ...rawParams(), highContrast: target.checked } });
     } else if (target.matches('[data-style-subtitle-safe-dim]')) {
       commit({ visualizerParams: { ...rawParams(), subtitleSafeDim: target.checked } });
