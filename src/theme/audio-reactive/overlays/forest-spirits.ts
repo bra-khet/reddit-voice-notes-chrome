@@ -41,6 +41,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
 }
 
+function wrapAngle(value: number): number {
+  return ((value + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+}
+
 function seededUnit(index: number, salt: number): number {
   const value = Math.sin(index * 91.733 + salt * 37.719) * 43758.5453;
   return value - Math.floor(value);
@@ -125,6 +129,12 @@ class ForestSpiritsVisual implements AudioVisual {
   private previousDrive = 0;
   private hasDriveSample = false;
   private disruption = 0;
+  /** Committed per-chain headings: spirits hold course and only turn on a scheduled beat. */
+  private readonly chainHeading = new Float32Array(FOREST_SPIRITS_CHAIN_COUNT);
+  private readonly chainTargetHeading = new Float32Array(FOREST_SPIRITS_CHAIN_COUNT);
+  private readonly turnTimer = new Float32Array(FOREST_SPIRITS_CHAIN_COUNT);
+  private readonly turnSerial = new Int32Array(FOREST_SPIRITS_CHAIN_COUNT);
+  private headingsPrimed = false;
 
   update(_frame: AudioVizFrame, dt: number): void {
     this.pendingDt = clamp(dt, 0, 0.1);
@@ -197,7 +207,8 @@ class ForestSpiritsVisual implements AudioVisual {
 
   private resetAgent(agent: ForestSpiritAgent): void {
     const heading = CHAIN_HEADING[agent.chain] ?? 0;
-    const spacing = Math.min(this.canvasWidth, this.canvasHeight) * 0.048;
+    // CHANGED: initial spacing shortened 25% to match the follow spacing (QA Pass B).
+    const spacing = Math.min(this.canvasWidth, this.canvasHeight) * 0.036;
     const baseX = (CHAIN_BASE_X[agent.chain] ?? 0.5) * this.canvasWidth;
     const baseY = (CHAIN_BASE_Y[agent.chain] ?? 0.5) * this.canvasHeight;
     const sideways = Math.sin(agent.phase) * spacing * 0.24;
@@ -240,6 +251,51 @@ class ForestSpiritsVisual implements AudioVisual {
     timeSeconds: number,
     params: VisualizerParams,
   ): void {
+    const chain = agent.chain;
+    if (!this.headingsPrimed) {
+      for (let index = 0; index < FOREST_SPIRITS_CHAIN_COUNT; index += 1) {
+        this.chainHeading[index] = CHAIN_HEADING[index] ?? 0;
+        this.chainTargetHeading[index] = CHAIN_HEADING[index] ?? 0;
+      }
+      this.headingsPrimed = true;
+    }
+    const drive = this.chainDrives[chain] ?? 0;
+
+    // CHANGED: leaders hold a committed heading and re-aim only on a seeded turn beat
+    //          (≥ ~1 s apart), easing into each new course; flow-field influence is demoted
+    //          to a light drift instead of being the steering target.
+    // WHY: chasing the continuously-changing flow made spirits "wobble around"; a snake
+    //      holds its line and turns deliberately (QA Pass B).
+    this.turnTimer[chain] = (this.turnTimer[chain] ?? 0) + dt;
+    const interval = Math.max(
+      1,
+      1.5 + seededUnit((this.turnSerial[chain] ?? 0) * 7 + chain, 53) * 1.6 - drive * 0.4,
+    );
+    const margin = Math.min(42, Math.min(this.canvasWidth, this.canvasHeight) * 0.1) * 1.8;
+    const nearEdge = agent.x < margin
+      || agent.x > this.canvasWidth - margin
+      || agent.y < margin
+      || agent.y > this.canvasHeight - margin;
+    if (nearEdge) {
+      const toCenter = Math.atan2(
+        this.canvasHeight / 2 - agent.y,
+        this.canvasWidth / 2 - agent.x,
+      );
+      this.chainTargetHeading[chain] = toCenter
+        + (seededUnit((this.turnSerial[chain] ?? 0) + chain, 61) - 0.5) * 0.6;
+    } else if ((this.turnTimer[chain] ?? 0) >= interval) {
+      this.turnSerial[chain] = (this.turnSerial[chain] ?? 0) + 1;
+      this.turnTimer[chain] = 0;
+      const delta = (seededUnit((this.turnSerial[chain] ?? 0) * 13 + chain, 57) - 0.5)
+        * 2 * (0.55 + drive * 0.7);
+      this.chainTargetHeading[chain] = (this.chainHeading[chain] ?? 0) + delta;
+    }
+    const headingDelta = wrapAngle(
+      (this.chainTargetHeading[chain] ?? 0) - (this.chainHeading[chain] ?? 0),
+    );
+    this.chainHeading[chain] = (this.chainHeading[chain] ?? 0)
+      + headingDelta * Math.min(1, dt * 3.2);
+
     const normalizedX = agent.x / this.canvasWidth * 2 - 1;
     const normalizedY = agent.y / this.canvasHeight * 2 - 1;
     const flow = sampleLayeredVectorFlowField(
@@ -249,14 +305,17 @@ class ForestSpiritsVisual implements AudioVisual {
       {
         complexity: 0.38 + clamp01(params.density) * 0.46,
         speed: 0.24 + (1 - clamp01(params.smoothing)) * 0.62,
-        seed: 19 + agent.chain * 23,
+        seed: 19 + chain * 23,
       },
-      this.flowVectors[agent.chain],
+      this.flowVectors[chain],
     );
-    const drive = this.chainDrives[agent.chain] ?? 0;
+    const wobble = Math.sin(timeSeconds * 0.9 + agent.phase) * 0.06;
+    const heading = (this.chainHeading[chain] ?? 0) + wobble;
     const desiredSpeed = 17 + clamp01(params.intensity) * 19 + drive * 29;
-    let ax = (flow.x * desiredSpeed - agent.vx) * 2.35;
-    let ay = (flow.y * desiredSpeed - agent.vy) * 2.35;
+    let ax = (Math.cos(heading) * desiredSpeed - agent.vx) * 2.35
+      + flow.x * desiredSpeed * 0.3;
+    let ay = (Math.sin(heading) * desiredSpeed - agent.vy) * 2.35
+      + flow.y * desiredSpeed * 0.3;
     const kick = this.disruption * (28 + drive * 34);
     ax += Math.cos(agent.phase + timeSeconds * 2.2) * kick;
     ay += Math.sin(agent.phase + timeSeconds * 1.8) * kick;
@@ -281,7 +340,8 @@ class ForestSpiritsVisual implements AudioVisual {
     const normalX = -headingY;
     const normalY = headingX;
     const minDimension = Math.min(this.canvasWidth, this.canvasHeight);
-    const spacing = minDimension * (0.055 - clamp01(params.density) * 0.015);
+    // CHANGED: segment length shortened 25% (0.055–0.04 → 0.041–0.03 of minDim) per QA Pass B.
+    const spacing = minDimension * (0.041 - clamp01(params.density) * 0.011);
     const drive = this.chainDrives[agent.chain] ?? 0;
     const undulation = Math.sin(timeSeconds * (1.1 + drive) + agent.phase)
       * spacing * (0.08 + drive * 0.18);
@@ -422,34 +482,53 @@ class ForestSpiritsVisual implements AudioVisual {
       const color = palette[agent.chain % palette.length] ?? '#7ad151';
       const hot = mixVisualColors(color, '#ffffff', highContrast ? 0.72 : 0.42 + drive * 0.28);
       // CHANGED: node dots grew ~5× so their diameter roughly matches the chain spacing
-      //          (circles touch), capped just above half the link length.
-      // WHY: tiny dots on long links read as "a snake chained together with links" (QA §3c).
-      const chainSpacing = minDimension * (0.055 - clamp01(params.density) * 0.015);
+      //          (circles touch); the spacing itself is 25% shorter, so the cap factor
+      //          rose to keep the same absolute dot size (QA §3c + Pass B).
+      const chainSpacing = minDimension * (0.041 - clamp01(params.density) * 0.011);
       const radius = Math.min(
-        chainSpacing * 0.58,
+        chainSpacing * 0.77,
         minDimension
           * (leader ? 0.024 : 0.016 + agent.depth * 0.006)
           * (0.82 + drive * 0.4)
           * intensity,
       );
+      // CHANGED: each dot carries a seeded alpha identity instead of one uniform level.
+      const identity = 0.62 + seededUnit(agent.index, 87) * 0.38;
+      const bodyAlpha = (highContrast ? 0.96 : 0.58 + drive * 0.36) * identity;
 
-      if (!highContrast && (leader || agent.index % 2 === 0)) {
-        // Aura multiplier shrinks with the larger body so the glow stays a halo, not a fog.
-        const auraRadius = radius * (leader ? 2.2 : 1.8);
-        const aura = ctx.createRadialGradient(agent.x, agent.y, 0, agent.x, agent.y, auraRadius);
-        aura.addColorStop(0, colorWithAlpha(hot, leader ? 0.72 : 0.42));
-        aura.addColorStop(0.24, colorWithAlpha(color, 0.24 + drive * 0.16));
-        aura.addColorStop(1, colorWithAlpha(color, 0));
-        ctx.fillStyle = aura;
+      if (highContrast) {
+        ctx.fillStyle = colorWithAlpha(hot, bodyAlpha);
         ctx.beginPath();
-        ctx.arc(agent.x, agent.y, auraRadius, 0, Math.PI * 2);
+        ctx.arc(agent.x, agent.y, Math.max(0.9, radius), 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // CHANGED: hard-edged discs become dandelion puffs — a soft-falloff gradient core
+        //          plus a high-frequency sine fringe halo (QA Pass B).
+        const core = ctx.createRadialGradient(agent.x, agent.y, 0, agent.x, agent.y, Math.max(0.9, radius));
+        core.addColorStop(0, colorWithAlpha(hot, bodyAlpha));
+        core.addColorStop(0.55, colorWithAlpha(hot, bodyAlpha * 0.82));
+        core.addColorStop(1, colorWithAlpha(color, 0));
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(agent.x, agent.y, Math.max(0.9, radius), 0, Math.PI * 2);
+        ctx.fill();
+
+        const fringeSegments = 18;
+        ctx.beginPath();
+        for (let step = 0; step <= fringeSegments; step += 1) {
+          const angle = step / fringeSegments * Math.PI * 2;
+          const fringe = radius * (1.06
+            + 0.09 * Math.sin(angle * 13 + agent.phase * 3)
+            + 0.05 * Math.sin(angle * 21 - agent.phase * 5));
+          const px = agent.x + Math.cos(angle) * fringe;
+          const py = agent.y + Math.sin(angle) * fringe;
+          if (step === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = colorWithAlpha(color, bodyAlpha * 0.28);
         ctx.fill();
       }
-
-      ctx.fillStyle = colorWithAlpha(hot, highContrast ? 0.96 : 0.58 + drive * 0.36);
-      ctx.beginPath();
-      ctx.arc(agent.x, agent.y, Math.max(0.9, radius), 0, Math.PI * 2);
-      ctx.fill();
 
       if (leader) this.drawLeaderCrown(ctx, agent, radius, hot, highContrast);
     }

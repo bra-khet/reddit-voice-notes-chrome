@@ -92,6 +92,8 @@ function createContext() {
     },
     beginPath() { path = []; operations.push(['beginPath']); },
     moveTo(x, y) { path.push(['moveTo', x, y]); operations.push(['moveTo', x, y]); },
+    lineTo(x, y) { path.push(['lineTo', x, y]); operations.push(['lineTo', x, y]); },
+    closePath() { path.push(['closePath']); operations.push(['closePath']); },
     quadraticCurveTo(cx, cy, x, y) {
       path.push(['quadraticCurveTo', cx, cy, x, y]);
       operations.push(['quadraticCurveTo', cx, cy, x, y]);
@@ -273,7 +275,11 @@ check('two instances produce deterministic bounded geometry at maximum density',
     operation === 'moveTo' || operation === 'quadraticCurveTo' || operation === 'arc');
   assert.ok(coordinateOps.length > FOREST_SPIRITS_MAX_AGENTS);
   assert.ok(coordinateOps.flat().filter((value) => typeof value === 'number').every(Number.isFinite));
-  assert.ok(firstOps.filter(([operation]) => operation === 'createRadialGradient').length <= 27);
+  // Every puff dot now carries one soft-falloff gradient core, bounded by the agent cap.
+  assert.ok(
+    firstOps.filter(([operation]) => operation === 'createRadialGradient').length
+      <= FOREST_SPIRITS_MAX_AGENTS,
+  );
 });
 
 check('voice energy changes spirit light scale while the agent ceiling stays fixed', () => {
