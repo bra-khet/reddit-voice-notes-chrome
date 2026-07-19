@@ -107,6 +107,8 @@ class DigitalRainVisual implements AudioVisual {
   private readonly tail = new Float32Array(DIGITAL_RAIN_MAX_COLUMNS);
   private readonly speed = new Float32Array(DIGITAL_RAIN_MAX_COLUMNS);
   private readonly strength = new Float32Array(DIGITAL_RAIN_MAX_COLUMNS);
+  /** Spawn-time brightness floor a live stream keeps until its tail leaves the grid. */
+  private readonly residual = new Float32Array(DIGITAL_RAIN_MAX_COLUMNS);
   private readonly trailLength = new Float32Array(DIGITAL_RAIN_MAX_COLUMNS);
   /** Pause timer while active; respawn cooldown while inactive. */
   private readonly holdTimer = new Float32Array(DIGITAL_RAIN_MAX_COLUMNS);
@@ -173,6 +175,7 @@ class DigitalRainVisual implements AudioVisual {
     this.tail.fill(0);
     this.holdTimer.fill(0);
     this.strength.fill(0);
+    this.residual.fill(0);
     this.streamId.fill(0);
     this.primed = false;
   }
@@ -216,7 +219,12 @@ class DigitalRainVisual implements AudioVisual {
     // CHANGED: base fall speed reduced ~10% (2.2–5.8 → 2.0–5.2 rows/s) per QA Pass B.
     this.speed[lane] = 2.0 + seededUnit(lane, sid * 3 + 7) * 3.2;
     this.trailLength[lane] = 5.5 + seededUnit(lane, sid + 29) * 2.5;
-    this.strength[lane] = Math.max(prime ? 0.5 : 0.45, drive);
+    // CHANGED: spawn drive is captured as the stream's residual — the brightness it
+    //          keeps for its whole pass (Pass D follow-up: Rising Ember's
+    //          spawn-then-live-out-their-life model).
+    // WHY: visibility must never be gated on the live drive once a stream starts.
+    this.residual[lane] = Math.max(prime ? 0.5 : 0.45, drive);
+    this.strength[lane] = this.residual[lane] ?? 0.45;
     this.holdTimer[lane] = 0;
     this.active[lane] = 1;
     if (prime) {
@@ -278,11 +286,22 @@ class DigitalRainVisual implements AudioVisual {
         continue;
       }
 
-      this.strength[lane] = Math.max(drive, (this.strength[lane] ?? 0) - dt * 0.55);
+      // BUG FIX: active streams faded out (and re-lit mid-fall) with the live drive
+      // Fix: strength decayed toward the CURRENT drive every frame, so a quiet moment
+      //      dimmed glyphs mid-fall and the next word re-lit them — visibility was
+      //      gated on live audio. Audio drive now only controls SPAWNING; an active
+      //      stream holds its spawn-time residual until its tail leaves the grid.
+      //      Transient hits may still briefly lift a stream above its residual, and
+      //      that boost decays back to the residual — never below it.
+      // Sync: spawnStream residual capture; laneDrive stays spawn-gate-only
+      const residual = this.residual[lane] ?? 0.45;
+      this.strength[lane] = Math.max(residual, (this.strength[lane] ?? residual) - dt * 0.85);
       if (frame.transient) {
-        this.strength[lane] = Math.max(this.strength[lane] ?? 0, Math.min(1, drive + 0.25));
+        this.strength[lane] = Math.max(this.strength[lane] ?? 0, Math.min(1, residual + 0.25));
       }
 
+      // Live drive still modulates fall SPEED (motion reactivity, like Ember's
+      // weave) — the 0.55 floor guarantees a stream always completes its pass.
       const advanceRate = (this.speed[lane] ?? 3) * (0.55 + drive * 0.95);
       const previousHeadCell = Math.floor(this.head[lane] ?? 0);
       const paused = (this.holdTimer[lane] ?? 0) > 0;

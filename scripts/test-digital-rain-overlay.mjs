@@ -437,6 +437,40 @@ check('capture speech keeps outer lanes raining after the first stream cycle', (
   );
 });
 
+check('active streams keep their spawn residual through quiet passages', () => {
+  // Pass D follow-up: drive gates SPAWNING only. Once live, a stream must stay
+  // visible at its spawn-time residual until its tail leaves the grid — under the
+  // old drive-coupled decay, 2.5 s of near-silence dimmed every glyph below the
+  // draw cutoff mid-fall (and the next word re-lit them mid-air).
+  const visual = DIGITAL_RAIN_VISUAL_DEFINITION.create();
+  const loud = { ...frame, energy: 0.85, bands: Array(32).fill(0.85) };
+  const primed = glyphOps(renderRain(visual, loud));
+  assert.ok(primed.length > 0, 'loud prime spawns streams');
+  const quiet = { ...frame, energy: 0.015, bands: Array(32).fill(0.01) };
+  let ops = [];
+  for (let step = 1; step <= 25; step += 1) {
+    ops = renderRain(
+      visual,
+      { ...quiet, timeMs: 1000 + step * 100 },
+      params,
+      captureEnvironment,
+      0.1,
+    );
+  }
+  const surviving = glyphOps(ops);
+  assert.ok(
+    surviving.length > 0,
+    'streams spawned before the quiet passage must live out their pass',
+  );
+  // Residual floor: surviving glyph alphas stay well above the draw cutoff
+  // instead of hovering at the near-zero live drive.
+  const alphas = surviving.map(([, , , , , fillStyle]) => {
+    const match = /rgba\([^)]+,\s*([\d.]+)\)/.exec(String(fillStyle));
+    return match ? Number(match[1]) : 0;
+  });
+  assert.ok(Math.max(...alphas) > 0.3, 'head cells hold spawn-residual brightness');
+});
+
 check('layout switch restores full linear lattice after radial coarsening', () => {
   const visual = DIGITAL_RAIN_VISUAL_DEFINITION.create();
   const loud = { ...frame, energy: 0.85, bands: Array(32).fill(0.85) };
