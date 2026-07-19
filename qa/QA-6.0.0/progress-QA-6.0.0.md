@@ -36,6 +36,42 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 ## Session log
 
+### 2026-07-19 (evening) — Pass D targeted follow-up: digital-rain visibility + glitch photosensitivity (agent)
+
+Two operator-directed fixes (commits `882a61e` + `87efdb0`):
+
+- **digital-rain** — audio drive now gates **spawning only**. An active stream captures its
+  spawn-time drive as a per-lane `residual[]` brightness floor and lives out its whole pass
+  (advancing + trailing until the tail leaves the grid) — Rising Ember's
+  spawn-then-live-out-their-life model. Previously strength decayed toward the *live* drive
+  every frame, so quiet passages dimmed glyphs mid-fall and the next word re-lit them
+  mid-air. Live drive still modulates fall *speed* (0.55× floor guarantees completion);
+  transients still briefly lift a stream above its residual. Element ceilings + size gates
+  unchanged; the stable per-stream alpha removes flicker entropy. New suite check: streams
+  primed loud survive 2.5 s of near-silence at spawn-residual brightness (17/17 pass).
+- **glitch (HIGH PRIORITY — photosensitivity)** — the DEFAULT path is now safe under
+  WCAG 2.3.1 on its own (reduced-motion is not the safety mechanism):
+  1. Full-strength invert flashes are spaced ≥ 340 ms + 0–80 ms seeded jitter
+     (≤ 3 full flashes in any rolling second, never a rigid cadence).
+  2. Rate-refused hits fall back to a quarter-scale wash (~7% peak white — under the
+     luminance change that counts as a flash) and every blip eases in over a 60 ms
+     smoothstep. Burst-decay envelope untouched; the effect stays reactive.
+  3. Saturated-red prohibition: invert is white-by-construction; user palettes pass
+     through `sanitizeGlitchPalette` (R/(R+G+B) ≥ 0.72 desaturates toward signal white)
+     before fringes/seams/scanlines/rails. The `#ff2f92` magenta identity is untouched.
+  4. Glitch selection card carries the semiotic warning indicator + one polite line
+     ("May feel intense for some viewers — reduced-motion settings soften it.");
+     icon stamps at mount, no behavior change, no modal.
+  Two new suite checks pin the flash budget and the red guard (14/14 pass).
+
+Verification: **all 57 Node suites PASS** · `tsc` = same 2 pre-existing subtitle
+diagnostics · `wxt build` PASS.
+
+**Pass E additions:** confirm rain streams no longer fade/re-lit mid-fall across pauses
+in speech; hammer Glitch with rhythmic loud speech and confirm the invert cadence feels
+stochastic (full hits interleaved with soft ramps, never a strobe); check the Glitch
+card note reads as a courtesy, not an alarm.
+
 ### 2026-07-19 (later still) — Pass D fix sprint (agent)
 
 Addressed the full Pass D packet (`track-a/artifacts/qa-session-track-a-pass-d-2026-07-17.json`)

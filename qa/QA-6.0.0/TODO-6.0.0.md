@@ -21,6 +21,8 @@
 - [ ] Inferno — front layers carry vertical heat ramps; licks are born with stretched tendril bottoms that retract into a point; Void toggle now lives under the Atmosphere picker
 - [ ] Line tapers everywhere flat segments remained: smoke HC spines · ember HC trails · aurora fold-spine ends / HC source lines / ring cross-fade · particle-burst trails+rays · inferno sparks
 - [ ] Size gate: one 120 s digital-rain re-run — baked should now land ~35 MiB (bitrate pin 1.5 → 2.2 Mbps) under the 40 MiB cap
+- [ ] Digital Rain follow-up (`882a61e`): streams no longer fade / re-light mid-fall with the live drive — spawn-gated only, spawn-residual brightness for the whole pass
+- [ ] Glitch photosensitivity hardening (`87efdb0`, HIGH PRIORITY): invert cadence must feel stochastic (full hits ≥ 340 ms apart interleaved with soft eased ramps — never a strobe); saturated-red user palettes desaturate; selection-card courtesy note present
 - [ ] Note: visual-fixture dev server moved to **port 9310** (8600 also fell into a Windows excluded-port range after reboot)
 
 **Architecture at Phase 4:** map **v3.21** / I22 · extension-points **v1.35** · confidence stays **Medium** until live capture/FPS + 120 s heavy-artifact reports land.
