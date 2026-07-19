@@ -14,13 +14,14 @@
 | **A — audio-reactive visuals** | Phase 4 **implemented** · focused fixture QA PASS · **live confidence QA open** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
 | **B — background layout** | **Not started** (branch may exist; do not open QA until A confidence close) | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) |
 
-**Automated (re-run 2026-07-19 after the Pass C fix sprint):** all **57 Node suites PASS** (528 checks) · `npm run build` PASS · `npm run compile` = same 2 pre-existing subtitle diagnostics.
+**Automated (re-run 2026-07-19 after the Pass D fix sprint):** all **57 Node suites PASS** · `npm run build` PASS · `npm run compile` = same 2 pre-existing subtitle diagnostics.
 
-**Pass A+B fixes landed 2026-07-19** (commits `2598815..aaf0bb3`) · **Pass C operator QA PASSED** all sections incl. §8-12 size gates under 40/40 · **Pass C polish sprint landed** (commits `3ba5a26..820a2e8`; see `progress-QA-6.0.0.md`). Open re-QA items for Pass D:
-- [ ] Visual confirmation of the Pass C rework (inferno lattice-noise front + flare-coupled licks · aurora live centered lines / seamless radial ring / ribbon fades · digital-rain radial spacing · glitch activation cadence + inversion flash · sparkle motion · forest-spirits antennae · smoke agitation cycles · lightning bow/walk anchors · arc jumps)
-- [ ] Bubbles over an **image background** — confirm the 30-50% alpha lift reads right
-- [ ] Phosphor — confirm columns no longer sit at cap (AGC headroom)
-- [ ] Note: visual-fixture dev server moved to **port 8600** (8873 fell into a Windows excluded-port range)
+**Pass A+B fixes landed 2026-07-19** (commits `2598815..aaf0bb3`) · **Pass C operator QA PASSED** + polish sprint (`3ba5a26..820a2e8`) · **Pass D operator QA PASSED** ("visuals nearly perfect") · **Pass D fix sprint landed** (commits `26f3a0c..c184985`, 8 commits; see `progress-QA-6.0.0.md`). Open re-QA items for Pass E:
+- [ ] Oscilloscope — live capture at normal speech now ≈ preview activity (waveform AGC); preview ~half its old clipped level
+- [ ] Inferno — front layers carry vertical heat ramps; licks are born with stretched tendril bottoms that retract into a point; Void toggle now lives under the Atmosphere picker
+- [ ] Line tapers everywhere flat segments remained: smoke HC spines · ember HC trails · aurora fold-spine ends / HC source lines / ring cross-fade · particle-burst trails+rays · inferno sparks
+- [ ] Size gate: one 120 s digital-rain re-run — baked should now land ~35 MiB (bitrate pin 1.5 → 2.2 Mbps) under the 40 MiB cap
+- [ ] Note: visual-fixture dev server moved to **port 9310** (8600 also fell into a Windows excluded-port range after reboot)
 
 **Architecture at Phase 4:** map **v3.21** / I22 · extension-points **v1.35** · confidence stays **Medium** until live capture/FPS + 120 s heavy-artifact reports land.
 

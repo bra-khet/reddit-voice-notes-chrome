@@ -36,6 +36,52 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 ## Session log
 
+### 2026-07-19 (later still) — Pass D fix sprint (agent)
+
+Addressed the full Pass D packet (`track-a/artifacts/qa-session-track-a-pass-d-2026-07-17.json`)
+in per-effect commits (`26f3a0c..c184985`, 8 commits). Operator verdict was "visuals nearly
+perfect"; this sprint closed the remaining items:
+
+- **oscilloscope** (§2f, the open reactivity defect) — the fixed sensitivity gain became a
+  waveform AGC (fast-rise 9/s / slow-decay 0.55/s recent-peak reference → sensitivity-shaped
+  display target 0.34+s·0.42, boost capped ×6 for an honest silence floor). Preview lands at
+  ~60% of its old clipped activity; live speech is lifted to the same target; one shared code
+  path keeps the preview==capture parity contract.
+- **inferno** (§3e) — per-layer vertical heat ramps on the front (sheath dissolves upward,
+  body keeps its ramp, core hottest at the hearth); licks morph over life: bottoms stretch
+  into an elongated tendril at birth, retract by mid-life, and the last 22% pinches to a
+  small point — the requested "lick of flame" arc; spark trails taper head→zero-tail in both
+  variants. Verified visually on the regenerated before/after fixture.
+- **§3 line-taper prescription** (inner end full alpha → outer end zero, performant, no new
+  glow) applied everywhere flat straight strokes remained: **smoke** spine (vent-anchored,
+  both contrast modes), **rising-ember** HC trail, **aurora** (open-lane fold-spine ends,
+  HC source lines, radial ring as a cross-stroke fade — a closed ring has no ends),
+  **particle-burst** comet trails + reduced-motion rays, **inferno** spark trails.
+  Deliberately skipped: lightning/electric-arc (jagged hard segments are the electric
+  identity and were signed off §4a), neon-glow (wide glow tubes, no bare segments), conway
+  (cell fills only).
+- **caps** (blockers) — BROWSER_COMPOSITE_VIDEO_BPS 1.5 → 2.2 Mbps so a 2:00 bake targets
+  ~35 MiB (operator figure) under the 40 MiB store cap (~5 MiB headroom); fixed the stale
+  BAKED_MP4_MAX_BYTES guard mirror (still 30 MiB from before Pass A). Explains the operator's
+  "baked is less than base" observation — the old pin crushed every bake to ~25 MB. Future
+  intent recorded in-comment: ~48 MiB if worker memory allows (store caps first).
+- **Void Inferno toggle** (blockers) — relocated from beside the global High Contrast switch
+  into the Atmosphere bay directly under the picker (still Inferno-only). Same data
+  attributes, so wiring and prefs schema are untouched.
+- Trap confirmed again: particle-burst's mock returned an own-closure gradient stub; the
+  prototype-`MockGradient` pattern restored deepEqual determinism (same fix as Pass A).
+- **Fixture port moved 9310** (8600 fell into a Windows excluded range after reboot);
+  `.claude/launch.json` updated; after.js regenerated from source.
+
+Verification: **all 57 Node suites PASS** · `tsc` = same 2 pre-existing subtitle
+diagnostics · `wxt build` PASS (1.9 s).
+
+**Next for operator (Pass E):** reload, confirm oscilloscope live-vs-preview parity at
+normal speech, the inferno front gradients + tendril licks, the line tapers (smoke HC
+spines / ember HC / aurora lines / particle-burst), the Void toggle's new home under the
+Atmosphere picker, and re-run one 120 s digital-rain size gate to see the new ~35 MiB
+baked target land under 40.
+
 ### 2026-07-19 (later) — Pass C fix sprint (agent)
 
 Addressed the full Pass C packet (`track-a/artifacts/qa-session-track-a-pass-c-2026-07-19.json`)
