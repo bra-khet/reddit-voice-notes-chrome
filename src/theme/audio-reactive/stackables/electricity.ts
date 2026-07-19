@@ -175,6 +175,9 @@ class ElectricArcEffect implements StackableEffect {
   private drive = 0;
   private midDrive = 0;
   private trebleDrive = 0;
+  /** Sporadic contact relocation state (frame-time epochs; disabled under reduced motion). */
+  private roamTime = 0;
+  private roaming = true;
 
   render(
     ctx: CanvasRenderingContext2D,
@@ -204,6 +207,8 @@ class ElectricArcEffect implements StackableEffect {
         + previewLift)
       * (0.55 + clamp01(params.sensitivity) * 1.45),
     );
+    this.roamTime = frame.timeMs / 1000;
+    this.roaming = !reduceMotion;
     if (this.drive <= 0.01) return;
 
     const cadenceMs = 52 + clamp01(params.smoothing) * 92;
@@ -279,8 +284,19 @@ class ElectricArcEffect implements StackableEffect {
   }
 
   private resolveContact(index: number, count: number, target: ContactGeometry): void {
+    // CHANGED: each contact sporadically relocates on its own seeded epoch clock.
+    // WHY: corona rooted at fixed evenly-spaced points read as static; discharge should
+    //      occur in random spots around/along the conductor rail (QA §4a electric-arc).
+    let roamAngle = 0;
+    let roamAlong = 0;
+    if (this.roaming) {
+      const interval = 0.6 + seededUnit(index, 211) * 0.9;
+      const epoch = Math.floor(this.roamTime / interval + seededUnit(index, 223) * 7);
+      roamAngle = seededSigned(index * 13 + epoch, 227);
+      roamAlong = seededSigned(index * 17 + epoch, 229);
+    }
     if (this.layout === 'radial') {
-      const angle = -Math.PI / 2 + index / count * Math.PI * 2;
+      const angle = -Math.PI / 2 + index / count * Math.PI * 2 + roamAngle * 0.38;
       const radius = Math.min(this.canvasWidth, this.canvasHeight) * 0.235;
       target.x = this.canvasWidth / 2 + Math.cos(angle) * radius;
       target.y = this.canvasHeight / 2 + Math.sin(angle) * radius;
@@ -293,12 +309,18 @@ class ElectricArcEffect implements StackableEffect {
       const row = Math.floor(index / 2);
       const rows = Math.max(1, Math.ceil(count / 2));
       target.x = this.canvasWidth * (left ? 0.12 : 0.88);
-      target.y = this.canvasHeight * (0.31 + (rows === 1 ? 0.19 : row / (rows - 1) * 0.38));
+      target.y = this.canvasHeight * Math.min(0.82, Math.max(
+        0.2,
+        0.31 + (rows === 1 ? 0.19 : row / (rows - 1) * 0.38) + roamAlong * 0.08,
+      ));
       target.normalX = left ? 1 : -1;
       target.normalY = (0.5 - target.y / this.canvasHeight) * 0.24;
       return;
     }
-    target.x = this.canvasWidth * (0.14 + index / Math.max(1, count - 1) * 0.72);
+    target.x = this.canvasWidth * Math.min(0.94, Math.max(
+      0.06,
+      0.14 + index / Math.max(1, count - 1) * 0.72 + roamAlong * 0.07,
+    ));
     target.y = this.canvasHeight * 0.9;
     target.normalX = (target.x / this.canvasWidth - 0.5) * 0.24;
     target.normalY = -1;
@@ -409,6 +431,11 @@ class LightningEffect implements StackableEffect {
   private routeSerial = 0;
   private surge = 0;
   private channelReady = false;
+  /** Walking behavior: endpoints alternate seeded relocations on a paced beat. */
+  private walkTimer = 0;
+  private walkSerial = 1;
+  private startWalkSerial = 0;
+  private endWalkSerial = 1;
   private pointCount = LIGHTNING_MIN_POINTS;
   private branchLimit = LIGHTNING_MIN_BRANCHES;
   private activeBranches = 0;
@@ -466,7 +493,26 @@ class LightningEffect implements StackableEffect {
       return;
     }
 
-    this.resolveContacts();
+    // CHANGED: the strike "walks" — on a seeded beat one endpoint breaks loose and
+    //          relocates while the other stays planted, alternating ends each beat.
+    // WHY: a bolt permanently pinned between two fixed points read as boring (QA §4a);
+    //      real sustained discharge hunts for new attachment points.
+    if (!reduceMotion) {
+      this.walkTimer += this.pendingDt;
+      const walkInterval = Math.max(
+        0.5,
+        0.8 + seededUnit(this.walkSerial, 149) * 0.9 - this.trebleDrive * 0.3,
+      );
+      if (this.walkTimer >= walkInterval) {
+        this.walkSerial += 1;
+        if (this.walkSerial % 2 === 0) this.startWalkSerial = this.walkSerial;
+        else this.endWalkSerial = this.walkSerial;
+        this.walkTimer = 0;
+        this.channelReady = false;
+        this.surge = Math.max(this.surge, 0.66);
+      }
+    }
+    this.resolveContacts(!reduceMotion);
     const palette = resolveVisualPalette(params.color);
     if (reduceMotion) {
       this.surge = 0;
@@ -523,19 +569,36 @@ class LightningEffect implements StackableEffect {
     );
   }
 
-  private resolveContacts(): void {
+  private resolveContacts(walk: boolean): void {
     if (this.layout === 'centered') {
       this.startX = this.canvasWidth * 0.1;
-      this.startY = this.canvasHeight * 0.5;
+      this.startY = this.canvasHeight
+        * (walk ? 0.2 + seededUnit(this.startWalkSerial, 151) * 0.6 : 0.5);
       this.endX = this.canvasWidth * 0.9;
-      this.endY = this.canvasHeight * 0.5;
+      this.endY = this.canvasHeight
+        * (walk ? 0.2 + seededUnit(this.endWalkSerial, 153) * 0.6 : 0.5);
       return;
     }
     if (this.layout === 'radial') {
       this.startX = this.canvasWidth * 0.5;
       this.startY = this.canvasHeight * 0.5;
-      this.endX = this.canvasWidth * 0.83;
-      this.endY = this.canvasHeight * 0.17;
+      if (walk) {
+        // The hub stays planted; every walk beat hunts a new rim attachment.
+        const angle = seededUnit(this.walkSerial, 151) * Math.PI * 2;
+        const radius = Math.min(this.canvasWidth, this.canvasHeight) * 0.4;
+        this.endX = this.canvasWidth / 2 + Math.cos(angle) * radius;
+        this.endY = this.canvasHeight / 2 + Math.sin(angle) * radius;
+      } else {
+        this.endX = this.canvasWidth * 0.83;
+        this.endY = this.canvasHeight * 0.17;
+      }
+      return;
+    }
+    if (walk) {
+      this.startX = this.canvasWidth * (0.08 + seededUnit(this.startWalkSerial, 151) * 0.36);
+      this.startY = this.canvasHeight * (0.6 + seededUnit(this.startWalkSerial, 155) * 0.32);
+      this.endX = this.canvasWidth * (0.55 + seededUnit(this.endWalkSerial, 153) * 0.37);
+      this.endY = this.canvasHeight * (0.08 + seededUnit(this.endWalkSerial, 157) * 0.34);
       return;
     }
     this.startX = this.canvasWidth * 0.15;

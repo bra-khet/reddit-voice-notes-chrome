@@ -85,6 +85,18 @@ const frame = {
   transient: false,
 };
 
+// Prototype methods keep gradient stubs deepEqual-comparable across context instances.
+class MockGradient {
+  constructor(args) {
+    this.args = args;
+    this.stops = [];
+  }
+
+  addColorStop(offset, color) {
+    this.stops.push([offset, color]);
+  }
+}
+
 function createContext() {
   const operations = [];
   const state = {};
@@ -103,6 +115,13 @@ function createContext() {
     beginPath() { operations.push(['beginPath']); },
     moveTo(...args) { operations.push(['moveTo', ...args]); },
     lineTo(...args) { operations.push(['lineTo', ...args]); },
+    // The three-stack seam runs the real Rising Ember effect, whose whip trail needs these.
+    quadraticCurveTo(...args) { operations.push(['quadraticCurveTo', ...args]); },
+    createLinearGradient(...args) {
+      const gradient = new MockGradient(args);
+      operations.push(['createLinearGradient', ...args]);
+      return gradient;
+    },
     arc(...args) { operations.push(['arc', ...args]); },
     fillRect(...args) { operations.push(['fillRect', state.fillStyle, ...args]); },
     stroke() { operations.push(['stroke', state.strokeStyle, state.lineWidth]); },
@@ -151,6 +170,20 @@ function hasPoint(operations, operation, x, y) {
   return operations.some(([name, left, top]) => (
     name === operation && Math.abs(left - x) < 0.001 && Math.abs(top - y) < 0.001
   ));
+}
+
+/** The main channel start: the one moveTo shared by all three lightning body passes. */
+function channelStart(operations) {
+  const counts = new Map();
+  for (const [name, x, y] of operations) {
+    if (name !== 'moveTo') continue;
+    const key = `${x},${y}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const [key, count] of counts) {
+    if (count >= 3) return key;
+  }
+  return null;
 }
 
 let checks = 0;
@@ -217,8 +250,9 @@ check('corona is a multi-streamer field while Lightning remains a connected cont
   const coronaStarts = corona.filter(([operation]) => operation === 'moveTo').length;
   const boltStarts = bolt.filter(([operation]) => operation === 'moveTo').length;
   assert.ok(coronaStarts > boltStarts);
-  assert.equal(hasPoint(bolt, 'moveTo', canvas.width * 0.15, canvas.height * 0.82), true);
-  assert.equal(hasPoint(bolt, 'lineTo', canvas.width * 0.85, canvas.height * 0.18), true);
+  // Endpoints now walk, so instead of pinned coordinates assert connectivity: all three
+  // main body passes share one start point somewhere on the canvas.
+  assert.ok(channelStart(bolt) !== null);
 });
 
 check('capture silence stays empty while synthetic preview demonstrates both effects', () => {
@@ -277,10 +311,30 @@ check('Lightning remains continuously connected across bounded route refreshes',
     visual,
     0.1,
   ).operations;
-  for (const operations of [first, second]) {
-    assert.equal(hasPoint(operations, 'moveTo', canvas.width * 0.15, canvas.height * 0.82), true);
-    assert.equal(hasPoint(operations, 'lineTo', canvas.width * 0.85, canvas.height * 0.18), true);
+  // No walk fires inside 0.1 s, so the shared channel start must be identical across
+  // both renders (connected channel, not a fresh disconnected strike).
+  assert.ok(channelStart(first) !== null);
+  assert.equal(channelStart(second), channelStart(first));
+});
+
+check('Lightning walks: endpoints relocate on a seeded beat, one end at a time', () => {
+  const visual = LIGHTNING_EFFECT_DEFINITION.create();
+  render(LIGHTNING_EFFECT_DEFINITION, frame, params, captureEnvironment, visual, 0);
+  const starts = new Set();
+  for (let step = 1; step <= 40; step += 1) {
+    const ops = render(
+      LIGHTNING_EFFECT_DEFINITION,
+      { ...frame, timeMs: 1000 + step * 100 },
+      params,
+      captureEnvironment,
+      visual,
+      0.1,
+    ).operations;
+    const start = channelStart(ops);
+    if (start) starts.add(start);
   }
+  // Over four seconds of speech the planted end must have hunted new ground at least once.
+  assert.ok(starts.size >= 2);
 });
 
 check('the live theme seam composes Ember, Electric Arc, and Lightning as one bounded three-stack', () => {
