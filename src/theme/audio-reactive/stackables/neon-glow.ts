@@ -204,12 +204,13 @@ class NeonGlowEffect implements StackableEffect {
     params: VisualizerParams,
     reduceMotion: boolean,
   ): void {
-    // CHANGED: snappier level follow (4.5→6 base) and a slightly hotter per-tube gain.
+    // CHANGED: snappier level follow (6→7.5 base) and a hotter per-tube gain
+    //          (0.78+s·0.98 → 0.85+s·1.05), the second small reactivity bump (Pass C).
     // WHY: QA asked for a bit more reactivity from the tubes (§4a neon-glow).
     const follow = this.initialized && !reduceMotion
-      ? 1 - Math.exp(-this.pendingDt * (6 + (1 - clamp01(params.smoothing)) * 16))
+      ? 1 - Math.exp(-this.pendingDt * (7.5 + (1 - clamp01(params.smoothing)) * 16))
       : 1;
-    const sensitivity = 0.78 + clamp01(params.sensitivity) * 0.98;
+    const sensitivity = 0.85 + clamp01(params.sensitivity) * 1.05;
 
     for (let tubeIndex = 0; tubeIndex < NEON_GLOW_MAX_TUBES; tubeIndex += 1) {
       if (tubeIndex >= this.tubeLimit) {
