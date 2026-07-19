@@ -245,6 +245,8 @@ class OscilloscopeVisual implements AudioVisual {
   private elapsedSeconds = 0;
   private historyDiscontinuity = false;
   private modeKey = '';
+  /** AGC reference: the recent waveform peak the displayed trace normalizes against. */
+  private agcPeak = 0;
 
   update(_frame: AudioVizFrame, dt: number): void {
     this.elapsedSeconds = dt;
@@ -254,6 +256,7 @@ class OscilloscopeVisual implements AudioVisual {
   private resetHistory(): void {
     this.historyHead = -1;
     this.historySize = 0;
+    this.agcPeak = 0;
     for (const trace of this.history) trace.fill(0);
   }
 
@@ -320,6 +323,7 @@ class OscilloscopeVisual implements AudioVisual {
     }
     this.historyDiscontinuity = false;
 
+    const agcDt = this.elapsedSeconds;
     const sampled = environment.reduceMotion
       ? reducedMotionTrace(pointCount, frame)
       : sampleOscilloscopeTrace(frame.waveform, pointCount, params.density);
@@ -334,14 +338,30 @@ class OscilloscopeVisual implements AudioVisual {
     const primary = palette[0] ?? environment.colors.bar;
     const hot = palette[palette.length - 1] ?? environment.colors.glow;
     const contrast = mixVisualColors(hot, '#ffffff', 0.38);
-    // CHANGED: defaults retuned to the old maxed-out feel (Pass C §2f) — gain
-    //          0.6+s·1.95 → 1.1+s·2.2 and intensity 0.62+i·0.72 → 0.9+i·0.65, so the
-    //          default midpoint lands where "everything turned all the way up" sat.
-    // WHY: the operator found the maxed behavior right and asked for the tuning
-    //      midpoint moved there; the reduced trace keeps its calm sub-unity gain.
+    // CHANGED: the fixed sensitivity gain (1.1 + s·2.2) became a waveform AGC — a
+    //          fast-rise/slow-decay recent-peak reference normalized to a
+    //          sensitivity-shaped display target (QA Pass D §2f), the same pattern
+    //          that cured Phosphor's cap-sitting in Pass C.
+    // WHY: one fixed gain can never serve both worlds — the hot synthetic preview
+    //      clipped at the rails while real mic speech (~5× quieter time-domain
+    //      peaks) barely registered. Normalizing both to the same on-screen target
+    //      lands preview at roughly half its old clipped activity and lifts live
+    //      speech to match it, through the one shared code path that keeps
+    //      preview/capture parity. The boost cap keeps the silence floor honest:
+    //      analyser noise is never magnified into a full trace.
+    if (!environment.reduceMotion) {
+      let framePeak = 0;
+      for (let index = 0; index < pointCount; index += 1) {
+        framePeak = Math.max(framePeak, Math.abs(sampled[index] ?? 0));
+      }
+      const rate = framePeak > this.agcPeak ? 9 : 0.55;
+      const follow = agcDt > 0 ? 1 - Math.exp(-rate * agcDt) : 1;
+      this.agcPeak += (framePeak - this.agcPeak) * follow;
+    }
+    const displayTarget = 0.34 + clamp01(params.sensitivity) * 0.42;
     const gain = environment.reduceMotion
       ? 0.85
-      : 1.1 + clamp01(params.sensitivity) * 2.2;
+      : Math.min(6, displayTarget / Math.max(this.agcPeak, 1e-4));
     const intensity = 0.9 + clamp01(params.intensity) * 0.65;
 
     ctx.lineCap = 'round';
