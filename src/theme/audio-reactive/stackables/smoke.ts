@@ -465,6 +465,8 @@ class LayeredSmokeEffect implements StackableEffect {
     const gapLimit = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight)) * 0.22;
     let previousX = 0;
     let previousY = 0;
+    let ventX = 0;
+    let ventY = 0;
     ctx.beginPath();
     for (let offset = 0; offset < LAYERED_SMOKE_NODES_PER_PLUME; offset += 1) {
       const node = this.field.nodeAt(plumeIndex, offset);
@@ -474,13 +476,28 @@ class LayeredSmokeEffect implements StackableEffect {
       } else {
         ctx.lineTo(node.x, node.y);
       }
+      if (points === 0) {
+        ventX = node.x;
+        ventY = node.y;
+      }
       previousX = node.x;
       previousY = node.y;
       points += 1;
     }
     if (points < 2) return;
     const color = paletteColorAt(palette, 0.68);
-    ctx.strokeStyle = colorWithAlpha(color, highContrast ? 0.34 : 0.075);
+    // CHANGED: the spine fades along its length — full alpha at the vent end
+    //          (offset 0 = newest node), zero where the plume dissipates —
+    //          in BOTH contrast modes (QA Pass D §3 line-taper note).
+    // WHY: the flat-alpha polyline read as a bare drawn line over the puffs,
+    //      hardest on High Contrast where there is no shadow to soften it; a
+    //      single canvas-space gradient is the performant smoothing treatment.
+    const spineAlpha = highContrast ? 0.34 : 0.075;
+    const taper = ctx.createLinearGradient(ventX, ventY, previousX, previousY);
+    taper.addColorStop(0, colorWithAlpha(color, spineAlpha));
+    taper.addColorStop(0.55, colorWithAlpha(color, spineAlpha * 0.55));
+    taper.addColorStop(1, colorWithAlpha(color, 0));
+    ctx.strokeStyle = taper;
     ctx.lineWidth = highContrast ? 1.4 : 2.2;
     ctx.shadowColor = highContrast ? 'transparent' : colorWithAlpha(color, 0.28);
     ctx.shadowBlur = highContrast ? 0 : 7;
