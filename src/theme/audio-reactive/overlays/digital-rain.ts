@@ -170,11 +170,18 @@ class DigitalRainVisual implements AudioVisual {
     return clamp01((spectral * 0.7 + clamp01(frame.energy) * 0.3 + previewTide) * sensitivity);
   }
 
-  private spawnStream(lane: number, depth: number, drive: number, prime: boolean): void {
+  private spawnStream(
+    lane: number,
+    depth: number,
+    drive: number,
+    prime: boolean,
+    burst = false,
+  ): void {
     const sid = this.streamId[lane] ?? 0;
     // CHANGED: fractional per-lane speeds and trail lengths are seeded per (lane, stream pass).
     // WHY: every respawn re-rolls the lane so columns drift further out of phase over time.
-    this.speed[lane] = 2.2 + seededUnit(lane, sid * 3 + 7) * 3.6;
+    // CHANGED: base fall speed reduced ~10% (2.2–5.8 → 2.0–5.2 rows/s) per QA Pass B.
+    this.speed[lane] = 2.0 + seededUnit(lane, sid * 3 + 7) * 3.2;
     this.trailLength[lane] = 5.5 + seededUnit(lane, sid + 29) * 2.5;
     this.strength[lane] = Math.max(prime ? 0.5 : 0.45, drive);
     this.holdTimer[lane] = 0;
@@ -184,9 +191,15 @@ class DigitalRainVisual implements AudioVisual {
       this.head[lane] = head;
       this.tail[lane] = head - Math.min(this.trailLength[lane] ?? 0, head);
     } else {
-      const entry = -(seededUnit(lane, sid + 17) * 2.2);
+      // CHANGED: transient bursts enter with the head already on-screen so consonant
+      //          attacks read immediately; steady spawns still slide in from above.
+      const entry = burst
+        ? 0.25 + seededUnit(lane, sid + 17) * 1.2
+        : -(seededUnit(lane, sid + 17) * 2.2);
       this.head[lane] = entry;
-      this.tail[lane] = entry;
+      // BUG FIX: fresh streams entered with no visible tail (QA Pass B)
+      // Fix: seed a 1.5-row starting run so a stream never draws as a lone head glyph.
+      this.tail[lane] = entry - 1.5;
     }
   }
 
@@ -220,7 +233,7 @@ class DigitalRainVisual implements AudioVisual {
         this.holdTimer[lane] = Math.max(0, (this.holdTimer[lane] ?? 0) - dt);
         const gate = 0.26 + seededUnit(lane, sid) * 0.5;
         if (frame.transient && seededUnit(lane, sid + 11) > 0.42) {
-          this.spawnStream(lane, depth, Math.max(0.72, drive), false);
+          this.spawnStream(lane, depth, Math.max(0.72, drive), false, true);
         } else if (this.holdTimer[lane] === 0 && drive >= gate) {
           this.spawnStream(lane, depth, drive, false);
         }
@@ -242,8 +255,11 @@ class DigitalRainVisual implements AudioVisual {
       }
       // CHANGED: the tail keeps advancing while the head pauses, eroding the lit run.
       // WHY: a paused lane must visibly "trail off" instead of freezing as a solid bar.
+      // BUG FIX: trails grew too slowly to ever reach 2-3 cells (QA Pass B)
+      // Fix: sub-length tail chase 0.8 → 0.5 of head rate, so the run reaches 3 cells
+      //      within ~3 rows of travel instead of needing 15 (deeper than the grid).
       const run = (this.head[lane] ?? 0) - (this.tail[lane] ?? 0);
-      const tailRate = run >= (this.trailLength[lane] ?? 0) ? 1 : 0.8;
+      const tailRate = run >= (this.trailLength[lane] ?? 0) ? 1 : 0.5;
       this.tail[lane] = Math.min(
         this.head[lane] ?? 0,
         (this.tail[lane] ?? 0) + advanceRate * tailRate * dt,
