@@ -80,6 +80,18 @@ const frame = {
   transient: false,
 };
 
+// Prototype methods keep gradient stubs deepEqual-comparable across context instances.
+class MockGradient {
+  constructor(args) {
+    this.args = args;
+    this.stops = [];
+  }
+
+  addColorStop(offset, color) {
+    this.stops.push([offset, color]);
+  }
+}
+
 function createContext() {
   const operations = [];
   const state = {};
@@ -100,10 +112,11 @@ function createContext() {
     moveTo(...args) { operations.push(['moveTo', ...args]); },
     lineTo(...args) { operations.push(['lineTo', ...args]); },
     quadraticCurveTo(...args) { operations.push(['quadraticCurveTo', ...args]); },
-    // The stack seam runs the real Rising Ember effect, whose taper trail needs this.
+    // The stack seam runs the real Rising Ember effect, whose taper trail needs
+    // this; Pass D adds the burst's own trail/ray tapers.
     createLinearGradient(...args) {
       operations.push(['createLinearGradient', ...args]);
-      return { addColorStop() {} };
+      return new MockGradient(args);
     },
     arc(...args) { operations.push(['arc', ...args]); },
     rect(...args) { operations.push(['rect', ...args]); },

@@ -484,13 +484,19 @@ class ParticleBurstEffect implements StackableEffect {
 
       ctx.shadowColor = highContrast ? 'transparent' : color;
       ctx.shadowBlur = highContrast ? 0 : particle.size * 3.8;
+      const trailX = particle.x - directionX * trailLength;
+      const trailY = particle.y - directionY * trailLength;
       ctx.beginPath();
       ctx.moveTo(particle.x, particle.y);
-      ctx.lineTo(
-        particle.x - directionX * trailLength,
-        particle.y - directionY * trailLength,
-      );
-      ctx.strokeStyle = colorWithAlpha(color, alpha * (highContrast ? 0.92 : 0.62));
+      ctx.lineTo(trailX, trailY);
+      // CHANGED: the fragment streak fades full-alpha head to zero tail in both
+      //          contrast modes (QA Pass D §3 line-taper note).
+      // WHY: a flat-alpha straight segment reads as a bare drawn line; the
+      //      lengthwise gradient is the prescribed performant smoothing.
+      const taper = ctx.createLinearGradient(particle.x, particle.y, trailX, trailY);
+      taper.addColorStop(0, colorWithAlpha(color, alpha * (highContrast ? 0.92 : 0.62)));
+      taper.addColorStop(1, colorWithAlpha(color, 0));
+      ctx.strokeStyle = taper;
       ctx.lineWidth = Math.max(highContrast ? 1.1 : 0.65, particle.size * 0.44);
       ctx.stroke();
 
@@ -557,7 +563,13 @@ class ParticleBurstEffect implements StackableEffect {
       ctx.beginPath();
       ctx.moveTo(originX, originY);
       ctx.lineTo(x, y);
-      ctx.strokeStyle = colorWithAlpha(color, 0.24 + this.drive * 0.38);
+      // CHANGED: frozen rays fade from the burst origin (inner, full alpha) to
+      //          zero at the fragment tip; the tip dot still anchors the outer
+      //          end (QA Pass D §3 line-taper note).
+      const rayTaper = ctx.createLinearGradient(originX, originY, x, y);
+      rayTaper.addColorStop(0, colorWithAlpha(color, 0.24 + this.drive * 0.38));
+      rayTaper.addColorStop(1, colorWithAlpha(color, 0));
+      ctx.strokeStyle = rayTaper;
       ctx.lineWidth = highContrast ? 1.3 : 0.75;
       ctx.stroke();
       ctx.beginPath();
