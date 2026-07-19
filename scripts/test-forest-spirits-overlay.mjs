@@ -110,12 +110,22 @@ function createContext() {
     },
     stroke() {
       operations.push([
-        'stroke', state.strokeStyle, state.lineWidth, state.shadowBlur, state.shadowColor,
+        'stroke',
+        // Gradients sanitize to plain data (like fill) so deepEqual determinism holds.
+        state.strokeStyle?.__gradient
+          ? { gradient: state.strokeStyle.args, stops: state.strokeStyle.stops.map((stop) => [...stop]) }
+          : state.strokeStyle,
+        state.lineWidth, state.shadowBlur, state.shadowColor,
         path.map((entry) => [...entry]),
       ]);
     },
     createRadialGradient(...args) {
       operations.push(['createRadialGradient', ...args]);
+      return createGradient(args);
+    },
+    // Pass C: leader antennae stroke with a tip-fading linear ramp.
+    createLinearGradient(...args) {
+      operations.push(['createLinearGradient', ...args]);
       return createGradient(args);
     },
   };

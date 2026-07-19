@@ -191,7 +191,7 @@ class ForestSpiritsVisual implements AudioVisual {
     ctx.save();
     ctx.globalCompositeOperation = params.highContrast ? 'source-over' : 'lighter';
     this.drawConnections(ctx, reduceMotion ? 0 : frame.timeMs / 1000, params, palette);
-    this.drawAgents(ctx, params, palette);
+    this.drawAgents(ctx, reduceMotion ? 0 : frame.timeMs / 1000, params, palette);
     ctx.restore();
   }
 
@@ -467,6 +467,7 @@ class ForestSpiritsVisual implements AudioVisual {
 
   private drawAgents(
     ctx: CanvasRenderingContext2D,
+    timeSeconds: number,
     params: VisualizerParams,
     palette: readonly string[],
   ): void {
@@ -530,7 +531,7 @@ class ForestSpiritsVisual implements AudioVisual {
         ctx.fill();
       }
 
-      if (leader) this.drawLeaderCrown(ctx, agent, radius, hot, highContrast);
+      if (leader) this.drawLeaderCrown(ctx, agent, radius, hot, highContrast, timeSeconds);
     }
 
     ctx.globalAlpha = 1;
@@ -546,32 +547,48 @@ class ForestSpiritsVisual implements AudioVisual {
     radius: number,
     color: string,
     highContrast: boolean,
+    timeSeconds: number,
   ): void {
     const speed = Math.hypot(agent.vx, agent.vy);
     const headingX = speed > 1e-4 ? agent.vx / speed : Math.cos(CHAIN_HEADING[agent.chain] ?? 0);
     const headingY = speed > 1e-4 ? agent.vy / speed : Math.sin(CHAIN_HEADING[agent.chain] ?? 0);
     const normalX = -headingY;
     const normalY = headingX;
-    const reach = Math.max(4, radius * 2.4);
-
-    ctx.beginPath();
-    ctx.moveTo(agent.x - normalX * radius * 0.4, agent.y - normalY * radius * 0.4);
-    ctx.quadraticCurveTo(
-      agent.x - headingX * reach * 0.35 - normalX * reach,
-      agent.y - headingY * reach * 0.35 - normalY * reach,
-      agent.x - headingX * reach * 0.72 - normalX * reach * 0.42,
-      agent.y - headingY * reach * 0.72 - normalY * reach * 0.42,
-    );
-    ctx.moveTo(agent.x + normalX * radius * 0.4, agent.y + normalY * radius * 0.4);
-    ctx.quadraticCurveTo(
-      agent.x - headingX * reach * 0.35 + normalX * reach,
-      agent.y - headingY * reach * 0.35 + normalY * reach,
-      agent.x - headingX * reach * 0.72 + normalX * reach * 0.42,
-      agent.y - headingY * reach * 0.72 + normalY * reach * 0.42,
-    );
-    ctx.strokeStyle = colorWithAlpha(color, highContrast ? 0.92 : 0.58);
+    // CHANGED: the head's two swept arcs shrink (reach 2.4 → 1.7 radii), sway on
+    //          independent phases, and fade to nothing at the tips (Pass C §3c).
+    // WHY: QA read them as plain "ears/horns"; smaller wiggling wisps with an alpha
+    //      ramp read as feelers on the spirit instead of fixed horns.
+    const reach = Math.max(3, radius * 1.7);
+    const baseAlpha = highContrast ? 0.92 : 0.58;
     ctx.lineWidth = highContrast ? 1.8 : 1.15;
-    ctx.stroke();
+    for (const side of [-1, 1] as const) {
+      const sway = Math.sin(timeSeconds * 2.3 + agent.phase * 1.9 + side * 1.1) * 0.28;
+      const bend = side * (1 + sway);
+      const baseX = agent.x + side * normalX * radius * 0.4;
+      const baseY = agent.y + side * normalY * radius * 0.4;
+      const tipX = agent.x - headingX * reach * (0.72 + sway * side * 0.18)
+        + normalX * bend * reach * 0.42;
+      const tipY = agent.y - headingY * reach * (0.72 + sway * side * 0.18)
+        + normalY * bend * reach * 0.42;
+      if (highContrast) {
+        ctx.strokeStyle = colorWithAlpha(color, baseAlpha);
+      } else {
+        const ramp = ctx.createLinearGradient(baseX, baseY, tipX, tipY);
+        ramp.addColorStop(0, colorWithAlpha(color, baseAlpha));
+        ramp.addColorStop(0.6, colorWithAlpha(color, baseAlpha * 0.55));
+        ramp.addColorStop(1, colorWithAlpha(color, 0));
+        ctx.strokeStyle = ramp;
+      }
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.quadraticCurveTo(
+        agent.x - headingX * reach * 0.35 + normalX * bend * reach,
+        agent.y - headingY * reach * 0.35 + normalY * bend * reach,
+        tipX,
+        tipY,
+      );
+      ctx.stroke();
+    }
   }
 }
 
