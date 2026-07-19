@@ -249,6 +249,10 @@ export function renderStyleControlCenterFields(): string {
       <section class="studio__style-bay" aria-labelledby="style-overlay-title">
         <div class="studio__style-section-heading"><div><p class="studio__style-eyebrow">Underlay</p><h3 id="style-overlay-title">Atmosphere</h3></div><span>Choose one</span></div>
         <div class="studio__visual-choice-row" role="group" aria-label="Atmosphere preset">${renderOverlayChoices()}</div>
+        <label class="popup__toggle-row studio__style-toggle" data-style-inferno-only hidden>
+          <span class="popup__toggle-copy"><span class="popup__toggle-label">${VOID_INFERNO_LABEL}</span><p class="popup__field-desc">Render Inferno as its dark Void treatment. Shares the High contrast switch.</p></span>
+          <input class="popup__toggle-input" type="checkbox" data-style-void-variant aria-label="Void Inferno variant" />
+        </label>
       </section>
 
       <section class="studio__style-bay" aria-labelledby="style-accents-title">
@@ -302,10 +306,6 @@ export function renderStyleControlCenterFields(): string {
         <label class="popup__toggle-row studio__style-toggle">
           <span class="popup__toggle-copy"><span class="popup__toggle-label">High contrast</span><p class="popup__field-desc">Remove soft glow and harden important edges.</p></span>
           <input class="popup__toggle-input" type="checkbox" data-style-high-contrast aria-label="High contrast visuals" />
-        </label>
-        <label class="popup__toggle-row studio__style-toggle" data-style-inferno-only hidden>
-          <span class="popup__toggle-copy"><span class="popup__toggle-label">${VOID_INFERNO_LABEL} variant</span><p class="popup__field-desc">Render Inferno as its dark Void treatment. Linked to High contrast.</p></span>
-          <input class="popup__toggle-input" type="checkbox" data-style-void-variant aria-label="Void Inferno variant" />
         </label>
         <label class="popup__toggle-row studio__style-toggle" data-style-classic-only>
           <span class="popup__toggle-copy"><span class="popup__toggle-label">Boost Classic halo</span><p class="popup__field-desc">Preserve the legacy extra-neon treatment for Classic bars.</p></span>
@@ -537,8 +537,10 @@ export function mountStyleControlCenter(
     const barGlow = host.querySelector<HTMLInputElement>('[data-style-bar-glow]');
     const safeDim = host.querySelector<HTMLInputElement>('[data-style-subtitle-safe-dim]');
     if (highContrast) highContrast.checked = params.highContrast === true;
-    // CHANGED: Inferno's Void treatment is surfaced as a named, semantically-linked toggle.
-    // WHY: QA found the High Contrast pathway to the Void variant undiscoverable (§3e).
+    // CHANGED: Inferno's Void toggle lives contextually in the Atmosphere bay,
+    //          appearing under the picker only while Inferno is selected (Pass D).
+    // WHY: parked next to the global High Contrast switch it read as a redundant
+    //      sibling; the operator asked for a semantic control at the selection point.
     const infernoOnly = host.querySelector<HTMLElement>('[data-style-inferno-only]');
     if (infernoOnly) infernoOnly.hidden = overlay !== 'inferno';
     const voidVariant = host.querySelector<HTMLInputElement>('[data-style-void-variant]');
