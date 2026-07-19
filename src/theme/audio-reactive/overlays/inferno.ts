@@ -714,10 +714,27 @@ class InfernoVisual implements AudioVisual {
       return;
     }
 
+    // CHANGED: sheath and core now carry their own vertical heat ramps (the body
+    //          already had one) — each layer's gradient is tuned to its role
+    //          (QA Pass D §3e).
+    // WHY: flat fills gave the masked silhouettes hard uniform sheets; a per-layer
+    //      vertical falloff is what makes the stacked front read as one gradual
+    //      volume of heat instead of three cut-outs.
     // Sheath: the deep-red outer envelope, slow broad erosion, up to 1.16× the field.
+    // Its ramp dissolves upward so the outermost ragged edge feathers into the scene.
     this.maskLayer(field, timeSeconds, 0.84, 0.32, radial ? 4 : 4.3, 0.8, 23);
     traceLayer(true);
-    ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.2), 0.3 + this.drive * 0.22);
+    const sheathAlpha = 0.3 + this.drive * 0.22;
+    const sheath = radial
+      ? ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, peak * 0.15,
+        canvas.width / 2, canvas.height / 2, peak * 1.16,
+      )
+      : ctx.createLinearGradient(0, canvas.height, 0, canvas.height - peak * 1.16);
+    sheath.addColorStop(0, colorWithAlpha(paletteColorAt(palette, 0.26), sheathAlpha));
+    sheath.addColorStop(0.55, colorWithAlpha(paletteColorAt(palette, 0.2), sheathAlpha * 0.72));
+    sheath.addColorStop(1, colorWithAlpha(paletteColorAt(palette, 0.12), sheathAlpha * 0.16));
+    ctx.fillStyle = sheath;
     ctx.shadowBlur = 0;
     ctx.fill();
 
@@ -752,10 +769,21 @@ class InfernoVisual implements AudioVisual {
     ctx.stroke();
 
     // Core: the bright inner tongue mass, gated by the flare channel — it bulges at
-    // exactly the samples that are eligible to peel off a lick this instant.
+    // exactly the samples that are eligible to peel off a lick this instant. Its ramp
+    // is hottest at the hearth and cools toward the crest so surges glow from within.
     this.maskLayerFromFlare(field, timeSeconds);
     traceLayer(true);
-    ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.95), 0.42 + this.drive * 0.3);
+    const coreAlpha = 0.5 + this.drive * 0.3;
+    const core = radial
+      ? ctx.createRadialGradient(
+        canvas.width / 2, canvas.height / 2, peak * 0.12,
+        canvas.width / 2, canvas.height / 2, peak,
+      )
+      : ctx.createLinearGradient(0, canvas.height, 0, canvas.height - peak);
+    core.addColorStop(0, colorWithAlpha(paletteColorAt(palette, 0.99), coreAlpha));
+    core.addColorStop(0.6, colorWithAlpha(paletteColorAt(palette, 0.93), coreAlpha * 0.68));
+    core.addColorStop(1, colorWithAlpha(paletteColorAt(palette, 0.85), coreAlpha * 0.24));
+    ctx.fillStyle = core;
     ctx.shadowBlur = 0;
     ctx.fill();
   }
@@ -1095,10 +1123,15 @@ class InfernoVisual implements AudioVisual {
     const normalX = -directionY;
     const normalY = directionX;
     const life = clamp01(particle.age / particle.lifetime);
-    // CHANGED: tongues shrink as they cool instead of only fading.
-    // WHY: full-size faded tongues hovered detached above the bed; dying licks contract.
-    const length = particle.size * lengthScale * (2.4 + (1 - life) * 3.4);
-    const width = particle.size * widthScale * (0.55 + (1 - life) * 0.85);
+    // CHANGED: tongues morph over life instead of only shrinking (QA Pass D §3e) —
+    //          the final approach to death pinches both axes toward a small point.
+    // WHY: same-shaped candlelight lozenges at every age read as cartoons; a lick
+    //      must end its arc as a contracting point, not a fading full-size petal.
+    const endPinch = life <= 0.78 ? 0 : ((life - 0.78) / 0.22) ** 1.2;
+    const length = particle.size * lengthScale * (2.4 + (1 - life) * 3.4)
+      * (1 - endPinch * 0.55);
+    const width = particle.size * widthScale * (0.55 + (1 - life) * 0.85)
+      * (1 - endPinch * 0.75);
     // Tips flutter harder than roots: whip amplitude grows over life.
     const whip = Math.sin(particle.phase * 1.7 + life * 9.5)
       * (0.3 + life * 1.1) * whipScale;
@@ -1106,6 +1139,17 @@ class InfernoVisual implements AudioVisual {
     const baseY = particle.y - directionY * length * 0.22;
     const tipX = particle.x + directionX * length * 0.78 + normalX * whip * width * 1.5;
     const tipY = particle.y + directionY * length * 0.78 + normalY * whip * width * 1.5;
+    // CHANGED: the rounded bottom cap became a life-retracting tendril (QA Pass D §3e).
+    // WHY: a young tongue's bottom stretches into an elongated tendril rooted back
+    //      toward where it rose; as the lick climbs past the front the tendril masks
+    //      upward and retracts, leaving the original candle shape that then pinches
+    //      to a point — the "lick of flame" arc the operator described.
+    const tendril = (1 - Math.min(1, life / 0.55)) ** 1.4;
+    const tailLength = width * 0.6 + length * 0.95 * tendril;
+    const tailSway = Math.sin(particle.phase * 2.3 + life * 6.2)
+      * width * (0.25 + tendril * 0.6);
+    const tailX = baseX - directionX * tailLength + normalX * tailSway;
+    const tailY = baseY - directionY * tailLength + normalY * tailSway;
 
     ctx.beginPath();
     ctx.moveTo(baseX - normalX * width, baseY - normalY * width);
@@ -1126,10 +1170,18 @@ class InfernoVisual implements AudioVisual {
       baseY + normalY * width,
     );
     ctx.bezierCurveTo(
-      baseX + normalX * width * 0.55 - directionX * width * 0.6,
-      baseY + normalY * width * 0.55 - directionY * width * 0.6,
-      baseX - normalX * width * 0.55 - directionX * width * 0.6,
-      baseY - normalY * width * 0.55 - directionY * width * 0.6,
+      baseX + normalX * width * 0.38 - directionX * tailLength * 0.46,
+      baseY + normalY * width * 0.38 - directionY * tailLength * 0.46,
+      tailX + normalX * width * 0.12,
+      tailY + normalY * width * 0.12,
+      tailX,
+      tailY,
+    );
+    ctx.bezierCurveTo(
+      tailX - normalX * width * 0.12,
+      tailY - normalY * width * 0.12,
+      baseX - normalX * width * 0.38 - directionX * tailLength * 0.46,
+      baseY - normalY * width * 0.38 - directionY * tailLength * 0.46,
       baseX - normalX * width,
       baseY - normalY * width,
     );
@@ -1146,13 +1198,20 @@ class InfernoVisual implements AudioVisual {
     const color = paletteColorAt(palette, 0.62 + (1 - life) * 0.38);
     const speed = Math.max(1, Math.hypot(particle.vx, particle.vy));
     const trail = particle.size * (variant === 'void-inferno' ? 4 : 7);
+    const trailX = particle.x - particle.vx / speed * trail;
+    const trailY = particle.y - particle.vy / speed * trail;
     ctx.beginPath();
     ctx.moveTo(particle.x, particle.y);
-    ctx.lineTo(
-      particle.x - particle.vx / speed * trail,
-      particle.y - particle.vy / speed * trail,
-    );
-    ctx.strokeStyle = colorWithAlpha(color, variant === 'void-inferno' ? 0.95 : (1 - life) * 0.72);
+    ctx.lineTo(trailX, trailY);
+    // CHANGED: the spark streak fades along its length — full alpha at the
+    //          incandescent head, zero at the tail — in both variants (Pass D §3).
+    // WHY: a flat-alpha straight segment reads as a bare drawn line; the taper is
+    //      the performant line-smoothing treatment the operator prescribed.
+    const headAlpha = variant === 'void-inferno' ? 0.95 : (1 - life) * 0.72;
+    const taper = ctx.createLinearGradient(particle.x, particle.y, trailX, trailY);
+    taper.addColorStop(0, colorWithAlpha(color, headAlpha));
+    taper.addColorStop(1, colorWithAlpha(color, 0));
+    ctx.strokeStyle = taper;
     ctx.lineWidth = variant === 'void-inferno' ? 1.65 : Math.max(0.8, particle.size * 0.48);
     ctx.shadowColor = variant === 'void-inferno' ? 'transparent' : color;
     ctx.shadowBlur = variant === 'void-inferno' ? 0 : 4;

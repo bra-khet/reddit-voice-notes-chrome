@@ -114,7 +114,13 @@ function createContext() {
     },
     stroke() {
       operations.push([
-        'stroke', state.strokeStyle, state.lineWidth, state.shadowBlur, state.shadowColor,
+        'stroke',
+        // Pass D: ember trails stroke with taper gradients — unwrap them like fill()
+        // does so deterministic-instance deepEqual compares stops, not closures.
+        state.strokeStyle?.__gradient
+          ? { gradient: state.strokeStyle.args, stops: state.strokeStyle.stops.map((stop) => [...stop]) }
+          : state.strokeStyle,
+        state.lineWidth, state.shadowBlur, state.shadowColor,
         path.map((entry) => [...entry]),
       ]);
     },
@@ -292,8 +298,10 @@ check('capture silence stays empty while voice energy grows a layered flame fiel
   // Flame front: a gradient-bodied crest paints over the tongue roots and stays in the
   // lower half of the canvas (QA §3e).
   assert.ok(loudOps.some(([operation]) => operation === 'createLinearGradient'));
+  // Pass D: ember-trail tapers also use linear gradients at particle coordinates;
+  // the lower-half invariant applies to the VERTICAL front-layer gradients only.
   const frontYs = loudOps
-    .filter(([operation]) => operation === 'createLinearGradient')
+    .filter(([operation, x0, , x1]) => operation === 'createLinearGradient' && x0 === 0 && x1 === 0)
     .map(([, , , , y1]) => y1);
   assert.ok(frontYs.length > 0);
   assert.ok(frontYs.every((y) => y >= canvas.height * 0.5 - 1));
