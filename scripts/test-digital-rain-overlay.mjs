@@ -47,6 +47,7 @@ const {
   getAudioVisualDefinition,
   registerCoreOverlayVisuals,
   resolveDigitalRainGrid,
+  resolveDigitalRainLayoutShape,
 } = await import(pathToFileURL(outfile).href);
 
 const canvas = { width: 640, height: 360 };
@@ -192,6 +193,21 @@ check('density resolves only the consumed 14×9 through 32×18 lattice', () => {
   for (const density of [0, 0.2, 0.5, 0.8, 1]) {
     const shape = resolveDigitalRainGrid(density);
     assert.ok(shape.columns * shape.rows <= DIGITAL_RAIN_MAX_GLYPHS);
+  }
+});
+
+check('radial-only row reduction never shrinks linear or centered lattices', () => {
+  for (const density of [0, 0.35, 0.56, 0.8, 1]) {
+    const base = resolveDigitalRainGrid(density);
+    assert.deepEqual(resolveDigitalRainLayoutShape(density, 'linear'), base);
+    assert.deepEqual(resolveDigitalRainLayoutShape(density, 'centered'), base);
+    const radial = resolveDigitalRainLayoutShape(density, 'radial');
+    assert.equal(radial.columns, base.columns);
+    assert.ok(radial.rows <= base.rows);
+    assert.ok(radial.rows >= 7);
+    if (base.rows >= 10) {
+      assert.ok(radial.rows < base.rows);
+    }
   }
 });
 
@@ -377,6 +393,78 @@ check('High Contrast removes glow and reduced motion freezes glyph identity and 
   const first = renderRain(visual, { ...frame, timeMs: 0 }, params, reduced, 0);
   const second = renderRain(visual, { ...frame, timeMs: 9000 }, params, reduced, 0.1);
   assert.deepEqual(second, first);
+});
+
+check('capture speech keeps outer lanes raining after the first stream cycle', () => {
+  // Voice-like spectrum: strong mids, weak extreme bass/treble — the exact shape that
+  // previously primed edge columns then permanently starved them on respawn.
+  const speechBands = Array.from({ length: 32 }, (_, index) => {
+    const t = index / 31;
+    const mid = Math.exp(-((t - 0.45) ** 2) / (2 * 0.08 ** 2));
+    return 0.08 + mid * 0.72;
+  });
+  const speech = {
+    energy: 0.48,
+    bands: speechBands,
+    timeMs: 1000,
+    transient: false,
+  };
+  const visual = DIGITAL_RAIN_VISUAL_DEFINITION.create();
+  renderRain(visual, speech, params, captureEnvironment, 0);
+  let lateEdgeHits = 0;
+  let lateGlyphs = 0;
+  const edgeMargin = canvas.width * 0.08;
+  // Several full fall cycles (depth ~14 rows @ ~3–5 rows/s ⇒ multi-second sim).
+  for (let step = 1; step <= 90; step += 1) {
+    const ops = renderRain(
+      visual,
+      { ...speech, timeMs: 1000 + step * 100, energy: 0.42 + (step % 7) * 0.02 },
+      params,
+      captureEnvironment,
+      0.1,
+    );
+    if (step < 45) continue;
+    const glyphs = glyphOps(ops);
+    lateGlyphs += glyphs.length;
+    for (const [, , x] of glyphs) {
+      if (x <= edgeMargin || x >= canvas.width - edgeMargin) lateEdgeHits += 1;
+    }
+  }
+  assert.ok(lateGlyphs > 0, 'late frames still draw glyphs');
+  assert.ok(
+    lateEdgeHits > 0,
+    'outer columns must keep respawning under capture speech (no previewTide)',
+  );
+});
+
+check('layout switch restores full linear lattice after radial coarsening', () => {
+  const visual = DIGITAL_RAIN_VISUAL_DEFINITION.create();
+  const loud = { ...frame, energy: 0.85, bands: Array(32).fill(0.85) };
+  renderRain(visual, loud, { ...params, layoutMode: 'radial' }, captureEnvironment, 0.1);
+  // Advance far enough that radial streams complete, then hot-swap to linear.
+  for (let step = 1; step <= 20; step += 1) {
+    renderRain(
+      visual,
+      { ...loud, timeMs: 1000 + step * 100 },
+      { ...params, layoutMode: 'radial' },
+      captureEnvironment,
+      0.1,
+    );
+  }
+  const linearOps = renderRain(
+    visual,
+    { ...loud, timeMs: 4000 },
+    { ...params, layoutMode: 'linear' },
+    captureEnvironment,
+    0.1,
+  );
+  const xs = new Set(glyphOps(linearOps).map(([, , x]) => x));
+  // Full linear density at default 0.56 ⇒ ~24 columns spanning the canvas.
+  assert.ok(xs.size >= DIGITAL_RAIN_MIN_COLUMNS - 2);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  assert.ok(minX < canvas.width * 0.12, 'linear after radial still reaches left edge');
+  assert.ok(maxX > canvas.width * 0.88, 'linear after radial still reaches right edge');
 });
 
 rmSync(outdir, { recursive: true, force: true });

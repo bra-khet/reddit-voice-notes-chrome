@@ -49,6 +49,22 @@ export function resolveDigitalRainGrid(density: number): DigitalRainGridShape {
   };
 }
 
+/**
+ * CHANGED: radial-only spoke coarsening is applied here (Pass C §3d + edge-mode isolation).
+ * WHY: fewer cells per spoke must never leak into linear/centered full-screen lattices.
+ */
+export function resolveDigitalRainLayoutShape(
+  density: number,
+  layout: LayoutMode,
+): DigitalRainGridShape {
+  const gridShape = resolveDigitalRainGrid(density);
+  if (layout !== 'radial') return gridShape;
+  return {
+    columns: gridShape.columns,
+    rows: Math.max(7, Math.round(gridShape.rows * 0.75)),
+  };
+}
+
 function weightedBand(frame: AudioVizFrame, index: number, params: VisualizerParams): number {
   const bandIndex = ((index % frame.bands.length) + frame.bands.length) % frame.bands.length;
   const band = clamp01(frame.bands[bandIndex] ?? 0);
@@ -114,14 +130,12 @@ class DigitalRainVisual implements AudioVisual {
     params: VisualizerParams,
     environment?: AudioVisualRenderEnvironment,
   ): void {
-    const gridShape = resolveDigitalRainGrid(params.density);
     const layout = resolveLayout(params);
     // CHANGED: radial mode runs fewer, coarser cells along each spoke (Pass C §3d).
     // WHY: the ring divided its radius so finely that glyphs overlapped ~2:1 along a
-    //      spoke; fewer cells = larger step distance per generation.
-    const shape: DigitalRainGridShape = layout === 'radial'
-      ? { columns: gridShape.columns, rows: Math.max(7, Math.round(gridShape.rows * 0.75)) }
-      : gridShape;
+    //      spoke; fewer cells = larger step distance per generation. Linear/centered
+    //      always keep the full density lattice (see resolveDigitalRainLayoutShape).
+    const shape = resolveDigitalRainLayoutShape(params.density, layout);
     const lanes = layout === 'centered' ? shape.rows : shape.columns;
     const depth = layout === 'centered' ? shape.columns : shape.rows;
     if (layout !== this.lastLayout || lanes !== this.lastLanes || depth !== this.lastDepth) {
@@ -170,10 +184,23 @@ class DigitalRainVisual implements AudioVisual {
     lanes: number,
     previewTide: number,
   ): number {
+    // BUG FIX: digital-rain outer columns/rows die after the first pass (capture)
+    // Fix: edge lanes mapped 1:1 onto silent FFT extremes and then faced a high
+    //      respawn gate with no neighbor spill (Pass A dropped grid propagation).
+    //      Blend adjacent bands and lift all lanes with field energy so live speech
+    //      keeps the full width raining; previewTide alone must not be required.
+    // Sync: advanceStreams inactive respawn gate (kept reachable under this drive)
     const bandIndex = Math.floor(lane / Math.max(1, lanes - 1) * (frame.bands.length - 1));
-    const spectral = weightedBand(frame, bandIndex, params);
+    const spectral = (
+      weightedBand(frame, bandIndex - 1, params) * 0.22
+      + weightedBand(frame, bandIndex, params) * 0.56
+      + weightedBand(frame, bandIndex + 1, params) * 0.22
+    );
+    const energy = clamp01(frame.energy);
     const sensitivity = 0.62 + clamp01(params.sensitivity) * 1.35;
-    return clamp01((spectral * 0.7 + clamp01(frame.energy) * 0.3 + previewTide) * sensitivity);
+    // Local color still rides the mapped band; field pressure keeps edge lanes alive.
+    const drive = spectral * 0.55 + energy * 0.45 + previewTide;
+    return clamp01(drive * sensitivity);
   }
 
   private spawnStream(
@@ -237,7 +264,12 @@ class DigitalRainVisual implements AudioVisual {
 
       if (this.active[lane] !== 1) {
         this.holdTimer[lane] = Math.max(0, (this.holdTimer[lane] ?? 0) - dt);
-        const gate = 0.26 + seededUnit(lane, sid) * 0.5;
+        // BUG FIX: digital-rain outer columns/rows die after the first pass (capture)
+        // Fix: respawn gate was 0.26–0.76; edge lanes with weak extreme bins never
+        //      cleared it after prime (prime gate is only 0.14–0.44). Soften to a
+        //      range reachable under normal speech + laneDrive field pressure.
+        // Sync: laneDrive spectral blend + energy field pressure
+        const gate = 0.16 + seededUnit(lane, sid) * 0.34;
         if (frame.transient && seededUnit(lane, sid + 11) > 0.42) {
           this.spawnStream(lane, depth, Math.max(0.72, drive), false, true);
         } else if (this.holdTimer[lane] === 0 && drive >= gate) {
