@@ -527,10 +527,25 @@ class AuroraVisual implements AudioVisual {
     ctx.fill();
 
     this.traceRibbonSpine(ctx, count, closedLoop);
-    ctx.strokeStyle = colorWithAlpha(
-      highContrast ? '#ffffff' : foldColor,
-      (highContrast ? 0.9 : 0.3 + laneEnergy * 0.45) * laneFade,
-    );
+    // CHANGED: open-lane fold lines taper to zero alpha at both free ends
+    //          (QA Pass D §3 line-taper note); wrapped radial loops have no
+    //          ends and keep the flat stroke.
+    // WHY: the luminous spine cut off abruptly where a lane's first/last
+    //      member happened to sit, reading as a bare drawn line — hardest on
+    //      High Contrast where no shadow softens it.
+    const spineColor = highContrast ? '#ffffff' : foldColor;
+    const spineAlpha = (highContrast ? 0.9 : 0.3 + laneEnergy * 0.45) * laneFade;
+    ctx.strokeStyle = closedLoop
+      ? colorWithAlpha(spineColor, spineAlpha)
+      : this.taperGradient(
+        ctx,
+        this.pathX[0] ?? 0,
+        this.pathY[0] ?? 0,
+        this.pathX[count - 1] ?? 0,
+        this.pathY[count - 1] ?? 0,
+        spineColor,
+        spineAlpha,
+      );
     ctx.lineWidth = Math.max(0.7, (this.pathWidth[Math.floor(count / 2)] ?? 1) * 0.14);
     ctx.shadowBlur = highContrast ? 0 : 3 + this.trebleDrive * 6;
     ctx.shadowColor = foldColor;
@@ -638,9 +653,23 @@ class AuroraVisual implements AudioVisual {
     ctx.lineWidth = highContrast ? 1.8 : 2.4 + this.drive * 3.2;
     ctx.beginPath();
     if (this.layout === 'radial') {
+      // CHANGED: the bounding ring fades across its stroke width — full alpha at
+      //          the inner edge, zero at the outer — in both contrast modes
+      //          (QA Pass D §3 line-taper note; a closed ring has no ends, so the
+      //          lengthwise taper becomes a cross-stroke one).
       const radius = Math.min(canvas.width, canvas.height) * (0.17 + this.bassDrive * 0.095);
       ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = colorWithAlpha(color, peakAlpha);
+      const ring = ctx.createRadialGradient(
+        canvas.width / 2,
+        canvas.height / 2,
+        Math.max(0, radius - ctx.lineWidth * 0.5),
+        canvas.width / 2,
+        canvas.height / 2,
+        radius + ctx.lineWidth * 0.5,
+      );
+      ring.addColorStop(0, colorWithAlpha(color, peakAlpha));
+      ring.addColorStop(1, colorWithAlpha(color, 0));
+      ctx.strokeStyle = ring;
     } else if (this.layout === 'centered') {
       // BUG FIX: centered source lines read as static "plain bars" (QA §3f Pass C)
       // Fix: the two verticals were fixed moveTo/lineTo segments while linear's front
@@ -675,9 +704,11 @@ class AuroraVisual implements AudioVisual {
           );
         }
       }
-      ctx.strokeStyle = highContrast
-        ? colorWithAlpha(color, peakAlpha)
-        : this.taperGradient(ctx, 0, canvas.height * 0.2, 0, canvas.height * 0.85, color, peakAlpha);
+      // CHANGED: High Contrast side lines share the end-taper gradient
+      //          (QA Pass D §3 — HC is explicitly in scope for line smoothing).
+      ctx.strokeStyle = this.taperGradient(
+        ctx, 0, canvas.height * 0.2, 0, canvas.height * 0.85, color, peakAlpha,
+      );
     } else {
       // BUG FIX: Aurora "thin bow line" hovering near the bottom (QA §3f)
       // Fix: the decorative three-point bezier ran independently of where ribbons spawn.
@@ -708,9 +739,10 @@ class AuroraVisual implements AudioVisual {
           yAt(index + 1),
         );
       }
-      ctx.strokeStyle = highContrast
-        ? colorWithAlpha(color, peakAlpha)
-        : this.taperGradient(ctx, canvas.width * 0.055, 0, canvas.width * 0.945, 0, color, peakAlpha);
+      // CHANGED: High Contrast front line shares the end-taper gradient (Pass D §3).
+      ctx.strokeStyle = this.taperGradient(
+        ctx, canvas.width * 0.055, 0, canvas.width * 0.945, 0, color, peakAlpha,
+      );
     }
     ctx.stroke();
   }
@@ -794,7 +826,13 @@ class AuroraVisual implements AudioVisual {
       ctx.shadowBlur = highContrast ? 0 : 6;
       ctx.fill();
       this.traceRibbonSpine(ctx, pointCount);
-      ctx.strokeStyle = colorWithAlpha(
+      // CHANGED: frozen spines carry the same open-lane end taper as live lanes (Pass D §3).
+      ctx.strokeStyle = this.taperGradient(
+        ctx,
+        this.pathX[0] ?? 0,
+        this.pathY[0] ?? 0,
+        this.pathX[pointCount - 1] ?? 0,
+        this.pathY[pointCount - 1] ?? 0,
         highContrast ? '#ffffff' : bodyColor,
         highContrast ? 0.9 : 0.3 + laneEnergy * 0.4,
       );

@@ -87,6 +87,11 @@ function createContext() {
       operations.push(['createLinearGradient', ...args]);
       return gradient;
     },
+    createRadialGradient(...args) {
+      const gradient = new MockGradient(args);
+      operations.push(['createRadialGradient', ...args]);
+      return gradient;
+    },
     save() { stack.push({ ...state }); operations.push(['save']); },
     restore() {
       const restored = stack.pop();
@@ -309,7 +314,12 @@ check('High Contrast renders crisp cyan-white folds without glow blur', () => {
     frame,
     { ...params, highContrast: true },
   );
-  assert.ok(operations.some(([operation, color]) => operation === 'strokeStyle' && color.includes('255, 255, 255')));
+  // Pass D: fold lines may stroke with end-taper gradients — accept white either
+  // as a plain stroke string or inside a gradient's stops.
+  assert.ok(operations.some(([operation, value]) => operation === 'strokeStyle'
+    && (typeof value === 'string'
+      ? value.includes('255, 255, 255')
+      : value?.stops?.some(([, color]) => color.includes('255, 255, 255')))));
   assert.ok(operations.some(([operation, value]) => operation === 'globalCompositeOperation' && value === 'source-over'));
   assert.equal(
     operations.some(([operation, value]) => operation === 'shadowBlur' && value > 0),
