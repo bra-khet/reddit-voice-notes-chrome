@@ -100,6 +100,11 @@ function createContext() {
     moveTo(...args) { operations.push(['moveTo', ...args]); },
     lineTo(...args) { operations.push(['lineTo', ...args]); },
     quadraticCurveTo(...args) { operations.push(['quadraticCurveTo', ...args]); },
+    // The stack seam runs the real Rising Ember effect, whose taper trail needs this.
+    createLinearGradient(...args) {
+      operations.push(['createLinearGradient', ...args]);
+      return { addColorStop() {} };
+    },
     arc(...args) { operations.push(['arc', ...args]); },
     rect(...args) { operations.push(['rect', ...args]); },
     fillRect(...args) { operations.push(['fillRect', state.fillStyle, ...args]); },
