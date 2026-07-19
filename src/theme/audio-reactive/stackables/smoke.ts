@@ -162,9 +162,19 @@ class LayeredSmokeEffect implements StackableEffect {
         this.ventTime * (0.041 + seededUnit(plumeIndex, 53) * 0.03)
           + seededUnit(plumeIndex, 59) * Math.PI * 2,
       ) * 0.4;
+    // CHANGED: each plume alternates agitation and calm on its own epoch cycle (Pass C).
+    // WHY: the smooth walk still read as "a slow walk". During the agitated window every
+    //      spawned puff jumps a fair seeded distance (high frequency, high amplitude,
+    //      fading as the window closes), then the vent settles back to the low-amplitude
+    //      wander — so the whole bottom reads as random smoke plumes that jitter, calm
+    //      down, and jitter again.
+    const cycle = 2.2 + seededUnit(plumeIndex, 61) * 1.8;
+    const cyclePhase = ((this.ventTime / cycle + seededUnit(plumeIndex, 67)) % 1 + 1) % 1;
+    const agitation = cyclePhase < 0.32 ? 1 - cyclePhase / 0.32 : 0;
+    const jump = (seededUnit(serial, 73) - 0.5) * 2 * agitation;
 
     if (this.layout === 'radial') {
-      const angle = -Math.PI / 2 + plumeUnit * Math.PI * 2 + wander * 0.35;
+      const angle = -Math.PI / 2 + plumeUnit * Math.PI * 2 + wander * 0.35 + jump * 0.85;
       const sourceRadius = minDimension * (0.05 + seededUnit(plumeIndex, 31) * 0.07);
       const speed = 15 + this.drive * 23 + this.bassDrive * 9;
       node.x = this.canvasWidth / 2 + Math.cos(angle) * sourceRadius;
@@ -178,6 +188,7 @@ class LayeredSmokeEffect implements StackableEffect {
         0.03,
         0.5 + (plumeUnit - 0.5) * spread
           + wander * 0.07
+          + jump * (this.layout === 'centered' ? 0.1 : 0.15)
           + sourceTexture * minDimension / Math.max(1, this.canvasWidth) * 0.045,
       ));
       node.y = this.canvasHeight * (this.layout === 'centered' ? 0.88 : 0.97)
@@ -449,12 +460,22 @@ class LayeredSmokeEffect implements StackableEffect {
     highContrast: boolean,
   ): void {
     let points = 0;
+    // Agitated vents jump per puff; break the spine over long gaps so those jumps
+    // scatter into separate wisps instead of drawing a chord across the bottom.
+    const gapLimit = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight)) * 0.22;
+    let previousX = 0;
+    let previousY = 0;
     ctx.beginPath();
     for (let offset = 0; offset < LAYERED_SMOKE_NODES_PER_PLUME; offset += 1) {
       const node = this.field.nodeAt(plumeIndex, offset);
       if (!node?.active) continue;
-      if (points === 0) ctx.moveTo(node.x, node.y);
-      else ctx.lineTo(node.x, node.y);
+      if (points === 0 || Math.hypot(node.x - previousX, node.y - previousY) > gapLimit) {
+        ctx.moveTo(node.x, node.y);
+      } else {
+        ctx.lineTo(node.x, node.y);
+      }
+      previousX = node.x;
+      previousY = node.y;
       points += 1;
     }
     if (points < 2) return;
