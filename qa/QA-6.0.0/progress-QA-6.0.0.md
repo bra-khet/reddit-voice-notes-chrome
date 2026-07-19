@@ -36,6 +36,45 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 ## Session log
 
+### 2026-07-19 — Pass A fix sprint (agent) + operator Pass B feedback folded in
+
+Addressed the full Pass A packet (`track-a/artifacts/qa-session-track-a-pass-a-2026-07-17.json`)
+in per-effect commits on this branch (`2598815..aaf0bb3`, 20 commits). Highlights:
+
+- **digital-rain** — per-lane streams replace global-step propagation (sync-strobe +
+  size-gate root cause); Pass B: trails min ~2–3 cells, ~10% slower. **Needs 120 s size-gate re-run.**
+- **inferno** — SDF-smoothed flame front (≤ half canvas, hysteresis) + Pass B peak→lick
+  coupling; Void variant toggle revealed in Style panel; Void smoke = noise lobes.
+- **aurora** — lane-joined Catmull-Rom ribbons (pool 200→84, maxElements 403→17); bow
+  line now traces the real emission envelope with end-taper.
+- **glitch** — onset flux averages rising bands only (activation bug), simmer
+  micro-glitches, burst wave-slice pass.
+- **spectra** — phosphor 18–36×9–14 grid + sub-bin interpolation + reduced-motion
+  breathing; radial gradient colors + rocking + reduced-motion unfreeze; central pulse
+  mirrored band deformation + unfreeze; oscilloscope reduced-motion clip fix + hotter
+  gain + picker cost badges (default stays classic-neon everywhere).
+- **stackables** — ember whip trail (operator: perfect); lightning walking endpoints;
+  arc sporadic contact roaming; smoke smooth vent wander + wider spread; neon-glow hotter.
+- **forest-spirits** (Pass B) — snake turn-commitment steering, segments −25%,
+  dandelion-puff dots with per-dot alpha.
+- **caps** — base/baked MP4 blob caps raised 25/30 → **40/40 MiB** (operator decision,
+  §8-12); harness + checklist synced; composite bitrate pin intentionally stays 30 MiB.
+
+Verification: **all 57 Node suites PASS** (test contracts updated where behavior
+legitimately changed); `tsc` = same 2 pre-existing subtitle diagnostics; `wxt build` PASS.
+
+**Next for operator (Pass C):** reload from `.output/chrome-mv3-dev/`, visually confirm
+the reworked effects (esp. inferno peak-licks, aurora ribbons, digital-rain trails),
+re-run the digital-rain 120 s size gate under the new caps, and re-export a packet.
+
+### 2026-07-15 — Interactive Track A QA guide
+
+- Verified checklist was real gates (not boilerplate); embellished with registry IDs, governor 560/980, §16 Classic no-regression, non-negotiables, ADR pointers.
+- Added primary operator UI: [`track-a/qa-checklist.html`](track-a/qa-checklist.html) — sticky progress, per-item Open/Pass/Fail/Partial + notes, size table, localStorage autosave, **Export agent packet (JSON)** / **Copy agent brief** / Import restore.
+- Agent ingest path: save exported JSON under `track-a/artifacts/` (gitignored) or paste brief into chat. Schema `rvn-qa-session/v1`.
+
+**Next for operator:** open the HTML board → pre-flight → live matrix + 120 s size rows; export packet when handing off.
+
 ### 2026-07-15 — QA workspace scaffold
 
 - Established `qa/QA-6.0.0` as the nested QA project (out of `.ignore/` for lasting scope).
@@ -44,8 +83,7 @@ Do not dump long QA narrative into the global progress file — update a short v
   - `notes-before-bed-1.txt` — voice re-apply / Change Voice not applying (triage later; may not be a Track A visual defect)
   - `offscreen-transcode-failure-1.log` / `offscreen-transcode-success-1.log`
 - Global root `TODO.md` + `claude-progress.md` updated with **location/name pointers only**.
-
-**Next for operator:** pre-flight on branch → start [`track-a/qa-checklist.md`](track-a/qa-checklist.md) live matrix; drop screenshots under `track-a/screenshot/` and size reports under `track-a/artifacts/`.
+- Option 2 gitignore: track process under `qa/`; ignore `qa/**/logs|screenshot|artifacts/`.
 
 ---
 
@@ -55,8 +93,9 @@ Do not dump long QA narrative into the global progress file — update a short v
 |------|------|
 | `track-a/logs/` | Console dumps, free-form notes |
 | `track-a/screenshot/` | UI / DevTools images |
-| `track-a/artifacts/` | 120 s base/baked MP4s + `qa:visual-size` text/JSON |
-| `track-a/qa-checklist.md` | Tickable matrix + progress table |
+| `track-a/artifacts/` | 120 s base/baked MP4s + `qa:visual-size` text/JSON + exported agent packets |
+| `track-a/qa-checklist.html` | **Primary** interactive checklist (localStorage + export) |
+| `track-a/qa-checklist.md` | Reference matrix (same gates) |
 
 ---
 

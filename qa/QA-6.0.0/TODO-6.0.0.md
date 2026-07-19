@@ -14,7 +14,12 @@
 | **A — audio-reactive visuals** | Phase 4 **implemented** · focused fixture QA PASS · **live confidence QA open** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
 | **B — background layout** | **Not started** (branch may exist; do not open QA until A confidence close) | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) |
 
-**Automated already green (re-run only after code fixes):** focused v6 regression **226/226** · `npm run build` PASS · `npm run compile` = same 2 pre-existing subtitle diagnostics.
+**Automated (re-run 2026-07-19 after the Pass A fix sprint):** all **57 Node suites PASS** · `npm run build` PASS · `npm run compile` = same 2 pre-existing subtitle diagnostics.
+
+**Pass A fixes landed 2026-07-19** (commits `2598815..aaf0bb3`; see `progress-QA-6.0.0.md`). Open re-QA items for Pass C:
+- [ ] Visual confirmation pass over reworked effects (inferno peak-licks · aurora ribbons · digital-rain trails · forest-spirits puffs/snaking · lightning walk · arc/smoke roaming · glitch activation)
+- [ ] **Digital Rain 120 s size-gate re-run** under the raised 40/40 MiB caps (`npm run qa:visual-size`)
+- [ ] Reduced-motion spot check: phosphor / radial / central pulse / oscilloscope now react to voice level
 
 **Architecture at Phase 4:** map **v3.21** / I22 · extension-points **v1.35** · confidence stays **Medium** until live capture/FPS + 120 s heavy-artifact reports land.
 
