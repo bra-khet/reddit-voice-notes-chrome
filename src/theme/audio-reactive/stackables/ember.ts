@@ -352,14 +352,13 @@ class RisingEmberEffect implements StackableEffect {
         tailX,
         tailY,
       );
-      if (highContrast) {
-        ctx.strokeStyle = colorWithAlpha(color, alpha * 0.95);
-      } else {
-        const taper = ctx.createLinearGradient(particle.x, particle.y, tailX, tailY);
-        taper.addColorStop(0, colorWithAlpha(color, alpha * 0.68));
-        taper.addColorStop(1, colorWithAlpha(color, 0));
-        ctx.strokeStyle = taper;
-      }
+      // CHANGED: High Contrast trails now taper to zero like the standard mode
+      //          (QA Pass D §3 line-taper note) — HC keeps its hotter head alpha
+      //          and shadowless hard-line language, just no more bare segment.
+      const taper = ctx.createLinearGradient(particle.x, particle.y, tailX, tailY);
+      taper.addColorStop(0, colorWithAlpha(color, alpha * (highContrast ? 0.95 : 0.68)));
+      taper.addColorStop(1, colorWithAlpha(color, 0));
+      ctx.strokeStyle = taper;
       ctx.lineWidth = highContrast ? Math.max(1.25, coreRadius * 0.82) : Math.max(0.7, coreRadius * 0.55);
       ctx.shadowColor = highContrast ? 'transparent' : color;
       ctx.shadowBlur = highContrast ? 0 : particle.size * 2.8;
