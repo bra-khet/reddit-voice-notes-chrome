@@ -37,7 +37,7 @@ Two branches exist off `main@98c37ab`; roadmaps synthesized from the three `.ign
 | Root | [`qa/QA-6.0.0/`](qa/QA-6.0.0/) |
 | TODO | [`qa/QA-6.0.0/TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) |
 | Progress | [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) |
-| Checklist | [`qa/QA-6.0.0/track-a/qa-checklist.md`](qa/QA-6.0.0/track-a/qa-checklist.md) |
+| Checklist UI | [`qa/QA-6.0.0/track-a/qa-checklist.html`](qa/QA-6.0.0/track-a/qa-checklist.html) (primary) · [`.md`](qa/QA-6.0.0/track-a/qa-checklist.md) |
 | Evidence | `qa/QA-6.0.0/track-a/{logs,screenshot,artifacts}/` |
 
 **Track B:** not started; placeholder only under [`qa/QA-6.0.0/track-b/`](qa/QA-6.0.0/track-b/).
