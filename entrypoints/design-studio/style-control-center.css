@@ -375,6 +375,27 @@
   opacity: 0.78;
 }
 
+/* Glitch sensitivity note — light informational line, never an alarm state. */
+.studio-v4 .studio__visual-caution {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--style-warm);
+  font-size: var(--studio-font-caption);
+  line-height: 1.3;
+  opacity: 0.85;
+}
+
+.studio-v4 .studio__visual-caution img {
+  flex: none;
+  margin-top: 1px;
+}
+
+.studio-v4 .studio__visual-caution > span {
+  color: inherit;
+}
+
 .studio-v4 .studio__accent-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

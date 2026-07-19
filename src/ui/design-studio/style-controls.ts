@@ -24,6 +24,10 @@ import {
   setPhysicalSliderValue,
   wirePhysicalSliders,
 } from '@/src/ui/design-studio/physical-slider';
+import {
+  STUDIO_V4_ASSETS,
+  studioV4AssetUrl,
+} from '@/src/ui/design-studio/studio-v4-assets';
 
 // CHANGED: the Style surface discovers every production visual through the same registries as capture.
 // WHY: a hand-maintained picker list would drift from the allowlisted preference and renderer catalogs.
@@ -156,12 +160,26 @@ function renderOverlayChoices(): string {
   return none + OVERLAY_PRESET_IDS.map((id) => {
     const definition = getAudioVisualDefinition('overlay', id);
     const copy = OVERLAY_COPY[id];
+    // CHANGED: Glitch carries a light, polite sensitivity note on its card (Pass D
+    //          follow-up). Icon src is stamped at mount — extension URLs cannot
+    //          resolve in the Node contract tests that render this markup.
+    // WHY: informed consent out of an abundance of caution: the renderer is
+    //      hardened under the flash thresholds by default, but viewers who know
+    //      they are sensitive deserve the pointer to reduced motion up front —
+    //      without implying the effect is unsafe or gating its selection.
+    const caution = id === 'glitch'
+      ? `
+        <span class="studio__visual-caution">
+          <img class="studio-v4__icon studio-v4__icon--16" data-style-glitch-caution-icon alt="" width="16" height="16" />
+          <span>May feel intense for some viewers — reduced-motion settings soften it.</span>
+        </span>`
+      : '';
     return `
       <button type="button" class="studio__visual-choice" data-style-overlay="${id}" aria-pressed="false">
         <span class="studio__visual-thumb" data-visual-id="${id}" style="${paletteStyle(colorsFromDefinition('overlay', id))}" aria-hidden="true">
           <span class="studio__visual-thumb-plot"></span>
         </span>
-        <span class="studio__visual-choice-copy"><strong>${definition?.label ?? id}</strong><span>${copy.description}</span></span>
+        <span class="studio__visual-choice-copy"><strong>${definition?.label ?? id}</strong><span>${copy.description}</span>${caution}</span>
         <span class="studio__visual-mode">${copy.mode}</span>
         ${costBadge('overlay', id)}
       </button>`;
@@ -341,6 +359,13 @@ export function mountStyleControlCenter(
   const host = root.querySelector<HTMLElement>('[data-style-control-center]')!;
   let overrides: DesignOverrides | null = null;
   let theme: WaveformTheme | null = null;
+
+  // Glitch card sensitivity note: the semiotic warning indicator resolves its
+  // extension-origin URL only here in the browser (render stays Node-testable).
+  const glitchCautionIcon = host.querySelector<HTMLImageElement>('[data-style-glitch-caution-icon]');
+  if (glitchCautionIcon) {
+    glitchCautionIcon.src = studioV4AssetUrl(STUDIO_V4_ASSETS.status.warning);
+  }
 
   function selectedSpectrum(): SpectrumPresetId {
     return overrides?.spectrumPreset

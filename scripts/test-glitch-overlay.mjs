@@ -33,6 +33,8 @@ await build({
 
 const {
   GLITCH_ID,
+  GLITCH_INVERT_MIN_INTERVAL_MS,
+  GLITCH_INVERT_SOFT_SCALE,
   GLITCH_LABEL,
   GLITCH_MAX_ELEMENTS,
   GLITCH_MAX_SCANLINES,
@@ -41,8 +43,10 @@ const {
   GLITCH_MIN_SCANLINES,
   GLITCH_VISUAL_DEFINITION,
   getAudioVisualDefinition,
+  isSaturatedRed,
   registerCoreOverlayVisuals,
   resolveGlitchScanlineCount,
+  sanitizeGlitchPalette,
 } = await import(pathToFileURL(outfile).href);
 
 const canvas = { width: 640, height: 360 };
@@ -294,6 +298,79 @@ check('High Contrast keeps hard source-over fringes and suppresses filtered ghos
     operations.some(([operation, value]) => operation === 'filter' && String(value).includes('hue-rotate')),
     false,
   );
+});
+
+check('invert flashes stay under the photosensitive general-flash threshold by default', () => {
+  // Pass D follow-up (HIGH PRIORITY): the DEFAULT path must be safe on its own —
+  // reduced-motion is not the safety mechanism. Hard transients every 150 ms try
+  // to chain full-field inverts well above 3 Hz; the rate limit must space
+  // FULL-strength hits >= GLITCH_INVERT_MIN_INTERVAL_MS while refused hits fall
+  // back to softened washes so the effect stays alive.
+  assert.ok(GLITCH_INVERT_MIN_INTERVAL_MS >= 334, 'floor bounds full flashes to <= 3 per rolling second');
+  assert.ok(GLITCH_INVERT_SOFT_SCALE <= 0.3, 'soft fallback stays under the flash-luminance threshold');
+  const visual = GLITCH_VISUAL_DEFINITION.create();
+  const loud = { ...frame, energy: 0.72, bands: frame.bands.map((band) => Math.min(1, band + 0.3)) };
+  renderGlitch(visual, loud);
+  const fullFillTimes = [];
+  let softCount = 0;
+  for (let step = 1; step <= 48; step += 1) {
+    const timeMs = 1000 + step * 50;
+    const ops = renderGlitch(
+      visual,
+      { ...loud, timeMs, transient: step % 3 === 0 },
+      params,
+      captureEnvironment,
+      0.05,
+    );
+    for (const [operation, fillStyle, x, y, w, h] of ops) {
+      if (operation !== 'fillRect' || x !== 0 || y !== 0 || w !== canvas.width || h !== canvas.height) continue;
+      const alpha = Number(/([\d.]+)\)$/.exec(String(fillStyle))?.[1] ?? 0);
+      if (alpha >= 0.045) fullFillTimes.push(timeMs);
+      else if (alpha > 0.004) softCount += 1;
+    }
+  }
+  assert.ok(fullFillTimes.length > 0, 'full-strength inverts still occur when the interval allows');
+  assert.ok(softCount > 0, 'rate-limited hits fall back to softened washes');
+  // Collapse consecutive full fills of one continuous wash into engagement starts,
+  // then verify no rolling one-second window holds more than three flashes.
+  const engagementStarts = fullFillTimes.filter(
+    (time, index) => index === 0 || time - fullFillTimes[index - 1] > 100,
+  );
+  for (const start of engagementStarts) {
+    const inWindow = engagementStarts.filter((t) => t >= start && t < start + 1000).length;
+    assert.ok(inWindow <= 3, `full inverts in one second: ${inWindow}`);
+  }
+});
+
+check('saturated red never reaches dynamic glitch elements', () => {
+  assert.equal(isSaturatedRed('#ff0000'), true);
+  assert.equal(isSaturatedRed('#d40b0b'), true);
+  assert.equal(isSaturatedRed('#ff2f92'), false, 'the magenta identity is preserved');
+  assert.equal(isSaturatedRed('#00eaff'), false);
+  const sanitized = sanitizeGlitchPalette(['#ff0000', '#ff2f92', '#00eaff']);
+  assert.notEqual(sanitized[0], '#ff0000');
+  assert.equal(isSaturatedRed(sanitized[0]), false, 'remapped red is desaturated');
+  assert.equal(sanitized[1], '#ff2f92');
+  assert.equal(sanitized[2], '#00eaff');
+  assert.deepEqual(
+    sanitizeGlitchPalette(GLITCH_VISUAL_DEFINITION.defaultParams.color),
+    [...GLITCH_VISUAL_DEFINITION.defaultParams.color],
+    'built-in colors pass through untouched',
+  );
+  // A pure-red user palette must render without a single saturated-red style.
+  const ops = renderGlitch(
+    GLITCH_VISUAL_DEFINITION.create(),
+    { ...frame, transient: true },
+    { ...params, color: ['#ff0000'] },
+  );
+  for (const [operation, style] of ops) {
+    if (operation !== 'fillStyle' && operation !== 'strokeStyle') continue;
+    const match = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(String(style));
+    if (!match) continue;
+    const [red, green, blue] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    const sum = red + green + blue;
+    assert.ok(!(red >= 140 && sum > 0 && red / sum >= 0.72), `saturated red drawn: ${style}`);
+  }
 });
 
 check('reduced motion is time-independent and never copies retained canvas pixels', () => {

@@ -6,7 +6,8 @@ import type {
   LayoutMode,
   VisualizerParams,
 } from '@/src/theme/audio-reactive';
-import { colorWithAlpha, resolveVisualPalette } from '../palette';
+import { hexToRgb } from '@/src/theme/color-utils';
+import { colorWithAlpha, mixVisualColors, resolveVisualPalette } from '../palette';
 
 export const GLITCH_ID = 'glitch' as const;
 export const GLITCH_LABEL = 'Glitch' as const;
@@ -38,6 +39,53 @@ const GLITCH_BAND_COUNT = 32;
 const RGB_MAGENTA = '#ff2f92';
 const RGB_CYAN = '#00eaff';
 const SIGNAL_WHITE = '#f7fbff';
+
+// ---------------------------------------------------------------------------
+// Photosensitivity guards (WCAG 2.3.1 — three flashes or below threshold)
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimum ms between FULL-strength invert flashes. 340 ms floor bounds full
+ * inverts to at most three in any rolling one-second window (< 3 Hz), the
+ * general-flash threshold.
+ */
+export const GLITCH_INVERT_MIN_INTERVAL_MS = 340;
+/** Seeded jitter added to the floor so hits never settle into a rigid cadence. */
+export const GLITCH_INVERT_INTERVAL_JITTER_MS = 80;
+/**
+ * Alpha scale of the softened fallback invert when the rate limit refuses a
+ * full hit. 0.24 × the 0.3 alpha ceiling ≈ 7% peak white through 'difference'
+ * — under the ~10% relative-luminance change that counts as a flash at all.
+ */
+export const GLITCH_INVERT_SOFT_SCALE = 0.24;
+/** Smoothstep ease-in window so even permitted inverts rise as a blip, not a step. */
+export const GLITCH_INVERT_EASE_MS = 60;
+
+/**
+ * A color counts as saturated red the way the red-flash definition frames it:
+ * red dominating the channel sum at meaningful brightness. Built-in glitch
+ * colors (magenta #ff2f92 ratio 0.57 · cyan · green · white) all pass.
+ */
+export function isSaturatedRed(color: string): boolean {
+  const rgb = hexToRgb(color);
+  if (!rgb) return false;
+  const sum = rgb.r + rgb.g + rgb.b;
+  return rgb.r >= 140 && sum > 0 && rgb.r / sum >= 0.72;
+}
+
+/**
+ * CHANGED: user palettes are remapped before any dynamic glitch element
+ * (invert wash, split ghosts, tear fringes, seams, scanlines, sync rails)
+ * can draw with them — saturated reds desaturate toward signal white.
+ * WHY: saturated-red flashing has a stricter photosensitivity threshold than
+ *      general flashes; the glitch intentionally never crosses into it, even
+ *      when a saved custom style supplies pure red (Pass D follow-up).
+ */
+export function sanitizeGlitchPalette(palette: readonly string[]): readonly string[] {
+  return palette.map((color) => (
+    isSaturatedRed(color) ? mixVisualColors(color, SIGNAL_WHITE, 0.45) : color
+  ));
+}
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
@@ -103,6 +151,14 @@ class GlitchVisual implements AudioVisual {
   private simmer = 0;
   private simmerSerial = 0;
   private waveSeed = 0;
+  /** Photosensitivity guard: clock of the last FULL-strength invert (frame time). */
+  private lastFullInvertMs = Number.NEGATIVE_INFINITY;
+  /** Seeded re-roll counter for the jittered minimum invert interval. */
+  private invertSerial = 0;
+  /** Engagement bookkeeping for the current invert blip (ease-in anchor + scale). */
+  private invertEngaged = false;
+  private invertStartMs = 0;
+  private invertScale = 0;
 
   update(_frame: AudioVizFrame, dt: number): void {
     this.pendingDt = Math.min(0.1, Math.max(0, Number.isFinite(dt) ? dt : 0));
@@ -152,13 +208,15 @@ class GlitchVisual implements AudioVisual {
     }
     this.pendingDt = 0;
 
-    const palette = resolveVisualPalette(params.color);
+    // CHANGED: palette-driven elements draw through the saturated-red sanitizer.
+    // WHY: photosensitivity hardening — see sanitizeGlitchPalette (Pass D follow-up).
+    const palette = sanitizeGlitchPalette(resolveVisualPalette(params.color));
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     this.drawRgbSplit(ctx, canvas, params, drives);
     this.drawWaveSlices(ctx, canvas, layout, params, drives);
     this.drawTears(ctx, canvas, layout, params, palette, drives);
-    this.drawInvertFlash(ctx, width, height, params);
+    this.drawInvertFlash(ctx, width, height, params, frame.timeMs);
     this.drawScanlines(ctx, width, height, layout, params, palette, drives);
     this.drawSyncRails(ctx, width, height, layout, params, drives);
     ctx.restore();
@@ -279,6 +337,7 @@ class GlitchVisual implements AudioVisual {
     this.activeTearCount = 0;
     this.burst = 0;
     this.simmer = 0;
+    this.invertEngaged = false;
   }
 
   private drawRgbSplit(
@@ -309,22 +368,54 @@ class GlitchVisual implements AudioVisual {
   }
 
   /**
-   * CHANGED: hard attacks fire a one-frame partial inversion flash (Pass C).
+   * CHANGED: hard attacks fire a partial inversion flash (Pass C), now hard
+   * rate-limited for photosensitivity (Pass D follow-up — HIGH PRIORITY).
    * WHY: difference-compositing a dim white wash over the corrupted frame is the
-   *      classic shader "signal invert" hit — one bounded rect of extra aberration
-   *      on the loudest onsets (§3g).
+   *      classic shader "signal invert" hit — but energetic speech could chain
+   *      onset + simmer bursts into full-field luminance flips above the 3 Hz
+   *      general-flash threshold (WCAG 2.3.1). The DEFAULT path must be safe on
+   *      its own; a user cannot be required to discover reduced-motion first.
+   *      Full-strength inverts are therefore spaced ≥ 340 ms (+ seeded jitter so
+   *      no rigid pseudo-cadence emerges); refused hits fall back to a softened
+   *      wash whose ≤ ~7% peak stays under the luminance change that counts as a
+   *      flash at all, and every blip eases in over 60 ms instead of stepping.
+   *      The invert is white-on-difference by construction — no saturated red
+   *      (see sanitizeGlitchPalette for the palette-driven elements).
    */
   private drawInvertFlash(
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
     params: VisualizerParams,
+    timeMs: number,
   ): void {
-    if (params.highContrast || this.burst < 0.52) return;
+    if (params.highContrast || this.burst < 0.52) {
+      this.invertEngaged = false;
+      return;
+    }
+    // Self-heal if the frame clock ever rebases backward (fresh capture context).
+    if (timeMs < this.lastFullInvertMs) this.lastFullInvertMs = Number.NEGATIVE_INFINITY;
+    if (!this.invertEngaged) {
+      this.invertEngaged = true;
+      this.invertStartMs = timeMs;
+      const minInterval = GLITCH_INVERT_MIN_INTERVAL_MS
+        + seededUnit(this.invertSerial, 53) * GLITCH_INVERT_INTERVAL_JITTER_MS;
+      if (timeMs - this.lastFullInvertMs >= minInterval) {
+        this.invertScale = 1;
+        this.lastFullInvertMs = timeMs;
+        this.invertSerial += 1;
+      } else {
+        this.invertScale = GLITCH_INVERT_SOFT_SCALE;
+      }
+    }
+    const ramp = clamp01((timeMs - this.invertStartMs) / GLITCH_INVERT_EASE_MS);
+    const eased = ramp * ramp * (3 - 2 * ramp);
+    const alpha = Math.min(0.3, (this.burst - 0.52) * 0.55) * this.invertScale * eased;
+    if (alpha <= 0.004) return;
     ctx.globalCompositeOperation = 'difference';
     ctx.filter = 'none';
     ctx.globalAlpha = 1;
-    ctx.fillStyle = colorWithAlpha('#ffffff', Math.min(0.3, (this.burst - 0.52) * 0.55));
+    ctx.fillStyle = colorWithAlpha('#ffffff', alpha);
     ctx.fillRect(0, 0, width, height);
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -511,7 +602,7 @@ class GlitchVisual implements AudioVisual {
     params: VisualizerParams,
     drive: number,
   ): void {
-    const palette = resolveVisualPalette(params.color);
+    const palette = sanitizeGlitchPalette(resolveVisualPalette(params.color));
     const drives = { bass: drive, mid: drive, treble: drive, total: drive };
     ctx.save();
     ctx.imageSmoothingEnabled = false;
