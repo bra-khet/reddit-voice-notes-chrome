@@ -73,6 +73,7 @@ function resolveTargets(
   params: VisualizerParams,
   environment: SpectrumRenderEnvironment,
   columns: number,
+  peakScale: number,
 ): number[] {
   if (environment.reduceMotion) {
     const energy = Math.pow(
@@ -98,11 +99,12 @@ function resolveTargets(
     });
   }
 
-  let peak = 0;
-  if (environment.amplitudeMode === 'capture') {
-    for (const band of frame.bands) peak = Math.max(peak, clamp01(band));
-  }
-  const peakScale = peak > 1 / 255 ? 1 / peak : 1;
+  // BUG FIX: Phosphor "often sits at cap" (QA Pass C §2c)
+  // Fix: capture normalized by the CURRENT frame's own peak (1/peak), which drove the
+  //      loudest column to exactly full scale every frame. The caller now supplies an
+  //      AGC headroom scale (recent-peak reference, ~85% target) shared by preview and
+  //      capture, so sustained speech rides below the cap and only fresh transients
+  //      briefly touch it.
   // CHANGED: live peak normalization is modulated by whole-frame energy.
   // WHY: the segmented display must retain speech detail without lighting up analyser-floor noise.
   const captureEnvelope = environment.amplitudeMode === 'capture'
@@ -112,7 +114,7 @@ function resolveTargets(
 
   const transform = environment.amplitudeMode === 'capture'
     ? (raw: number): number => raw * peakScale * captureEnvelope
-    : (raw: number): number => raw;
+    : (raw: number): number => raw * peakScale;
 
   return Array.from({ length: columns }, (_, column) => {
     const start = column * frame.bands.length / columns;
@@ -182,6 +184,8 @@ class PhosphorVisual implements AudioVisual {
   private displayedLevels: number[] = [];
   private trailLevels: number[] = [];
   private elapsedSeconds = 0;
+  /** AGC reference: the recent band peak the display normalizes against. */
+  private agcPeak = 0;
 
   update(_frame: AudioVizFrame, dt: number): void {
     this.elapsedSeconds = dt;
@@ -198,7 +202,17 @@ class PhosphorVisual implements AudioVisual {
     if (!environment) return;
 
     const grid = resolvePhosphorGrid(params.density);
-    const targets = resolveTargets(frame, params, environment, grid.columns);
+    // CHANGED: AGC reference peak — fast rise, slow decay — feeds a 0.85-headroom
+    //          normalization shared by preview and capture (Pass C §2c).
+    if (!environment.reduceMotion) {
+      let framePeak = 0;
+      for (const band of frame.bands) framePeak = Math.max(framePeak, clamp01(band));
+      const rate = framePeak > this.agcPeak ? 8 : 0.6;
+      const follow = this.elapsedSeconds > 0 ? 1 - Math.exp(-rate * this.elapsedSeconds) : 1;
+      this.agcPeak += (framePeak - this.agcPeak) * follow;
+    }
+    const peakScale = 0.85 / Math.max(0.12, this.agcPeak);
+    const targets = resolveTargets(frame, params, environment, grid.columns, peakScale);
     const smoothing = clamp01(params.smoothing);
     const persistence = clamp01(params.afterimageStrength ?? 0);
     if (this.displayedLevels.length !== grid.columns) {
