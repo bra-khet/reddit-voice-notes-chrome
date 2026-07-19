@@ -91,7 +91,11 @@ class SparkleVisual implements AudioVisual {
     //      displaced positions proportionally to clip age. The audio-scaled rise rate is
     //      now integrated over dt into one bounded travel accumulator.
     // (unwrapped: wrap01 at draw time handles overflow; wrapping here would jump depth-scaled motes)
-    this.travel += (0.0015 + this.smoothedEnergy * 0.0035) * Math.max(0, dt);
+    // BUG FIX: motion read as static after the teleport fix (QA Pass C §3a)
+    // Fix: the honest integrated rate topped out near 2 px/s — imperceptible. The rise
+    //      is now calm at idle but streams visibly upward with voice energy
+    //      (0.0015+e·0.0035 → 0.004+e·0.055 canvas-fractions/s), still dt-integrated.
+    this.travel += (0.004 + this.smoothedEnergy * 0.055) * Math.max(0, dt);
   }
 
   render(
@@ -121,10 +125,13 @@ class SparkleVisual implements AudioVisual {
       const alpha = clamp01(shimmer * intensity * (0.42 + seed.depth * 0.4));
       if (alpha < 0.055) continue;
 
-      const drift = 0.006 + seed.depth * 0.012;
-      const x = wrap01(seed.x + Math.sin(seconds * 0.11 + seed.phase) * drift) * canvas.width;
+      // CHANGED: wobble period ~57 s → ~13 s, amplitude scaled by smoothed audio (Pass C).
+      // WHY: the lateral drift was too slow to register as motion; amplitude (not
+      //      frequency) rides audio so level swings can never phase-jump positions.
+      const drift = (0.006 + seed.depth * 0.012) * (0.6 + audio * 1.3);
+      const x = wrap01(seed.x + Math.sin(seconds * 0.5 + seed.phase) * drift) * canvas.width;
       const y = wrap01(seed.y - this.travel * seed.depth +
-        Math.cos(seconds * 0.09 + seed.phase) * drift) * canvas.height;
+        Math.cos(seconds * 0.42 + seed.phase) * drift) * canvas.height;
       const radius = scale * (0.0023 + seed.size * 0.0034) * (0.72 + audio * 0.62);
       const color = palette[index % palette.length]!;
       const hotColor = mixVisualColors(color, '#ffffff', 0.62 + twinkle * 0.3);
