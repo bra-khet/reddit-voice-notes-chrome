@@ -143,7 +143,8 @@ function traceLinearPath(
   const left = canvas.width * 0.1;
   const width = canvas.width * 0.8;
   const baseline = baselineY(environment.alignment, canvas.height);
-  const amplitude = canvas.height * 0.23 * intensity;
+  // CHANGED: 0.23 → 0.26 — the extra ~13% visual headroom QA measured room for (§2f).
+  const amplitude = canvas.height * 0.26 * intensity;
   ctx.beginPath();
   for (let index = 0; index < pointCount; index += 1) {
     const progress = index / Math.max(1, pointCount - 1);
@@ -167,7 +168,8 @@ function traceRadialPath(
   const centerX = canvas.width / 2;
   const centerY = baselineY(environment.alignment, canvas.height);
   const baseRadius = minDimension * 0.23;
-  const amplitude = minDimension * 0.105 * intensity;
+  // CHANGED: 0.105 → 0.118 — matching ~12% amplitude headroom for the ring (§2f).
+  const amplitude = minDimension * 0.118 * intensity;
   ctx.beginPath();
   for (let index = 0; index < pointCount; index += 1) {
     const angle = -Math.PI / 2 + index * Math.PI * 2 / pointCount;
@@ -332,14 +334,15 @@ class OscilloscopeVisual implements AudioVisual {
     const primary = palette[0] ?? environment.colors.bar;
     const hot = palette[palette.length - 1] ?? environment.colors.glow;
     const contrast = mixVisualColors(hot, '#ffffff', 0.38);
-    // CHANGED: slightly hotter gain curve (0.55+1.9x → 0.6+1.95x) plus a fixed calm
-    //          sub-unity gain under reduced motion.
-    // WHY: QA wanted marginally more voice-band sensitivity, and the reduced trace must
-    //      never be pushed back into the clamp rails (§2f / §7b).
+    // CHANGED: defaults retuned to the old maxed-out feel (Pass C §2f) — gain
+    //          0.6+s·1.95 → 1.1+s·2.2 and intensity 0.62+i·0.72 → 0.9+i·0.65, so the
+    //          default midpoint lands where "everything turned all the way up" sat.
+    // WHY: the operator found the maxed behavior right and asked for the tuning
+    //      midpoint moved there; the reduced trace keeps its calm sub-unity gain.
     const gain = environment.reduceMotion
       ? 0.85
-      : 0.6 + clamp01(params.sensitivity) * 1.95;
-    const intensity = 0.62 + clamp01(params.intensity) * 0.72;
+      : 1.1 + clamp01(params.sensitivity) * 2.2;
+    const intensity = 0.9 + clamp01(params.intensity) * 0.65;
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
