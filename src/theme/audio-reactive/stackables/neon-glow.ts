@@ -204,10 +204,12 @@ class NeonGlowEffect implements StackableEffect {
     params: VisualizerParams,
     reduceMotion: boolean,
   ): void {
+    // CHANGED: snappier level follow (4.5→6 base) and a slightly hotter per-tube gain.
+    // WHY: QA asked for a bit more reactivity from the tubes (§4a neon-glow).
     const follow = this.initialized && !reduceMotion
-      ? 1 - Math.exp(-this.pendingDt * (4.5 + (1 - clamp01(params.smoothing)) * 14))
+      ? 1 - Math.exp(-this.pendingDt * (6 + (1 - clamp01(params.smoothing)) * 16))
       : 1;
-    const sensitivity = 0.72 + clamp01(params.sensitivity) * 0.88;
+    const sensitivity = 0.78 + clamp01(params.sensitivity) * 0.98;
 
     for (let tubeIndex = 0; tubeIndex < NEON_GLOW_MAX_TUBES; tubeIndex += 1) {
       if (tubeIndex >= this.tubeLimit) {
@@ -498,7 +500,7 @@ export const NEON_GLOW_EFFECT_DEFINITION: StackableEffectDefinition = Object.fre
   label: NEON_GLOW_LABEL,
   maxElements: NEON_GLOW_MAX_ELEMENTS,
   defaultParams: Object.freeze({
-    sensitivity: 0.64,
+    sensitivity: 0.7,
     intensity: 0.76,
     smoothing: 0.54,
     density: 0.56,
