@@ -15,9 +15,12 @@ export const GLITCH_MAX_SCANLINES = 36;
 export const GLITCH_MAX_TEAR_COUNT = 10;
 /** Burst-gated sinusoidal row/column displacement slices (the CRT "wave" pass). */
 export const GLITCH_MAX_WAVE_ROWS = 6;
-/** 36 scanlines + two split ghosts + ten four-pass tears + six wave slices + three sync rails. */
+/**
+ * 36 scanlines + three split ghosts (two lateral + one burst vertical) + ten four-pass
+ * tears + six wave slices + one inversion flash + three sync rails.
+ */
 export const GLITCH_MAX_ELEMENTS =
-  GLITCH_MAX_SCANLINES + 2 + GLITCH_MAX_TEAR_COUNT * 4 + GLITCH_MAX_WAVE_ROWS + 3;
+  GLITCH_MAX_SCANLINES + 3 + GLITCH_MAX_TEAR_COUNT * 4 + GLITCH_MAX_WAVE_ROWS + 1 + 3;
 
 interface GlitchTear {
   active: boolean;
@@ -135,14 +138,17 @@ class GlitchVisual implements AudioVisual {
     // CHANGED: sustained speech accumulates toward seeded micro-glitches between true onsets.
     // WHY: QA found the effect rarely activated — splicing should simmer through normal
     //      speech, not only on sharp attacks (§3g / §5b).
-    this.simmer += (drives.mid * 0.45 + drives.treble * 0.55) * this.pendingDt;
-    const simmerGate = 0.9 + seededUnit(this.simmerSerial, 29) * 1.4;
+    // CHANGED: simmer charges ~4× faster and fires harder bursts (Pass C: still rare).
+    // WHY: at speech-level drives the old rate fired every 4–10 s; micro-glitches
+    //      should splice every 1–3 s of sustained voice. Silence still charges nothing.
+    this.simmer += (drives.mid * 0.9 + drives.treble * 1.1) * this.pendingDt;
+    const simmerGate = 0.55 + seededUnit(this.simmerSerial, 29) * 0.9;
     if (this.simmer >= simmerGate) {
       this.simmer = 0;
       this.simmerSerial += 1;
-      this.burst = Math.max(this.burst, 0.3 + drives.treble * 0.3);
+      this.burst = Math.max(this.burst, 0.42 + drives.treble * 0.35);
       this.waveSeed += 1;
-      this.spawnTears(params, drives.treble * 0.7);
+      this.spawnTears(params, drives.treble * 0.85);
     }
     this.pendingDt = 0;
 
@@ -152,6 +158,7 @@ class GlitchVisual implements AudioVisual {
     this.drawRgbSplit(ctx, canvas, params, drives);
     this.drawWaveSlices(ctx, canvas, layout, params, drives);
     this.drawTears(ctx, canvas, layout, params, palette, drives);
+    this.drawInvertFlash(ctx, width, height, params);
     this.drawScanlines(ctx, width, height, layout, params, palette, drives);
     this.drawSyncRails(ctx, width, height, layout, params, drives);
     ctx.restore();
@@ -194,7 +201,8 @@ class GlitchVisual implements AudioVisual {
       const next = clamp01(frame.bands[index] ?? 0);
       if (this.hasAudioSample) {
         const delta = Math.max(0, next - (this.previousBands[index] ?? 0));
-        if (delta > 0.012) {
+        // CHANGED: rising-band floor 0.012 → 0.008 (Pass C — still "rarely activates").
+        if (delta > 0.008) {
           positiveFlux += delta;
           risingBands += 1;
         }
@@ -214,7 +222,10 @@ class GlitchVisual implements AudioVisual {
       && (this.lastPreviewBeat < 0 || previewBeat !== this.lastPreviewBeat);
     this.lastPreviewBeat = previewBeat;
 
-    const threshold = 0.055 - clamp01(params.sensitivity) * 0.028;
+    // CHANGED: onset threshold lowered again, 0.055−s·0.028 → 0.042−s·0.024 (Pass C).
+    // WHY: the effect is nearly free in paint cost, so it should splice on ordinary
+    //      speech attacks, not only the sharpest consonants (§3g).
+    const threshold = 0.042 - clamp01(params.sensitivity) * 0.024;
     const detected = this.hasAudioSample
       && drive > 0.03
       && (focusedFlux + energyRise * 0.72) > threshold;
@@ -286,7 +297,36 @@ class GlitchVisual implements AudioVisual {
     ctx.drawImage(canvas, -shift, 0);
     ctx.filter = 'sepia(1) saturate(7) hue-rotate(125deg)';
     ctx.drawImage(canvas, shift, 0);
+    // CHANGED: bursts kick a third, vertically-shifted blue ghost (Pass C).
+    // WHY: horizontal-only separation reads as static misconvergence; a transient
+    //      vertical chroma jolt is the "real shader" aberration QA asked for (§3g).
+    if (this.burst > 0.24) {
+      ctx.filter = 'sepia(1) saturate(6) hue-rotate(205deg)';
+      ctx.globalAlpha = Math.min(0.1, alpha * (0.5 + this.burst * 0.5));
+      ctx.drawImage(canvas, 0, Math.max(1, shift * 0.55));
+    }
     ctx.filter = 'none';
+  }
+
+  /**
+   * CHANGED: hard attacks fire a one-frame partial inversion flash (Pass C).
+   * WHY: difference-compositing a dim white wash over the corrupted frame is the
+   *      classic shader "signal invert" hit — one bounded rect of extra aberration
+   *      on the loudest onsets (§3g).
+   */
+  private drawInvertFlash(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    params: VisualizerParams,
+  ): void {
+    if (params.highContrast || this.burst < 0.52) return;
+    ctx.globalCompositeOperation = 'difference';
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = colorWithAlpha('#ffffff', Math.min(0.3, (this.burst - 0.52) * 0.55));
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   /**
@@ -302,7 +342,8 @@ class GlitchVisual implements AudioVisual {
     params: VisualizerParams,
     drives: { bass: number; mid: number; treble: number; total: number },
   ): void {
-    if (this.burst < 0.12) return;
+    // CHANGED: wave gate 0.12 → 0.07 so decaying bursts keep wobbling longer (Pass C).
+    if (this.burst < 0.07) return;
     const width = Math.max(1, canvas.width);
     const height = Math.max(1, canvas.height);
     const vertical = layout === 'centered';

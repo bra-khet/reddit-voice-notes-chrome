@@ -154,9 +154,10 @@ check('definition is registered, band-aware, layout-capable, and hard-capped', (
     GLITCH_VISUAL_DEFINITION.create().supportedLayouts,
     ['linear', 'centered', 'radial'],
   );
+  // Pass C: three split ghosts (burst adds a vertical chroma kick) + inversion flash.
   assert.equal(
     GLITCH_MAX_ELEMENTS,
-    GLITCH_MAX_SCANLINES + 2 + GLITCH_MAX_TEAR_COUNT * 4 + GLITCH_MAX_WAVE_ROWS + 3,
+    GLITCH_MAX_SCANLINES + 3 + GLITCH_MAX_TEAR_COUNT * 4 + GLITCH_MAX_WAVE_ROWS + 1 + 3,
   );
   registerCoreOverlayVisuals();
   registerCoreOverlayVisuals();
@@ -187,7 +188,8 @@ check('explicit transients immediately create bounded chunk tears and RGB ghosts
   assert.ok(tearCopies(operations).length >= 2);
   // Nine-argument copies now include the burst-gated wave slices as well as the tears.
   assert.ok(tearCopies(operations).length <= GLITCH_MAX_TEAR_COUNT + GLITCH_MAX_WAVE_ROWS);
-  assert.equal(fullSplitCopies(operations).length, 2);
+  // Pass C: a burst adds the vertical chroma ghost to the two lateral ones.
+  assert.equal(fullSplitCopies(operations).length, 3);
   assert.ok(operations.some(([operation, value]) => operation === 'filter' && String(value).includes('hue-rotate')));
   assert.ok(elementOperations(operations).length <= GLITCH_MAX_ELEMENTS);
 });
