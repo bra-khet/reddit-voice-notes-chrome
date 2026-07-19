@@ -169,9 +169,18 @@ class AuroraVisual implements AudioVisual {
     const lane = serial % AURORA_LANE_COUNT;
     const texture = seededUnit(serial, 3);
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
-    const sourceDrive = this.bandDrives[band] ?? 0;
+    // CHANGED: the radial ring reads its drive from a vertically-mirrored band (Pass C).
+    // WHY: mapping band index straight around the ring parked all the treble on one
+    //      side, leaving a persistently quiet sector; mirroring across the vertical
+    //      axis carries the full spectrum on both halves — the same treatment that
+    //      fixed Central Pulse's symmetry — while keeping every aurora behavior.
+    const slotUnit = (band + 0.5) / AURORA_BAND_COUNT;
+    const sourceBand = this.layout === 'radial'
+      ? Math.round(Math.min(slotUnit, 1 - slotUnit) * 2 * (AURORA_BAND_COUNT - 1))
+      : band;
+    const sourceDrive = this.bandDrives[sourceBand] ?? 0;
 
-    particle.band = band;
+    particle.band = sourceBand;
     particle.lane = lane;
     particle.phase = seededUnit(serial, 7) * Math.PI * 2;
     particle.depth = 0.46 + seededUnit(serial, 11) * 0.54;
@@ -183,7 +192,8 @@ class AuroraVisual implements AudioVisual {
     particle.lifetime = 1.65 + texture * 1.75 + this.midDrive * 0.55;
 
     if (this.layout === 'radial') {
-      const angle = (band + 0.5) / AURORA_BAND_COUNT * Math.PI * 2
+      // -PI/2 pins the mirror axis vertically: the top is bass, both sides symmetric.
+      const angle = slotUnit * Math.PI * 2 - Math.PI / 2
         + (texture - 0.5) * 0.1;
       const radius = minDimension * (0.17 + sourceDrive * 0.095);
       const speed = 19 + sourceDrive * 38 + particle.depth * 13;
@@ -196,7 +206,10 @@ class AuroraVisual implements AudioVisual {
       // WHY: a joined lane ribbon must not zigzag between opposite screen edges.
       const side = lane % 2 === 0 ? -1 : 1;
       const verticalUnit = (Math.floor(band / 2) + 0.5) / (AURORA_BAND_COUNT / 2);
-      particle.x = side < 0 ? this.canvasWidth * 0.08 : this.canvasWidth * 0.92;
+      // Spawn on the live source line (deflected inward by band drive) so ribbon
+      // roots visibly grow out of it — mirrors the linear front fix (Pass C).
+      particle.x = (side < 0 ? this.canvasWidth * 0.08 : this.canvasWidth * 0.92)
+        - side * sourceDrive * this.canvasWidth * 0.07;
       particle.y = this.canvasHeight * (0.2 + verticalUnit * 0.65)
         - sourceDrive * minDimension * 0.09;
       particle.vx = -side * (25 + sourceDrive * 34);
@@ -471,6 +484,7 @@ class AuroraVisual implements AudioVisual {
     if (count < 3) return;
     const stride = lane * AURORA_MAX_PARTICLES;
     let laneEnergy = 0;
+    let laneLife = 0;
     for (let index = 0; index < count; index += 1) {
       const particle = this.emitter.particles[this.laneMembers[stride + index] ?? 0];
       if (!particle) return;
@@ -482,8 +496,15 @@ class AuroraVisual implements AudioVisual {
       this.pathFold[index] = Math.sin(particle.phase + life * 13)
         * particle.width * 0.42 * envelope;
       laneEnergy += particle.sourceDrive * envelope;
+      laneLife += envelope;
     }
     laneEnergy /= count;
+    laneLife /= count;
+    // CHANGED: the whole ribbon's opacity rides its members' mean life envelope (Pass C).
+    // WHY: lanes popped in/out at full alpha when their member count crossed the draw
+    //      threshold; ramping alpha with lane life makes ribbons "come alive" and "die".
+    const laneFade = Math.min(1, laneLife * 1.7);
+    const closedLoop = this.layout === 'radial';
 
     const highContrast = params.highContrast === true;
     const intensity = 0.34 + clamp01(params.intensity) * 0.66;
@@ -496,19 +517,19 @@ class AuroraVisual implements AudioVisual {
       clamp01(lane / Math.max(1, AURORA_LANE_COUNT - 1) + 0.18 + laneEnergy * 0.22),
     );
 
-    this.traceRibbonBand(ctx, count);
+    this.traceRibbonBand(ctx, count, closedLoop);
     ctx.fillStyle = colorWithAlpha(
       bodyColor,
-      intensity * (highContrast ? 0.6 : 0.14 + laneEnergy * 0.2),
+      intensity * (highContrast ? 0.6 : 0.14 + laneEnergy * 0.2) * laneFade,
     );
     ctx.shadowColor = bodyColor;
     ctx.shadowBlur = highContrast ? 0 : 7 + laneEnergy * 8;
     ctx.fill();
 
-    this.traceRibbonSpine(ctx, count);
+    this.traceRibbonSpine(ctx, count, closedLoop);
     ctx.strokeStyle = colorWithAlpha(
       highContrast ? '#ffffff' : foldColor,
-      highContrast ? 0.9 : 0.3 + laneEnergy * 0.45,
+      (highContrast ? 0.9 : 0.3 + laneEnergy * 0.45) * laneFade,
     );
     ctx.lineWidth = Math.max(0.7, (this.pathWidth[Math.floor(count / 2)] ?? 1) * 0.14);
     ctx.shadowBlur = highContrast ? 0 : 3 + this.trebleDrive * 6;
@@ -517,10 +538,14 @@ class AuroraVisual implements AudioVisual {
   }
 
   /** Closed variable-width band through the ordered lane points (Catmull-Rom smoothed). */
-  private traceRibbonBand(ctx: CanvasRenderingContext2D, count: number): void {
+  private traceRibbonBand(
+    ctx: CanvasRenderingContext2D,
+    count: number,
+    closedLoop = false,
+  ): void {
     for (let index = 0; index < count; index += 1) {
-      const previous = Math.max(0, index - 1);
-      const next = Math.min(count - 1, index + 1);
+      const previous = closedLoop ? (index - 1 + count) % count : Math.max(0, index - 1);
+      const next = closedLoop ? (index + 1) % count : Math.min(count - 1, index + 1);
       const dx = (this.pathX[next] ?? 0) - (this.pathX[previous] ?? 0);
       const dy = (this.pathY[next] ?? 0) - (this.pathY[previous] ?? 0);
       const length = Math.max(1e-4, Math.hypot(dx, dy));
@@ -537,6 +562,19 @@ class AuroraVisual implements AudioVisual {
       (this.pathY[index] ?? 0) - (this.normalY[index] ?? 0) * (this.pathWidth[index] ?? 0);
 
     ctx.beginPath();
+    if (closedLoop) {
+      // BUG FIX: radial "gap on the left side" (QA §3f Pass C)
+      // Fix: radial lanes were open bands over atan2-sorted members, so every ribbon
+      //      seamed exactly at the ±PI wrap (the left side). Two opposite-wound
+      //      wrapped loops now fill the ring as an annulus with no seam.
+      ctx.moveTo(topX(0), topY(0));
+      this.catmullTo(ctx, topX, topY, count, false, true);
+      ctx.closePath();
+      ctx.moveTo(bottomX(0), bottomY(0));
+      this.catmullTo(ctx, bottomX, bottomY, count, true, true);
+      ctx.closePath();
+      return;
+    }
     ctx.moveTo(topX(0), topY(0));
     this.catmullTo(ctx, topX, topY, count, false);
     ctx.lineTo(bottomX(count - 1), bottomY(count - 1));
@@ -545,12 +583,16 @@ class AuroraVisual implements AudioVisual {
   }
 
   /** Luminous fold line traced along the lane spine with per-point fold displacement. */
-  private traceRibbonSpine(ctx: CanvasRenderingContext2D, count: number): void {
+  private traceRibbonSpine(
+    ctx: CanvasRenderingContext2D,
+    count: number,
+    closedLoop = false,
+  ): void {
     const spineX = (index: number): number => (this.pathX[index] ?? 0);
     const spineY = (index: number): number => (this.pathY[index] ?? 0) + (this.pathFold[index] ?? 0);
     ctx.beginPath();
     ctx.moveTo(spineX(0), spineY(0));
-    this.catmullTo(ctx, spineX, spineY, count, false);
+    this.catmullTo(ctx, spineX, spineY, count, false, closedLoop);
   }
 
   private catmullTo(
@@ -559,12 +601,18 @@ class AuroraVisual implements AudioVisual {
     yAt: (index: number) => number,
     count: number,
     reverse: boolean,
+    closedLoop = false,
   ): void {
     const at = (index: number): number => {
+      if (closedLoop) {
+        const wrapped = ((index % count) + count) % count;
+        return reverse ? (count - wrapped) % count : wrapped;
+      }
       const clamped = Math.min(count - 1, Math.max(0, index));
       return reverse ? count - 1 - clamped : clamped;
     };
-    for (let step = 0; step < count - 1; step += 1) {
+    const steps = closedLoop ? count : count - 1;
+    for (let step = 0; step < steps; step += 1) {
       const i0 = at(step - 1);
       const i1 = at(step);
       const i2 = at(step + 1);
@@ -594,11 +642,39 @@ class AuroraVisual implements AudioVisual {
       ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
       ctx.strokeStyle = colorWithAlpha(color, peakAlpha);
     } else if (this.layout === 'centered') {
-      ctx.moveTo(canvas.width * 0.08, canvas.height * 0.2);
-      ctx.lineTo(canvas.width * 0.08, canvas.height * 0.85);
-      ctx.moveTo(canvas.width * 0.92, canvas.height * 0.2);
-      ctx.lineTo(canvas.width * 0.92, canvas.height * 0.85);
-      // CHANGED: the vertical bounding lines fade out toward both ends (QA §3 general note).
+      // BUG FIX: centered source lines read as static "plain bars" (QA §3f Pass C)
+      // Fix: the two verticals were fixed moveTo/lineTo segments while linear's front
+      //      animated with audio. Both side lines now trace the paired-band emission
+      //      envelope — deflected inward and lifted exactly like the spawn point —
+      //      so ribbon roots grow out of a live line in every mode.
+      const slots = AURORA_BAND_COUNT / 2;
+      const minDimension = Math.max(24, Math.min(canvas.width, canvas.height));
+      const slotDrive = (index: number): number => {
+        const clamped = Math.min(slots - 1, Math.max(0, index));
+        const pair = clamped * 2;
+        return ((this.bandDrives[pair] ?? 0) + (this.bandDrives[pair + 1] ?? 0)) / 2;
+      };
+      for (const side of [-1, 1] as const) {
+        const edgeX = side < 0 ? canvas.width * 0.08 : canvas.width * 0.92;
+        const xAt = (index: number): number =>
+          edgeX - side * slotDrive(index) * canvas.width * 0.07;
+        const yAt = (index: number): number => {
+          const clamped = Math.min(slots - 1, Math.max(0, index));
+          return canvas.height * (0.2 + (clamped + 0.5) / slots * 0.65)
+            - slotDrive(index) * minDimension * 0.09;
+        };
+        ctx.moveTo(xAt(0), yAt(0));
+        for (let index = 0; index < slots - 1; index += 1) {
+          ctx.bezierCurveTo(
+            xAt(index) + (xAt(index + 1) - xAt(index - 1)) / 6,
+            yAt(index) + (yAt(index + 1) - yAt(index - 1)) / 6,
+            xAt(index + 1) - (xAt(index + 2) - xAt(index)) / 6,
+            yAt(index + 1) - (yAt(index + 2) - yAt(index)) / 6,
+            xAt(index + 1),
+            yAt(index + 1),
+          );
+        }
+      }
       ctx.strokeStyle = highContrast
         ? colorWithAlpha(color, peakAlpha)
         : this.taperGradient(ctx, 0, canvas.height * 0.2, 0, canvas.height * 0.85, color, peakAlpha);
