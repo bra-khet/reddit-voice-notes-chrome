@@ -114,8 +114,14 @@ class DigitalRainVisual implements AudioVisual {
     params: VisualizerParams,
     environment?: AudioVisualRenderEnvironment,
   ): void {
-    const shape = resolveDigitalRainGrid(params.density);
+    const gridShape = resolveDigitalRainGrid(params.density);
     const layout = resolveLayout(params);
+    // CHANGED: radial mode runs fewer, coarser cells along each spoke (Pass C §3d).
+    // WHY: the ring divided its radius so finely that glyphs overlapped ~2:1 along a
+    //      spoke; fewer cells = larger step distance per generation.
+    const shape: DigitalRainGridShape = layout === 'radial'
+      ? { columns: gridShape.columns, rows: Math.max(7, Math.round(gridShape.rows * 0.75)) }
+      : gridShape;
     const lanes = layout === 'centered' ? shape.rows : shape.columns;
     const depth = layout === 'centered' ? shape.columns : shape.rows;
     if (layout !== this.lastLayout || lanes !== this.lastLanes || depth !== this.lastDepth) {
@@ -294,8 +300,10 @@ class DigitalRainVisual implements AudioVisual {
     const palette = resolveVisualPalette(params.color);
     const highContrast = params.highContrast === true;
     const minDimension = Math.max(24, Math.min(canvas.width, canvas.height));
+    // CHANGED: radial font divisor 1.32 → 2.2 so glyph size ≈ one radial step (Pass C §3d).
+    // WHY: characters larger than the step distance stacked on top of each other.
     const fontSize = layout === 'radial'
-      ? Math.max(7, minDimension / (shape.rows * 1.32))
+      ? Math.max(7, minDimension / (shape.rows * 2.2))
       : Math.max(8, Math.min(canvas.width / shape.columns, canvas.height / shape.rows) * 0.78);
     const trailFont = `500 ${fontSize}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     const headFont = `700 ${fontSize}px ui-monospace, SFMono-Regular, Consolas, monospace`;
@@ -351,7 +359,7 @@ class DigitalRainVisual implements AudioVisual {
     const palette = resolveVisualPalette(params.color);
     const minDimension = Math.max(24, Math.min(canvas.width, canvas.height));
     const fontSize = layout === 'radial'
-      ? Math.max(7, minDimension / (shape.rows * 1.32))
+      ? Math.max(7, minDimension / (shape.rows * 2.2))
       : Math.max(8, Math.min(canvas.width / shape.columns, canvas.height / shape.rows) * 0.78);
     const trailFont = `500 ${fontSize}px ui-monospace, SFMono-Regular, Consolas, monospace`;
     const headFont = `700 ${fontSize}px ui-monospace, SFMono-Regular, Consolas, monospace`;
@@ -407,8 +415,10 @@ class DigitalRainVisual implements AudioVisual {
     if (layout === 'radial') {
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
-      const innerRadius = minDimension * 0.075;
-      const outerRadius = minDimension * 0.48;
+      // CHANGED: 0.075–0.48 → 0.06–0.52 of the min dimension (Pass C §3d).
+      // WHY: longer total travel distance per stream around the ring.
+      const innerRadius = minDimension * 0.06;
+      const outerRadius = minDimension * 0.52;
       const radius = innerRadius + (row + 0.5) / shape.rows * (outerRadius - innerRadius);
       const angle = -Math.PI / 2 + column / shape.columns * Math.PI * 2;
       ctx.save();
