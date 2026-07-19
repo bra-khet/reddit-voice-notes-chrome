@@ -330,16 +330,36 @@ class RisingEmberEffect implements StackableEffect {
       const alpha = clamp01(fade * flicker * intensity);
       const color = paletteColorAt(palette, 0.38 + particle.heat * 0.62);
       const speed = Math.max(1, Math.hypot(particle.vx, particle.vy));
-      const trailLength = particle.size * (highContrast ? 3.4 : 6.5) * (0.72 + this.trebleDrive * 0.55);
+      // CHANGED: shorter trail that whips laterally behind the head and fades to zero
+      //          alpha at its tail (QA §4a `ember` + §3 line-taper note).
+      // WHY: the straight full-alpha streak read as a bare line, not a lagging cinder tail.
+      const trailLength = particle.size * (highContrast ? 2.8 : 4.8) * (0.72 + this.trebleDrive * 0.55);
       const coreRadius = Math.max(0.7, particle.size * (0.48 + (1 - life) * 0.22));
+      const directionX = particle.vx / speed;
+      const directionY = particle.vy / speed;
+      const normalX = -directionY;
+      const normalY = directionX;
+      const whip = Math.sin(particle.phase * 1.6 + life * 11 + frame.timeMs / 1000 * particle.flicker * 2)
+        * trailLength * 0.42;
+      const tailX = particle.x - directionX * trailLength + normalX * whip;
+      const tailY = particle.y - directionY * trailLength + normalY * whip;
 
       ctx.beginPath();
       ctx.moveTo(particle.x, particle.y);
-      ctx.lineTo(
-        particle.x - particle.vx / speed * trailLength,
-        particle.y - particle.vy / speed * trailLength,
+      ctx.quadraticCurveTo(
+        particle.x - directionX * trailLength * 0.45 + normalX * whip * 0.22,
+        particle.y - directionY * trailLength * 0.45 + normalY * whip * 0.22,
+        tailX,
+        tailY,
       );
-      ctx.strokeStyle = colorWithAlpha(color, alpha * (highContrast ? 0.95 : 0.68));
+      if (highContrast) {
+        ctx.strokeStyle = colorWithAlpha(color, alpha * 0.95);
+      } else {
+        const taper = ctx.createLinearGradient(particle.x, particle.y, tailX, tailY);
+        taper.addColorStop(0, colorWithAlpha(color, alpha * 0.68));
+        taper.addColorStop(1, colorWithAlpha(color, 0));
+        ctx.strokeStyle = taper;
+      }
       ctx.lineWidth = highContrast ? Math.max(1.25, coreRadius * 0.82) : Math.max(0.7, coreRadius * 0.55);
       ctx.shadowColor = highContrast ? 'transparent' : color;
       ctx.shadowBlur = highContrast ? 0 : particle.size * 2.8;

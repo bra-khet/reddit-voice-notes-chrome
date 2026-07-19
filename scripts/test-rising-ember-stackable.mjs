@@ -80,6 +80,18 @@ const frame = {
   transient: false,
 };
 
+// Prototype methods keep gradient stubs deepEqual-comparable across context instances.
+class MockGradient {
+  constructor(args) {
+    this.args = args;
+    this.stops = [];
+  }
+
+  addColorStop(offset, color) {
+    this.stops.push([offset, color]);
+  }
+}
+
 function createContext() {
   const operations = [];
   const state = {};
@@ -107,6 +119,11 @@ function createContext() {
     fillRect(...args) { operations.push(['fillRect', state.fillStyle, ...args]); },
     stroke() { operations.push(['stroke', state.strokeStyle, state.lineWidth]); },
     fill() { operations.push(['fill', state.fillStyle]); },
+    createLinearGradient(...args) {
+      const gradient = new MockGradient(args);
+      operations.push(['createLinearGradient', ...args]);
+      return gradient;
+    },
   };
   for (const property of [
     'fillStyle', 'strokeStyle', 'lineWidth', 'globalCompositeOperation',
