@@ -4,6 +4,7 @@ import type {
   AudioVisualRenderEnvironment,
   SpectrumRenderEnvironment,
 } from '..';
+import { mixVisualColors } from '../palette';
 import type { AudioVizFrame } from '../audio-frame';
 import type { VisualizerParams } from '../params';
 
@@ -206,9 +207,13 @@ class MinimalVisual implements AudioVisual {
     const intensityScale = 0.6 + clamp01(params.intensity) * 0.8;
     const maxBarHeight = canvas.height * 0.58;
     const primary = environment.colors.bar;
+    // CHANGED: non-HC caps derive from the bar color (lightened) instead of the raw
+    //          theme glow token.
+    // WHY: glow can be semi-transparent or a clashing hue, which made the meter caps
+    //      "look strange depending on the colour scheme" (QA §2b).
     const accent = highContrast
       ? resolveMinimalContrastColor(primary, environment.colors.glow)
-      : environment.colors.glow;
+      : mixVisualColors(primary, '#ffffff', 0.55);
 
     // CHANGED: Minimal uses one quiet horizon and solid, broad meter marks with no glow pass.
     // WHY: restrained contrast and low visual entropy improve legibility and encoded-size safety.

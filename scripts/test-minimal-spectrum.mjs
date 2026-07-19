@@ -194,8 +194,15 @@ check('high contrast enforces an opaque 3:1 tip pair while relaxed mode honors t
   }).ctx.operations;
   assert.ok(highContrast.some(([operation, value]) => operation === 'fillStyle' && value === '#000000'));
 
+  // Relaxed caps derive from the bar color (lightened toward white) instead of the raw
+  // glow token, which could be semi-transparent or clash with the scheme (QA §2b).
   const relaxed = renderMinimal(frame, environment, { ...params, highContrast: false }).ctx.operations;
-  assert.ok(relaxed.some(([operation, value]) => operation === 'fillStyle' && value === '#ffffff44'));
+  assert.equal(relaxed.some(([operation, value]) => operation === 'fillStyle' && value === '#ffffff44'), false);
+  const accents = relaxed
+    .filter(([operation, value]) => operation === 'fillStyle' && value !== environment.colors.bar)
+    .map(([, value]) => value);
+  assert.ok(accents.length > 0);
+  assert.ok(accents.every((value) => /^#[0-9a-f]{6}$/i.test(value)));
 });
 
 check('band weighting changes the intended region without changing element count', () => {
