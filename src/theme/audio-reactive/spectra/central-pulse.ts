@@ -256,6 +256,16 @@ class CentralPulseVisual implements AudioVisual {
     // WHY: QA wanted the orb to deform with the spectrum "somewhat symmetrically" for an
     //      organic feel instead of reading like a wrapped linear spectrum (§2e).
     const bandReach = minDimension * 0.032 * intensity * (0.2 + this.displayedEnergy * 0.8);
+    // CHANGED: a stochastic flutter rides the band shape bias (Pass C §2e "attitude").
+    // WHY: the mirrored deformation tracked the spectrum too literally. Jittering its
+    //      gain per position — sampled on the FOLDED coordinate so left and right stay
+    //      identical — gives the orb personality without breaking the symmetry QA likes;
+    //      sin-of-sin evolution keeps the wobble from reading as a loop.
+    const biasFlutter = (mirrored: number): number => 0.68
+      + 0.64 * (0.5 + 0.5 * Math.sin(
+        mirrored * 23.7 + timeSeconds * 1.9
+        + Math.sin(mirrored * 41.3 - timeSeconds * 1.13) * 1.6,
+      ));
     const mirroredBandOffset = environment.reduceMotion
       ? undefined
       : (index: number, count: number): number => {
@@ -267,7 +277,9 @@ class CentralPulseVisual implements AudioVisual {
         const mix = position - left;
         const leftLevel = clamp01(frame.bands[left] ?? 0) * bandWeight(left, params);
         const rightLevel = clamp01(frame.bands[right] ?? 0) * bandWeight(right, params);
-        return Math.pow(clamp01(leftLevel + (rightLevel - leftLevel) * mix), 0.82) * bandReach;
+        return Math.pow(clamp01(leftLevel + (rightLevel - leftLevel) * mix), 0.82)
+          * bandReach
+          * biasFlutter(mirrored);
       };
 
     const contour: ContourGeometry = {
