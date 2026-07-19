@@ -27,7 +27,7 @@ export const INFERNO_MIN_PARTICLES = 28;
 export const INFERNO_MAX_PARTICLES = 72;
 /** Sampled columns of the smoothed flame-front height/radius field. */
 export const INFERNO_FRONT_SAMPLES = 25;
-/** Three bounded paint passes per particle plus hearth (2) and flame front (3) accents. */
+/** Three bounded paint passes per particle plus hearth (2) and layered flame front (4) accents. */
 export const INFERNO_MAX_ELEMENTS = INFERNO_MAX_PARTICLES * 3 + 6;
 
 export type InfernoVariant = 'inferno' | 'void-inferno';
@@ -62,6 +62,30 @@ function clamp01(value: number): number {
 function seededUnit(index: number, salt: number): number {
   const value = Math.sin(index * 78.233 + salt * 12.9898) * 43758.5453;
   return value - Math.floor(value);
+}
+
+/**
+ * CHANGED: deterministic lattice value noise, smoothstep-interpolated in space AND time,
+ * optionally periodic in space so the radial ring has no seam.
+ * WHY: the crest was undulating on a sum of sines, which pulses on fixed audible periods
+ *      (QA Pass C §3e); scrolling value noise never repeats, which is what makes fire
+ *      read as organic instead of mechanical.
+ */
+function latticeNoise(x: number, t: number, seed: number, wrap: number): number {
+  const xIndex = Math.floor(x);
+  const tIndex = Math.floor(t);
+  const xFraction = x - xIndex;
+  const tFraction = t - tIndex;
+  const xSmooth = xFraction * xFraction * (3 - 2 * xFraction);
+  const tSmooth = tFraction * tFraction * (3 - 2 * tFraction);
+  const lattice = (dx: number, dt: number): number => {
+    const rawX = xIndex + dx;
+    const wrappedX = wrap > 0 ? ((rawX % wrap) + wrap) % wrap : rawX;
+    return seededUnit(wrappedX + (tIndex + dt) * 57.31, seed);
+  };
+  const bottom = lattice(0, 0) + (lattice(1, 0) - lattice(0, 0)) * xSmooth;
+  const top = lattice(0, 1) + (lattice(1, 1) - lattice(0, 1)) * xSmooth;
+  return bottom + (top - bottom) * tSmooth;
 }
 
 function resolveLayout(params: VisualizerParams): LayoutMode {
@@ -203,8 +227,13 @@ class InfernoVisual implements AudioVisual {
   /** Smoothed flame-front field: crest heights (linear/centered) or ring radii (radial). */
   private readonly frontField = new Float32Array(INFERNO_FRONT_SAMPLES);
   private readonly reducedFrontField = new Float32Array(INFERNO_FRONT_SAMPLES);
-  /** Per-sample refractory timers so one standing peak throws licks on a cadence, not per frame. */
+  /** Per-sample refractory timers so one flare cannot machine-gun licks frame after frame. */
   private readonly peakCooldown = new Float32Array(INFERNO_FRONT_SAMPLES);
+  /** Shared flare-noise channel: bulges the bright core layer AND gates lick emission. */
+  private readonly flareField = new Float32Array(INFERNO_FRONT_SAMPLES);
+  /** Scratch for the per-layer noise-masked silhouettes (computed, traced, then reused). */
+  private readonly layerField = new Float32Array(INFERNO_FRONT_SAMPLES);
+  private frontTime = 0;
   private frontPrimed = false;
   private lickSpawnX = 0;
   private lickSpawnY = 0;
@@ -371,6 +400,27 @@ class InfernoVisual implements AudioVisual {
     );
   }
 
+  /** Broad, slow silhouette swell — the front's large-scale undulation channel. */
+  private frontSwell(unit: number, timeSeconds: number): number {
+    const radial = this.layout === 'radial';
+    return latticeNoise(unit * (radial ? 4 : 3.6), timeSeconds * 0.62, 3, radial ? 4 : 0);
+  }
+
+  /** Fine, faster crest flicker layered over the swell. */
+  private frontFlicker(unit: number, timeSeconds: number): number {
+    const radial = this.layout === 'radial';
+    return latticeNoise(unit * (radial ? 9 : 8.3), timeSeconds * 1.7, 11, radial ? 9 : 0);
+  }
+
+  /**
+   * The fastest channel: where this noise flares, the bright core layer visibly bulges
+   * AND licks peel off — one phase source for both, so pulse and spawn are the same event.
+   */
+  private flareAt(unit: number, timeSeconds: number): number {
+    const radial = this.layout === 'radial';
+    return latticeNoise(unit * (radial ? 7 : 6.4), timeSeconds * 2.3, 19, radial ? 7 : 0);
+  }
+
   /**
    * CHANGED: a smoothed, band-lifted flame front rises from the emission edge and is drawn
    * over the tongue roots, capped at half the canvas.
@@ -387,34 +437,34 @@ class InfernoVisual implements AudioVisual {
     const local = clamp01(
       weightedBandAtUnit(frame, unit, params) * (0.55 + this.sensitivity * 0.5),
     );
-    // Irrational spatial/temporal frequency ratios keep the crest from visibly looping.
-    // CHANGED: two extra high-frequency terms roughen the crest (Pass B).
-    // WHY: a purely smooth crest never looks "ready" to throw licks; procedural fire
-    //      carries fine-grain noise on top of the large undulation.
-    const ripple = 1
-      + Math.sin(unit * Math.PI * 2 * 3.236 + timeSeconds * 0.73 + 1.7) * 0.2
-      + Math.sin(unit * Math.PI * 2 * 5.236 - timeSeconds * 1.181 + 3.9) * 0.12
-      + Math.sin(unit * Math.PI * 2 * 8.09 + timeSeconds * 1.91) * 0.07
-      + Math.sin(unit * Math.PI * 2 * 13.09 + timeSeconds * 2.63 + 0.9) * 0.045
-      + Math.sin(unit * Math.PI * 2 * 21.18 - timeSeconds * 1.53 + 2.2) * 0.03;
+    // CHANGED: the five-sine ripple became two octaves of scrolling lattice value noise
+    //          (broad swell + fine flicker), periodic around the radial ring (Pass C).
+    // WHY: sine sums pulse on fixed periods the eye locks onto; non-repeating noise is
+    //      the procedural backbone of an organic flame silhouette (QA §3e).
+    const swell = this.frontSwell(unit, timeSeconds);
+    const flicker = this.frontFlicker(unit, timeSeconds);
+    const ripple = 0.6 + swell * 0.58 + flicker * 0.24;
     if (this.layout === 'radial') {
       const radius = minDimension * (0.11 + this.drive * 0.12) * (0.62 + local * 0.75) * ripple;
       return Math.min(minDimension * 0.3, Math.max(minDimension * 0.05, radius));
     }
     const envelope = this.layout === 'centered' ? Math.sin(Math.PI * clamp01(unit)) ** 1.3 : 1;
     const height = minDimension * (0.05 + this.drive * 0.24) * (0.6 + local * 0.8) * ripple * envelope;
-    // 0.43 cap keeps even the 1.16×-scaled back halo at or below the half-screen ceiling.
+    // 0.43 cap keeps even the sheath layer's 1.16× mask ceiling at or below half screen.
     return Math.min(this.canvasHeight * 0.43, Math.max(0, height));
   }
 
   private updateFlameFront(frame: AudioVizFrame, params: VisualizerParams, dt: number): void {
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
     const timeSeconds = frame.timeMs / 1000;
+    this.frontTime = timeSeconds;
     for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
       this.peakCooldown[index] = Math.max(0, (this.peakCooldown[index] ?? 0) - dt);
     }
     for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
       const unit = index / (INFERNO_FRONT_SAMPLES - 1);
+      // The flare channel is sampled once here and shared by drawing and emission.
+      this.flareField[index] = this.flareAt(unit, timeSeconds);
       const target = this.frontTargetAt(frame, params, unit, timeSeconds, minDimension);
       if (!this.frontPrimed) {
         this.frontField[index] = target;
@@ -461,20 +511,27 @@ class InfernoVisual implements AudioVisual {
     const base = radial
       ? minDimension * (0.11 + this.drive * 0.12)
       : minDimension * (0.05 + this.drive * 0.24);
-    // Only strong, isolated maxima fire: above the drive-scaled expected height AND
-    // meaningfully higher than both neighbors.
-    const threshold = base * (radial ? 1.06 : 1.12);
-    const margin = base * 0.055;
+    // CHANGED: geometric local-maxima detection became a flare-noise gate (Pass C).
+    // WHY: the crest pulsed on its own rhythm while licks spawned on cooldown timers —
+    //      QA read the mismatch instantly. The core layer bulges where flareField is
+    //      high, so gating emission on the same channel makes the visible surge and the
+    //      lick leaving it one event. Louder voice opens the gate wider.
+    const flareGate = 0.72 - this.drive * 0.2;
+    const heightFloor = base * (radial ? 0.88 : 0.9);
     let spawned = 0;
     for (let index = 1; index < INFERNO_FRONT_SAMPLES - 1 && spawned < 3; index += 1) {
       if ((this.peakCooldown[index] ?? 0) > 0) continue;
+      const flare = this.flareField[index] ?? 0;
+      const flareLeft = this.flareField[index - 1] ?? 0;
+      const flareRight = this.flareField[index + 1] ?? 0;
+      if (flare < flareGate || flare < flareLeft || flare < flareRight) continue;
       const value = this.frontField[index] ?? 0;
-      const left = this.frontField[index - 1] ?? 0;
-      const right = this.frontField[index + 1] ?? 0;
-      if (value < threshold || value < left + margin || value < right + margin) continue;
+      if (value < heightFloor) continue;
       if (this.emitter.activeCount >= particleLimit) break;
 
       const unit = index / (INFERNO_FRONT_SAMPLES - 1);
+      const left = this.frontField[index - 1] ?? 0;
+      const right = this.frontField[index + 1] ?? 0;
       const lean = (left - right) * (1.1 + seededUnit(index, this.spawnSerial) * 0.8);
       if (radial) {
         const angle = unit * Math.PI * 2 - Math.PI / 2;
@@ -491,10 +548,10 @@ class InfernoVisual implements AudioVisual {
       }
       this.emitter.emit(this.initializeLick);
       // Refractory windows: the fired sample rests, neighbors cool briefly so twin
-      // samples of one physical peak cannot double-fire.
-      this.peakCooldown[index] = 0.24 + seededUnit(index * 3 + this.spawnSerial, 47) * 0.3;
-      this.peakCooldown[index - 1] = Math.max(this.peakCooldown[index - 1] ?? 0, 0.12);
-      this.peakCooldown[index + 1] = Math.max(this.peakCooldown[index + 1] ?? 0, 0.12);
+      // samples of one physical flare cannot double-fire.
+      this.peakCooldown[index] = 0.2 + seededUnit(index * 3 + this.spawnSerial, 47) * 0.26;
+      this.peakCooldown[index - 1] = Math.max(this.peakCooldown[index - 1] ?? 0, 0.1);
+      this.peakCooldown[index + 1] = Math.max(this.peakCooldown[index + 1] ?? 0, 0.1);
       spawned += 1;
     }
   }
@@ -584,12 +641,51 @@ class InfernoVisual implements AudioVisual {
     ctx.closePath();
   }
 
+  /**
+   * Fill the scratch layer with `field` eroded by a scrolling noise mask. Each front
+   * layer owns a frequency/speed/seed, so the silhouettes slide over each other.
+   */
+  private maskLayer(
+    field: Float32Array,
+    timeSeconds: number,
+    floor: number,
+    gain: number,
+    frequency: number,
+    speed: number,
+    seed: number,
+  ): void {
+    const wrap = this.layout === 'radial' ? Math.round(frequency) : 0;
+    for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
+      const unit = index / (INFERNO_FRONT_SAMPLES - 1);
+      const mask = latticeNoise(unit * frequency, timeSeconds * speed, seed, wrap);
+      this.layerField[index] = (field[index] ?? 0) * (floor + mask * gain);
+    }
+  }
+
+  /** Fill the scratch layer with `field` eroded by the shared flare channel. */
+  private maskLayerFromFlare(field: Float32Array, timeSeconds: number): void {
+    for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
+      const unit = index / (INFERNO_FRONT_SAMPLES - 1);
+      this.layerField[index] = (field[index] ?? 0)
+        * (0.24 + this.flareAt(unit, timeSeconds) * 0.5);
+    }
+  }
+
+  /**
+   * CHANGED: the halo + gradient + stroke sandwich became noise-masked silhouette layers —
+   * a deep translucent sheath, a gradient-bodied main silhouette with its crest stroke,
+   * and a bright core eroded by the flare channel that also spawns licks (Pass C).
+   * WHY: one smooth filled curve can never look organic; procedural fire is drawn as
+   *      stacked ragged sheets whose edges slide at different speeds, and the core must
+   *      surge exactly where licks leave so pulse and spawn read as one event (§3e).
+   */
   private drawFlameFront(
     ctx: CanvasRenderingContext2D,
     canvas: HTMLCanvasElement,
     palette: readonly string[],
     variant: InfernoVariant,
     field: Float32Array,
+    timeSeconds: number,
   ): void {
     if (this.drive <= 0.01) return;
     let peak = 0;
@@ -598,30 +694,36 @@ class InfernoVisual implements AudioVisual {
     }
     if (peak <= 1) return;
     const radial = this.layout === 'radial';
+    const traceLayer = (close: boolean): void => {
+      if (radial) this.traceFrontRing(ctx, canvas, this.layerField, 1);
+      else this.traceFrontCurve(ctx, canvas, this.layerField, 1, close);
+    };
 
     if (variant === 'void-inferno') {
-      // Dark bulk with one hot crest outline keeps the Void treatment's inverted language.
-      if (radial) this.traceFrontRing(ctx, canvas, field, 1);
-      else this.traceFrontCurve(ctx, canvas, field, 1, true);
+      // Dark bulk with one hot crest outline keeps the Void treatment's inverted
+      // language; the bulk silhouette carries the noise mask so Void stays organic too.
+      this.maskLayer(field, timeSeconds, 0.74, 0.32, radial ? 7 : 6.7, 1.15, 7);
+      traceLayer(true);
       ctx.fillStyle = '#030106';
       ctx.shadowBlur = 0;
       ctx.fill();
-      if (radial) this.traceFrontRing(ctx, canvas, field, 1);
-      else this.traceFrontCurve(ctx, canvas, field, 1, false);
+      traceLayer(false);
       ctx.strokeStyle = colorWithAlpha(paletteColorAt(palette, 0.82), 0.92);
       ctx.lineWidth = 1.7 + this.drive * 0.6;
       ctx.stroke();
       return;
     }
 
-    if (radial) this.traceFrontRing(ctx, canvas, field, 1.16);
-    else this.traceFrontCurve(ctx, canvas, field, 1.16, true);
-    ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.3), 0.1 + this.drive * 0.1);
+    // Sheath: the deep-red outer envelope, slow broad erosion, up to 1.16× the field.
+    this.maskLayer(field, timeSeconds, 0.84, 0.32, radial ? 4 : 4.3, 0.8, 23);
+    traceLayer(true);
+    ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.2), 0.3 + this.drive * 0.22);
     ctx.shadowBlur = 0;
     ctx.fill();
 
-    if (radial) this.traceFrontRing(ctx, canvas, field, 1);
-    else this.traceFrontCurve(ctx, canvas, field, 1, true);
+    // Body: the main silhouette carrying the vertical heat-ramp gradient.
+    this.maskLayer(field, timeSeconds, 0.62, 0.42, radial ? 7 : 6.7, 1.15, 7);
+    traceLayer(true);
     const body = radial
       ? ctx.createRadialGradient(
         canvas.width / 2, canvas.height / 2, peak * 0.12,
@@ -641,13 +743,21 @@ class InfernoVisual implements AudioVisual {
     ctx.fillStyle = body;
     ctx.fill();
 
-    if (radial) this.traceFrontRing(ctx, canvas, field, 1);
-    else this.traceFrontCurve(ctx, canvas, field, 1, false);
+    // Crest stroke rides the SAME body silhouette (scratch still holds it).
+    traceLayer(false);
     ctx.strokeStyle = colorWithAlpha(paletteColorAt(palette, 0.92), 0.5 + this.drive * 0.3);
     ctx.lineWidth = 1.2 + this.drive * 1.2;
     ctx.shadowColor = colorWithAlpha(paletteColorAt(palette, 0.9), 0.85);
     ctx.shadowBlur = 5 + this.drive * 6;
     ctx.stroke();
+
+    // Core: the bright inner tongue mass, gated by the flare channel — it bulges at
+    // exactly the samples that are eligible to peel off a lick this instant.
+    this.maskLayerFromFlare(field, timeSeconds);
+    traceLayer(true);
+    ctx.fillStyle = colorWithAlpha(paletteColorAt(palette, 0.95), 0.42 + this.drive * 0.3);
+    ctx.shadowBlur = 0;
+    ctx.fill();
   }
 
   private emitParticles(
@@ -773,7 +883,7 @@ class InfernoVisual implements AudioVisual {
       this.drawFlame(ctx, particle, params, palette, variant);
     }
     ctx.globalCompositeOperation = 'source-over';
-    this.drawFlameFront(ctx, canvas, palette, variant, this.frontField);
+    this.drawFlameFront(ctx, canvas, palette, variant, this.frontField, this.frontTime);
     ctx.globalCompositeOperation = variant === 'void-inferno' ? 'source-over' : 'lighter';
     for (const particle of this.emitter.particles) {
       if (!particle.active || particle.kind !== 'ember') continue;
@@ -1076,7 +1186,8 @@ class InfernoVisual implements AudioVisual {
       this.reducedFrontField[index] = this.frontTargetAt(frame, params, unit, 0, minDimension);
     }
     ctx.globalCompositeOperation = 'source-over';
-    this.drawFlameFront(ctx, canvas, palette, variant, this.reducedFrontField);
+    // Time 0 keeps the reduced treatment's noise masks frozen and render-order stable.
+    this.drawFlameFront(ctx, canvas, palette, variant, this.reducedFrontField, 0);
     ctx.globalCompositeOperation = variant === 'void-inferno' ? 'source-over' : 'lighter';
     const count = this.drive <= 0.01
       ? 0
