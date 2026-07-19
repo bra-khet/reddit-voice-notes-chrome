@@ -203,7 +203,13 @@ class InfernoVisual implements AudioVisual {
   /** Smoothed flame-front field: crest heights (linear/centered) or ring radii (radial). */
   private readonly frontField = new Float32Array(INFERNO_FRONT_SAMPLES);
   private readonly reducedFrontField = new Float32Array(INFERNO_FRONT_SAMPLES);
+  /** Per-sample refractory timers so one standing peak throws licks on a cadence, not per frame. */
+  private readonly peakCooldown = new Float32Array(INFERNO_FRONT_SAMPLES);
   private frontPrimed = false;
+  private lickSpawnX = 0;
+  private lickSpawnY = 0;
+  private lickSpawnVx = 0;
+  private lickSpawnVy = 0;
 
   private readonly initializeParticle: BoundedParticleInitializer<InfernoParticle> = (
     particle,
@@ -214,9 +220,11 @@ class InfernoVisual implements AudioVisual {
     this.spawnSerial += 1;
     const source = seededUnit(serial, 3);
     const texture = seededUnit(serial, 11);
-    const kind: InfernoParticleKind = serial % 9 === 0
+    // CHANGED: the hearth's kind mix now favors smoke/embers (flames mostly come from
+    //          the crest peaks); the lower total rate keeps smoke/ember flux roughly level.
+    const kind: InfernoParticleKind = serial % 5 === 0
       ? 'smoke'
-      : serial % 4 === 0
+      : serial % 4 === 1
         ? 'ember'
         : 'flame';
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
@@ -325,6 +333,7 @@ class InfernoVisual implements AudioVisual {
     this.emitter.advance(this.pendingDt);
     this.advanceParticles(frame, params, this.pendingDt);
     this.emitParticles(frame, params, particleLimit, environment);
+    this.emitPeakLicks(particleLimit);
     this.pendingDt = 0;
 
     this.drawInferno(ctx, canvas, params, palette, variant);
@@ -334,6 +343,7 @@ class InfernoVisual implements AudioVisual {
     this.emitter.clear();
     this.emissionCarry = 0;
     this.frontPrimed = false;
+    this.peakCooldown.fill(0);
   }
 
   private resolveAudioDrive(
@@ -378,10 +388,15 @@ class InfernoVisual implements AudioVisual {
       weightedBandAtUnit(frame, unit, params) * (0.55 + this.sensitivity * 0.5),
     );
     // Irrational spatial/temporal frequency ratios keep the crest from visibly looping.
+    // CHANGED: two extra high-frequency terms roughen the crest (Pass B).
+    // WHY: a purely smooth crest never looks "ready" to throw licks; procedural fire
+    //      carries fine-grain noise on top of the large undulation.
     const ripple = 1
       + Math.sin(unit * Math.PI * 2 * 3.236 + timeSeconds * 0.73 + 1.7) * 0.2
       + Math.sin(unit * Math.PI * 2 * 5.236 - timeSeconds * 1.181 + 3.9) * 0.12
-      + Math.sin(unit * Math.PI * 2 * 8.09 + timeSeconds * 1.91) * 0.07;
+      + Math.sin(unit * Math.PI * 2 * 8.09 + timeSeconds * 1.91) * 0.07
+      + Math.sin(unit * Math.PI * 2 * 13.09 + timeSeconds * 2.63 + 0.9) * 0.045
+      + Math.sin(unit * Math.PI * 2 * 21.18 - timeSeconds * 1.53 + 2.2) * 0.03;
     if (this.layout === 'radial') {
       const radius = minDimension * (0.11 + this.drive * 0.12) * (0.62 + local * 0.75) * ripple;
       return Math.min(minDimension * 0.3, Math.max(minDimension * 0.05, radius));
@@ -396,6 +411,9 @@ class InfernoVisual implements AudioVisual {
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
     const timeSeconds = frame.timeMs / 1000;
     for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
+      this.peakCooldown[index] = Math.max(0, (this.peakCooldown[index] ?? 0) - dt);
+    }
+    for (let index = 0; index < INFERNO_FRONT_SAMPLES; index += 1) {
       const unit = index / (INFERNO_FRONT_SAMPLES - 1);
       const target = this.frontTargetAt(frame, params, unit, timeSeconds, minDimension);
       if (!this.frontPrimed) {
@@ -409,6 +427,76 @@ class InfernoVisual implements AudioVisual {
       this.frontField[index] = previous + (target - previous) * (1 - Math.exp(-rate * dt));
     }
     this.frontPrimed = true;
+  }
+
+  /**
+   * CHANGED: tall crest peaks actively peel off short-lived, hot "lick" tongues (Pass B).
+   * WHY: the fire read as "wavy base + separate rising particles"; licks must visibly
+   *      originate at the peaks so the front and the tongues form one organism.
+   */
+  private readonly initializeLick: BoundedParticleInitializer<InfernoParticle> = (
+    particle,
+  ) => {
+    const serial = this.spawnSerial;
+    this.spawnSerial += 1;
+    const texture = seededUnit(serial, 11);
+    const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
+    particle.kind = 'flame';
+    particle.phase = seededUnit(serial, 17) * Math.PI * 2;
+    // Hotter and shorter-lived than hearth tongues: a lick flares and dies quickly.
+    particle.heat = clamp01(0.75 + this.drive * 0.25);
+    particle.drift = (seededUnit(serial, 23) - 0.5) * 2;
+    particle.size = minDimension * (0.01 + texture * 0.01) * (0.8 + this.drive * 0.5);
+    particle.lifetime = 0.45 + texture * 0.5;
+    particle.x = this.lickSpawnX;
+    particle.y = this.lickSpawnY;
+    particle.vx = this.lickSpawnVx;
+    particle.vy = this.lickSpawnVy;
+  };
+
+  private emitPeakLicks(particleLimit: number): void {
+    if (!this.frontPrimed || this.drive <= 0.02) return;
+    const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
+    const radial = this.layout === 'radial';
+    const base = radial
+      ? minDimension * (0.11 + this.drive * 0.12)
+      : minDimension * (0.05 + this.drive * 0.24);
+    // Only strong, isolated maxima fire: above the drive-scaled expected height AND
+    // meaningfully higher than both neighbors.
+    const threshold = base * (radial ? 1.06 : 1.12);
+    const margin = base * 0.055;
+    let spawned = 0;
+    for (let index = 1; index < INFERNO_FRONT_SAMPLES - 1 && spawned < 3; index += 1) {
+      if ((this.peakCooldown[index] ?? 0) > 0) continue;
+      const value = this.frontField[index] ?? 0;
+      const left = this.frontField[index - 1] ?? 0;
+      const right = this.frontField[index + 1] ?? 0;
+      if (value < threshold || value < left + margin || value < right + margin) continue;
+      if (this.emitter.activeCount >= particleLimit) break;
+
+      const unit = index / (INFERNO_FRONT_SAMPLES - 1);
+      const lean = (left - right) * (1.1 + seededUnit(index, this.spawnSerial) * 0.8);
+      if (radial) {
+        const angle = unit * Math.PI * 2 - Math.PI / 2;
+        const speed = 55 + this.drive * 70;
+        this.lickSpawnX = this.canvasWidth / 2 + Math.cos(angle) * value;
+        this.lickSpawnY = this.canvasHeight / 2 + Math.sin(angle) * value;
+        this.lickSpawnVx = Math.cos(angle) * speed - Math.sin(angle) * lean;
+        this.lickSpawnVy = Math.sin(angle) * speed + Math.cos(angle) * lean;
+      } else {
+        this.lickSpawnX = unit * this.canvasWidth;
+        this.lickSpawnY = this.canvasHeight - value;
+        this.lickSpawnVx = lean;
+        this.lickSpawnVy = -(58 + this.drive * 75);
+      }
+      this.emitter.emit(this.initializeLick);
+      // Refractory windows: the fired sample rests, neighbors cool briefly so twin
+      // samples of one physical peak cannot double-fire.
+      this.peakCooldown[index] = 0.24 + seededUnit(index * 3 + this.spawnSerial, 47) * 0.3;
+      this.peakCooldown[index - 1] = Math.max(this.peakCooldown[index - 1] ?? 0, 0.12);
+      this.peakCooldown[index + 1] = Math.max(this.peakCooldown[index + 1] ?? 0, 0.12);
+      spawned += 1;
+    }
   }
 
   private frontFieldAt(field: Float32Array, unit: number): number {
@@ -569,11 +657,13 @@ class InfernoVisual implements AudioVisual {
     environment: AudioVisualRenderEnvironment | undefined,
   ): void {
     const previewMinimum = environment?.amplitudeMode === 'preview' ? 4 : 0;
-    // CHANGED: higher continuous birth rate (pool-capped) packs the hearth row.
-    // WHY: at speech drive the base read as isolated licks; fire needs overlapping tongues.
+    // CHANGED: continuous hearth emission cut back sharply now that the front occludes
+    //          the base and crest peaks emit the visible licks (Pass B).
+    // WHY: most rising tongues must originate at the front's tall peaks, not stream up
+    //      from underneath it.
     const rate = this.drive <= 0.01
       ? previewMinimum
-      : 7 + this.drive * (22 + clamp01(params.density) * 40);
+      : 3 + this.drive * (9 + clamp01(params.density) * 16);
     this.emissionCarry += rate * this.pendingDt;
     if (frame.transient) {
       // CHANGED: onset bursts enter the already-bounded pool immediately.
@@ -705,10 +795,12 @@ class InfernoVisual implements AudioVisual {
       const dy = tipY - this.canvasHeight / 2;
       const angleUnit = (Math.atan2(dy, dx) + Math.PI / 2) / (Math.PI * 2);
       const ring = this.frontFieldAt(this.frontField, angleUnit - Math.floor(angleUnit));
-      return Math.hypot(dx, dy) < ring * 0.72;
+      // CHANGED: occlusion tightened 0.72 → 0.95 of the local front height (Pass B).
+      // WHY: partially-buried tongue bodies under the crest broke the "one fire" read.
+      return Math.hypot(dx, dy) < ring * 0.95;
     }
     const front = this.frontFieldAt(this.frontField, tipX / Math.max(1, this.canvasWidth));
-    return tipY > this.canvasHeight - front * 0.72;
+    return tipY > this.canvasHeight - front * 0.95;
   }
 
   private drawHearth(

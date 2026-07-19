@@ -323,6 +323,38 @@ check('transients throw an immediate bounded spark-and-flame burst', () => {
   assert.ok(paintOperations(transientOps).length <= INFERNO_MAX_ELEMENTS);
 });
 
+check('crest peaks peel off licks while the hearth stays occluded behind the front', () => {
+  const visual = INFERNO_VISUAL_DEFINITION.create();
+  const loud = {
+    ...frame,
+    energy: 0.85,
+    bands: frame.bands.map((band) => Math.min(1, band + 0.25)),
+  };
+  renderInferno(visual, loud);
+  let ops = [];
+  for (let step = 1; step <= 10; step += 1) {
+    ops = renderInferno(
+      visual,
+      { ...loud, timeMs: 1000 + step * 100 },
+      params,
+      captureEnvironment,
+      0.1,
+    );
+  }
+  const fills = flameFills(ops);
+  assert.ok(fills.length > 0);
+  // A tongue's base is the lowest (max-y) coordinate of its path. With peak-emitted
+  // licks plus strict front occlusion, the majority of visible tongues must float at or
+  // above the crest zone instead of being rooted on the canvas bottom (QA Pass B).
+  const baseYs = fills.map(([, , , , path]) => Math.max(
+    ...path
+      .filter(([pathOperation]) => pathOperation !== 'closePath')
+      .flatMap((entry) => entry.slice(1).filter((_, argIndex) => argIndex % 2 === 1)),
+  ));
+  const floating = baseYs.filter((baseY) => baseY < canvas.height * 0.9).length;
+  assert.ok(floating >= baseYs.length * 0.5);
+});
+
 check('synthetic preview evolves deterministically through the shared simulation', () => {
   const first = INFERNO_VISUAL_DEFINITION.create();
   const second = INFERNO_VISUAL_DEFINITION.create();
