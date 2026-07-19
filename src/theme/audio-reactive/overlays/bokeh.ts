@@ -1,6 +1,7 @@
 import type {
   AudioVisual,
   AudioVisualDefinition,
+  AudioVisualRenderEnvironment,
   AudioVizFrame,
   VisualizerParams,
 } from '@/src/theme/audio-reactive';
@@ -118,6 +119,7 @@ class BokehVisual implements AudioVisual {
     canvas: HTMLCanvasElement,
     frame: AudioVizFrame,
     params: VisualizerParams,
+    environment?: AudioVisualRenderEnvironment,
   ): void {
     const palette = resolveVisualPalette(params.color);
     const count = getBokehOrbCount(params.density);
@@ -142,7 +144,14 @@ class BokehVisual implements AudioVisual {
       const breathe = 0.9 + 0.1 * Math.sin(seconds * 1.5 + seed.phase);
       const radius = seed.radius * scale * breathe * (0.76 + audio * 0.46);
       const depthAlpha = 0.16 + seed.depth * 0.27;
-      const alpha = clamp01(depthAlpha * intensity * (0.7 + audio * 0.72));
+      // CHANGED: over an image backdrop the lens alpha lifts 30–50%, fluttering per orb
+      //          on its own slow phase (Pass C §3b).
+      // WHY: photographic backgrounds swallow the translucent field; the base boost
+      //      covers the contrast need and the flutter keeps the lift feeling alive.
+      const backdropBoost = environment?.imageBackdrop
+        ? 1.4 + 0.1 * Math.sin(seconds * 0.7 + seed.phase * 2.3)
+        : 1;
+      const alpha = clamp01(depthAlpha * intensity * (0.7 + audio * 0.72) * backdropBoost);
       const color = palette[index % palette.length]!;
       const rim = mixVisualColors(color, '#ffffff', params.highContrast ? 0.68 : 0.38);
 

@@ -347,6 +347,18 @@ export function drawThemeBackground(
 ): void {
   const layout = normalizeUserBackgroundLayout(userLayout);
 
+  // CHANGED: overlays learn whether a photographic image actually painted (Pass C §3b).
+  // WHY: Bubbles lifts its alpha over image backdrops; the flag is derived here because
+  //      only this seam knows which background branch really drew.
+  const imageBackdrop = (userBackgroundImage !== null
+    && isDrawableBackgroundReady(userBackgroundImage))
+    || (theme.background.type === 'image'
+      && backgroundImage?.complete === true
+      && backgroundImage.naturalWidth > 0);
+  const overlayEnvironment = imageBackdrop
+    ? { ...visualEnvironment, imageBackdrop: true }
+    : visualEnvironment;
+
   if (userBackgroundImage) {
     drawUserBackgroundLayer(
       ctx,
@@ -362,7 +374,7 @@ export function drawThemeBackground(
     // Fix: Preset bokeh draws as orb overlay when fill mode replaces the dark bokeh base
     // Sync: skip when fit mode — letterbox already shows the full preset backdrop
     if (layout.scaleMode === 'fill') {
-      drawBokehThemeOverlay(ctx, canvas, theme.background, audioFrame, visualEnvironment);
+      drawBokehThemeOverlay(ctx, canvas, theme.background, audioFrame, overlayEnvironment);
     }
   } else {
     drawBundledThemeBackground(
@@ -377,7 +389,7 @@ export function drawThemeBackground(
 
   // CHANGED: one normalized frame plus capture/preview accessibility context crosses the overlay seam.
   // WHY: Forest Spirits needs honest synthetic-preview motion and the same reduced-motion state as capture.
-  drawDesignEffectOverlays(ctx, canvas, theme, audioFrame, visualEnvironment);
+  drawDesignEffectOverlays(ctx, canvas, theme, audioFrame, overlayEnvironment);
 }
 
 function drawDesignEffectOverlays(

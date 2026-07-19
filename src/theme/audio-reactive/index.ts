@@ -48,6 +48,12 @@ export interface AudioVisualRenderEnvironment {
   amplitudeMode?: 'capture' | 'preview';
   /** Explicit accessibility state for simulations; spectra keep their richer nested environment. */
   reduceMotion?: boolean;
+  /**
+   * CHANGED: true when a photographic/user image painted beneath the overlays (Pass C §3b).
+   * WHY: translucent atmospheres (Bubbles) need a contrast lift over busy image
+   *      backdrops that flat/gradient backgrounds do not require.
+   */
+  imageBackdrop?: boolean;
   spectrum?: SpectrumRenderEnvironment;
 }
 
