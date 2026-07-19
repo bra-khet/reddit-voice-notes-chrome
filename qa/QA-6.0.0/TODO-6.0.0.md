@@ -14,12 +14,13 @@
 | **A — audio-reactive visuals** | Phase 4 **implemented** · focused fixture QA PASS · **live confidence QA open** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
 | **B — background layout** | **Not started** (branch may exist; do not open QA until A confidence close) | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) |
 
-**Automated (re-run 2026-07-19 after the Pass A fix sprint):** all **57 Node suites PASS** · `npm run build` PASS · `npm run compile` = same 2 pre-existing subtitle diagnostics.
+**Automated (re-run 2026-07-19 after the Pass C fix sprint):** all **57 Node suites PASS** (528 checks) · `npm run build` PASS · `npm run compile` = same 2 pre-existing subtitle diagnostics.
 
-**Pass A fixes landed 2026-07-19** (commits `2598815..aaf0bb3`; see `progress-QA-6.0.0.md`). Open re-QA items for Pass C:
-- [ ] Visual confirmation pass over reworked effects (inferno peak-licks · aurora ribbons · digital-rain trails · forest-spirits puffs/snaking · lightning walk · arc/smoke roaming · glitch activation)
-- [ ] **Digital Rain 120 s size-gate re-run** under the raised 40/40 MiB caps (`npm run qa:visual-size`)
-- [ ] Reduced-motion spot check: phosphor / radial / central pulse / oscilloscope now react to voice level
+**Pass A+B fixes landed 2026-07-19** (commits `2598815..aaf0bb3`) · **Pass C operator QA PASSED** all sections incl. §8-12 size gates under 40/40 · **Pass C polish sprint landed** (commits `3ba5a26..820a2e8`; see `progress-QA-6.0.0.md`). Open re-QA items for Pass D:
+- [ ] Visual confirmation of the Pass C rework (inferno lattice-noise front + flare-coupled licks · aurora live centered lines / seamless radial ring / ribbon fades · digital-rain radial spacing · glitch activation cadence + inversion flash · sparkle motion · forest-spirits antennae · smoke agitation cycles · lightning bow/walk anchors · arc jumps)
+- [ ] Bubbles over an **image background** — confirm the 30-50% alpha lift reads right
+- [ ] Phosphor — confirm columns no longer sit at cap (AGC headroom)
+- [ ] Note: visual-fixture dev server moved to **port 8600** (8873 fell into a Windows excluded-port range)
 
 **Architecture at Phase 4:** map **v3.21** / I22 · extension-points **v1.35** · confidence stays **Medium** until live capture/FPS + 120 s heavy-artifact reports land.
 
@@ -48,11 +49,12 @@ Evidence: [`track-a/logs/`](track-a/logs/) · [`track-a/screenshot/`](track-a/sc
 - [ ] Keyboard Detail + preset pickers; caption-safe dim below captions
 
 ### 120 s size gate (hard ceiling: base ≤40 MiB · baked ≤40 MiB — raised from 25/30 per Pass A §8-12)
-- [ ] Digital Rain — attach harness report under `track-a/artifacts/`
-- [ ] Aurora — attach harness report
-- [ ] Glitch — attach harness report
-- [ ] Inferno — attach harness report
-- [ ] Heavy three-stack (e.g. Inferno + 3 stackables) — attach harness report
+All **PASSED** in operator Pass C (2026-07-19); reports under `track-a/artifacts/<scene>/`:
+- [x] Digital Rain — 19 / 25 MiB
+- [x] Aurora — 11 / 25 MiB
+- [x] Glitch — 10 / 23 MiB
+- [x] Inferno — 13 / 25 MiB
+- [x] Heavy three-stack (inferno + conway/smoke/particle-burst) — 18 / 25 MiB
 
 ```bash
 npm run qa:visual-size -- --preset <id-or-label> --base <base.mp4> --baked <baked.mp4> [--json]

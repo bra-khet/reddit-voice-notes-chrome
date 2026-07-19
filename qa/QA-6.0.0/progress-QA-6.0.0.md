@@ -36,6 +36,52 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 ## Session log
 
+### 2026-07-19 (later) — Pass C fix sprint (agent)
+
+Addressed the full Pass C packet (`track-a/artifacts/qa-session-track-a-pass-c-2026-07-19.json`)
+in per-effect commits (`3ba5a26..820a2e8`, 13 commits). All §8-12 size gates PASSED under
+the 40/40 caps (operator reports: rain 19/25 · aurora 11/25 · glitch 10/23 · inferno 13/25 ·
+three-stack 18/25 MiB). Highlights:
+
+- **inferno** (the priority) — five-sine crest ripple → deterministic lattice value noise
+  (smoothstep space+time, seam-free radial wrap); front painted as noise-masked layers
+  (sheath / gradient body+crest / bright core); lick emission gated by the same flare
+  channel that bulges the core, so pulse and spawn are one event. Verified visually via
+  the rebuilt before/after fixture (after.js regenerated from source; **fixture port moved
+  8873 → 8600** — old port fell into a Windows excluded range).
+- **aurora** — centered side lines now trace the live paired-band envelope (were static
+  bars); radial "left gap" was the atan2 sort seam → lanes close into wrapped annulus
+  loops + mirrored band mapping (Central Pulse treatment); ribbons fade in/out on their
+  mean member-life envelope.
+- **digital-rain** — radial only: 25% fewer spoke cells, 0.06–0.52 span, glyphs sized to
+  one radial step (divisor 1.32 → 2.2).
+- **glitch** — threshold + flux floor lowered again, simmer ~4× faster (fires every 1–3 s
+  of speech, still silent in silence), + vertical chroma ghost and difference-composite
+  inversion flash (element cap formula updated with test).
+- **sparkle** — honest post-teleport-fix motion was ~2 px/s; rise now streams with energy
+  and the wobble amplitude (never frequency) rides audio.
+- **bubbles** — new `imageBackdrop` environment flag (set at the drawThemeBackground seam);
+  lens alpha ×1.4 ± 0.1 per-orb flutter over image backgrounds.
+- **forest-spirits** — head "ears" → smaller swaying wisps with tip-fading gradient.
+- **phosphor** — AGC (fast-rise/slow-decay reference, 0.85 headroom) replaces per-frame
+  1/peak normalization; ends cap-sitting, preview/capture parity kept.
+- **central-pulse** — symmetric stochastic flutter on the band shape bias (folded-coordinate
+  sampling preserves the signed-off symmetry).
+- **oscilloscope** — defaults retuned to the old maxed-out feel + ~12-13% amplitude headroom.
+- **lightning** — per-route low-frequency bow (real arcing) + walk endpoints anchored to
+  the dominant band (Particle Burst's praised placement logic).
+- **electric-arc** — contact jumps ~2.5× larger on slower 0.9–2.2 s epochs (jumpy but buildable).
+- **smoke** — per-plume agitation cycles: puffs jump per spawn during the agitated window,
+  then settle to the smooth wander; spine breaks across jump gaps.
+- **neon-glow** — second small reactivity bump. **ember/particle-burst/conway** untouched.
+
+Verification: **all 57 Node suites PASS (528 checks)**; `tsc` = same 2 pre-existing
+subtitle diagnostics; `wxt build` PASS.
+
+**Next for operator (Pass D):** reload, visually confirm the Pass C rework (esp. the
+inferno noise front + flare-coupled licks, aurora centered/radial modes, glitch activation
+cadence), spot-check bubbles over an image background, and re-export a packet.
+
 ### 2026-07-19 — Pass A fix sprint (agent) + operator Pass B feedback folded in
 
 Addressed the full Pass A packet (`track-a/artifacts/qa-session-track-a-pass-a-2026-07-17.json`)
