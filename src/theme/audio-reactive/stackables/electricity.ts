@@ -290,14 +290,18 @@ class ElectricArcEffect implements StackableEffect {
     let roamAngle = 0;
     let roamAlong = 0;
     if (this.roaming) {
-      const interval = 0.6 + seededUnit(index, 211) * 0.9;
+      // CHANGED: jumps grew ~2.5× while epochs slowed 0.6–1.5 s → 0.9–2.2 s (Pass C).
+      // WHY: QA read the roam as "just shifts slightly"; discharge points should leap
+      //      to genuinely new spots, then dwell long enough for arcs to build there.
+      const interval = 0.9 + seededUnit(index, 211) * 1.3;
       const epoch = Math.floor(this.roamTime / interval + seededUnit(index, 223) * 7);
       roamAngle = seededSigned(index * 13 + epoch, 227);
       roamAlong = seededSigned(index * 17 + epoch, 229);
     }
     if (this.layout === 'radial') {
-      const angle = -Math.PI / 2 + index / count * Math.PI * 2 + roamAngle * 0.38;
-      const radius = Math.min(this.canvasWidth, this.canvasHeight) * 0.235;
+      const angle = -Math.PI / 2 + index / count * Math.PI * 2 + roamAngle * 0.9;
+      const radius = Math.min(this.canvasWidth, this.canvasHeight)
+        * 0.235 * (1 + roamAlong * 0.18);
       target.x = this.canvasWidth / 2 + Math.cos(angle) * radius;
       target.y = this.canvasHeight / 2 + Math.sin(angle) * radius;
       target.normalX = Math.cos(angle);
@@ -311,7 +315,7 @@ class ElectricArcEffect implements StackableEffect {
       target.x = this.canvasWidth * (left ? 0.12 : 0.88);
       target.y = this.canvasHeight * Math.min(0.82, Math.max(
         0.2,
-        0.31 + (rows === 1 ? 0.19 : row / (rows - 1) * 0.38) + roamAlong * 0.08,
+        0.31 + (rows === 1 ? 0.19 : row / (rows - 1) * 0.38) + roamAlong * 0.2,
       ));
       target.normalX = left ? 1 : -1;
       target.normalY = (0.5 - target.y / this.canvasHeight) * 0.24;
@@ -319,7 +323,7 @@ class ElectricArcEffect implements StackableEffect {
     }
     target.x = this.canvasWidth * Math.min(0.94, Math.max(
       0.06,
-      0.14 + index / Math.max(1, count - 1) * 0.72 + roamAlong * 0.07,
+      0.14 + index / Math.max(1, count - 1) * 0.72 + roamAlong * 0.18,
     ));
     target.y = this.canvasHeight * 0.9;
     target.normalX = (target.x / this.canvasWidth - 0.5) * 0.24;
@@ -436,6 +440,13 @@ class LightningEffect implements StackableEffect {
   private walkSerial = 1;
   private startWalkSerial = 0;
   private endWalkSerial = 1;
+  /**
+   * CHANGED: each walk captures the dominant band's screen unit at the beat (Pass C).
+   * WHY: Particle Burst's audio-anchored random placement was the operator's favorite;
+   *      lightning endpoints now hunt toward where the voice's energy actually is.
+   */
+  private startAnchorUnit = 0.32;
+  private endAnchorUnit = 0.68;
   private pointCount = LIGHTNING_MIN_POINTS;
   private branchLimit = LIGHTNING_MIN_BRANCHES;
   private activeBranches = 0;
@@ -505,8 +516,23 @@ class LightningEffect implements StackableEffect {
       );
       if (this.walkTimer >= walkInterval) {
         this.walkSerial += 1;
-        if (this.walkSerial % 2 === 0) this.startWalkSerial = this.walkSerial;
-        else this.endWalkSerial = this.walkSerial;
+        let dominantBand = 0;
+        let dominantLevel = -1;
+        for (let index = 0; index < frame.bands.length; index += 1) {
+          const level = clamp01(frame.bands[index] ?? 0);
+          if (level > dominantLevel) {
+            dominantLevel = level;
+            dominantBand = index;
+          }
+        }
+        const anchorUnit = (dominantBand + 0.5) / Math.max(1, frame.bands.length);
+        if (this.walkSerial % 2 === 0) {
+          this.startWalkSerial = this.walkSerial;
+          this.startAnchorUnit = anchorUnit;
+        } else {
+          this.endWalkSerial = this.walkSerial;
+          this.endAnchorUnit = anchorUnit;
+        }
         this.walkTimer = 0;
         this.channelReady = false;
         this.surge = Math.max(this.surge, 0.66);
@@ -570,21 +596,29 @@ class LightningEffect implements StackableEffect {
   }
 
   private resolveContacts(walk: boolean): void {
+    // Walk targets blend the beat's dominant-band anchor with seeded jitter, so
+    // endpoints land where the voice's energy sits yet never repeat exactly.
     if (this.layout === 'centered') {
       this.startX = this.canvasWidth * 0.1;
-      this.startY = this.canvasHeight
-        * (walk ? 0.2 + seededUnit(this.startWalkSerial, 151) * 0.6 : 0.5);
+      this.startY = this.canvasHeight * (walk
+        ? 0.2 + Math.min(1, this.startAnchorUnit * 0.7
+          + seededUnit(this.startWalkSerial, 151) * 0.3) * 0.6
+        : 0.5);
       this.endX = this.canvasWidth * 0.9;
-      this.endY = this.canvasHeight
-        * (walk ? 0.2 + seededUnit(this.endWalkSerial, 153) * 0.6 : 0.5);
+      this.endY = this.canvasHeight * (walk
+        ? 0.2 + Math.min(1, this.endAnchorUnit * 0.7
+          + seededUnit(this.endWalkSerial, 153) * 0.3) * 0.6
+        : 0.5);
       return;
     }
     if (this.layout === 'radial') {
       this.startX = this.canvasWidth * 0.5;
       this.startY = this.canvasHeight * 0.5;
       if (walk) {
-        // The hub stays planted; every walk beat hunts a new rim attachment.
-        const angle = seededUnit(this.walkSerial, 151) * Math.PI * 2;
+        // The hub stays planted; every walk beat hunts a new rim attachment near the
+        // dominant band's angle.
+        const angle = this.endAnchorUnit * Math.PI * 2 - Math.PI / 2
+          + seededSigned(this.walkSerial, 151) * 0.6;
         const radius = Math.min(this.canvasWidth, this.canvasHeight) * 0.4;
         this.endX = this.canvasWidth / 2 + Math.cos(angle) * radius;
         this.endY = this.canvasHeight / 2 + Math.sin(angle) * radius;
@@ -595,10 +629,16 @@ class LightningEffect implements StackableEffect {
       return;
     }
     if (walk) {
-      this.startX = this.canvasWidth * (0.08 + seededUnit(this.startWalkSerial, 151) * 0.36);
-      this.startY = this.canvasHeight * (0.6 + seededUnit(this.startWalkSerial, 155) * 0.32);
-      this.endX = this.canvasWidth * (0.55 + seededUnit(this.endWalkSerial, 153) * 0.37);
-      this.endY = this.canvasHeight * (0.08 + seededUnit(this.endWalkSerial, 157) * 0.34);
+      this.startX = this.canvasWidth * Math.min(0.92, Math.max(
+        0.06,
+        0.08 + this.startAnchorUnit * 0.62 + seededSigned(this.startWalkSerial, 151) * 0.14,
+      ));
+      this.startY = this.canvasHeight * (0.58 + seededUnit(this.startWalkSerial, 155) * 0.34);
+      this.endX = this.canvasWidth * Math.min(0.94, Math.max(
+        0.06,
+        0.1 + this.endAnchorUnit * 0.66 + seededSigned(this.endWalkSerial, 153) * 0.16,
+      ));
+      this.endY = this.canvasHeight * (0.06 + seededUnit(this.endWalkSerial, 157) * 0.36);
       return;
     }
     this.startX = this.canvasWidth * 0.15;
@@ -614,15 +654,22 @@ class LightningEffect implements StackableEffect {
     const normalX = -dy / length;
     const normalY = dx / length;
     const minDimension = Math.max(24, Math.min(this.canvasWidth, this.canvasHeight));
+    // CHANGED: displacement grew ~40% and a per-route low-frequency bow rides under
+    //          the point jitter (Pass C §4a).
+    // WHY: the channel read as a jittered straight line; real bolts carry one or two
+    //      broad arcs that reroute along with the fine chatter.
     const displacement = minDimension
-      * (0.012 + this.midDrive * 0.035 + this.drive * 0.012)
+      * (0.016 + this.midDrive * 0.045 + this.drive * 0.016)
       * (transient ? 1.18 : 1);
+    const bowFrequency = 1 + seededUnit(serial, 109) * 1.6;
+    const bowPhase = seededUnit(serial, 111) * Math.PI * 2;
     let noise = seededSigned(serial, 101);
     for (let index = 0; index < this.pointCount; index += 1) {
       const t = index / (this.pointCount - 1);
       noise = noise * 0.18 + seededSigned(serial * 37 + index, 103) * 0.82;
       const microFork = seededSigned(serial * 17 + index, 107) * 0.22;
-      const offset = Math.sin(Math.PI * t) * displacement * (noise + microFork);
+      const bow = Math.sin(t * Math.PI * bowFrequency + bowPhase) * 0.85;
+      const offset = Math.sin(Math.PI * t) * displacement * (noise + microFork + bow);
       this.targetX[index] = this.startX + dx * t + normalX * offset;
       this.targetY[index] = this.startY + dy * t + normalY * offset;
     }
