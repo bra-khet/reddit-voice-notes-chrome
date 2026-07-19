@@ -78,12 +78,31 @@ const frame = {
   transient: false,
 };
 
+// Prototype methods keep gradient stubs deepEqual-comparable across context instances.
+class MockGradient {
+  constructor(args) {
+    this.args = args;
+    this.stops = [];
+  }
+
+  addColorStop(offset, color) {
+    this.stops.push([offset, color]);
+  }
+}
+
 function createContext() {
   const operations = [];
   const state = {};
   const stack = [];
   const ctx = {
     operations,
+    // The stack seam runs the real Rising Ember effect, whose whip trail needs these.
+    quadraticCurveTo(...args) { operations.push(['quadraticCurveTo', ...args]); },
+    createLinearGradient(...args) {
+      const gradient = new MockGradient(args);
+      operations.push(['createLinearGradient', ...args]);
+      return gradient;
+    },
     save() { stack.push({ ...state }); operations.push(['save']); },
     restore() {
       const restored = stack.pop();

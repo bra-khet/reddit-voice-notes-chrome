@@ -120,6 +120,8 @@ class LayeredSmokeEffect implements StackableEffect {
   private readonly emissionCarry = new Float32Array(LAYERED_SMOKE_MAX_PLUMES);
   private pendingDt = 0;
   private spawnSerial = 0;
+  /** Frame clock sampled by the smoothly wandering vent origins. */
+  private ventTime = 0;
   private canvasWidth = 0;
   private canvasHeight = 0;
   private layout: LayoutMode = 'linear';
@@ -147,19 +149,37 @@ class LayeredSmokeEffect implements StackableEffect {
     node.radius = minDimension * (0.018 + texture * 0.018) * (0.8 + this.drive * 0.46);
     node.lifetime = 3.1 + texture * 2.2 + (1 - this.trebleDrive) * 0.45;
 
+    // CHANGED: vents wander smoothly via two slow incommensurate sines sampled at spawn
+    //          time, and the source row spreads wider across the frame.
+    // WHY: fixed evenly-spaced vents read as static chimneys (QA §4a smoke); smoke should
+    //      drift its origin with smooth noise — unlike electricity's sporadic jumps — and
+    //      wider coverage buys more mileage from the same bounded node pool.
+    const wander = Math.sin(
+      this.ventTime * (0.09 + seededUnit(plumeIndex, 43) * 0.07)
+        + seededUnit(plumeIndex, 51) * Math.PI * 2,
+    ) * 0.6
+      + Math.sin(
+        this.ventTime * (0.041 + seededUnit(plumeIndex, 53) * 0.03)
+          + seededUnit(plumeIndex, 59) * Math.PI * 2,
+      ) * 0.4;
+
     if (this.layout === 'radial') {
-      const angle = -Math.PI / 2 + plumeUnit * Math.PI * 2;
-      const sourceRadius = minDimension * (0.055 + seededUnit(plumeIndex, 31) * 0.045);
+      const angle = -Math.PI / 2 + plumeUnit * Math.PI * 2 + wander * 0.35;
+      const sourceRadius = minDimension * (0.05 + seededUnit(plumeIndex, 31) * 0.07);
       const speed = 15 + this.drive * 23 + this.bassDrive * 9;
       node.x = this.canvasWidth / 2 + Math.cos(angle) * sourceRadius;
       node.y = this.canvasHeight / 2 + Math.sin(angle) * sourceRadius;
       node.vx = Math.cos(angle) * speed - Math.sin(angle) * direction * 5;
       node.vy = Math.sin(angle) * speed + Math.cos(angle) * direction * 5;
     } else {
-      const spread = this.layout === 'centered' ? 0.22 : 0.9;
+      const spread = this.layout === 'centered' ? 0.3 : 0.98;
       const sourceTexture = seededUnit(plumeIndex, 37) - 0.5;
-      node.x = this.canvasWidth * (0.5 + (plumeUnit - 0.5) * spread)
-        + sourceTexture * minDimension * 0.045;
+      node.x = this.canvasWidth * Math.min(0.97, Math.max(
+        0.03,
+        0.5 + (plumeUnit - 0.5) * spread
+          + wander * 0.07
+          + sourceTexture * minDimension / Math.max(1, this.canvasWidth) * 0.045,
+      ));
       node.y = this.canvasHeight * (this.layout === 'centered' ? 0.88 : 0.97)
         + texture * minDimension * 0.018;
       node.vx = direction * (3 + this.midDrive * 8);
@@ -217,6 +237,7 @@ class LayeredSmokeEffect implements StackableEffect {
     }
 
     this.resolveAudioDrive(frame, params, environment, reduceMotion);
+    this.ventTime = frame.timeMs / 1000;
     const palette = resolveVisualPalette(params.color);
     if (reduceMotion) {
       this.drawReducedMotion(ctx, canvas, frame, params, palette, plumeLimit);
