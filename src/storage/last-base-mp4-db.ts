@@ -9,7 +9,13 @@ const RECORD_KEY = 'last';
 //      mirrors LAST_RECORDING_MIN/MAX_BYTES (v5.10 precedent).
 export const LAST_BASE_MP4_MIN_BYTES = 256;
 /** Typical 2:00 base MP4 after transcode — reject oversized blobs before IDB write. */
-export const LAST_BASE_MP4_MAX_BYTES = 25 * 1024 * 1024;
+// CHANGED: 25 → 40 MiB per QA-6.0.0 Pass A §8-12 operator decision.
+// WHY: v5.10/v5.11 pipeline gains (stream-copy remux, full-IDB prefs) removed the
+//      pressure the tighter cap protected against, and v6 atmospheres legitimately
+//      encode hotter than bar-only scenes.
+// Sync: LAST_BAKED_MP4_MAX_BYTES (last-baked-mp4-db.ts), VISUAL_SIZE_QA_*_MAX_BYTES
+//       (scripts/visual-size-qa-core.mjs), qa/QA-6.0.0 checklist caps.
+export const LAST_BASE_MP4_MAX_BYTES = 40 * 1024 * 1024;
 
 export interface LastBaseMp4Meta {
   byteLength: number;

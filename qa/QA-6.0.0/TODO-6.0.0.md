@@ -22,7 +22,8 @@
 
 ## Active — Track A Phase 4 confidence close
 
-Checklist: [`track-a/qa-checklist.md`](track-a/qa-checklist.md)  
+**Operator UI:** [`track-a/qa-checklist.html`](track-a/qa-checklist.html) (open in browser; export JSON for agents)  
+Reference matrix: [`track-a/qa-checklist.md`](track-a/qa-checklist.md)  
 Evidence: [`track-a/logs/`](track-a/logs/) · [`track-a/screenshot/`](track-a/screenshot/) · [`track-a/artifacts/`](track-a/artifacts/)
 
 ### Pre-flight
@@ -41,7 +42,7 @@ Evidence: [`track-a/logs/`](track-a/logs/) · [`track-a/screenshot/`](track-a/sc
 - [ ] High Contrast + reduced-motion on a representative spectrum + overlay + stackable
 - [ ] Keyboard Detail + preset pickers; caption-safe dim below captions
 
-### 120 s size gate (hard ceiling: base ≤25 MiB · baked ≤30 MiB)
+### 120 s size gate (hard ceiling: base ≤40 MiB · baked ≤40 MiB — raised from 25/30 per Pass A §8-12)
 - [ ] Digital Rain — attach harness report under `track-a/artifacts/`
 - [ ] Aurora — attach harness report
 - [ ] Glitch — attach harness report

@@ -69,8 +69,9 @@ check('full-length artifacts with size headroom pass', () => {
   const report = evaluateVisualSizeQa(passingInput);
   assert.equal(report.passed, true);
   assert.equal(report.failures.length, 0);
-  assert.equal(report.artifacts.base.headroomMiB, 7);
-  assert.equal(report.artifacts.baked.headroomMiB, 8);
+  // 40 MiB caps (QA-6.0.0 Pass A §8-12) minus the 18/22 MiB fixture artifacts.
+  assert.equal(report.artifacts.base.headroomMiB, 22);
+  assert.equal(report.artifacts.baked.headroomMiB, 18);
   assert.match(formatVisualSizeQaReport(report), /Classic|classic-neon/i);
 });
 

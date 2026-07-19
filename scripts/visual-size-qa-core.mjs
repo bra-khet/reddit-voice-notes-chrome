@@ -6,8 +6,9 @@ export const VISUAL_SIZE_QA_MIN_DURATION_SECONDS = 118;
 export const VISUAL_SIZE_QA_MAX_DURATION_SECONDS = 120.5;
 export const VISUAL_SIZE_QA_MAX_DURATION_DRIFT_SECONDS = 0.1;
 export const VISUAL_SIZE_QA_MIN_BYTES = 256;
-export const VISUAL_SIZE_QA_BASE_MAX_BYTES = 25 * 1024 * 1024;
-export const VISUAL_SIZE_QA_BAKED_MAX_BYTES = 30 * 1024 * 1024;
+// Sync: mirrors LAST_BASE/BAKED_MP4_MAX_BYTES (raised to 40 MiB, QA-6.0.0 Pass A §8-12).
+export const VISUAL_SIZE_QA_BASE_MAX_BYTES = 40 * 1024 * 1024;
+export const VISUAL_SIZE_QA_BAKED_MAX_BYTES = 40 * 1024 * 1024;
 
 function round(value, places = 2) {
   const factor = 10 ** places;

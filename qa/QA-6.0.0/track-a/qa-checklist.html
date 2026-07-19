@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Track A · Confidence QA · v6.0.0</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --bg-elev: #121820;
+      --bg-card: #161e28;
+      --bg-card-hover: #1a2430;
+      --border: #243041;
+      --border-strong: #334155;
+      --text: #e8eef6;
+      --text-muted: #8b9bb0;
+      --text-dim: #5c6b7e;
+      --accent: #38bdf8;
+      --accent-2: #a78bfa;
+      --pass: #34d399;
+      --pass-bg: rgba(52, 211, 153, 0.12);
+      --fail: #f87171;
+      --fail-bg: rgba(248, 113, 113, 0.12);
+      --partial: #fbbf24;
+      --partial-bg: rgba(251, 191, 36, 0.12);
+      --open: #64748b;
+      --open-bg: rgba(100, 116, 139, 0.12);
+      --warn: #fb923c;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: "Cascadia Code", "Fira Code", "Consolas", ui-monospace, monospace;
+      --sticky-h: 0px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 7rem; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.08), transparent 50%),
+        radial-gradient(900px 500px at 90% 0%, rgba(167, 139, 250, 0.07), transparent 45%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Sticky mission bar ── */
+    .mission-bar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(14px);
+      background: rgba(11, 15, 20, 0.88);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    }
+    .mission-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0.75rem 1.25rem;
+      display: grid;
+      gap: 0.65rem;
+    }
+    .mission-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .mission-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      min-width: 0;
+    }
+    .mission-brand .pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.5);
+      animation: pulse 2.2s ease-out infinite;
+      flex-shrink: 0;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.45); }
+      70% { box-shadow: 0 0 0 10px rgba(56, 189, 248, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+    }
+    .mission-brand h1 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mission-brand .sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+    .mission-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 560;
+      padding: 0.4rem 0.7rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, color 0.15s;
+    }
+    .btn:hover { border-color: var(--accent); background: var(--bg-card-hover); }
+    .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(167, 139, 250, 0.18));
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #e0f2fe;
+    }
+    .btn-danger:hover { border-color: var(--fail); color: var(--fail); }
+    .save-pill {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      padding: 0.25rem 0.5rem;
+    }
+    .save-pill.ok { color: var(--pass); }
+    .save-pill.warn { color: var(--partial); }
+
+    .progress-track {
+      height: 6px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--pass));
+      border-radius: 999px;
+      transition: width 0.35s ease;
+    }
+    .progress-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 0.35rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .progress-meta strong { color: var(--text); font-weight: 600; }
+    .section-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 0.22rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-elev);
+      color: var(--text-muted);
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .pill:hover { color: var(--text); border-color: var(--border-strong); text-decoration: none; }
+    .pill[data-status="pass"] { color: var(--pass); border-color: rgba(52, 211, 153, 0.35); background: var(--pass-bg); }
+    .pill[data-status="fail"] { color: var(--fail); border-color: rgba(248, 113, 113, 0.35); background: var(--fail-bg); }
+    .pill[data-status="partial"] { color: var(--partial); border-color: rgba(251, 191, 36, 0.35); background: var(--partial-bg); }
+    .pill[data-status="open"] { color: var(--text-muted); }
+
+    /* ── Layout ── */
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.25rem 1.25rem 5rem;
+      display: grid;
+      gap: 1.1rem;
+    }
+
+    .hero {
+      background: linear-gradient(145deg, rgba(22, 30, 40, 0.95), rgba(18, 24, 32, 0.9));
+      border: 1px solid var(--border);
+      border-radius: calc(var(--radius) + 2px);
+      padding: 1.35rem 1.4rem;
+      box-shadow: var(--shadow);
+    }
+    .hero h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .hero .lede {
+      margin: 0 0 1rem;
+      color: var(--text-muted);
+      max-width: 62ch;
+      font-size: 0.95rem;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+    .chip {
+      font-size: 0.72rem;
+      font-family: var(--mono);
+      padding: 0.28rem 0.55rem;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .chip strong { color: var(--accent); font-weight: 600; }
+
+    .callout-grid {
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .callout {
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      padding: 0.75rem 0.85rem;
+      background: var(--bg);
+      font-size: 0.82rem;
+    }
+    .callout h3 {
+      margin: 0 0 0.3rem;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+    .callout p { margin: 0; color: var(--text-muted); }
+    .callout.warn { border-color: rgba(251, 146, 60, 0.35); background: rgba(251, 146, 60, 0.06); }
+    .callout.ok { border-color: rgba(52, 211, 153, 0.3); background: rgba(52, 211, 153, 0.05); }
+    .callout.info { border-color: rgba(56, 189, 248, 0.3); background: rgba(56, 189, 248, 0.05); }
+
+    details.why {
+      margin-top: 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+    }
+    details.why summary {
+      cursor: pointer;
+      padding: 0.6rem 0.85rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent-2);
+      list-style: none;
+    }
+    details.why summary::-webkit-details-marker { display: none; }
+    details.why summary::before { content: "▸ "; }
+    details.why[open] summary::before { content: "▾ "; }
+    details.why .body {
+      padding: 0 0.85rem 0.85rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    details.why ul { margin: 0.35rem 0 0; padding-left: 1.15rem; }
+    details.why code, .mono, code {
+      font-family: var(--mono);
+      font-size: 0.85em;
+      background: rgba(56, 189, 248, 0.08);
+      padding: 0.05em 0.3em;
+      border-radius: 4px;
+      color: #bae6fd;
+    }
+
+    /* ── Session panel ── */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+    }
+    .panel h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .panel h2 .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.6rem;
+      height: 1.6rem;
+      padding: 0 0.35rem;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+    }
+    .field-grid {
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+    label.field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    label.field input,
+    label.field select,
+    label.field textarea,
+    .item-notes,
+    .section-notes,
+    .evidence-input {
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: normal;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.5rem 0.65rem;
+      width: 100%;
+    }
+    label.field input:focus,
+    label.field select:focus,
+    label.field textarea:focus,
+    .item-notes:focus,
+    .section-notes:focus,
+    .evidence-input:focus {
+      outline: none;
+      border-color: rgba(56, 189, 248, 0.55);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+    }
+    label.field textarea,
+    .section-notes {
+      min-height: 4.5rem;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    /* ── Section cards ── */
+    .section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .section[data-status="pass"] { border-color: rgba(52, 211, 153, 0.35); }
+    .section[data-status="fail"] { border-color: rgba(248, 113, 113, 0.4); }
+    .section[data-status="partial"] { border-color: rgba(251, 191, 36, 0.35); }
+    .section-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.95rem 1.1rem;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title-block { min-width: 0; flex: 1; }
+    .section-title-block h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .section-title-block .why-line {
+      margin: 0.3rem 0 0;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      max-width: 62ch;
+    }
+    .status-seg {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+    .status-seg button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--text-dim);
+      font: inherit;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0.4rem 0.55rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .status-seg button:hover { color: var(--text); }
+    .status-seg button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .status-seg button[aria-pressed="true"][data-status="open"] {
+      background: var(--open-bg); color: #cbd5e1;
+    }
+    .status-seg button[aria-pressed="true"][data-status="pass"] {
+      background: var(--pass-bg); color: var(--pass);
+    }
+    .status-seg button[aria-pressed="true"][data-status="fail"] {
+      background: var(--fail-bg); color: var(--fail);
+    }
+    .status-seg button[aria-pressed="true"][data-status="partial"] {
+      background: var(--partial-bg); color: var(--partial);
+    }
+
+    .section-body { padding: 0.85rem 1.1rem 1.1rem; display: grid; gap: 0.65rem; }
+    .optional-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+    .required-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.45rem 0.7rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      background: var(--bg);
+      align-items: start;
+    }
+    .item:hover { border-color: var(--border); }
+    .item[data-status="pass"] { background: var(--pass-bg); border-color: rgba(52, 211, 153, 0.15); }
+    .item[data-status="fail"] { background: var(--fail-bg); border-color: rgba(248, 113, 113, 0.15); }
+    .item[data-status="partial"] { background: var(--partial-bg); border-color: rgba(251, 191, 36, 0.15); }
+
+    .item-check {
+      width: 1.15rem;
+      height: 1.15rem;
+      margin-top: 0.15rem;
+      accent-color: var(--pass);
+      cursor: pointer;
+    }
+    .item-main { min-width: 0; display: grid; gap: 0.4rem; }
+    .item-label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+    }
+    .item-label .id-tag {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .item-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .item-notes {
+      min-height: 2.4rem;
+      font-size: 0.82rem;
+      resize: vertical;
+    }
+    .item-notes:placeholder-shown { opacity: 0.85; }
+
+    .size-table-wrap { overflow-x: auto; }
+    table.size-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    table.size-table th,
+    table.size-table td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.5rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+    table.size-table th {
+      background: var(--bg);
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    table.size-table input {
+      width: 100%;
+      min-width: 4.5rem;
+      font: inherit;
+      font-size: 0.8rem;
+      font-family: var(--mono);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 0.3rem 0.4rem;
+    }
+    table.size-table select {
+      font: inherit;
+      font-size: 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 0.3rem;
+    }
+
+    .cmd-block {
+      display: flex;
+      gap: 0.5rem;
+      align-items: stretch;
+      background: #070a0e;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.55rem 0.65rem;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: #94a3b8;
+      overflow-x: auto;
+    }
+    .cmd-block code {
+      flex: 1;
+      background: transparent;
+      color: #e2e8f0;
+      padding: 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .cmd-block .btn { flex-shrink: 0; align-self: center; }
+
+    .section-footer {
+      display: grid;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+      padding-top: 0.65rem;
+      border-top: 1px dashed var(--border);
+    }
+    .section-footer label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: grid;
+      gap: 0.25rem;
+    }
+
+    /* ── Sign-off ── */
+    .signoff-grid {
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .overall-status {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .overall-status span.label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .footer-hint {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      padding: 1rem 0 0;
+    }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      z-index: 100;
+      background: var(--bg-elev);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 560;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 640px) {
+      .mission-brand h1 { font-size: 0.85rem; }
+      .item { grid-template-columns: 1fr; }
+      .item-check { margin-top: 0; }
+      .status-seg button { padding: 0.35rem 0.4rem; font-size: 0.62rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="mission-bar" role="banner">
+    <div class="mission-inner">
+      <div class="mission-top">
+        <div class="mission-brand">
+          <span class="pulse" aria-hidden="true"></span>
+          <div>
+            <h1>Track A · Confidence QA</h1>
+            <div class="sub">v6.0.0 · feature/v6.0.0-custom-styles-refactor</div>
+          </div>
+        </div>
+        <div class="mission-actions">
+          <span class="save-pill" id="saveStatus" aria-live="polite">autosave ready</span>
+          <button type="button" class="btn" id="btnCopyBrief" title="Copy a short markdown brief for chat">Copy agent brief</button>
+          <button type="button" class="btn btn-primary" id="btnExport" title="Download structured JSON for agent ingest">Export agent packet</button>
+          <button type="button" class="btn" id="btnImport" title="Restore from a previously exported JSON">Import JSON</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden />
+          <button type="button" class="btn btn-danger" id="btnReset" title="Clear all local session data">Reset</button>
+        </div>
+      </div>
+      <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-meta">
+        <span><strong id="progressLabel">0%</strong> · <span id="progressCounts">0/0 gates decided</span></span>
+        <span id="overallLive">Overall: <strong>open</strong></span>
+      </div>
+      <nav class="section-pills" id="sectionPills" aria-label="Jump to section"></nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <h2 id="hero-title">Close the confidence gate — not the feature work</h2>
+      <p class="lede">
+        Phase 4 Style Control Center and the shared governor are already built and fixture-tested.
+        This board is only about <strong>live capture truth</strong>, <strong>device feel</strong>,
+        <strong>a11y</strong>, and <strong>real 120&nbsp;s encoded size</strong>. Tick as you go;
+        write what you saw; export a packet when you want an agent to read it.
+      </p>
+      <div class="chips">
+        <span class="chip"><strong>Branch</strong> feature/v6.0.0-custom-styles-refactor</span>
+        <span class="chip"><strong>Build</strong> .output/chrome-mv3-dev/</span>
+        <span class="chip"><strong>Automated</strong> 226/226 · build PASS</span>
+        <span class="chip"><strong>Caps</strong> base ≤40 MiB · baked ≤40 MiB</span>
+        <span class="chip"><strong>Map</strong> v3.21 / I22 · Medium until this closes</span>
+      </div>
+      <div class="callout-grid">
+        <div class="callout info">
+          <h3>Mental model (I1 / I3)</h3>
+          <p>Studio preview = representative synthetic audio. Capture = true mic reactivity. Bake = same bars/overlays + captions only — never re-paints visuals.</p>
+        </div>
+        <div class="callout ok">
+          <h3>How to hand off to an agent</h3>
+          <p>Prefer <strong>Export agent packet</strong> (JSON) into <code>artifacts/</code>, or <strong>Copy agent brief</strong> into chat. Do not rely on screenshots alone.</p>
+        </div>
+        <div class="callout warn">
+          <h3>Evidence is local</h3>
+          <p><code>logs/</code>, <code>screenshot/</code>, <code>artifacts/</code> are gitignored. Checklist process files stay tracked. Put MP4s and reports under <code>artifacts/</code>.</p>
+        </div>
+      </div>
+      <details class="why">
+        <summary>Why this matters · non-negotiables · governor numbers</summary>
+        <div class="body">
+          <p>Confidence stays Medium until live matrix + 120&nbsp;s heavy reports land (roadmap §9 · §11 item 23 · ADR-0007/0009/0010).</p>
+          <ul>
+            <li><strong>Capture-time only</strong> — bake never re-renders bars/overlays.</li>
+            <li><strong>No regression</strong> vs v5.11.0 on default/Classic (size / FPS / legibility).</li>
+            <li><strong>No</strong> new deps, WASM, fourth compositing layer, or <code>USER_PREFS_VERSION</code> bump.</li>
+            <li><strong>Bubbles</strong> UI label · persisted ID remains <code>bokeh</code> (ADR-0010).</li>
+            <li><strong>Governor:</strong> Comfortable ≤560 · Elevated ≤980 · Guarded &gt;980 <code>maxElements</code> estimate. Guarded pauses one expensive accent without rewriting the saved list.</li>
+          </ul>
+          <p style="margin-top:0.6rem">Companion markdown (read-only reference): <code>qa-checklist.md</code>. Scoped TODO / progress: <code>../TODO-6.0.0.md</code>, <code>../progress-QA-6.0.0.md</code>.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel" id="session" aria-labelledby="session-title">
+      <h2 id="session-title"><span class="num">S</span> Session</h2>
+      <div class="field-grid">
+        <label class="field">Operator
+          <input type="text" id="meta-operator" data-meta="operator" placeholder="your name / handle" autocomplete="name" />
+        </label>
+        <label class="field">Date
+          <input type="date" id="meta-date" data-meta="date" />
+        </label>
+        <label class="field">Machine
+          <input type="text" id="meta-machine" data-meta="machine" placeholder="e.g. desktop Win11 · mid GPU" />
+        </label>
+        <label class="field">Browser
+          <input type="text" id="meta-browser" data-meta="browser" placeholder="e.g. Chrome 131 · 1920×1080" />
+        </label>
+        <label class="field">Build path
+          <input type="text" id="meta-build" data-meta="build" placeholder=".output/chrome-mv3-dev/" />
+        </label>
+        <label class="field">Branch confirmed
+          <select id="meta-branchOk" data-meta="branchOk">
+            <option value="unknown">Not confirmed</option>
+            <option value="yes">Yes — feature/v6.0.0-custom-styles-refactor</option>
+            <option value="other">Other / note in blockers</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <div id="sectionsRoot"></div>
+
+    <section class="panel" id="signoff" aria-labelledby="signoff-title">
+      <h2 id="signoff-title"><span class="num">✓</span> Sign-off</h2>
+      <div class="signoff-grid">
+        <div class="overall-status">
+          <span class="label">Overall Track A confidence QA</span>
+          <div class="status-seg" role="group" aria-label="Overall status" id="overallSeg">
+            <button type="button" data-status="open" aria-pressed="true">Open</button>
+            <button type="button" data-status="pass" aria-pressed="false">Pass</button>
+            <button type="button" data-status="partial" aria-pressed="false">Partial</button>
+            <button type="button" data-status="fail" aria-pressed="false">Fail</button>
+          </div>
+        </div>
+        <label class="field" style="grid-column: 1 / -1">Blockers
+          <textarea id="meta-blockers" data-meta="blockers" placeholder="What must be fixed before ship? Empty if none."></textarea>
+        </label>
+        <label class="field" style="grid-column: 1 / -1">Operator summary for handoff
+          <textarea id="meta-summary" data-meta="summary" placeholder="One paragraph: what you ran, what passed, what’s still open, where evidence lives."></textarea>
+        </label>
+        <label class="field">Packet saved under artifacts?
+          <input type="text" id="meta-packetPath" data-meta="packetPath" placeholder="artifacts/qa-session-YYYY-MM-DD.json" />
+        </label>
+      </div>
+    </section>
+
+    <p class="footer-hint">
+      State lives in this browser’s localStorage key <code>rvn-qa-6.0.0-track-a</code>.
+      Export JSON before clearing site data. Evidence folders are gitignored — the process is not.
+    </p>
+  </main>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+(function () {
+  "use strict";
+
+  const STORAGE_KEY = "rvn-qa-6.0.0-track-a";
+  const SCHEMA = "rvn-qa-session/v1";
+  const WORKSPACE = "qa/QA-6.0.0/track-a";
+  const BRANCH = "feature/v6.0.0-custom-styles-refactor";
+
+  const SIZE_CMD =
+    "npm run qa:visual-size -- --preset <id-or-label> --base <base.mp4> --baked <baked.mp4> [--json]";
+
+  /** @type {Array<{id:string,title:string,why:string,required:boolean,optional?:boolean,items?:Array<{id:string,label:string,idTag?:string}>,sizeRows?:Array<{id:string,scene:string,presetId:string}>,cmd?:boolean,footerHints?:string[]}>} */
+  const SECTIONS = [
+    {
+      id: "0",
+      title: "Pre-flight",
+      why: "Prove you are on the right branch and build before burning 120 s takes.",
+      required: true,
+      items: [
+        { id: "0a", label: "Branch is feature/v6.0.0-custom-styles-refactor (or equivalent v6 Track A build loaded)" },
+        { id: "0b", label: "Extension reloaded from .output/chrome-mv3-dev/ (or prod); no red errors on load (SW / offscreen)" },
+        { id: "0c", label: "Design Studio opens; Style section present with order Atmosphere → Accents → Spectrum → Captions (not legacy Bar Style)" },
+        { id: "0d", label: "Detail / High Contrast / caption-safe dim controls visible" },
+        { id: "0e", label: "Evidence folders ready: logs/ · screenshot/ · artifacts/" },
+      ],
+    },
+    {
+      id: "1",
+      title: "Preview ↔ capture ↔ bake parity",
+      why: "I1/I3: representative preview, true capture reactivity, bake only burns captions.",
+      required: true,
+      items: [
+        { id: "1a", label: "Studio Live preview shows representative motion (not dead; not claiming live mic)" },
+        { id: "1b", label: "Short recording reacts to voice (bars/overlays move with speech)" },
+        { id: "1c", label: "After process/bake, base/baked still shows the same bars/overlays (bake only adds captions)" },
+        { id: "1d", label: "Captions sit above visuals; caption-safe dim (if on) does not crush legibility" },
+      ],
+    },
+    {
+      id: "2",
+      title: "Spectrum smoke (all six)",
+      why: "Every spectrum registry ID paints on the capture path.",
+      required: true,
+      items: [
+        { id: "2a", label: "Classic / Neon Glow — default/fallback; no-change feel", idTag: "classic-neon" },
+        { id: "2b", label: "Minimal", idTag: "minimal" },
+        { id: "2c", label: "Phosphor", idTag: "phosphor" },
+        { id: "2d", label: "Radial Spectrum", idTag: "radial-spectrum" },
+        { id: "2e", label: "Central Pulse", idTag: "central-pulse" },
+        { id: "2f", label: "Oscilloscope — linear and/or circular; waveform path (not bars)", idTag: "oscilloscope" },
+      ],
+    },
+    {
+      id: "3",
+      title: "Atmosphere smoke (all seven)",
+      why: "v6 overlay algorithms (ADR-0009); Bubbles label vs bokeh key (ADR-0010).",
+      required: true,
+      items: [
+        { id: "3a", label: "Sparkle — v6 algorithm, not legacy placeholder", idTag: "sparkle" },
+        { id: "3b", label: "Bubbles — UI label Bubbles", idTag: "bokeh" },
+        { id: "3c", label: "Forest Spirits", idTag: "forest-spirits" },
+        { id: "3d", label: "Digital Rain", idTag: "digital-rain" },
+        { id: "3e", label: "Inferno — Void via High Contrast if tested here or §7", idTag: "inferno" },
+        { id: "3f", label: "Aurora", idTag: "aurora" },
+        { id: "3g", label: "Glitch", idTag: "glitch" },
+      ],
+    },
+    {
+      id: "4",
+      title: "Accents · max-three · governor",
+      why: "MAX_STACKABLE_EFFECTS = 3; Guarded pauses one expensive accent without rewriting saved list.",
+      required: true,
+      items: [
+        { id: "4a", label: "Each stackable solo OK: Rising Ember · Electric Arc · Lightning · Conway · Smoke · Neon Glow · Particle Burst", idTag: "ember · electric-arc · lightning · conway · smoke · neon-glow · particle-burst" },
+        { id: "4b", label: "Ordered three-stack accepts; fourth blocked or unlocks by removing one" },
+        { id: "4c", label: "High Detail / expensive scene → Guarded warning; one expensive accent paused (saved list retained)" },
+        { id: "4d", label: "Lower Detail restores paused accent in preview and would apply on next capture" },
+      ],
+    },
+    {
+      id: "5",
+      title: "Audio axes",
+      why: "Silence must stay quiet; speech must read; loud must not freeze.",
+      required: true,
+      items: [
+        { id: "5a", label: "Silence — heavy overlays quiet / empty as designed (no runaway entropy)" },
+        { id: "5b", label: "Normal speech — readable reactivity" },
+        { id: "5c", label: "Loud / sibilant — no catastrophic flicker or freeze" },
+        { id: "5d", label: "Oscilloscope — waveform path engaged (trace, not bars)" },
+      ],
+    },
+    {
+      id: "6",
+      title: "FPS + Detail governor",
+      why: "Comfortable ≤560 · Elevated ≤980 · Guarded >980 estimated maxElements.",
+      required: true,
+      items: [
+        { id: "6a", label: "Mid-device: heavy scene stays usable (note FPS feel; exact counter optional)" },
+        { id: "6b", label: "Detail Comfortable → Elevated → Guarded color/label transitions honest" },
+        { id: "6c", label: "No silent drop of saved accents (pause is visible)" },
+      ],
+    },
+    {
+      id: "7",
+      title: "a11y",
+      why: "High Contrast, reduced-motion, keyboard Detail, caption-safe dim.",
+      required: true,
+      items: [
+        { id: "7a", label: "High Contrast on representative spectrum + overlay + stackable (harder edges, less blur)" },
+        { id: "7b", label: "OS/browser reduced-motion: freezes/simplifies as designed (no stuck stale audio history)" },
+        { id: "7c", label: "Keyboard: Detail and primary Style pickers operable" },
+        { id: "7d", label: "Caption-safe dim optional on; captions remain readable" },
+      ],
+    },
+    {
+      id: "8-12",
+      title: "120 s size gate",
+      why: "Hard ceiling: base ≤40 MiB · baked ≤40 MiB · ~120 s. Short smokes cannot pass.",
+      required: true,
+      cmd: true,
+      sizeRows: [
+        { id: "8", scene: "Digital Rain", presetId: "digital-rain" },
+        { id: "9", scene: "Aurora", presetId: "aurora" },
+        { id: "10", scene: "Glitch", presetId: "glitch" },
+        { id: "11", scene: "Inferno", presetId: "inferno" },
+        { id: "12", scene: "Heavy three-stack", presetId: "inferno + 3 accents (name IDs)" },
+      ],
+    },
+    {
+      id: "13",
+      title: "Saved styles · hot-swap · Bubbles ID",
+      why: "Persistence + identity reset; ADR-0010 label/key split.",
+      required: true,
+      items: [
+        { id: "13a", label: "Saved custom style / profile with sparkle still renders Sparkle (v6 look OK)", idTag: "sparkle" },
+        { id: "13b", label: "Saved bokeh still renders Bubbles (v6 algorithm)", idTag: "bokeh" },
+        { id: "13c", label: "Hot-swap spectrum/overlay identity does not leave previous effect state bleeding" },
+        { id: "13d", label: "Tuning-only changes (e.g. smoothing) do not needlessly wipe identity state incorrectly" },
+      ],
+    },
+    {
+      id: "14",
+      title: "Product smoke wrap",
+      why: "Happy path still ships a video with a non-default Style.",
+      required: true,
+      items: [
+        { id: "14a", label: "Short record → process → bake → download with a non-default Style succeeds" },
+        { id: "14b", label: "Voice path still usable enough for a take (flag defects; see §15 if re-apply broken)" },
+        { id: "14c", label: "No new red SW/offscreen errors on the happy path" },
+      ],
+    },
+    {
+      id: "15",
+      title: "Early-log triage",
+      why: "Voice re-apply note in logs/notes-before-bed-1.txt — classify before treating as Track A blocker.",
+      required: false,
+      optional: true,
+      items: [
+        { id: "15a", label: "Classify voice re-apply issue: Track A regression · pre-existing · environment · fixed already" },
+        { id: "15b", label: "Offscreen fail/success pair understood or filed" },
+      ],
+    },
+    {
+      id: "16",
+      title: "Classic / default no-regression vs v5.11",
+      why: "Roadmap success metric — do not assume green from fixture QA alone.",
+      required: true,
+      items: [
+        { id: "16a", label: "Default / Classic short capture + bake feels like pre-v6 bar product", idTag: "classic-neon" },
+        { id: "16b", label: "File size on Classic short/medium take not obviously worse than v5.11 habit (qualitative OK)" },
+        { id: "16c", label: "Caption legibility over Classic remains acceptable without forcing High Contrast" },
+      ],
+    },
+  ];
+
+  /** @type {{schema:string,workspace:string,branch:string,meta:Record<string,string>,overall:string,sections:Record<string,any>,updatedAt:string|null}} */
+  let state = defaultState();
+
+  function defaultState() {
+    const sections = {};
+    for (const s of SECTIONS) {
+      const items = {};
+      if (s.items) {
+        for (const it of s.items) {
+          items[it.id] = { checked: false, status: "open", notes: "" };
+        }
+      }
+      const size = {};
+      if (s.sizeRows) {
+        for (const r of s.sizeRows) {
+          size[r.id] = {
+            status: "open",
+            baseMiB: "",
+            bakedMiB: "",
+            reportPath: "",
+            stackIds: "",
+            notes: "",
+          };
+        }
+      }
+      sections[s.id] = {
+        status: "open",
+        notes: "",
+        evidence: "",
+        items,
+        size,
+      };
+    }
+    return {
+      schema: SCHEMA,
+      workspace: WORKSPACE,
+      branch: BRANCH,
+      meta: {
+        operator: "",
+        date: "",
+        machine: "",
+        browser: "",
+        build: ".output/chrome-mv3-dev/",
+        branchOk: "unknown",
+        blockers: "",
+        summary: "",
+        packetPath: "",
+      },
+      overall: "open",
+      sections,
+      updatedAt: null,
+    };
+  }
+
+  function toast(msg) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  function setSaveStatus(kind, text) {
+    const el = document.getElementById("saveStatus");
+    el.textContent = text;
+    el.className = "save-pill " + (kind || "");
+  }
+
+  function save() {
+    state.updatedAt = new Date().toISOString();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setSaveStatus("ok", "saved " + new Date().toLocaleTimeString());
+    } catch (e) {
+      setSaveStatus("warn", "save failed");
+      console.error(e);
+    }
+  }
+
+  let saveTimer = null;
+  function scheduleSave() {
+    setSaveStatus("", "saving…");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 250);
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      const base = defaultState();
+      state = {
+        ...base,
+        ...parsed,
+        meta: { ...base.meta, ...(parsed.meta || {}) },
+        sections: { ...base.sections },
+      };
+      for (const s of SECTIONS) {
+        const incoming = (parsed.sections && parsed.sections[s.id]) || {};
+        state.sections[s.id] = {
+          ...base.sections[s.id],
+          ...incoming,
+          items: { ...base.sections[s.id].items, ...(incoming.items || {}) },
+          size: { ...base.sections[s.id].size, ...(incoming.size || {}) },
+        };
+      }
+      if (!["open", "pass", "fail", "partial"].includes(state.overall)) state.overall = "open";
+    } catch (e) {
+      console.warn("Could not load saved session", e);
+    }
+  }
+
+  function statusButtonsHtml(current, dataAttr) {
+    const statuses = [
+      ["open", "Open"],
+      ["pass", "Pass"],
+      ["fail", "Fail"],
+      ["partial", "Partial"],
+    ];
+    return statuses
+      .map(
+        ([st, label]) =>
+          `<button type="button" data-status="${st}" ${dataAttr} aria-pressed="${current === st ? "true" : "false"}">${label}</button>`
+      )
+      .join("");
+  }
+
+  function renderSections() {
+    const root = document.getElementById("sectionsRoot");
+    const pills = document.getElementById("sectionPills");
+    root.innerHTML = "";
+    pills.innerHTML = "";
+
+    for (const s of SECTIONS) {
+      const secState = state.sections[s.id];
+      const pill = document.createElement("a");
+      pill.className = "pill";
+      pill.href = "#sec-" + s.id;
+      pill.dataset.status = secState.status;
+      pill.dataset.sec = s.id;
+      pill.textContent = s.id + " · " + s.title.split("·")[0].trim().slice(0, 22);
+      pills.appendChild(pill);
+
+      const section = document.createElement("section");
+      section.className = "section";
+      section.id = "sec-" + s.id;
+      section.dataset.status = secState.status;
+      section.dataset.sectionId = s.id;
+
+      const badge = s.optional
+        ? `<span class="optional-badge">Optional</span>`
+        : `<span class="required-badge">Required</span>`;
+
+      let body = "";
+
+      if (s.cmd) {
+        body += `
+          <div class="cmd-block">
+            <code id="sizeCmd">${SIZE_CMD}</code>
+            <button type="button" class="btn" data-copy-cmd>Copy</button>
+          </div>`;
+      }
+
+      if (s.items) {
+        body += s.items
+          .map((it) => {
+            const ist = secState.items[it.id] || { checked: false, status: "open", notes: "" };
+            const idTag = it.idTag
+              ? ` <span class="id-tag">${escapeHtml(it.idTag)}</span>`
+              : "";
+            return `
+              <div class="item" data-item-id="${it.id}" data-status="${ist.status}">
+                <input class="item-check" type="checkbox" id="chk-${it.id}" ${ist.checked ? "checked" : ""} aria-label="Mark done: ${escapeAttr(it.label)}" />
+                <div class="item-main">
+                  <label class="item-label" for="chk-${it.id}">${escapeHtml(it.label)}${idTag}</label>
+                  <div class="item-row">
+                    <div class="status-seg" role="group" aria-label="Item status">${statusButtonsHtml(ist.status, `data-item-status="${it.id}"`)}</div>
+                  </div>
+                  <textarea class="item-notes" data-item-notes="${it.id}" placeholder="Observation, repro, console cue…">${escapeHtml(ist.notes || "")}</textarea>
+                </div>
+              </div>`;
+          })
+          .join("");
+      }
+
+      if (s.sizeRows) {
+        body += `
+          <div class="size-table-wrap">
+            <table class="size-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Scene</th>
+                  <th>Preset / IDs</th>
+                  <th>base MiB</th>
+                  <th>baked MiB</th>
+                  <th>Report path</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${s.sizeRows
+                  .map((r) => {
+                    const row = secState.size[r.id] || {};
+                    const isStack = r.id === "12";
+                    return `
+                      <tr data-size-row="${r.id}">
+                        <td>${r.id}</td>
+                        <td>${escapeHtml(r.scene)}</td>
+                        <td>${
+                          isStack
+                            ? `<input data-size-field="stackIds" data-size-id="${r.id}" value="${escapeAttr(row.stackIds || "")}" placeholder="inferno + ember,lightning,…" />`
+                            : `<code>${escapeHtml(r.presetId)}</code>`
+                        }</td>
+                        <td><input data-size-field="baseMiB" data-size-id="${r.id}" value="${escapeAttr(row.baseMiB || "")}" placeholder="≤40" /></td>
+                        <td><input data-size-field="bakedMiB" data-size-id="${r.id}" value="${escapeAttr(row.bakedMiB || "")}" placeholder="≤40" /></td>
+                        <td><input data-size-field="reportPath" data-size-id="${r.id}" value="${escapeAttr(row.reportPath || "")}" placeholder="artifacts/…/report.json" /></td>
+                        <td>
+                          <select data-size-field="status" data-size-id="${r.id}">
+                            ${["open", "pass", "fail", "partial"]
+                              .map(
+                                (st) =>
+                                  `<option value="${st}" ${row.status === st ? "selected" : ""}>${st}</option>`
+                              )
+                              .join("")}
+                          </select>
+                        </td>
+                      </tr>`;
+                  })
+                  .join("")}
+              </tbody>
+            </table>
+          </div>`;
+      }
+
+      body += `
+        <div class="section-footer">
+          <label>Section notes
+            <textarea class="section-notes" data-section-notes>${escapeHtml(secState.notes || "")}</textarea>
+          </label>
+          <label>Evidence paths (logs / screenshot / artifacts)
+            <input class="evidence-input" type="text" data-section-evidence value="${escapeAttr(secState.evidence || "")}" placeholder="screenshot/rain-1.png · artifacts/digital-rain/report.json" />
+          </label>
+        </div>`;
+
+      section.innerHTML = `
+        <div class="section-head">
+          <div class="section-title-block">
+            <h2><span class="num" style="display:inline-flex;align-items:center;justify-content:center;min-width:1.6rem;height:1.6rem;border-radius:6px;background:var(--bg);border:1px solid var(--border);font-family:var(--mono);font-size:0.75rem;color:var(--accent);padding:0 0.35rem">${escapeHtml(s.id)}</span> ${escapeHtml(s.title)} ${badge}</h2>
+            <p class="why-line">${escapeHtml(s.why)}</p>
+          </div>
+          <div class="status-seg" role="group" aria-label="Section status" data-section-status>
+            ${statusButtonsHtml(secState.status, "")}
+          </div>
+        </div>
+        <div class="section-body">${body}</div>`;
+
+      root.appendChild(section);
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+  function escapeAttr(str) {
+    return escapeHtml(str).replace(/'/g, "&#39;");
+  }
+
+  function bindMeta() {
+    document.querySelectorAll("[data-meta]").forEach((el) => {
+      const key = el.getAttribute("data-meta");
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT" || el.tagName === "SELECT") {
+        el.value = state.meta[key] || "";
+        el.addEventListener("input", () => {
+          state.meta[key] = el.value;
+          scheduleSave();
+          updateProgress();
+        });
+        el.addEventListener("change", () => {
+          state.meta[key] = el.value;
+          scheduleSave();
+          updateProgress();
+        });
+      }
+    });
+
+    const overallSeg = document.getElementById("overallSeg");
+    overallSeg.querySelectorAll("button").forEach((btn) => {
+      const st = btn.getAttribute("data-status");
+      btn.setAttribute("aria-pressed", state.overall === st ? "true" : "false");
+      btn.addEventListener("click", () => {
+        state.overall = st;
+        overallSeg.querySelectorAll("button").forEach((b) => {
+          b.setAttribute("aria-pressed", b.getAttribute("data-status") === st ? "true" : "false");
+        });
+        scheduleSave();
+        updateProgress();
+      });
+    });
+  }
+
+  function bindSections() {
+    document.getElementById("sectionsRoot").addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+
+      if (t.matches("[data-copy-cmd]")) {
+        navigator.clipboard.writeText(SIZE_CMD).then(
+          () => toast("Command copied"),
+          () => toast("Copy failed")
+        );
+        return;
+      }
+
+      if (t.matches("[data-section-status] button, .status-seg button[data-status]")) {
+        const sectionEl = t.closest(".section");
+        if (!sectionEl) {
+          // handled by overall
+          return;
+        }
+        const secId = sectionEl.dataset.sectionId;
+        const itemStatus = t.getAttribute("data-item-status");
+        const st = t.getAttribute("data-status");
+        if (!st) return;
+
+        if (itemStatus) {
+          const item = state.sections[secId].items[itemStatus];
+          item.status = st;
+          item.checked = st === "pass" || st === "partial" ? true : item.checked;
+          if (st === "open") item.checked = false;
+          if (st === "fail") item.checked = true;
+          const itemEl = sectionEl.querySelector(`.item[data-item-id="${itemStatus}"]`);
+          if (itemEl) {
+            itemEl.dataset.status = st;
+            itemEl.querySelectorAll(".status-seg button").forEach((b) => {
+              b.setAttribute("aria-pressed", b.getAttribute("data-status") === st ? "true" : "false");
+            });
+            const chk = itemEl.querySelector(".item-check");
+            if (chk) chk.checked = item.checked;
+          }
+          maybeRollupSection(secId, sectionEl);
+        } else if (t.closest("[data-section-status]")) {
+          state.sections[secId].status = st;
+          sectionEl.dataset.status = st;
+          sectionEl.querySelectorAll("[data-section-status] button").forEach((b) => {
+            b.setAttribute("aria-pressed", b.getAttribute("data-status") === st ? "true" : "false");
+          });
+          const pill = document.querySelector(`.pill[data-sec="${secId}"]`);
+          if (pill) pill.dataset.status = st;
+        }
+        scheduleSave();
+        updateProgress();
+      }
+    });
+
+    document.getElementById("sectionsRoot").addEventListener("change", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const sectionEl = t.closest(".section");
+      if (!sectionEl) return;
+      const secId = sectionEl.dataset.sectionId;
+
+      if (t.classList.contains("item-check")) {
+        const itemEl = t.closest(".item");
+        const itemId = itemEl && itemEl.dataset.itemId;
+        if (!itemId) return;
+        const item = state.sections[secId].items[itemId];
+        item.checked = t.checked;
+        if (t.checked && item.status === "open") {
+          item.status = "pass";
+          itemEl.dataset.status = "pass";
+          itemEl.querySelectorAll(".status-seg button").forEach((b) => {
+            b.setAttribute("aria-pressed", b.getAttribute("data-status") === "pass" ? "true" : "false");
+          });
+        }
+        if (!t.checked) {
+          item.status = "open";
+          itemEl.dataset.status = "open";
+          itemEl.querySelectorAll(".status-seg button").forEach((b) => {
+            b.setAttribute("aria-pressed", b.getAttribute("data-status") === "open" ? "true" : "false");
+          });
+        }
+        maybeRollupSection(secId, sectionEl);
+        scheduleSave();
+        updateProgress();
+        return;
+      }
+
+      if (t.hasAttribute("data-size-field")) {
+        const sizeId = t.getAttribute("data-size-id");
+        const field = t.getAttribute("data-size-field");
+        if (!state.sections[secId].size[sizeId]) {
+          state.sections[secId].size[sizeId] = {
+            status: "open",
+            baseMiB: "",
+            bakedMiB: "",
+            reportPath: "",
+            stackIds: "",
+            notes: "",
+          };
+        }
+        state.sections[secId].size[sizeId][field] = t.value;
+        if (field === "status") maybeRollupSection(secId, sectionEl);
+        scheduleSave();
+        updateProgress();
+      }
+    });
+
+    document.getElementById("sectionsRoot").addEventListener("input", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const sectionEl = t.closest(".section");
+      if (!sectionEl) return;
+      const secId = sectionEl.dataset.sectionId;
+
+      if (t.hasAttribute("data-item-notes")) {
+        const itemId = t.getAttribute("data-item-notes");
+        state.sections[secId].items[itemId].notes = t.value;
+        scheduleSave();
+        return;
+      }
+      if (t.hasAttribute("data-section-notes")) {
+        state.sections[secId].notes = t.value;
+        scheduleSave();
+        return;
+      }
+      if (t.hasAttribute("data-section-evidence")) {
+        state.sections[secId].evidence = t.value;
+        scheduleSave();
+        return;
+      }
+      if (t.hasAttribute("data-size-field")) {
+        const sizeId = t.getAttribute("data-size-id");
+        const field = t.getAttribute("data-size-field");
+        if (!state.sections[secId].size[sizeId]) {
+          state.sections[secId].size[sizeId] = {
+            status: "open",
+            baseMiB: "",
+            bakedMiB: "",
+            reportPath: "",
+            stackIds: "",
+            notes: "",
+          };
+        }
+        state.sections[secId].size[sizeId][field] = t.value;
+        scheduleSave();
+      }
+    });
+  }
+
+  function maybeRollupSection(secId, sectionEl) {
+    const def = SECTIONS.find((s) => s.id === secId);
+    const sec = state.sections[secId];
+    if (!def) return;
+
+    let statuses = [];
+    if (def.items) {
+      statuses = Object.values(sec.items).map((i) => i.status);
+    }
+    if (def.sizeRows) {
+      statuses = statuses.concat(Object.values(sec.size).map((r) => r.status));
+    }
+    if (!statuses.length) return;
+
+    let next = "open";
+    if (statuses.every((s) => s === "pass")) next = "pass";
+    else if (statuses.some((s) => s === "fail") && statuses.every((s) => s !== "open")) next = "fail";
+    else if (statuses.some((s) => s === "fail")) next = "fail";
+    else if (statuses.some((s) => s === "partial" || s === "pass") && statuses.some((s) => s === "open"))
+      next = "partial";
+    else if (statuses.every((s) => s === "partial" || s === "pass") && statuses.some((s) => s === "partial"))
+      next = "partial";
+    else if (statuses.every((s) => s === "open")) next = "open";
+    else next = "partial";
+
+    // Only auto-rollup if user hasn't forced a manual section fail that's more severe? Always rollup for simplicity.
+    sec.status = next;
+    if (sectionEl) {
+      sectionEl.dataset.status = next;
+      sectionEl.querySelectorAll("[data-section-status] button").forEach((b) => {
+        b.setAttribute("aria-pressed", b.getAttribute("data-status") === next ? "true" : "false");
+      });
+    }
+    const pill = document.querySelector(`.pill[data-sec="${secId}"]`);
+    if (pill) pill.dataset.status = next;
+  }
+
+  function updateProgress() {
+    const required = SECTIONS.filter((s) => s.required);
+    let decided = 0;
+    let pass = 0;
+    let fail = 0;
+    let partial = 0;
+    for (const s of required) {
+      const st = state.sections[s.id].status;
+      if (st !== "open") decided++;
+      if (st === "pass") pass++;
+      if (st === "fail") fail++;
+      if (st === "partial") partial++;
+    }
+    const pct = required.length ? Math.round((decided / required.length) * 100) : 0;
+    document.getElementById("progressFill").style.width = pct + "%";
+    document.getElementById("progressLabel").textContent = pct + "%";
+    document.getElementById("progressCounts").textContent =
+      decided + "/" + required.length + " required sections decided · " + pass + " pass · " + partial + " partial · " + fail + " fail";
+    document.getElementById("overallLive").innerHTML =
+      "Overall: <strong>" + escapeHtml(state.overall) + "</strong>";
+  }
+
+  function buildAgentPacket() {
+    return {
+      schema: SCHEMA,
+      workspace: WORKSPACE,
+      branch: BRANCH,
+      exportedAt: new Date().toISOString(),
+      updatedAt: state.updatedAt,
+      meta: { ...state.meta },
+      overall: state.overall,
+      sections: SECTIONS.map((def) => {
+        const sec = state.sections[def.id];
+        const out = {
+          id: def.id,
+          title: def.title,
+          required: !!def.required,
+          optional: !!def.optional,
+          status: sec.status,
+          notes: sec.notes || "",
+          evidence: sec.evidence || "",
+          items: [],
+          sizeRows: [],
+        };
+        if (def.items) {
+          out.items = def.items.map((it) => ({
+            id: it.id,
+            label: it.label,
+            registryId: it.idTag || null,
+            checked: !!(sec.items[it.id] && sec.items[it.id].checked),
+            status: (sec.items[it.id] && sec.items[it.id].status) || "open",
+            notes: (sec.items[it.id] && sec.items[it.id].notes) || "",
+          }));
+        }
+        if (def.sizeRows) {
+          out.sizeRows = def.sizeRows.map((r) => ({
+            id: r.id,
+            scene: r.scene,
+            presetId: r.presetId,
+            ...(sec.size[r.id] || {}),
+          }));
+        }
+        return out;
+      }),
+      nonNegotiables: [
+        "Capture-time visuals only (I1/I3)",
+        "No bake-size/FPS/legibility regression vs v5.11 on Classic",
+        "No new deps/WASM/fourth layer/USER_PREFS_VERSION bump",
+        "Bubbles label + bokeh key (ADR-0010)",
+        "Governor pause without rewriting saved accents",
+      ],
+      caps: { baseMiB: 40, bakedMiB: 40, durationSeconds: 120 },
+      governor: { comfortableMax: 560, elevatedMax: 980 },
+      automatedGreen: "focused v6 226/226 · build PASS · compile 2 pre-existing subtitle diagnostics",
+    };
+  }
+
+  function buildAgentBrief() {
+    const p = buildAgentPacket();
+    const lines = [];
+    lines.push("# Track A confidence QA brief");
+    lines.push("");
+    lines.push("- **Workspace:** `" + p.workspace + "`");
+    lines.push("- **Branch:** `" + p.branch + "`");
+    lines.push("- **Overall:** **" + p.overall.toUpperCase() + "**");
+    lines.push("- **Operator:** " + (p.meta.operator || "—"));
+    lines.push("- **Date:** " + (p.meta.date || "—"));
+    lines.push("- **Machine / browser:** " + (p.meta.machine || "—") + " / " + (p.meta.browser || "—"));
+    lines.push("- **Build:** " + (p.meta.build || "—"));
+    if (p.meta.blockers) {
+      lines.push("- **Blockers:** " + p.meta.blockers.replace(/\n/g, " "));
+    }
+    if (p.meta.summary) {
+      lines.push("");
+      lines.push("## Summary");
+      lines.push(p.meta.summary);
+    }
+    lines.push("");
+    lines.push("## Section status");
+    for (const s of p.sections) {
+      const flag =
+        s.status === "pass" ? "PASS" : s.status === "fail" ? "FAIL" : s.status === "partial" ? "PARTIAL" : "OPEN";
+      lines.push("- **§" + s.id + " " + s.title + ":** " + flag + (s.optional ? " _(optional)_" : ""));
+      if (s.notes) lines.push("  - Notes: " + s.notes.replace(/\n/g, " "));
+      if (s.evidence) lines.push("  - Evidence: `" + s.evidence + "`");
+      for (const it of s.items) {
+        if (it.status === "open" && !it.notes) continue;
+        lines.push(
+          "  - [" +
+            it.status +
+            "] " +
+            it.label +
+            (it.registryId ? " (`" + it.registryId + "`)" : "") +
+            (it.notes ? " — " + it.notes.replace(/\n/g, " ") : "")
+        );
+      }
+      for (const r of s.sizeRows) {
+        if (r.status === "open" && !r.baseMiB && !r.bakedMiB && !r.reportPath) continue;
+        lines.push(
+          "  - Size §" +
+            r.id +
+            " " +
+            r.scene +
+            ": " +
+            r.status +
+            " · base=" +
+            (r.baseMiB || "?") +
+            " MiB · baked=" +
+            (r.bakedMiB || "?") +
+            " MiB · report=`" +
+            (r.reportPath || "—") +
+            "`" +
+            (r.stackIds ? " · stack=`" + r.stackIds + "`" : "")
+        );
+      }
+    }
+    lines.push("");
+    lines.push("## Agent instructions");
+    lines.push(
+      "Ingest this brief (or the exported JSON packet with schema `" +
+        SCHEMA +
+        "`). Failures need section id, preset IDs, console cues, and evidence paths. Do not re-run 226/226 unless a code fix lands. Prefer fixing Track A visual defects over reclassifying optional voice re-apply (§15) as a Style blocker without evidence."
+    );
+    lines.push("");
+    lines.push("_Generated from " + WORKSPACE + "/qa-checklist.html_");
+    return lines.join("\n");
+  }
+
+  function exportPacket() {
+    const packet = buildAgentPacket();
+    const blob = new Blob([JSON.stringify(packet, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    const date = (state.meta.date || new Date().toISOString().slice(0, 10)).replace(/[^\d-]/g, "");
+    const name = "qa-session-track-a-" + date + ".json";
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    if (!state.meta.packetPath) {
+      state.meta.packetPath = "artifacts/" + name;
+      const el = document.getElementById("meta-packetPath");
+      if (el) el.value = state.meta.packetPath;
+      scheduleSave();
+    }
+    toast("Downloaded " + name + " — save under artifacts/");
+  }
+
+  function importPacket(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!parsed || typeof parsed !== "object") throw new Error("Invalid JSON");
+        const base = defaultState();
+        // Accept either full storage shape or agent packet shape
+        if (parsed.sections && Array.isArray(parsed.sections)) {
+          state = base;
+          state.meta = { ...base.meta, ...(parsed.meta || {}) };
+          state.overall = parsed.overall || "open";
+          state.updatedAt = parsed.updatedAt || parsed.exportedAt || null;
+          for (const sec of parsed.sections) {
+            if (!state.sections[sec.id]) continue;
+            state.sections[sec.id].status = sec.status || "open";
+            state.sections[sec.id].notes = sec.notes || "";
+            state.sections[sec.id].evidence = sec.evidence || "";
+            if (Array.isArray(sec.items)) {
+              for (const it of sec.items) {
+                if (!state.sections[sec.id].items[it.id]) continue;
+                state.sections[sec.id].items[it.id] = {
+                  checked: !!it.checked,
+                  status: it.status || "open",
+                  notes: it.notes || "",
+                };
+              }
+            }
+            if (Array.isArray(sec.sizeRows)) {
+              for (const r of sec.sizeRows) {
+                if (!state.sections[sec.id].size[r.id]) continue;
+                state.sections[sec.id].size[r.id] = {
+                  status: r.status || "open",
+                  baseMiB: r.baseMiB || "",
+                  bakedMiB: r.bakedMiB || "",
+                  reportPath: r.reportPath || "",
+                  stackIds: r.stackIds || "",
+                  notes: r.notes || "",
+                };
+              }
+            }
+          }
+        } else {
+          // storage shape
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+          load();
+        }
+        save();
+        boot(false);
+        toast("Session imported");
+      } catch (err) {
+        console.error(err);
+        toast("Import failed — check JSON");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function boot(fromLoad) {
+    if (fromLoad) load();
+    if (!state.meta.date) {
+      state.meta.date = new Date().toISOString().slice(0, 10);
+    }
+    renderSections();
+    bindMeta();
+    bindSections();
+    updateProgress();
+  }
+
+  document.getElementById("btnExport").addEventListener("click", exportPacket);
+  document.getElementById("btnCopyBrief").addEventListener("click", () => {
+    const brief = buildAgentBrief();
+    navigator.clipboard.writeText(brief).then(
+      () => toast("Agent brief copied to clipboard"),
+      () => toast("Clipboard failed — use Export JSON")
+    );
+  });
+  document.getElementById("btnImport").addEventListener("click", () => {
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) importPacket(f);
+    e.target.value = "";
+  });
+  document.getElementById("btnReset").addEventListener("click", () => {
+    if (!confirm("Clear all local QA session data for Track A? This cannot be undone unless you exported JSON.")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    state = defaultState();
+    boot(false);
+    toast("Session reset");
+  });
+
+  boot(true);
+})();
+  </script>
+</body>
+</html>

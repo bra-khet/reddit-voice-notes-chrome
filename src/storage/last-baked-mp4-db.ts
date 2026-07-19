@@ -9,7 +9,13 @@ const RECORD_KEY = 'last';
 //      mirrors LAST_RECORDING_MIN/MAX_BYTES (v5.10 precedent). The 30 MB cap
 //      is load-bearing for BROWSER_COMPOSITE_VIDEO_BPS (composite-plan.ts).
 export const LAST_BAKED_MP4_MIN_BYTES = 256;
-export const LAST_BAKED_MP4_MAX_BYTES = 30 * 1024 * 1024;
+// CHANGED: 30 → 40 MiB per QA-6.0.0 Pass A §8-12 operator decision.
+// WHY: matches the raised base cap; the composite bitrate pin (BAKED_MP4_MAX_BYTES in
+//      composite-plan.ts) stays at 30 MiB so bakes still target the smaller budget and
+//      the raise acts as protective headroom, not an invitation to grow.
+// Sync: LAST_BASE_MP4_MAX_BYTES (last-base-mp4-db.ts), VISUAL_SIZE_QA_*_MAX_BYTES
+//       (scripts/visual-size-qa-core.mjs), qa/QA-6.0.0 checklist caps.
+export const LAST_BAKED_MP4_MAX_BYTES = 40 * 1024 * 1024;
 
 export interface LastBakedMp4Meta {
   byteLength: number;

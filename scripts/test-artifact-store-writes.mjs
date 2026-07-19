@@ -158,9 +158,9 @@ console.log('test-artifact-store-writes (H13)');
 
 await check('exported persistability bounds hold their documented values', () => {
   assert.equal(LAST_BASE_MP4_MIN_BYTES, 256);
-  assert.equal(LAST_BASE_MP4_MAX_BYTES, 25 * 1024 * 1024);
+  assert.equal(LAST_BASE_MP4_MAX_BYTES, 40 * 1024 * 1024);
   assert.equal(LAST_BAKED_MP4_MIN_BYTES, 256);
-  assert.equal(LAST_BAKED_MP4_MAX_BYTES, 30 * 1024 * 1024);
+  assert.equal(LAST_BAKED_MP4_MAX_BYTES, 40 * 1024 * 1024);
   assert.equal(LAST_RECORDING_MIN_BYTES, 256);
   assert.equal(LAST_RECORDING_MAX_BYTES, 18 * 1024 * 1024);
 });
