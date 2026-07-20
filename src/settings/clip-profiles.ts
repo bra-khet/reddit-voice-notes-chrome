@@ -5,10 +5,14 @@ import {
   presetThemeIdFromProfileId,
 } from '@/src/settings/preset-profiles';
 import {
-  normalizeBackgroundPosition,
-  normalizeBackgroundScaleMode,
+  userBackgroundLayoutFromAppearance,
+  userBackgroundLayoutsEqual,
 } from '@/src/theme/background-layout';
-import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
+import type {
+  BackgroundImagePosition,
+  BackgroundScaleMode,
+  UserBackgroundLayout,
+} from '@/src/theme/types';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import {
   designOverridesMatch,
@@ -44,6 +48,8 @@ export interface ClipProfile {
   customBackgroundId?: string | null;
   backgroundScaleMode?: BackgroundScaleMode;
   backgroundPosition?: BackgroundImagePosition;
+  /** v6 layout snapshot; flat scale/position stay as legacy migration fields. */
+  backgroundLayout?: Partial<UserBackgroundLayout>;
   /** Saved custom clip style (`style-…`) when this profile uses user colors. */
   customStyleId?: string | null;
   /** Snapshot of unsaved custom colors when the profile was saved. */
@@ -89,15 +95,19 @@ export function normalizeClipProfiles(
     const designOverrides = customStyleId
       ? null
       : normalizeDesignOverrides(raw.designOverrides);
+    const backgroundLayout = userBackgroundLayoutFromAppearance(raw);
 
+    // CHANGED: profiles snapshot the normalized v6 layout and retain the legacy flat pair.
+    // WHY: applying old and new profiles must use one guarded layout contract without schema branching.
     normalized.push({
       id: raw.id,
       name: name.slice(0, 40),
       themeId: normalizeThemeId(raw.themeId),
       barAlignment: normalizeBarAlignment(raw.barAlignment),
       customBackgroundId: normalizeBackgroundAssetId(raw.customBackgroundId),
-      backgroundScaleMode: normalizeBackgroundScaleMode(raw.backgroundScaleMode),
-      backgroundPosition: normalizeBackgroundPosition(raw.backgroundPosition),
+      backgroundScaleMode: backgroundLayout.scaleMode,
+      backgroundPosition: backgroundLayout.position,
+      backgroundLayout,
       customStyleId,
       designOverrides,
       voiceEffectConfig:
@@ -253,13 +263,14 @@ export function appearanceMatchesProfile(
   } else {
     styleMatches = designOverridesMatch(appearance.designOverrides, profile.designOverrides);
   }
+  const liveBackgroundLayout = userBackgroundLayoutFromAppearance(appearance);
+  const profileBackgroundLayout = userBackgroundLayoutFromAppearance(profile);
 
   return (
     appearance.activeThemeId === profile.themeId &&
     (appearance.barAlignment ?? 'center') === profile.barAlignment &&
     (appearance.customBackgroundId ?? null) === (profile.customBackgroundId ?? null) &&
-    (appearance.backgroundScaleMode ?? 'fill') === (profile.backgroundScaleMode ?? 'fill') &&
-    (appearance.backgroundPosition ?? 'center') === (profile.backgroundPosition ?? 'center') &&
+    userBackgroundLayoutsEqual(liveBackgroundLayout, profileBackgroundLayout) &&
     styleMatches
   );
 }

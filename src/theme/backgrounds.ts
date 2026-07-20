@@ -21,7 +21,6 @@ import {
 } from '@/src/storage/background-loader';
 import type { AnimatedBackground } from '@/src/storage/animated-background';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
-import { USER_BACKGROUND_DIM_OVERLAY } from '@/src/storage/image-db-types';
 import {
   computeImageDrawOffset,
   DEFAULT_USER_BACKGROUND_LAYOUT,
@@ -29,6 +28,7 @@ import {
 } from './background-layout';
 import type {
   BackgroundScaleMode,
+  NormalizedUserBackgroundLayout,
   ThemeBackground,
   UserBackgroundLayout,
   WaveformTheme,
@@ -143,9 +143,17 @@ interface DrawImageBackgroundOptions {
   image: DrawableBackgroundImage;
   letterboxColor: string;
   scaleMode: BackgroundScaleMode;
-  layout: UserBackgroundLayout;
+  layout: NormalizedUserBackgroundLayout;
   /** When true, theme backdrop is already drawn — only place the image (fit mode). */
   skipLetterboxFill?: boolean;
+}
+
+function applyBackgroundImageEffects(
+  ctx: CanvasRenderingContext2D,
+  layout: NormalizedUserBackgroundLayout,
+): void {
+  ctx.globalCompositeOperation = layout.blendMode;
+  ctx.filter = layout.blur > 0 ? `blur(${layout.blur}px)` : 'none';
 }
 
 function drawImageBackground({
@@ -164,10 +172,11 @@ function drawImageBackground({
   }
 
   const { width: imageWidth, height: imageHeight } = getDrawableBackgroundSize(image);
-  const scale =
+  const baseScale =
     scaleMode === 'fill'
       ? Math.max(width / imageWidth, height / imageHeight)
       : Math.min(width / imageWidth, height / imageHeight);
+  const scale = baseScale * layout.manualScale;
 
   const drawWidth = imageWidth * scale;
   const drawHeight = imageHeight * scale;
@@ -177,9 +186,18 @@ function drawImageBackground({
     drawWidth,
     drawHeight,
     layout.position,
+    layout.customPosition,
   );
 
-  ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+  // CHANGED: personal-image scale and effects are isolated to the existing image draw slot.
+  // WHY: preview/capture parity requires layout effects without leaking filter/composite state to dim, overlays, or bars.
+  ctx.save();
+  try {
+    applyBackgroundImageEffects(ctx, layout);
+    ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+  } finally {
+    ctx.restore();
+  }
 }
 
 function drawThemeFallbackBackground(
@@ -201,7 +219,7 @@ function drawUserBackgroundLayer(
   image: DrawableBackgroundImage,
   bundledBackgroundImage: HTMLImageElement | null,
   audioFrame: AudioVizFrame,
-  layout: UserBackgroundLayout,
+  layout: NormalizedUserBackgroundLayout,
   visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   if (!isDrawableBackgroundReady(image)) {
@@ -238,7 +256,9 @@ function drawUserBackgroundLayer(
     });
   }
 
-  const dim = USER_BACKGROUND_DIM_OVERLAY;
+  // CHANGED: dim is layout-owned while its normalized default remains the legacy overlay constant.
+  // WHY: existing users keep identical pixels and future controls can vary dim per background/profile.
+  const dim = layout.dim;
   if (dim > 0) {
     ctx.fillStyle = `rgba(0, 0, 0, ${dim})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);

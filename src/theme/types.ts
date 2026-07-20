@@ -41,7 +41,26 @@ export type BackgroundImagePosition =
 export interface UserBackgroundLayout {
   scaleMode: BackgroundScaleMode;
   position: BackgroundImagePosition;
+  /** Normalized focal anchor within the available pan range. */
+  customPosition?: { x: number; y: number };
+  /** Multiplier applied after fit/fill base scale. */
+  manualScale?: number;
+  /** Black overlay opacity applied after the personal image. */
+  dim?: number;
+  /** Canvas blur radius in CSS pixels. */
+  blur?: number;
+  /** Composite mode for the personal image draw only. */
+  blendMode?: GlobalCompositeOperation;
+  /** Animated-GIF playback multiplier. */
+  gifSpeed?: number;
+  /** Whether GIF timing may react to capture energy. */
+  gifReactToAudio?: boolean;
+  /** Prefer positioning that leaves the caption-safe region clear. */
+  lockToSafeText?: boolean;
 }
+
+/** Fully guarded layout consumed by preview and capture painters. */
+export type NormalizedUserBackgroundLayout = Required<UserBackgroundLayout>;
 
 export interface GradientStop {
   offset: number;

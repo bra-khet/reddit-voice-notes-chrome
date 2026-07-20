@@ -1,5 +1,14 @@
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
-import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
+import {
+  backgroundPositionToCustomPosition,
+  normalizeUserBackgroundLayout,
+  userBackgroundLayoutFromAppearance,
+} from '@/src/theme/background-layout';
+import type {
+  BackgroundImagePosition,
+  BackgroundScaleMode,
+  NormalizedUserBackgroundLayout,
+} from '@/src/theme/types';
 
 export interface BackgroundLayoutControlsHandle {
   sync(prefs: UserPreferencesV1): void;
@@ -131,6 +140,7 @@ export function mountBackgroundLayoutControls(
   onLayoutChange: (patch: {
     backgroundScaleMode: BackgroundScaleMode;
     backgroundPosition: BackgroundImagePosition;
+    backgroundLayout: NormalizedUserBackgroundLayout;
   }) => void,
 ): BackgroundLayoutControlsHandle {
   const panel = root.querySelector<HTMLElement>('[data-background-layout]')!;
@@ -138,12 +148,19 @@ export function mountBackgroundLayoutControls(
   const positionButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-position]')];
 
   let syncing = false;
-  let scaleMode: BackgroundScaleMode = 'fill';
-  let position: BackgroundImagePosition = 'center';
+  let layout = userBackgroundLayoutFromAppearance({});
+  let scaleMode: BackgroundScaleMode = layout.scaleMode;
+  let position: BackgroundImagePosition = layout.position;
 
   function emit(): void {
     if (syncing) return;
-    onLayoutChange({ backgroundScaleMode: scaleMode, backgroundPosition: position });
+    // CHANGED: discrete controls update the nested layout and mirrored legacy fields atomically.
+    // WHY: the old 9-way UI must remain functional once nested layout becomes the preferred source.
+    onLayoutChange({
+      backgroundScaleMode: scaleMode,
+      backgroundPosition: position,
+      backgroundLayout: layout,
+    });
   }
 
   function syncButtons(): void {
@@ -166,6 +183,7 @@ export function mountBackgroundLayoutControls(
       const next = button.dataset.scaleMode as BackgroundScaleMode | undefined;
       if (!next || next === scaleMode) return;
       scaleMode = next;
+      layout = normalizeUserBackgroundLayout({ ...layout, scaleMode });
       syncButtons();
       emit();
     });
@@ -176,6 +194,11 @@ export function mountBackgroundLayoutControls(
       const next = button.dataset.backgroundPosition as BackgroundImagePosition | undefined;
       if (!next || next === position) return;
       position = next;
+      layout = normalizeUserBackgroundLayout({
+        ...layout,
+        position,
+        customPosition: backgroundPositionToCustomPosition(position),
+      });
       syncButtons();
       emit();
     });
@@ -187,8 +210,9 @@ export function mountBackgroundLayoutControls(
       panel.hidden = !hasBackground;
       if (!hasBackground) return;
 
-      scaleMode = prefs.appearance.backgroundScaleMode ?? 'fill';
-      position = prefs.appearance.backgroundPosition ?? 'center';
+      layout = userBackgroundLayoutFromAppearance(prefs.appearance);
+      scaleMode = layout.scaleMode;
+      position = layout.position;
       syncButtons();
     },
   };
