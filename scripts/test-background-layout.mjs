@@ -35,6 +35,7 @@ const {
   MIN_USER_BACKGROUND_MANUAL_SCALE,
   USER_BACKGROUND_BLEND_MODES,
   backgroundPositionToCustomPosition,
+  computeImageDrawSize,
   computeImageDrawOffset,
   normalizeUserBackgroundLayout,
   userBackgroundLayoutFromAppearance,
@@ -188,6 +189,21 @@ check('custom offset math supports crop and letterbox space', () => {
     computeImageDrawOffset(100, 80, 40, 20, 'center', { x: 1, y: 0 }),
     { dx: 60, dy: 0 },
   );
+});
+
+check('shared fit/fill size math includes manual scale', () => {
+  assert.deepEqual(computeImageDrawSize(640, 360, 1000, 1000, 'fill', 1), {
+    width: 640,
+    height: 640,
+  });
+  assert.deepEqual(computeImageDrawSize(640, 360, 1000, 1000, 'fit', 1), {
+    width: 360,
+    height: 360,
+  });
+  assert.deepEqual(computeImageDrawSize(640, 360, 1000, 1000, 'fill', 1.25), {
+    width: 800,
+    height: 800,
+  });
 });
 
 check('discrete offset fallback remains pixel-equivalent to migrated custom anchors', () => {

@@ -24,6 +24,7 @@ import {
 } from '@/src/session/take-manager';
 import { reconcileStudioTakeAfterTabReturn } from '@/src/ui/design-studio/studio-take-recovery';
 import { setWorkflowPhase } from '@/src/workflow/workflow-state';
+import type { UserBackgroundLayout } from '@/src/theme';
 
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -70,6 +71,7 @@ export interface StudioRecorderHandle {
   /** Start an audition session (mic acquire → transport visible). */
   openAudition(): Promise<void>;
   isActive(): boolean;
+  setUserBackgroundLayout(layout: UserBackgroundLayout): void;
   dispose(): void;
 }
 
@@ -317,6 +319,10 @@ export function mountStudioRecorder(
 
     isActive(): boolean {
       return active;
+    },
+
+    setUserBackgroundLayout(layout): void {
+      host?.session.setUserBackgroundLayout(layout);
     },
 
     dispose(): void {

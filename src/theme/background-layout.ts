@@ -227,3 +227,23 @@ export function computeImageDrawOffset(
       };
   }
 }
+
+export function computeImageDrawSize(
+  canvasWidth: number,
+  canvasHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+  scaleMode: BackgroundScaleMode,
+  manualScale = DEFAULT_USER_BACKGROUND_LAYOUT.manualScale,
+): { width: number; height: number } {
+  // CHANGED: expose the painter's fit/fill geometry as shared pure layout math.
+  // WHY: direct manipulation must invert the exact crop/letterbox span used by preview and capture.
+  const baseScale = scaleMode === 'fill'
+    ? Math.max(canvasWidth / imageWidth, canvasHeight / imageHeight)
+    : Math.min(canvasWidth / imageWidth, canvasHeight / imageHeight);
+  const scale = baseScale * manualScale;
+  return {
+    width: imageWidth * scale,
+    height: imageHeight * scale,
+  };
+}

@@ -6,8 +6,10 @@ import {
   themeHasAnimatedOverlay,
   userBackgroundLayoutFromAppearance,
   type BarAlignment,
+  type NormalizedUserBackgroundLayout,
 } from '@/src/theme';
 import { isAnimatedBackgroundCached } from '@/src/storage/background-loader';
+import { getBackgroundAssetMeta } from '@/src/storage/image-db';
 import {
   clipProfileMatchesLiveState,
   getClipProfileById,
@@ -117,6 +119,10 @@ import {
   type CurrentTakeDeckHandle,
 } from '@/src/ui/design-studio/current-take-status';
 import { mountStudioRecorder } from '@/src/ui/design-studio/studio-recorder';
+import {
+  mountBackgroundDirectManipulation,
+  type BackgroundDirectManipulationHandle,
+} from '@/src/ui/design-studio/background-direct-manipulation';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -383,6 +389,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
   let styleControls: StyleControlsHandle | null = null;
+  let backgroundDirect: BackgroundDirectManipulationHandle | null = null;
   let subpanelShell!: StudioSubpanelShellHandle;
   let workflowBanner!: WorkflowBannerHandle;
   const PREVIEW_ANIM_FPS = 12;
@@ -412,7 +419,13 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
   async function studioPersist(
     saveFn: () => Promise<UserPreferencesV1>,
+    options?: { skipBackgroundFlush?: boolean },
   ): Promise<UserPreferencesV1 | undefined> {
+    // CHANGED: every unrelated Studio save observes the last debounced hero drag first.
+    // WHY: profile snapshots and control changes must not read a stale persisted background position.
+    if (!options?.skipBackgroundFlush) {
+      await backgroundDirect?.flushPersist();
+    }
     const generation = ++studioSaveGeneration;
     ignoreStoragePrefs = true;
     try {
@@ -640,6 +653,23 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     syncPreviewLoop();
   }
 
+  function refreshHeroPreview(layout: NormalizedUserBackgroundLayout): void {
+    if (auditionActive) return;
+    const canvas = root.querySelector<HTMLCanvasElement>(
+      '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
+    );
+    if (!canvas) return;
+    void renderThemePreview(
+      canvas,
+      resolvedTheme(),
+      activeAlignment,
+      performance.now(),
+      activeCustomBackgroundId(),
+      layout,
+      subtitleControls?.getPreviewOptions(),
+    );
+  }
+
   function syncProfileActions(prefs: UserPreferencesV1): void {
     const profileId = prefs.appearance.activeProfileId;
     const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
@@ -729,6 +759,24 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     void refreshPreview();
   }
 
+  function applyLocalBackgroundLayout(layout: NormalizedUserBackgroundLayout): void {
+    if (!activePrefs) return;
+    // CHANGED: direct manipulation updates the local snapshot and only the RAF-critical consumers.
+    // WHY: live capture and the hero must agree immediately without refreshing every subpanel/status widget.
+    activePrefs = {
+      ...activePrefs,
+      appearance: {
+        ...activePrefs.appearance,
+        backgroundScaleMode: layout.scaleMode,
+        backgroundPosition: layout.position,
+        backgroundLayout: layout,
+      },
+    };
+    studioRecorder.setUserBackgroundLayout(layout);
+    syncProfileButton(activePrefs);
+    refreshHeroPreview(layout);
+  }
+
   function scheduleDesignPersist(overrides: DesignOverrides): void {
     cancelPendingColorSave();
     colorSaveTimer = window.setTimeout(() => {
@@ -757,6 +805,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   }
 
   async function flushPendingDesignPersist(): Promise<void> {
+    await backgroundDirect?.flushPersist();
     if (!colorSaveTimer || !activePrefs?.appearance.designOverrides) return;
     cancelPendingColorSave();
     const overrides = activePrefs.appearance.designOverrides;
@@ -825,6 +874,10 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
     void personalBackground.sync(prefs);
     backgroundLayout.sync(prefs);
+    backgroundDirect?.sync(
+      prefs.appearance.customBackgroundId ?? null,
+      userBackgroundLayoutFromAppearance(prefs.appearance),
+    );
     voiceControls.syncFromPreferences(prefs);
     subtitleControls.syncFromPreferences(prefs);
 
@@ -922,6 +975,33 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       } else {
         void refreshPreview();
       }
+    },
+  });
+
+  backgroundDirect = mountBackgroundDirectManipulation(root, {
+    async resolveImageSize(id) {
+      const meta = await getBackgroundAssetMeta(id);
+      if (!meta?.width || !meta.height) return null;
+      return { width: meta.width, height: meta.height };
+    },
+    onInteractionStart() {
+      invalidateInFlightSaves();
+      resetProfileUpdateConfirm();
+    },
+    onLayoutPreview(layout) {
+      applyLocalBackgroundLayout(layout);
+    },
+    async persistLayout(layout) {
+      await studioPersist(() => saveAppearancePreferences({
+        backgroundScaleMode: layout.scaleMode,
+        backgroundPosition: layout.position,
+        backgroundLayout: layout,
+      }), { skipBackgroundFlush: true });
+    },
+    onPersistError(error) {
+      console.error('[Reddit Voice Notes] Could not save background position', error);
+      const message = error instanceof Error ? error.message : 'Could not save background position.';
+      window.alert(message);
     },
   });
 
@@ -1275,6 +1355,8 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     cancelPendingColorSave();
     stopPreviewLoop();
     takeUnsub();
+    void backgroundDirect?.flushPersist();
+    backgroundDirect?.dispose();
     studioRecorder.dispose();
     takeDeck?.dispose();
     workflowBanner.dispose();

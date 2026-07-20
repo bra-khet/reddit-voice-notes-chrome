@@ -22,6 +22,7 @@ import {
 import type { AnimatedBackground } from '@/src/storage/animated-background';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
 import {
+  computeImageDrawSize,
   computeImageDrawOffset,
   DEFAULT_USER_BACKGROUND_LAYOUT,
   normalizeUserBackgroundLayout,
@@ -172,14 +173,14 @@ function drawImageBackground({
   }
 
   const { width: imageWidth, height: imageHeight } = getDrawableBackgroundSize(image);
-  const baseScale =
-    scaleMode === 'fill'
-      ? Math.max(width / imageWidth, height / imageHeight)
-      : Math.min(width / imageWidth, height / imageHeight);
-  const scale = baseScale * layout.manualScale;
-
-  const drawWidth = imageWidth * scale;
-  const drawHeight = imageHeight * scale;
+  const { width: drawWidth, height: drawHeight } = computeImageDrawSize(
+    width,
+    height,
+    imageWidth,
+    imageHeight,
+    scaleMode,
+    layout.manualScale,
+  );
   const { dx, dy } = computeImageDrawOffset(
     width,
     height,

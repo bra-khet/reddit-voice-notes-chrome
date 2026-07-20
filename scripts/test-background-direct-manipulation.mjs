@@ -1,0 +1,117 @@
+// v6.0 Track B Phase 1 — direct background drag geometry.
+//
+//   Run: node scripts/test-background-direct-manipulation.mjs
+//
+// CHANGED: cover pan/focal math independently of Design Studio DOM events.
+// WHY: pointer coalescing can stay a thin adapter around deterministic preview/capture geometry.
+
+import { build } from 'esbuild';
+import { pathToFileURL } from 'node:url';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import assert from 'node:assert/strict';
+
+const root = resolve(process.cwd());
+const outdir = mkdtempSync(join(tmpdir(), 'rvn-background-direct-'));
+const outfile = join(outdir, 'background-direct.mjs');
+
+await build({
+  entryPoints: ['src/ui/design-studio/background-direct-manipulation.ts'],
+  absWorkingDir: root,
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  outfile,
+  logLevel: 'silent',
+});
+
+const { computeDraggedBackgroundPosition } = await import(pathToFileURL(outfile).href);
+
+const baseLayout = {
+  scaleMode: 'fill',
+  position: 'center',
+  customPosition: { x: 0.5, y: 0.5 },
+  manualScale: 1,
+  dim: 0.35,
+  blur: 0,
+  blendMode: 'source-over',
+  gifSpeed: 1,
+  gifReactToAudio: false,
+  lockToSafeText: false,
+};
+
+function drag(patch) {
+  return computeDraggedBackgroundPosition({
+    mode: 'pan',
+    layout: baseLayout,
+    startPosition: baseLayout.customPosition,
+    deltaClientX: 0,
+    deltaClientY: 0,
+    interactionWidth: 616,
+    interactionHeight: 336,
+    renderedCanvasWidth: 640,
+    renderedCanvasHeight: 360,
+    canvasWidth: 640,
+    canvasHeight: 360,
+    imageSize: { width: 1000, height: 1000 },
+    ...patch,
+  });
+}
+
+let checks = 0;
+function check(name, fn) {
+  fn();
+  checks += 1;
+  console.log(`  ✓ ${name}`);
+}
+
+console.log('Background direct manipulation');
+
+check('fill crop follows a physical vertical image drag', () => {
+  assert.deepEqual(drag({ deltaClientY: 70 }), { x: 0.5, y: 0.25 });
+});
+
+check('fill crop maps horizontal movement across the exact available span', () => {
+  assert.deepEqual(drag({
+    deltaClientX: -40,
+    imageSize: { width: 1000, height: 500 },
+  }), { x: 1, y: 0.5 });
+});
+
+check('fit letterbox positioning follows the pointer without crop inversion', () => {
+  assert.deepEqual(drag({
+    layout: { ...baseLayout, scaleMode: 'fit' },
+    deltaClientX: 140,
+  }), { x: 1, y: 0.5 });
+});
+
+check('manual scale participates in the inverted painter equation', () => {
+  assert.deepEqual(drag({
+    layout: { ...baseLayout, manualScale: 1.25 },
+    deltaClientX: 80,
+  }), { x: 0, y: 0.5 });
+});
+
+check('focal dot follows normalized pointer movement and clamps', () => {
+  assert.deepEqual(drag({
+    mode: 'focal',
+    deltaClientX: 154,
+    deltaClientY: -84,
+  }), { x: 0.75, y: 0.25 });
+  assert.deepEqual(drag({
+    mode: 'focal',
+    deltaClientX: 2000,
+    deltaClientY: -2000,
+  }), { x: 1, y: 0 });
+});
+
+check('an axis with no crop or letterbox span stays anchored', () => {
+  assert.deepEqual(drag({
+    deltaClientX: 120,
+    imageSize: { width: 1600, height: 900 },
+  }), { x: 0.5, y: 0.5 });
+});
+
+rmSync(outdir, { recursive: true, force: true });
+console.log(`\ntest-background-direct-manipulation: ${checks} checks passed`);

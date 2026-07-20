@@ -9,7 +9,12 @@ import { transcodeWebmToMp4 } from '@/src/ffmpeg';
 import { relaySaveLastBaseMp4 } from '@/src/storage/last-base-mp4-relay';
 import { validateWebmRecording } from '@/src/ffmpeg/webm-preflight';
 import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/tokens';
-import { resolveAppearanceTheme, userBackgroundLayoutFromAppearance } from '@/src/theme';
+import {
+  normalizeUserBackgroundLayout,
+  resolveAppearanceTheme,
+  userBackgroundLayoutFromAppearance,
+  type UserBackgroundLayout,
+} from '@/src/theme';
 import {
   loadUserPreferences,
   onUserPreferencesChanged,
@@ -170,6 +175,12 @@ export class VoiceRecorderSession {
 
   get previewCanvas(): HTMLCanvasElement | null {
     return this.waveform?.canvas ?? null;
+  }
+
+  // CHANGED: Studio interactions can hot-swap layout before their debounced prefs write settles.
+  // WHY: the live canvas is the captured canvas, so every drag frame must reach it synchronously.
+  setUserBackgroundLayout(layout: UserBackgroundLayout): void {
+    this.waveform?.setUserBackgroundLayout(normalizeUserBackgroundLayout(layout));
   }
 
   /** Exposed for host teardown — pagehide must not abort mid-transcode dispose. */
