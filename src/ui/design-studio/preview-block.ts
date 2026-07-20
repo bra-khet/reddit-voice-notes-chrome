@@ -23,6 +23,22 @@ const PREVIEW_MODIFIERS: Partial<Record<PreviewBlockKind, string>> = {
   'subtitle-text': ' studio__preview-wrap--subtitle-text',
 };
 
+function renderBackgroundGuideLayer(): string {
+  return `
+    <span class="studio__background-guide-layer" data-background-guide-layer aria-hidden="true">
+      <span class="studio__background-guide studio__background-guide--x" style="--studio-background-guide-position:33.333%"></span>
+      <span class="studio__background-guide studio__background-guide--x studio__background-guide--center" style="--studio-background-guide-position:50%"></span>
+      <span class="studio__background-guide studio__background-guide--x" style="--studio-background-guide-position:66.667%"></span>
+      <span class="studio__background-guide studio__background-guide--y" style="--studio-background-guide-position:33.333%"></span>
+      <span class="studio__background-guide studio__background-guide--y studio__background-guide--center" style="--studio-background-guide-position:50%"></span>
+      <span class="studio__background-guide studio__background-guide--y" style="--studio-background-guide-position:66.667%"></span>
+      <span class="studio__background-caption-safe-band" data-background-caption-safe-band hidden></span>
+      <span class="studio__background-active-guide studio__background-active-guide--x" data-background-active-guide-x hidden></span>
+      <span class="studio__background-active-guide studio__background-active-guide--y" data-background-active-guide-y hidden></span>
+    </span>
+  `;
+}
+
 export function renderPreviewBlock(kind: PreviewBlockKind): string {
   const label = PREVIEW_LABELS[kind];
   const modifier = PREVIEW_MODIFIERS[kind] ?? '';
@@ -36,6 +52,7 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
         aria-label="Position personal background. Drag the image to pan, drag the focal point, or press Escape to center."
         hidden
       >
+        ${renderBackgroundGuideLayer()}
         <span class="studio__background-chip" aria-hidden="true">BG</span>
         <span class="studio__background-focal" data-background-focal-dot aria-hidden="true"></span>
       </div>
@@ -51,6 +68,7 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
         aria-label="Fine background position. Drag the image or focal point."
         hidden
       >
+        ${renderBackgroundGuideLayer()}
         <span
           class="studio__background-focal studio__background-focal--precision"
           data-background-focal-dot

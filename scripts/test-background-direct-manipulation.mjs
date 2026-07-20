@@ -26,7 +26,10 @@ await build({
   logLevel: 'silent',
 });
 
-const { computeDraggedBackgroundPosition } = await import(pathToFileURL(outfile).href);
+const {
+  computeDraggedBackgroundPosition,
+  computeZoomedBackgroundLayout,
+} = await import(pathToFileURL(outfile).href);
 
 const baseLayout = {
   scaleMode: 'fill',
@@ -111,6 +114,33 @@ check('an axis with no crop or letterbox span stays anchored', () => {
     deltaClientX: 120,
     imageSize: { width: 1600, height: 900 },
   }), { x: 0.5, y: 0.5 });
+});
+
+check('cursor-anchored zoom preserves the image point beneath the pointer', () => {
+  const next = computeZoomedBackgroundLayout({
+    layout: baseLayout,
+    scaleFactor: 2,
+    anchor: { x: 0.25, y: 0.5 },
+    canvasWidth: 640,
+    canvasHeight: 360,
+    imageSize: { width: 1000, height: 500 },
+  });
+  assert.equal(next.manualScale, 2);
+  assert.ok(Math.abs(next.customPosition.x - 0.3) < 1e-9);
+  assert.equal(next.customPosition.y, 0.5);
+});
+
+check('zoom scale remains canonical when image metadata is unavailable', () => {
+  const next = computeZoomedBackgroundLayout({
+    layout: baseLayout,
+    scaleFactor: 99,
+    anchor: { x: 0.2, y: 0.8 },
+    canvasWidth: 640,
+    canvasHeight: 360,
+    imageSize: null,
+  });
+  assert.equal(next.manualScale, 3);
+  assert.deepEqual(next.customPosition, baseLayout.customPosition);
 });
 
 rmSync(outdir, { recursive: true, force: true });

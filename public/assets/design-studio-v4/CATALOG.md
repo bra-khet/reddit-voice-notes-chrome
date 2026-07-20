@@ -32,6 +32,7 @@ See `panels/9-slice-usage.md` for CSS recipes.
 | `icons/navigation/chevron-enter-16.svg` | 16 | Open (narrow) |
 | `icons/navigation/chevron-back-32.svg` | 32 | Sub-panel back |
 | `icons/navigation/chevron-back-16.svg` | 16 | Back (narrow) |
+| `icons/navigation/chevron-{enter,back,up,down}-double-16.svg` | 16 | Coarse 0.05 background-position jog |
 | `icons/navigation/profile-silhouette-32.svg` | 32 | Profile cluster |
 | `icons/navigation/profile-silhouette-16.svg` | 16 | Profile (narrow) |
 

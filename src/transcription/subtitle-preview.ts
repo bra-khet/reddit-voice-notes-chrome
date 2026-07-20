@@ -5,6 +5,7 @@ import {
 import { stripScaffoldPlaceholder } from './transcript-editing';
 import type { SubtitleStyleConfig, TranscriptSegment } from './types';
 import { PREVIEW_FAMILY_FOR_KEY } from '@/src/ui/design-studio/preview-font-loader';
+import { subtitlePreviewBlockTopY } from '@/src/transcription/subtitle-cue-measurement';
 
 export interface SubtitlePreviewOptions {
   enabled: boolean;
@@ -49,17 +50,6 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
-function verticalAnchor(
-  position: SubtitleStyleConfig['position'],
-  canvasHeight: number,
-  blockHeight: number,
-): number {
-  const margin = Math.round(canvasHeight * 0.08);
-  if (position === 'top') return margin;
-  if (position === 'center') return Math.round((canvasHeight - blockHeight) / 2);
-  return canvasHeight - blockHeight - margin;
-}
-
 function drawTextLines(
   ctx: CanvasRenderingContext2D,
   lines: string[],
@@ -78,6 +68,35 @@ function drawTextLines(
 
 const SUBTITLE_TEXT_PREVIEW_WIDTH = 320;
 const SUBTITLE_TEXT_PREVIEW_HEIGHT = 180;
+
+export function measureSubtitlePreviewSafeBand(
+  canvas: HTMLCanvasElement,
+  options: SubtitlePreviewOptions | undefined,
+): { start: number; end: number } | null {
+  // CHANGED: expose the exact wrapped preview block as a normalized guide band.
+  // WHY: safe-text locking must follow the caption the user actually sees, including live text wrapping.
+  if (!options?.enabled) return null;
+  const ctx = canvas.getContext('2d');
+  if (!ctx || canvas.width <= 0 || canvas.height <= 0) return null;
+  const displayText = stripScaffoldPlaceholder(options.text).trim() || PREVIEW_PLACEHOLDER;
+  const fontSize = options.style.fontSize ?? 22;
+  const fontFamily = previewCssFontFamily(options.style.fontFamily ?? 'dejavu-sans');
+  const lineHeight = Math.round(fontSize * 1.25);
+  const maxWidth = Math.round(canvas.width * 0.88);
+  const paddingX = 14;
+  const paddingY = 10;
+  ctx.save();
+  ctx.font = `600 ${fontSize}px ${fontFamily}`;
+  const lines = wrapText(ctx, displayText, maxWidth - paddingX * 2);
+  ctx.restore();
+  if (lines.length === 0) return null;
+  const blockHeight = lines.length * lineHeight + paddingY * 2;
+  const top = subtitlePreviewBlockTopY(options.style.position, canvas.height, blockHeight);
+  return {
+    start: Math.max(0, top / canvas.height),
+    end: Math.min(1, (top + blockHeight) / canvas.height),
+  };
+}
 
 /** Text-only caption preview for the Subtitles sub-panel (no bars/background). */
 export function drawSubtitleTextOnlyPreview(
@@ -143,7 +162,7 @@ export function drawSubtitlePreview(
   );
   const blockHeight = lines.length * lineHeight + paddingY * 2;
   const blockX = Math.round((canvas.width - blockWidth) / 2);
-  const blockY = verticalAnchor(style.position, canvas.height, blockHeight);
+  const blockY = subtitlePreviewBlockTopY(style.position, canvas.height, blockHeight);
 
   const backdrop = style.backdrop;
   if (backdrop?.enabled !== false) {

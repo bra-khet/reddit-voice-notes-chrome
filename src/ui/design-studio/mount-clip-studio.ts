@@ -5,6 +5,7 @@ import {
   resolveAppearanceTheme,
   themeHasAnimatedOverlay,
   userBackgroundLayoutFromAppearance,
+  userBackgroundLayoutsEqual,
   type BarAlignment,
   type NormalizedUserBackgroundLayout,
 } from '@/src/theme';
@@ -62,7 +63,10 @@ import {
   mountBackgroundLayoutControls,
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
-import { drawSubtitleTextOnlyPreview } from '@/src/transcription/subtitle-preview';
+import {
+  drawSubtitleTextOnlyPreview,
+  measureSubtitlePreviewSafeBand,
+} from '@/src/transcription/subtitle-preview';
 import { loadDejaVuPreviewFonts } from '@/src/ui/design-studio/preview-font-loader';
 import {
   mountSubtitleControls,
@@ -134,6 +138,7 @@ const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
 ];
 
 const COLOR_SAVE_DEBOUNCE_MS = 200;
+const BACKGROUND_LAYOUT_HISTORY_LIMIT = 20;
 
 export type MountClipStudioOptions = {
   /** Reconciled prefs from boot — avoids racing storage listeners before first paint (BUG-023). */
@@ -267,7 +272,6 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
         ${renderStudioV4PanelCard('Background', 'data-summary-background', 'background')}
         <div class="studio__panel-body" hidden>
-          ${renderPreviewBlock('background-precision')}
           ${renderPersonalBackgroundFields()}
           ${renderBackgroundLayoutFields()}
         </div>
@@ -393,6 +397,10 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let styleControls: StyleControlsHandle | null = null;
   let backgroundDirect: BackgroundDirectManipulationHandle | null = null;
   let backgroundPrecisionDirect: BackgroundDirectManipulationHandle | null = null;
+  let backgroundUndoStack: NormalizedUserBackgroundLayout[] = [];
+  let backgroundRedoStack: NormalizedUserBackgroundLayout[] = [];
+  let backgroundHistoryId: string | null = null;
+  let backgroundHistoryRestoring = false;
   let subpanelShell!: StudioSubpanelShellHandle;
   let workflowBanner!: WorkflowBannerHandle;
   const PREVIEW_ANIM_FPS = 12;
@@ -486,6 +494,82 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
   function activeBackgroundLayout() {
     return userBackgroundLayoutFromAppearance(activePrefs?.appearance ?? {});
+  }
+
+  function activeCaptionSafeBand() {
+    const canvas = root.querySelector<HTMLCanvasElement>(
+      '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
+    );
+    if (!canvas) return null;
+    return measureSubtitlePreviewSafeBand(canvas, subtitleControls?.getPreviewOptions());
+  }
+
+  function cloneBackgroundLayout(
+    layout: NormalizedUserBackgroundLayout,
+  ): NormalizedUserBackgroundLayout {
+    return { ...layout, customPosition: { ...layout.customPosition } };
+  }
+
+  function syncBackgroundHistoryControls(): void {
+    backgroundLayout.syncHistory(backgroundUndoStack.length > 0, backgroundRedoStack.length > 0);
+  }
+
+  function syncBackgroundHistoryScope(backgroundId: string | null): void {
+    if (backgroundId === backgroundHistoryId) return;
+    backgroundHistoryId = backgroundId;
+    backgroundUndoStack = [];
+    backgroundRedoStack = [];
+    syncBackgroundHistoryControls();
+  }
+
+  function pushBackgroundLayoutUndo(): void {
+    if (backgroundHistoryRestoring || !activePrefs?.appearance.customBackgroundId) return;
+    const current = activeBackgroundLayout();
+    const top = backgroundUndoStack[backgroundUndoStack.length - 1];
+    if (top && userBackgroundLayoutsEqual(top, current)) return;
+    // CHANGED: layout history snapshots at gesture boundaries, never on RAF/slider frames.
+    // WHY: one undo should reverse one perceived positioning action and stay isolated from subtitle history.
+    backgroundUndoStack.push(cloneBackgroundLayout(current));
+    if (backgroundUndoStack.length > BACKGROUND_LAYOUT_HISTORY_LIMIT) backgroundUndoStack.shift();
+    backgroundRedoStack = [];
+    syncBackgroundHistoryControls();
+  }
+
+  async function restoreBackgroundLayout(
+    source: NormalizedUserBackgroundLayout[],
+    destination: NormalizedUserBackgroundLayout[],
+  ): Promise<void> {
+    if (source.length === 0) return;
+    await flushPendingBackgroundManipulation();
+    const next = source.pop();
+    if (!next) return;
+    destination.push(cloneBackgroundLayout(activeBackgroundLayout()));
+    if (destination.length > BACKGROUND_LAYOUT_HISTORY_LIMIT) destination.shift();
+    backgroundHistoryRestoring = true;
+    invalidateInFlightSaves();
+    resetProfileUpdateConfirm();
+    applyLocalBackgroundLayout(next);
+    syncBackgroundHistoryControls();
+    try {
+      await studioPersist(() => saveAppearancePreferences({
+        backgroundScaleMode: next.scaleMode,
+        backgroundPosition: next.position,
+        backgroundLayout: next,
+      }), { skipBackgroundFlush: true });
+    } catch (error) {
+      console.error('[Reddit Voice Notes] Could not restore background layout history', error);
+      window.alert(error instanceof Error ? error.message : 'Could not restore background layout.');
+    } finally {
+      backgroundHistoryRestoring = false;
+    }
+  }
+
+  function undoBackgroundLayout(): void {
+    void restoreBackgroundLayout(backgroundUndoStack, backgroundRedoStack);
+  }
+
+  function redoBackgroundLayout(): void {
+    void restoreBackgroundLayout(backgroundRedoStack, backgroundUndoStack);
   }
 
   function resolvedTheme() {
@@ -904,6 +988,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     syncSelectControls(prefs);
 
     void personalBackground.sync(prefs);
+    syncBackgroundHistoryScope(prefs.appearance.customBackgroundId ?? null);
     backgroundLayout.sync(prefs);
     backgroundDirect?.sync(
       prefs.appearance.customBackgroundId ?? null,
@@ -957,11 +1042,16 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     });
   });
 
-  const backgroundLayout = mountBackgroundLayoutControls(root, (patch) => {
+  const backgroundLayout = mountBackgroundLayoutControls(root, (patch, emitOptions) => {
     invalidateInFlightSaves();
     resetProfileUpdateConfirm();
     applyLocalBackgroundLayout(patch.backgroundLayout);
-    void studioPersist(() => saveAppearancePreferences(patch));
+    if (emitOptions.persist) void studioPersist(() => saveAppearancePreferences(patch));
+  }, {
+    onGestureStart: pushBackgroundLayoutUndo,
+    onUndo: undoBackgroundLayout,
+    onRedo: redoBackgroundLayout,
+    getCaptionSafeBand: activeCaptionSafeBand,
   });
 
   voiceControls = mountVoiceControls(root, () => {
@@ -978,6 +1068,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     onPreviewChange: () => {
       stopPreviewLoop();
       void refreshPreview();
+      // CHANGED: caption edits remeasure the guide band on both positioning surfaces.
+      // WHY: Clear captions must follow the wrapped text currently rendered in the preview.
+      const layout = activeBackgroundLayout();
+      const backgroundId = activeCustomBackgroundId();
+      backgroundDirect?.sync(backgroundId, layout);
+      backgroundPrecisionDirect?.sync(backgroundId, layout);
       // CHANGED: transcript text edits refresh preview only — not profile dirty state.
       // WHY: session transcript is IDB-scoped; profile tracks style/toggle fields only.
       if (activePrefs) {
@@ -1031,6 +1127,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     onInteractionStart() {
       invalidateInFlightSaves();
       resetProfileUpdateConfirm();
+      pushBackgroundLayoutUndo();
     },
     onLayoutPreview(layout) {
       applyLocalBackgroundLayout(layout);
@@ -1047,6 +1144,8 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       const message = error instanceof Error ? error.message : 'Could not save background position.';
       window.alert(message);
     },
+    isSnapEnabled: () => backgroundLayout.isSnapEnabled(),
+    getCaptionSafeBand: activeCaptionSafeBand,
   } satisfies BackgroundDirectManipulationDeps;
 
   backgroundDirect = mountBackgroundDirectManipulation(root, backgroundDirectDeps);
@@ -1056,6 +1155,23 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     draggingClass: 'studio__background-precision-manipulator--dragging',
     resetEnabled: false,
   });
+
+  const backgroundHistoryKeydown = (event: KeyboardEvent): void => {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const target = event.target as Element | null;
+    if (!target?.closest(
+      '[data-background-layout], [data-background-manipulator], [data-background-precision-manipulator]',
+    )) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      undoBackgroundLayout();
+    } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+      event.preventDefault();
+      redoBackgroundLayout();
+    }
+  };
+  root.addEventListener('keydown', backgroundHistoryKeydown);
 
   takeDeck = mountCurrentTakeDeck(root, {
     onRecordRequest: () => {
@@ -1410,6 +1526,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     void flushPendingBackgroundManipulation();
     backgroundDirect?.dispose();
     backgroundPrecisionDirect?.dispose();
+    backgroundLayout.dispose();
     studioRecorder.dispose();
     takeDeck?.dispose();
     workflowBanner.dispose();
@@ -1420,6 +1537,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('pagehide', pageHideHandler);
     document.removeEventListener('visibilitychange', onStudioVisibility);
+    root.removeEventListener('keydown', backgroundHistoryKeydown);
     unsubscribe();
   };
 }

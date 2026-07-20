@@ -33,6 +33,8 @@ const {
   BAKE_FRAME_SAFE_PADDING_PX,
   BAKE_COMFORT_MARGIN_PX,
   CUE_BACKDROP_BOX_BORDER_W,
+  subtitlePreviewBlockTopY,
+  subtitlePreviewSafeBandNormalized,
 } = await bundle('src/transcription/subtitle-cue-measurement.ts', 'measure');
 
 const { buildCaptionMetricsContext } = await bundle(
@@ -96,6 +98,17 @@ check('assembles bake overflow fields', () => {
   const result = buildCueRenderedSizeResult(fit, BAKE_W);
   assert.equal(result.overflows, true);
   assert.equal(result.bakeWidth, BAKE_W);
+});
+
+console.log('\nsubtitle preview safe band\n');
+
+check('safe-band geometry shares top/center/bottom preview placement', () => {
+  assert.equal(subtitlePreviewBlockTopY('top', 360, 76), 29);
+  assert.equal(subtitlePreviewBlockTopY('center', 360, 76), 142);
+  assert.equal(subtitlePreviewBlockTopY('bottom', 360, 76), 255);
+  const band = subtitlePreviewSafeBandNormalized('bottom', 22, 360, 2);
+  assert.ok(Math.abs(band.start - 255 / 360) < 1e-9);
+  assert.ok(Math.abs(band.end - 331 / 360) < 1e-9);
 });
 
 console.log('\nbuildCaptionMetricsContext — Smart Split word budget\n');

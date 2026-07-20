@@ -3,9 +3,17 @@ import {
   normalizeUserBackgroundLayout,
   type NormalizedUserBackgroundLayout,
 } from '@/src/theme';
+import {
+  constrainPointOutsideBand,
+  snapPosition,
+  type NormalizedBand,
+  type PositionSnapState,
+} from '@/src/ui/design-studio/interaction-utils';
 
 const POSITION_SAVE_DEBOUNCE_MS = 200;
 const ZERO_SPAN_EPSILON = 0.0001;
+const BACKGROUND_SNAP_STRENGTH_PX = 8;
+const BACKGROUND_GUIDES = [0, 1 / 3, 0.5, 2 / 3, 1] as const;
 
 export interface BackgroundImageSize {
   width: number;
@@ -100,12 +108,101 @@ export function computeDraggedBackgroundPosition({
   };
 }
 
+export interface BackgroundZoomGeometry {
+  layout: NormalizedUserBackgroundLayout;
+  scaleFactor: number;
+  anchor: { x: number; y: number };
+  canvasWidth: number;
+  canvasHeight: number;
+  imageSize: BackgroundImageSize | null;
+}
+
+function anchoredPositionAfterScale(
+  anchorPx: number,
+  canvasSize: number,
+  currentDrawSize: number,
+  nextDrawSize: number,
+  currentPosition: number,
+): number {
+  if (currentDrawSize <= 0) return currentPosition;
+  const currentOffset = (canvasSize - currentDrawSize) * currentPosition;
+  const imageCoordinate = (anchorPx - currentOffset) / currentDrawSize;
+  const nextOffset = anchorPx - imageCoordinate * nextDrawSize;
+  const nextSpan = canvasSize - nextDrawSize;
+  if (Math.abs(nextSpan) < ZERO_SPAN_EPSILON) return currentPosition;
+  return clampUnit(nextOffset / nextSpan);
+}
+
+export function computeZoomedBackgroundLayout({
+  layout,
+  scaleFactor,
+  anchor,
+  canvasWidth,
+  canvasHeight,
+  imageSize,
+}: BackgroundZoomGeometry): NormalizedUserBackgroundLayout {
+  const current = normalizeUserBackgroundLayout(layout);
+  if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) return current;
+  const scaled = normalizeUserBackgroundLayout({
+    ...current,
+    manualScale: current.manualScale * scaleFactor,
+  });
+  if (
+    !imageSize
+    || imageSize.width <= 0
+    || imageSize.height <= 0
+    || canvasWidth <= 0
+    || canvasHeight <= 0
+  ) {
+    return scaled;
+  }
+  const currentSize = computeImageDrawSize(
+    canvasWidth,
+    canvasHeight,
+    imageSize.width,
+    imageSize.height,
+    current.scaleMode,
+    current.manualScale,
+  );
+  const nextSize = computeImageDrawSize(
+    canvasWidth,
+    canvasHeight,
+    imageSize.width,
+    imageSize.height,
+    scaled.scaleMode,
+    scaled.manualScale,
+  );
+  // CHANGED: wheel zoom preserves the image point beneath the cursor while scale changes.
+  // WHY: direct manipulation should feel like zooming a camera frame, not recentering a detached slider.
+  return normalizeUserBackgroundLayout({
+    ...scaled,
+    customPosition: {
+      x: anchoredPositionAfterScale(
+        clampUnit(anchor.x) * canvasWidth,
+        canvasWidth,
+        currentSize.width,
+        nextSize.width,
+        current.customPosition.x,
+      ),
+      y: anchoredPositionAfterScale(
+        clampUnit(anchor.y) * canvasHeight,
+        canvasHeight,
+        currentSize.height,
+        nextSize.height,
+        current.customPosition.y,
+      ),
+    },
+  });
+}
+
 export interface BackgroundDirectManipulationDeps {
   resolveImageSize(id: string): Promise<BackgroundImageSize | null>;
   onInteractionStart(): void;
   onLayoutPreview(layout: NormalizedUserBackgroundLayout): void;
   persistLayout(layout: NormalizedUserBackgroundLayout): Promise<void>;
   onPersistError(error: unknown): void;
+  isSnapEnabled?(): boolean;
+  getCaptionSafeBand?(): NormalizedBand | null;
 }
 
 export interface BackgroundDirectManipulationHandle {
@@ -144,16 +241,88 @@ export function mountBackgroundDirectManipulation(
   let dragMode: BackgroundDragMode = 'pan';
   let dragStartClient = { x: 0, y: 0 };
   let dragStartPosition = { x: 0.5, y: 0.5 };
-  let pendingPointer: { x: number; y: number } | null = null;
+  let pendingPointer: { x: number; y: number; disableSnap: boolean } | null = null;
   let frameId = 0;
   let persistTimer = 0;
+  let wheelGestureTimer = 0;
   let pendingPersistLayout: NormalizedUserBackgroundLayout | null = null;
   let persistChain = Promise.resolve();
   let disposed = false;
+  let snapState: PositionSnapState = {
+    x: { snappedTo: null },
+    y: { snappedTo: null },
+  };
+
+  function captionSafeBand(): NormalizedBand | null {
+    return deps.getCaptionSafeBand?.() ?? null;
+  }
+
+  function updateActiveGuide(
+    selector: string,
+    value: number | null,
+    property: 'left' | 'top',
+  ): void {
+    const guide = overlay.querySelector<HTMLElement>(selector);
+    if (!guide) return;
+    guide.hidden = value === null;
+    if (value !== null) guide.style[property] = `${value * 100}%`;
+  }
+
+  function updateGuideOverlay(): void {
+    const band = layout.lockToSafeText ? captionSafeBand() : null;
+    const safeBand = overlay.querySelector<HTMLElement>('[data-background-caption-safe-band]');
+    if (safeBand) {
+      safeBand.hidden = !layout.lockToSafeText || !band;
+      if (band) {
+        const start = clampUnit(Math.min(band.start, band.end));
+        const end = clampUnit(Math.max(band.start, band.end));
+        safeBand.style.top = `${start * 100}%`;
+        safeBand.style.height = `${Math.max(0, end - start) * 100}%`;
+      }
+    }
+    updateActiveGuide('[data-background-active-guide-x]', snapState.x.snappedTo, 'left');
+    updateActiveGuide('[data-background-active-guide-y]', snapState.y.snappedTo, 'top');
+  }
 
   function updateFocalDot(): void {
     overlay.style.setProperty('--studio-background-focal-x', `${layout.customPosition.x * 100}%`);
     overlay.style.setProperty('--studio-background-focal-y', `${layout.customPosition.y * 100}%`);
+    updateGuideOverlay();
+  }
+
+  function constrainInteractivePosition(
+    raw: { x: number; y: number },
+    interactionWidth: number,
+    interactionHeight: number,
+    disableSnap: boolean,
+  ): { x: number; y: number } {
+    let next = { x: clampUnit(raw.x), y: clampUnit(raw.y) };
+    if ((deps.isSnapEnabled?.() ?? true) && !disableSnap) {
+      const snapped = snapPosition(
+        next,
+        { x: BACKGROUND_GUIDES, y: BACKGROUND_GUIDES },
+        {
+          x: BACKGROUND_SNAP_STRENGTH_PX / Math.max(1, interactionWidth),
+          y: BACKGROUND_SNAP_STRENGTH_PX / Math.max(1, interactionHeight),
+        },
+        snapState,
+      );
+      next = { x: snapped.x, y: snapped.y };
+      snapState = {
+        x: { snappedTo: snapped.snapped.x },
+        y: { snappedTo: snapped.snapped.y },
+      };
+    } else {
+      snapState = { x: { snappedTo: null }, y: { snappedTo: null } };
+    }
+    const band = layout.lockToSafeText ? captionSafeBand() : null;
+    if (band) {
+      const constrainedY = constrainPointOutsideBand(next.y, band);
+      if (constrainedY !== next.y) snapState.y.snappedTo = null;
+      next = { ...next, y: constrainedY };
+    }
+    updateGuideOverlay();
+    return next;
   }
 
   function enqueuePersist(next: NormalizedUserBackgroundLayout): Promise<void> {
@@ -189,14 +358,18 @@ export function mountBackgroundDirectManipulation(
     }
     const queued = pendingPersistLayout;
     pendingPersistLayout = null;
+    if (wheelGestureTimer) {
+      window.clearTimeout(wheelGestureTimer);
+      wheelGestureTimer = 0;
+    }
     if (queued) await enqueuePersist(queued);
     await persistChain;
   }
 
-  function applyPointer(clientX: number, clientY: number): void {
+  function applyPointer(clientX: number, clientY: number, disableSnap: boolean): void {
     const interactionRect = overlay.getBoundingClientRect();
     const canvasRect = canvas.getBoundingClientRect();
-    const customPosition = computeDraggedBackgroundPosition({
+    const rawPosition = computeDraggedBackgroundPosition({
       mode: dragMode,
       layout,
       startPosition: dragStartPosition,
@@ -210,6 +383,12 @@ export function mountBackgroundDirectManipulation(
       canvasHeight: canvas.height,
       imageSize,
     });
+    const customPosition = constrainInteractivePosition(
+      rawPosition,
+      interactionRect.width,
+      interactionRect.height,
+      disableSnap,
+    );
     const next = normalizeUserBackgroundLayout({ ...layout, customPosition });
     if (
       next.customPosition.x === layout.customPosition.x
@@ -227,17 +406,17 @@ export function mountBackgroundDirectManipulation(
     frameId = 0;
     const pointer = pendingPointer;
     pendingPointer = null;
-    if (pointer) applyPointer(pointer.x, pointer.y);
+    if (pointer) applyPointer(pointer.x, pointer.y, pointer.disableSnap);
   }
 
-  function scheduleFrame(clientX: number, clientY: number): void {
-    pendingPointer = { x: clientX, y: clientY };
+  function scheduleFrame(clientX: number, clientY: number, disableSnap: boolean): void {
+    pendingPointer = { x: clientX, y: clientY, disableSnap };
     if (!frameId) frameId = requestAnimationFrame(flushFrame);
   }
 
   function finishGesture(event: PointerEvent): void {
     if (event.pointerId !== activePointerId) return;
-    pendingPointer = { x: event.clientX, y: event.clientY };
+    pendingPointer = { x: event.clientX, y: event.clientY, disableSnap: event.shiftKey };
     if (frameId) cancelAnimationFrame(frameId);
     flushFrame();
     if (overlay.hasPointerCapture(event.pointerId)) {
@@ -256,6 +435,7 @@ export function mountBackgroundDirectManipulation(
       position: 'center',
       customPosition: { x: 0.5, y: 0.5 },
     });
+    snapState = { x: { snappedTo: null }, y: { snappedTo: null } };
     updateFocalDot();
     deps.onLayoutPreview(layout);
     pendingPersistLayout = layout;
@@ -275,6 +455,7 @@ export function mountBackgroundDirectManipulation(
       : 'pan';
     dragStartClient = { x: event.clientX, y: event.clientY };
     dragStartPosition = { ...layout.customPosition };
+    snapState = { x: { snappedTo: null }, y: { snappedTo: null } };
     pendingPointer = null;
     overlay.focus({ preventScroll: true });
     overlay.setPointerCapture(event.pointerId);
@@ -284,8 +465,54 @@ export function mountBackgroundDirectManipulation(
 
   const pointerMoveHandler = (event: PointerEvent): void => {
     if (event.pointerId !== activePointerId) return;
-    scheduleFrame(event.clientX, event.clientY);
+    scheduleFrame(event.clientX, event.clientY, event.shiftKey);
     event.preventDefault();
+  };
+
+  const wheelHandler = (event: WheelEvent): void => {
+    if (disposed || !backgroundId || !(event.ctrlKey || event.metaKey)) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    if (canvasRect.width <= 0 || canvasRect.height <= 0) return;
+    event.preventDefault();
+    if (!wheelGestureTimer) deps.onInteractionStart();
+    else window.clearTimeout(wheelGestureTimer);
+    wheelGestureTimer = window.setTimeout(() => {
+      wheelGestureTimer = 0;
+    }, POSITION_SAVE_DEBOUNCE_MS + 80);
+
+    let next = computeZoomedBackgroundLayout({
+      layout,
+      scaleFactor: Math.exp(-event.deltaY * 0.0018),
+      anchor: {
+        x: (event.clientX - canvasRect.left) / canvasRect.width,
+        y: (event.clientY - canvasRect.top) / canvasRect.height,
+      },
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      imageSize,
+    });
+    const band = next.lockToSafeText ? captionSafeBand() : null;
+    if (band) {
+      next = normalizeUserBackgroundLayout({
+        ...next,
+        customPosition: {
+          ...next.customPosition,
+          y: constrainPointOutsideBand(next.customPosition.y, band),
+        },
+      });
+    }
+    if (
+      next.manualScale === layout.manualScale
+      && next.customPosition.x === layout.customPosition.x
+      && next.customPosition.y === layout.customPosition.y
+    ) {
+      return;
+    }
+    snapState = { x: { snappedTo: null }, y: { snappedTo: null } };
+    layout = next;
+    updateFocalDot();
+    deps.onLayoutPreview(layout);
+    queuePersist(layout);
   };
 
   const doubleClickHandler = (event: MouseEvent): void => {
@@ -311,6 +538,7 @@ export function mountBackgroundDirectManipulation(
   overlay.addEventListener('pointermove', pointerMoveHandler);
   overlay.addEventListener('pointerup', finishGesture);
   overlay.addEventListener('pointercancel', finishGesture);
+  overlay.addEventListener('wheel', wheelHandler, { passive: false });
   if (resetEnabled) {
     overlay.addEventListener('dblclick', doubleClickHandler);
     overlay.addEventListener('keydown', keyDownHandler);
@@ -321,6 +549,9 @@ export function mountBackgroundDirectManipulation(
       const idChanged = nextBackgroundId !== backgroundId;
       backgroundId = nextBackgroundId;
       layout = normalizeUserBackgroundLayout(nextLayout);
+      if (idChanged || (activePointerId === null && !wheelGestureTimer)) {
+        snapState = { x: { snappedTo: null }, y: { snappedTo: null } };
+      }
       overlay.hidden = !backgroundId;
       updateFocalDot();
       if (!idChanged) return;
@@ -350,10 +581,12 @@ export function mountBackgroundDirectManipulation(
       imageSizeGeneration += 1;
       if (frameId) cancelAnimationFrame(frameId);
       if (persistTimer) window.clearTimeout(persistTimer);
+      if (wheelGestureTimer) window.clearTimeout(wheelGestureTimer);
       overlay.removeEventListener('pointerdown', pointerDownHandler);
       overlay.removeEventListener('pointermove', pointerMoveHandler);
       overlay.removeEventListener('pointerup', finishGesture);
       overlay.removeEventListener('pointercancel', finishGesture);
+      overlay.removeEventListener('wheel', wheelHandler);
       if (resetEnabled) {
         overlay.removeEventListener('dblclick', doubleClickHandler);
         overlay.removeEventListener('keydown', keyDownHandler);

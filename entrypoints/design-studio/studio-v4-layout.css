@@ -271,6 +271,85 @@ body:has(.studio-v4) {
   height: 12px;
 }
 
+/* CHANGED: shared DOM-only layout guides expose thirds, center magnets, and the caption-safe band.
+   WHY: positioning feedback must remain interactive chrome and never enter preview/capture pixels. */
+.studio-v4 .studio__background-guide-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.studio-v4 .studio__background-guide-layer[hidden],
+.studio-v4 .studio__background-caption-safe-band[hidden],
+.studio-v4 .studio__background-active-guide[hidden] {
+  display: none;
+}
+
+.studio-v4 .studio__background-guide,
+.studio-v4 .studio__background-active-guide {
+  position: absolute;
+  z-index: 1;
+  opacity: 0.28;
+}
+
+.studio-v4 .studio__background-guide--x,
+.studio-v4 .studio__background-active-guide--x {
+  top: 0;
+  bottom: 0;
+  left: var(--studio-background-guide-position);
+  width: 1px;
+  transform: translateX(-0.5px);
+  background: var(--studio-indigo-muted);
+}
+
+.studio-v4 .studio__background-guide--y,
+.studio-v4 .studio__background-active-guide--y {
+  left: 0;
+  right: 0;
+  top: var(--studio-background-guide-position);
+  height: 1px;
+  transform: translateY(-0.5px);
+  background: var(--studio-indigo-muted);
+}
+
+.studio-v4 .studio__background-guide--center {
+  opacity: 0.5;
+  background: var(--studio-amber-dim);
+}
+
+.studio-v4 .studio__background-active-guide {
+  z-index: 3;
+  opacity: 1;
+  color: var(--studio-amber);
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.studio-v4 .studio__background-caption-safe-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  border-top: 1px dashed var(--studio-violet-confirm-edge);
+  border-bottom: 1px dashed var(--studio-violet-confirm-edge);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--studio-violet-confirm) 10%, transparent) 0 5px,
+    transparent 5px 10px
+  );
+}
+
+.studio-v4 .studio__background-manipulator:hover .studio__background-guide,
+.studio-v4 .studio__background-manipulator:focus-visible .studio__background-guide,
+.studio-v4 .studio__background-manipulator--dragging .studio__background-guide,
+.studio-v4 .studio__background-precision-manipulator:hover .studio__background-guide,
+.studio-v4 .studio__background-precision-manipulator:focus-visible .studio__background-guide,
+.studio-v4 .studio__background-precision-manipulator--dragging .studio__background-guide {
+  opacity: 0.58;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .studio-v4 .studio__hero .studio__preview-label::before {
     animation: studio-live-breath 2.4s ease-in-out infinite;

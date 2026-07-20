@@ -1,6 +1,8 @@
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 import {
   backgroundPositionToCustomPosition,
+  MAX_USER_BACKGROUND_MANUAL_SCALE,
+  MIN_USER_BACKGROUND_MANUAL_SCALE,
   normalizeUserBackgroundLayout,
   userBackgroundLayoutFromAppearance,
 } from '@/src/theme/background-layout';
@@ -15,16 +17,43 @@ import {
   nudgeBackgroundPosition,
   type BackgroundPositionAxis,
 } from '@/src/ui/design-studio/background-precision';
+import {
+  renderPhysicalSliderHtml,
+  setPhysicalSliderValue,
+  wirePhysicalSliders,
+} from '@/src/ui/design-studio/physical-slider';
+import {
+  constrainPointOutsideBand,
+  scaleToSlider,
+  sliderToScale,
+  type NormalizedBand,
+} from '@/src/ui/design-studio/interaction-utils';
+import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
 
 export interface BackgroundLayoutControlsHandle {
   sync(prefs: UserPreferencesV1): void;
   syncLayout(layout: NormalizedUserBackgroundLayout): void;
+  syncHistory(canUndo: boolean, canRedo: boolean): void;
+  isSnapEnabled(): boolean;
+  isGuidesEnabled(): boolean;
+  dispose(): void;
 }
 
 export interface BackgroundLayoutChange {
   backgroundScaleMode: BackgroundScaleMode;
   backgroundPosition: BackgroundImagePosition;
   backgroundLayout: NormalizedUserBackgroundLayout;
+}
+
+export interface BackgroundLayoutEmitOptions {
+  persist: boolean;
+}
+
+export interface BackgroundLayoutControlsOptions {
+  onGestureStart?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  getCaptionSafeBand?: () => NormalizedBand | null;
 }
 
 // V4 NOTE: Background layout controls may move into a dedicated Background panel when Studio sections are segmented.
@@ -58,6 +87,8 @@ const POSITION_OPTIONS: {
   { value: 'bottom', label: 'Bottom', gridColumn: 2, gridRow: 3 },
   { value: 'bottom-right', label: 'Bottom right', gridColumn: 3, gridRow: 3 },
 ];
+
+const NAV_ICON_ROOT = '/assets/design-studio-v4/icons/navigation';
 
 function scaleModeIcon(mode: BackgroundScaleMode): string {
   if (mode === 'fit') {
@@ -97,32 +128,125 @@ function positionIcon(position: BackgroundImagePosition): string {
   `;
 }
 
-function renderPrecisionAxis(
+function nudgeIconName(axis: BackgroundPositionAxis, delta: number): string {
+  const coarse = Math.abs(delta) === BACKGROUND_POSITION_COARSE_STEP ? '-double' : '';
+  if (axis === 'x') return delta < 0 ? `chevron-back${coarse}-16.svg` : `chevron-enter${coarse}-16.svg`;
+  return delta < 0 ? `chevron-up${coarse}-16.svg` : `chevron-down${coarse}-16.svg`;
+}
+
+function renderNudgeButton(
   axis: BackgroundPositionAxis,
-  label: string,
-  negativeDirection: string,
-  positiveDirection: string,
+  delta: number,
+  direction: string,
 ): string {
-  const valueAttribute = axis === 'x' ? 'data-background-position-x' : 'data-background-position-y';
-  const button = (delta: number, direction: string) => `
+  const step = Math.abs(delta).toFixed(2).replace(/^0/, '');
+  return `
     <button
       type="button"
       class="studio__precision-nudge"
       data-background-nudge-axis="${axis}"
       data-background-nudge-delta="${delta}"
       aria-label="Move ${direction} by ${Math.abs(delta).toFixed(2)}"
-      title="${direction} ${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(2)}"
-    >${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(2)}</button>
+      title="Move ${direction} by ${Math.abs(delta).toFixed(2)}"
+    >
+      <img src="${NAV_ICON_ROOT}/${nudgeIconName(axis, delta)}" alt="" aria-hidden="true">
+      <span>${step}</span>
+    </button>
   `;
-  return `
-    <div class="studio__precision-axis">
-      <span class="studio__precision-axis-label">${label}</span>
-      ${button(-BACKGROUND_POSITION_COARSE_STEP, negativeDirection)}
-      ${button(-BACKGROUND_POSITION_FINE_STEP, negativeDirection)}
+}
+
+function renderPrecisionAxis(axis: BackgroundPositionAxis): string {
+  const horizontal = axis === 'x';
+  const negativeDirection = horizontal ? 'left' : 'up';
+  const positiveDirection = horizontal ? 'right' : 'down';
+  const valueAttribute = horizontal ? 'data-background-position-x' : 'data-background-position-y';
+  const slider = renderPhysicalSliderHtml({
+    min: 0,
+    max: 1,
+    step: BACKGROUND_POSITION_FINE_STEP,
+    value: 0.5,
+    ariaLabel: `${horizontal ? 'Horizontal' : 'Vertical'} background position`,
+    orientation: horizontal ? 'horizontal' : 'vertical',
+    dataAttrs: { 'background-position-slider': axis },
+  });
+  const heading = `
+    <span class="studio__precision-axis-heading">
+      <span class="studio__precision-axis-label">${axis.toUpperCase()}</span>
       <output class="studio__precision-value" ${valueAttribute}>0.50</output>
-      ${button(BACKGROUND_POSITION_FINE_STEP, positiveDirection)}
-      ${button(BACKGROUND_POSITION_COARSE_STEP, positiveDirection)}
+    </span>
+  `;
+  if (horizontal) {
+    return `
+      <div class="studio__precision-axis studio__precision-axis--horizontal">
+        ${heading}
+        <div class="studio__precision-axis-rail">
+          ${renderNudgeButton(axis, -BACKGROUND_POSITION_COARSE_STEP, negativeDirection)}
+          ${renderNudgeButton(axis, -BACKGROUND_POSITION_FINE_STEP, negativeDirection)}
+          <div class="studio__precision-slider-shell">${slider}</div>
+          ${renderNudgeButton(axis, BACKGROUND_POSITION_FINE_STEP, positiveDirection)}
+          ${renderNudgeButton(axis, BACKGROUND_POSITION_COARSE_STEP, positiveDirection)}
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="studio__precision-axis studio__precision-axis--vertical">
+      ${heading}
+      <div class="studio__precision-nudge-pair studio__precision-nudge-pair--up">
+        ${renderNudgeButton(axis, -BACKGROUND_POSITION_COARSE_STEP, negativeDirection)}
+        ${renderNudgeButton(axis, -BACKGROUND_POSITION_FINE_STEP, negativeDirection)}
+      </div>
+      <div class="studio__precision-slider-shell studio__precision-slider-shell--vertical">${slider}</div>
+      <div class="studio__precision-nudge-pair studio__precision-nudge-pair--down">
+        ${renderNudgeButton(axis, BACKGROUND_POSITION_FINE_STEP, positiveDirection)}
+        ${renderNudgeButton(axis, BACKGROUND_POSITION_COARSE_STEP, positiveDirection)}
+      </div>
     </div>
+  `;
+}
+
+function renderPrecisionInstrument(): string {
+  const zoomSlider = renderPhysicalSliderHtml({
+    min: 0,
+    max: 1,
+    step: 0.01,
+    value: scaleToSlider(1, MIN_USER_BACKGROUND_MANUAL_SCALE, MAX_USER_BACKGROUND_MANUAL_SCALE),
+    ariaLabel: 'Background zoom',
+    dataAttrs: { 'background-scale-slider': 'true' },
+  });
+  return `
+    <section class="studio__precision-controls" aria-labelledby="background-precision-title">
+      <div class="studio__precision-heading">
+        <span class="popup__field-label" id="background-precision-title">Fine position</span>
+        <span class="popup__micro">Single .01 · double .05</span>
+      </div>
+      <p class="popup__field-desc studio__precision-help">
+        Drag the frame, steer with arrows, or slide each axis.
+      </p>
+      <div class="studio__precision-stage">
+        <div class="studio__precision-preview-cell">${renderPreviewBlock('background-precision')}</div>
+        ${renderPrecisionAxis('y')}
+        ${renderPrecisionAxis('x')}
+      </div>
+      <div class="studio__precision-zoom-row">
+        <span class="studio__precision-tool-label">Zoom</span>
+        <div class="studio__precision-slider-shell">${zoomSlider}</div>
+        <output class="studio__precision-value studio__precision-value--zoom" data-background-scale-value>1.00×</output>
+        <span class="popup__micro">Ctrl/⌘ + wheel on frame</span>
+      </div>
+      <div class="studio__precision-mode-row">
+        <button type="button" class="studio__precision-mode studio__precision-mode--active" data-background-snap-toggle aria-pressed="true">Snap</button>
+        <button type="button" class="studio__precision-mode studio__precision-mode--active" data-background-guides-toggle aria-pressed="true">Guides</button>
+        <label class="studio__precision-safe-lock" title="Keep the focal point outside the rendered caption band">
+          <input type="checkbox" data-background-safe-lock>
+          <span>Clear captions</span>
+        </label>
+        <span class="studio__precision-history" aria-label="Background layout history">
+          <button type="button" class="studio__precision-history-btn" data-background-undo disabled><span aria-hidden="true">↶</span> Undo</button>
+          <button type="button" class="studio__precision-history-btn" data-background-redo disabled><span aria-hidden="true">↷</span> Redo</button>
+        </span>
+      </div>
+    </section>
   `;
 }
 
@@ -159,19 +283,7 @@ export function renderBackgroundLayoutFields(): string {
 
   return `
     <div class="studio__background-layout" data-background-layout hidden>
-      <section class="studio__precision-controls" aria-labelledby="background-precision-title">
-        <div class="studio__precision-heading">
-          <span class="popup__field-label" id="background-precision-title">Fine position</span>
-          <span class="popup__micro">Drag preview or nudge</span>
-        </div>
-        <p class="popup__field-desc studio__precision-help">
-          X runs left to right; Y runs top to bottom. Values stay between 0 and 1.
-        </p>
-        <div class="studio__precision-axis-list">
-          ${renderPrecisionAxis('x', 'X', 'left', 'right')}
-          ${renderPrecisionAxis('y', 'Y', 'up', 'down')}
-        </div>
-      </section>
+      ${renderPrecisionInstrument()}
       <div class="studio__layout-row">
         <div class="studio__layout-group">
           <span class="popup__field-label">Image sizing</span>
@@ -192,29 +304,53 @@ export function renderBackgroundLayoutFields(): string {
 
 export function mountBackgroundLayoutControls(
   root: HTMLElement,
-  onLayoutChange: (patch: BackgroundLayoutChange) => void,
+  onLayoutChange: (patch: BackgroundLayoutChange, options: BackgroundLayoutEmitOptions) => void,
+  options: BackgroundLayoutControlsOptions = {},
 ): BackgroundLayoutControlsHandle {
   const panel = root.querySelector<HTMLElement>('[data-background-layout]')!;
   const scaleButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-scale-mode]')];
   const positionButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-position]')];
   const nudgeButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-nudge-axis]')];
+  const positionSliders = [...panel.querySelectorAll<HTMLElement>('[data-background-position-slider]')];
+  const scaleSlider = panel.querySelector<HTMLElement>('[data-background-scale-slider]')!;
   const xValue = panel.querySelector<HTMLOutputElement>('[data-background-position-x]')!;
   const yValue = panel.querySelector<HTMLOutputElement>('[data-background-position-y]')!;
+  const scaleValue = panel.querySelector<HTMLOutputElement>('[data-background-scale-value]')!;
+  const snapToggle = panel.querySelector<HTMLButtonElement>('[data-background-snap-toggle]')!;
+  const guidesToggle = panel.querySelector<HTMLButtonElement>('[data-background-guides-toggle]')!;
+  const safeLock = panel.querySelector<HTMLInputElement>('[data-background-safe-lock]')!;
+  const undoButton = panel.querySelector<HTMLButtonElement>('[data-background-undo]')!;
+  const redoButton = panel.querySelector<HTMLButtonElement>('[data-background-redo]')!;
 
   let syncing = false;
   let buttonsSynced = false;
+  let snapEnabled = true;
+  let guidesEnabled = true;
   let layout = userBackgroundLayoutFromAppearance({});
   let scaleMode: BackgroundScaleMode = layout.scaleMode;
   let position: BackgroundImagePosition = layout.position;
 
-  function emit(): void {
+  function emit(persist = true): void {
     if (syncing) return;
-    // CHANGED: discrete controls update the nested layout and mirrored legacy fields atomically.
-    // WHY: the old 9-way UI must remain functional once nested layout becomes the preferred source.
+    // CHANGED: discrete and continuous controls emit one nested/legacy-compatible layout patch.
+    // WHY: live slider frames and committed prefs must use the same migration-safe payload.
     onLayoutChange({
       backgroundScaleMode: scaleMode,
       backgroundPosition: position,
       backgroundLayout: layout,
+    }, { persist });
+  }
+
+  function constrainForSafeText(next: NormalizedUserBackgroundLayout): NormalizedUserBackgroundLayout {
+    if (!next.lockToSafeText) return next;
+    const band = options.getCaptionSafeBand?.();
+    if (!band) return next;
+    return normalizeUserBackgroundLayout({
+      ...next,
+      customPosition: {
+        ...next.customPosition,
+        y: constrainPointOutsideBand(next.customPosition.y, band),
+      },
     });
   }
 
@@ -237,6 +373,20 @@ export function mountBackgroundLayoutControls(
   function syncPrecisionValues(): void {
     xValue.value = layout.customPosition.x.toFixed(2);
     yValue.value = layout.customPosition.y.toFixed(2);
+    for (const slider of positionSliders) {
+      const axis = slider.dataset.backgroundPositionSlider as BackgroundPositionAxis | undefined;
+      if (axis) setPhysicalSliderValue(slider, layout.customPosition[axis]);
+    }
+    setPhysicalSliderValue(
+      scaleSlider,
+      scaleToSlider(
+        layout.manualScale,
+        MIN_USER_BACKGROUND_MANUAL_SCALE,
+        MAX_USER_BACKGROUND_MANUAL_SCALE,
+      ),
+    );
+    scaleValue.value = `${layout.manualScale.toFixed(2)}×`;
+    safeLock.checked = layout.lockToSafeText;
   }
 
   function syncLayout(next: NormalizedUserBackgroundLayout): void {
@@ -251,12 +401,24 @@ export function mountBackgroundLayoutControls(
     syncPrecisionValues();
   }
 
+  function syncModeButton(button: HTMLButtonElement, active: boolean): void {
+    button.classList.toggle('studio__precision-mode--active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+
+  function syncGuideVisibility(): void {
+    for (const guideLayer of root.querySelectorAll<HTMLElement>('[data-background-guide-layer]')) {
+      guideLayer.hidden = !guidesEnabled;
+    }
+  }
+
   for (const button of scaleButtons) {
     button.addEventListener('click', () => {
       const next = button.dataset.scaleMode as BackgroundScaleMode | undefined;
       if (!next || next === scaleMode) return;
+      options.onGestureStart?.();
       scaleMode = next;
-      layout = normalizeUserBackgroundLayout({ ...layout, scaleMode });
+      layout = constrainForSafeText(normalizeUserBackgroundLayout({ ...layout, scaleMode }));
       syncLayout(layout);
       emit();
     });
@@ -266,12 +428,13 @@ export function mountBackgroundLayoutControls(
     button.addEventListener('click', () => {
       const next = button.dataset.backgroundPosition as BackgroundImagePosition | undefined;
       if (!next || next === position) return;
+      options.onGestureStart?.();
       position = next;
-      layout = normalizeUserBackgroundLayout({
+      layout = constrainForSafeText(normalizeUserBackgroundLayout({
         ...layout,
         position,
         customPosition: backgroundPositionToCustomPosition(position),
-      });
+      }));
       syncLayout(layout);
       emit();
     });
@@ -282,20 +445,84 @@ export function mountBackgroundLayoutControls(
       const axis = button.dataset.backgroundNudgeAxis as BackgroundPositionAxis | undefined;
       const delta = Number(button.dataset.backgroundNudgeDelta);
       if (!axis || !Number.isFinite(delta)) return;
-      layout = nudgeBackgroundPosition(layout, axis, delta);
+      options.onGestureStart?.();
+      layout = constrainForSafeText(nudgeBackgroundPosition(layout, axis, delta));
       syncLayout(layout);
       emit();
     });
   }
+
+  const disposeSliders = wirePhysicalSliders(panel, {
+    onInteractionStart: () => options.onGestureStart?.(),
+    onValueChange(slider, value) {
+      const axis = slider.dataset.backgroundPositionSlider as BackgroundPositionAxis | undefined;
+      if (axis) {
+        layout = constrainForSafeText(normalizeUserBackgroundLayout({
+          ...layout,
+          customPosition: { ...layout.customPosition, [axis]: value },
+        }));
+      } else if (slider.dataset.backgroundScaleSlider === 'true') {
+        layout = normalizeUserBackgroundLayout({
+          ...layout,
+          manualScale: sliderToScale(
+            value,
+            MIN_USER_BACKGROUND_MANUAL_SCALE,
+            MAX_USER_BACKGROUND_MANUAL_SCALE,
+          ),
+        });
+      } else {
+        return;
+      }
+      syncLayout(layout);
+      emit(false);
+    },
+    onInteractionEnd() {
+      emit(true);
+    },
+  });
+
+  snapToggle.addEventListener('click', () => {
+    snapEnabled = !snapEnabled;
+    syncModeButton(snapToggle, snapEnabled);
+    if (!snapEnabled) {
+      for (const guide of root.querySelectorAll<HTMLElement>('[data-background-active-guide-x], [data-background-active-guide-y]')) {
+        guide.hidden = true;
+      }
+    }
+  });
+  guidesToggle.addEventListener('click', () => {
+    guidesEnabled = !guidesEnabled;
+    syncModeButton(guidesToggle, guidesEnabled);
+    syncGuideVisibility();
+  });
+  safeLock.addEventListener('change', () => {
+    options.onGestureStart?.();
+    layout = constrainForSafeText(normalizeUserBackgroundLayout({
+      ...layout,
+      lockToSafeText: safeLock.checked,
+    }));
+    syncLayout(layout);
+    emit();
+  });
+  undoButton.addEventListener('click', () => options.onUndo?.());
+  redoButton.addEventListener('click', () => options.onRedo?.());
+
+  syncGuideVisibility();
 
   return {
     sync(prefs) {
       const hasBackground = Boolean(prefs.appearance.customBackgroundId);
       panel.hidden = !hasBackground;
       if (!hasBackground) return;
-
       syncLayout(userBackgroundLayoutFromAppearance(prefs.appearance));
     },
     syncLayout,
+    syncHistory(canUndo, canRedo) {
+      undoButton.disabled = !canUndo;
+      redoButton.disabled = !canRedo;
+    },
+    isSnapEnabled: () => snapEnabled,
+    isGuidesEnabled: () => guidesEnabled,
+    dispose: disposeSliders,
   };
 }
