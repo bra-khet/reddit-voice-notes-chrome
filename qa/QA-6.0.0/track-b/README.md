@@ -1,8 +1,8 @@
 # Track B — background layout QA (**open · Phase 0–6 DONE**)
 
-**Status:** **OPEN** — Phase 0–6 landed; **operator Phase 1–5 + size gate PASS**; Phase 6 operator recheck, Phase 7, and full merge gate still ahead<br>
+**Status:** **OPEN** — Phase 0–6 landed; **operator Phase 1–5 + size gate + Phase 6 crop/thirds PASS**; Theme-only recheck, Phase 7, and full merge gate still ahead<br>
 **Branch:** `feature/v6.0.0-background-panel-refactor`  
-**Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` (baseline was `main@2b42db5`)<br>
+**Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` · Phase 6 `e7346ca` (baseline was `main@2b42db5`)<br>
 **Baseline package:** v5.11.0 · Track A confidence PASS · Track C agent gate PASS  
 **Roadmap:** [`docs/v6.0.0-background-panel-refactor.md`](../../../docs/v6.0.0-background-panel-refactor.md)  
 **ADR:** [0008 — background direct-manipulation layout](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
@@ -31,10 +31,10 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 | **3** interaction-utils | **DONE · operator QA PASS** | Spatial X/Y console, single/double chevrons, physical sliders, cursor-anchored zoom, sticky guides, caption-safe lock, and isolated undo/redo. |
 | **4** presets | **DONE · operator QA PASS** | Four Aurora/Warm Glow image-layout recipes; hover/focus auditions without saving; selection + Apply persists. Capture now restores and locks auditions before recording. |
 | **5** properties/effects | **DONE · operator PASS** | Darkroom effects/GIF, recorder no-flash authority, added blends/Holo, six-source solid blend plate, and hero+precision canvas sampling. |
-| **6** framing aids | **DONE · operator recheck open** | Native/1:1/9:16 crop lab, independent thirds, transient Theme-only compare, and decode-safe recording restore. |
+| **6** framing aids | **DONE · crop/thirds PASS · compare recheck** | Native/1:1/9:16 crop lab, independent thirds, live current-look-minus-media compare, hard preset exclusion, and decode-safe recording restore. |
 | **7** | Not started | Keyboard/ARIA/variants and confidence polish |
 
-**Automated (through Phase 6):** focused layout/interaction/UI set **83/83** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate: **23 MiB base / 29 MiB baked — PASS**.
+**Automated (through Phase 6 follow-up):** focused layout/interaction/UI set **84/84** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate: **23 MiB base / 29 MiB baked — PASS**.
 
 ## Scope reminder
 
@@ -58,9 +58,9 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 | **3** | Zoom, sticky snap, safe-text lock, undo/redo + positioning-console redesign | **DONE** `844a81f` · operator QA PASS |
 | **4** | Presets row + live hover preview | **DONE** `1166d51` · operator QA PASS; recording guard in `16e3dd0` |
 | **5** | Properties/effects + eye-dropper | **DONE** `16e3dd0` + follow-ups · operator PASS |
-| **6** | Multi-aspect crop guides + compare | **DONE** · operator recheck pending |
+| **6** | Multi-aspect crop guides + compare | **DONE** `e7346ca` + live-compare follow-up · crop/thirds PASS; compare recheck pending |
 | **7** | Keyboard, ARIA, variants, confidence QA | pending |
 
-**Immediate next:** operator-recheck Phase 6 crop/thirds/compare behavior, then implement Phase 7 polish and finish the full parity/product gate.
+**Immediate next:** operator-recheck Theme-only motion/preset mutex/record restore, then implement Phase 7 polish and finish the full parity/product gate.
 
 Workspace ledger: [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · session log: [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md).

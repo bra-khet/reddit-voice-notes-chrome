@@ -42,6 +42,10 @@ const { renderPreviewBlock } = await bundle(
   'src/ui/design-studio/preview-block.ts',
   'preview-block',
 );
+const { shouldAnimateStudioPreview } = await bundle(
+  'src/ui/design-studio/preview-loop-policy.ts',
+  'preview-loop-policy',
+);
 
 const { document, window } = parseHTML(`
   <div class="studio-v4" data-test-root>
@@ -158,6 +162,33 @@ check('Phase 6 exposes honest crop, thirds, and Theme-only compare controls', ()
   assert.ok(document.querySelector('[data-background-compare][aria-pressed="false"]'));
   assert.ok(document.querySelector('[data-background-framing-status][aria-live="polite"]'));
   assert.ok(document.querySelector('.studio__hero [data-background-framing-overlay][hidden]'));
+  assert.match(document.querySelector('.studio__background-framing-help').textContent, /hide only its personal image\/GIF/i);
+});
+
+check('null-image previews retain the normal animated theme and style clock', () => {
+  // BUG FIX: Theme-only compare froze when its personal GIF was the only prior RAF signal
+  // Fix: lock the loop policy so hydrated null-image previews animate while unhydrated/static image views do not.
+  // Sync: src/ui/design-studio/preview-loop-policy.ts; src/ui/design-studio/mount-clip-studio.ts
+  assert.equal(shouldAnimateStudioPreview({
+    hasActivePreferences: false,
+    hasAnimatedSurface: false,
+    customBackgroundId: null,
+  }), false);
+  assert.equal(shouldAnimateStudioPreview({
+    hasActivePreferences: true,
+    hasAnimatedSurface: false,
+    customBackgroundId: 'bg-static',
+  }), false);
+  assert.equal(shouldAnimateStudioPreview({
+    hasActivePreferences: true,
+    hasAnimatedSurface: false,
+    customBackgroundId: null,
+  }), true);
+  assert.equal(shouldAnimateStudioPreview({
+    hasActivePreferences: true,
+    hasAnimatedSurface: true,
+    customBackgroundId: 'bg-animated',
+  }), true);
 });
 
 check('preset safety, Apply, treatment controls, and sampler emit guarded changes', () => {
@@ -264,15 +295,34 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   assert.equal(gestures, 1);
 
   const compare = document.querySelector('[data-background-compare]');
+  card.dispatchEvent(new window.Event('pointerenter'));
+  const changesBeforeCompare = changes.length;
   compare.dispatchEvent(new window.Event('click'));
+  assert.equal(changes.length, changesBeforeCompare + 1);
   assert.equal(compare.getAttribute('aria-pressed'), 'true');
   assert.equal(changes.at(-1).options.persist, false);
   assert.equal(changes.at(-1).options.comparePreview, true);
   assert.equal(changes.at(-1).patch.customBackgroundId, null);
   assert.equal(card.disabled, true);
+  assert.match(
+    document.querySelector('[data-background-framing-status]').value,
+    /current theme & style only.*personal image hidden.*export unchanged/i,
+  );
+  // BUG FIX: disabled preset cards could still desynchronize Theme-only compare through hover/focus handlers
+  // Fix: prove every pointer, keyboard-focus, click, and Apply path is inert until finishCompare runs.
+  // Sync: src/ui/design-studio/background-layout-controls.ts
+  const changesDuringCompare = changes.length;
+  for (const eventName of ['pointerenter', 'focus', 'click', 'pointerleave', 'blur']) {
+    card.dispatchEvent(new window.Event(eventName));
+  }
+  document.querySelector('[data-background-preset-apply]').dispatchEvent(new window.Event('click'));
+  assert.equal(changes.length, changesDuringCompare);
+  assert.equal(compare.getAttribute('aria-pressed'), 'true');
+  assert.equal(changes.at(-1).patch.customBackgroundId, null);
   compare.dispatchEvent(new window.Event('click'));
   assert.equal(compare.getAttribute('aria-pressed'), 'false');
   assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
+  assert.deepEqual(changes.at(-1).patch.backgroundLayout.customPosition, { x: 0.33, y: 0.44 });
 
   compare.dispatchEvent(new window.Event('click'));
   assert.equal(changes.at(-1).patch.customBackgroundId, null);

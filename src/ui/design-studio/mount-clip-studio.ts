@@ -66,6 +66,7 @@ import {
   mountBackgroundLayoutControls,
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
+import { shouldAnimateStudioPreview } from '@/src/ui/design-studio/preview-loop-policy';
 import {
   drawSubtitleTextOnlyPreview,
   measureSubtitlePreviewSafeBand,
@@ -699,7 +700,14 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     // CHANGED: opt-in holo uses the same bounded preview clock as GIF and registry motion.
     // WHY: its slow sheen must animate in Studio and share the recorder's time-zero reduced-motion freeze.
     const animatedHolo = activeBackgroundLayout().holo;
-    const shouldAnimate = presetBokeh || animatedOverlay || animatedBackground || animatedHolo;
+    // BUG FIX: Theme-only compare froze after removing an animated personal GIF
+    // Fix: a hydrated null-image preview keeps the same theme/style RAF; reduced motion still freezes at time zero.
+    // Sync: preview-loop-policy.ts; background-layout-controls.ts; scripts/test-background-control-ui.mjs
+    const shouldAnimate = shouldAnimateStudioPreview({
+      hasActivePreferences: Boolean(activePrefs),
+      hasAnimatedSurface: presetBokeh || animatedOverlay || animatedBackground || animatedHolo,
+      customBackgroundId: activeCustomBackgroundId(),
+    });
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
       // BUG FIX: Reduced-motion overlays retained an animated frame

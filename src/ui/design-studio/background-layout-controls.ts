@@ -282,6 +282,9 @@ function framingAspectIcon(aspect: BackgroundFramingAspect): string {
 }
 
 function renderBackgroundFraming(): string {
+  // BUG FIX: Theme-only read like a static alternate preset instead of the current look minus personal media
+  // Fix: name the retained theme/style/motion and the unchanged export in the control and active status copy.
+  // Sync: syncFramingUi; scripts/test-background-control-ui.mjs
   const aspectButtons = BACKGROUND_FRAMING_ASPECTS.map((aspect) => `
     <button
       type="button"
@@ -299,13 +302,13 @@ function renderBackgroundFraming(): string {
     <section class="studio__background-framing" aria-labelledby="background-framing-title">
       <div class="studio__background-framing-heading">
         <span>
-          <span class="studio__background-framing-eyebrow">Preview-only crop lab</span>
+          <span class="studio__background-framing-eyebrow">Current-look framing &amp; A/B</span>
           <span class="popup__field-label" id="background-framing-title">Framing aids</span>
         </span>
         <span class="studio__background-framing-badge">EXPORT 16:9</span>
       </div>
       <p class="popup__field-desc studio__background-framing-help">
-        Check whether the focal point survives a centered social crop. These guides never enter the recording.
+        Frame the current 16:9 look, or hide only its personal image/GIF. Theme, style, motion, and export stay unchanged.
       </p>
       <div class="studio__background-framing-tools">
         <div class="studio__background-framing-aspects" role="group" aria-label="Framing crop guide">
@@ -317,7 +320,14 @@ function renderBackgroundFraming(): string {
           </svg>
           Thirds
         </button>
-        <button type="button" class="studio__background-compare" data-background-compare aria-pressed="false">
+        <button
+          type="button"
+          class="studio__background-compare"
+          data-background-compare
+          aria-pressed="false"
+          aria-label="Preview current theme and style without the personal image or GIF"
+          title="Hide only the personal image or GIF; theme and style stay active"
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 3v18M12 5H5v14h7M12 5h7v14h-7"/>
             <path d="m7 15 2.5-3 2.5 2.5M15 9h2"/>
@@ -868,7 +878,10 @@ export function mountBackgroundLayoutControls(
   }
 
   function previewPreset(preset: BackgroundLayoutPresetDefinition): void {
-    if (recordingActive) {
+    // BUG FIX: preset hover/focus could replace an active Theme-only comparison
+    // Fix: compare owns the transient background identity until finishCompare restores the committed image.
+    // Sync: restorePresetPreview; preset event handlers; scripts/test-background-control-ui.mjs
+    if (recordingActive || compareActive) {
       syncPresetUi();
       return;
     }
@@ -882,6 +895,18 @@ export function mountBackgroundLayoutControls(
   }
 
   function restorePresetPreview(message?: string): void {
+    // BUG FIX: a stale preset mouse-away restore could re-show the personal image while compare stayed pressed
+    // Fix: retire any preset layout and re-assert the null-image compare seam instead of restoring committed media.
+    // Sync: reconcilePresetPreview; finishCompare; scripts/test-background-control-ui.mjs
+    if (compareActive) {
+      hoveredPresetId = null;
+      focusedPresetId = null;
+      previewedPresetId = null;
+      if (!userBackgroundLayoutsEqual(layout, committedLayout)) syncLayout(committedLayout, false);
+      emit(false, null, false, true);
+      syncPresetUi(message);
+      return;
+    }
     if (!previewedPresetId && userBackgroundLayoutsEqual(layout, committedLayout)) {
       syncPresetUi(message);
       return;
@@ -893,6 +918,10 @@ export function mountBackgroundLayoutControls(
   }
 
   function reconcilePresetPreview(): void {
+    if (compareActive) {
+      restorePresetPreview('Preset audition is paused during Theme-only compare.');
+      return;
+    }
     if (recordingActive) {
       restorePresetPreview();
       return;
@@ -940,7 +969,7 @@ export function mountBackgroundLayoutControls(
     if (message) {
       framingStatus.value = message;
     } else if (compareActive) {
-      framingStatus.value = 'Theme-only preview. Toggle again to restore the personal image.';
+      framingStatus.value = 'Current theme & style only — personal image hidden. Preview without image; export unchanged.';
     } else if (framingAspect === 'native' && !framingThirds) {
       framingStatus.value = 'Full 16:9 frame. Turn on Thirds or choose a crop guide.';
     } else {
@@ -948,15 +977,20 @@ export function mountBackgroundLayoutControls(
     }
   }
 
-  function finishCompare(message?: string): void {
+  function finishCompare(message?: string, restoreCommitted = true): void {
     if (!compareActive) {
       syncFramingUi(message);
       return;
     }
     compareActive = false;
-    // CHANGED: compare restores the exact committed image through the existing transient preview seam.
-    // WHY: leaving comparison must never save theme-only state or disturb the current layout recipe.
-    emit(false, committedBackgroundId, false, true);
+    hoveredPresetId = null;
+    focusedPresetId = null;
+    previewedPresetId = null;
+    // BUG FIX: compare exit could preserve a desynchronized preset layout or bypass its single restore owner
+    // Fix: normalize every exit through finishCompare and restore the exact committed media/layout when requested.
+    // Sync: toggleCompare; sync; syncRecordingState; scripts/test-background-control-ui.mjs
+    syncLayout(committedLayout, false);
+    if (restoreCommitted) emit(false, committedBackgroundId, false, true);
     syncFramingUi(message);
     syncPresetUi();
   }
@@ -970,7 +1004,8 @@ export function mountBackgroundLayoutControls(
     finishColorSampling('Color sampling cancelled for comparison.');
     hoveredPresetId = null;
     focusedPresetId = null;
-    restorePresetPreview();
+    previewedPresetId = null;
+    syncLayout(committedLayout, false);
     compareActive = true;
     syncFramingUi();
     syncPresetUi();
@@ -1090,23 +1125,30 @@ export function mountBackgroundLayoutControls(
     const preset = presetForId(button.dataset.backgroundPreset);
     if (!preset) continue;
     button.addEventListener('pointerenter', () => {
+      if (recordingActive || compareActive) return;
       hoveredPresetId = preset.id;
       reconcilePresetPreview();
     });
     button.addEventListener('pointerleave', () => {
+      if (recordingActive || compareActive) return;
       hoveredPresetId = null;
       reconcilePresetPreview();
     });
     button.addEventListener('focus', () => {
+      if (recordingActive || compareActive) return;
       focusedPresetId = preset.id;
       reconcilePresetPreview();
     });
     button.addEventListener('blur', () => {
+      if (recordingActive || compareActive) return;
       focusedPresetId = null;
       reconcilePresetPreview();
     });
     button.addEventListener('click', () => {
-      if (recordingActive) return;
+      // BUG FIX: disabled preset controls still received synthetic pointer/focus events during compare
+      // Fix: guard every audition entry point in logic, not only via disabled styling.
+      // Sync: previewPreset; restorePresetPreview; scripts/test-background-control-ui.mjs
+      if (recordingActive || compareActive) return;
       if (selectedPresetId === preset.id) {
         selectedPresetId = null;
         restorePresetPreview();
@@ -1118,7 +1160,7 @@ export function mountBackgroundLayoutControls(
   }
 
   presetApply.addEventListener('click', () => {
-    if (recordingActive) return;
+    if (recordingActive || compareActive) return;
     const preset = presetForId(selectedPresetId);
     if (!preset) return;
     const next = resolveBackgroundLayoutPreset(preset, committedLayout);
@@ -1333,11 +1375,11 @@ export function mountBackgroundLayoutControls(
 
   return {
     sync(prefs) {
+      // BUG FIX: authoritative preference sync could clear compare outside its restore owner
+      // Fix: retire through finishCompare without re-emitting the stale pre-sync background identity.
+      if (compareActive) finishCompare(undefined, false);
       const hasBackground = Boolean(prefs.appearance.customBackgroundId);
       backgroundAvailable = hasBackground;
-      // CHANGED: an authoritative preference/profile sync retires any transient comparison locally.
-      // WHY: applyPrefs already owns the restored image identity, so emitting a stale compare restore would race it.
-      compareActive = false;
       panel.hidden = !hasBackground;
       if (!hasBackground) {
         finishColorSampling();

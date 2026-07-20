@@ -6,13 +6,13 @@
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
-**Date:** 2026-07-20 (Phase 0–6 landed; Phase 1–5 operator QA + real size gate PASS; Phase 6 operator recheck pending)<br>
+**Date:** 2026-07-20 (Phase 0–6 landed; Phase 1–5 operator QA + real size gate PASS; Phase 6 crop/thirds PASS; Theme-only recheck pending)<br>
 **Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (through Phase 6):** focused layout/interaction/UI set **83/83** — prior **82/82** plus framing/compare UI + recording-boundary coverage. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
+**Automated (through Phase 6 follow-up):** focused layout/interaction/UI set **84/84** — prior **83/83** plus null-image preview-loop and hard preset-mutex coverage. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -75,14 +75,14 @@
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
 | 0 | Pre-flight | ■ | Phase 1–3 operator path PASS |
-| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 83/83 · build PASS |
+| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 84/84 · build PASS |
 | 2 | Phase 0 migration + zero visual change | ■ | Normalization/default migration contract remains green |
 | 3 | Direct manipulation (drag / focal / reset) | ■ | Core + record-time no-flash operator PASS |
 | 4 | Precision widget + bidirectional sync | ■ | Phase 2 behavior + Phase 3 redesigned console operator PASS |
 | 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ■ | Phase 3 operator QA PASS |
 | 6 | Properties / effects / GIF | ■ | Blend plate/custom color/Holo operator recheck PASS |
 | 7 | Presets + eye-dropper hand-off | ■ | Hero + precision sampling/cancellation operator PASS |
-| 8 | Framing aids (crop guides / thirds) | ▲ | Phase 6 implemented; operator visual recheck open |
+| 8 | Framing aids (crop guides / thirds / compare) | ▲ | crop/thirds PASS; Theme-only motion/mutex/record recheck open |
 | 9 | Preview ↔ record ↔ bake parity (I1/I3) | ☐ | |
 | 10 | 120 s size — blur + GIF stress | ■ | Operator PASS: blur stress 23 MiB base / 29 MiB baked |
 | 11 | a11y (keyboard / ARIA / reduced-motion) | ☐ | Phase 7 |
@@ -122,12 +122,12 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [x] `node scripts/test-background-blend-plate.mjs` PASS (legacy equivalence, plate-before-image, Fit rect, Holo/dim ordering) — **Phase 5 residual · 4/4**
 - [x] `node scripts/test-recorder-background-state.mjs` PASS (persisted initial state, session override precedence, normalization/null-ID guards) — **Phase 5 follow-up · 3/3**
 - [x] `node scripts/test-cue-measurement.mjs` PASS (including shared normalized caption-safe band) — **7/7**
-- [x] Focused Track B layout/interaction/UI set green — **83/83** including prefs storage **12/12**
+- [x] Focused Track B layout/interaction/UI set green — **84/84** including prefs storage **12/12**
 - [x] `node scripts/test-ui-tokens.mjs` PASS; `node scripts/test-visual-size-qa.mjs` **5/5**
 - [x] `npm run build` PASS
 - [x] `npm run compile` — only the 2 pre-existing subtitle diagnostics
 
-**Notes:** Phase 6 2026-07-20: focused **83/83**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics.
+**Notes:** Phase 6 follow-up 2026-07-20: focused **84/84**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics. No live-record claim was made from the connected production browser; use the dev browser for the remaining compare/record recheck.
 
 
 ---
@@ -229,12 +229,12 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 ## 8 · Framing aids (Phase 6)
 
-- [ ] 9:16 and 1:1 crop-guide overlays on the single 16:9 canvas
-- [ ] Rule-of-thirds overlay
+- [x] 9:16 and 1:1 crop-guide overlays on the single 16:9 canvas
+- [x] Rule-of-thirds overlay
 - [x] Guides are preview-only (no multi-format export, no second render pipeline) *(structural: DOM sibling above hero canvas)*
 - [ ] Optional before/after compare (current vs no-background) if shipped
 
-**Notes:** Implemented as a compact crop lab: Native 16:9 / Square 1:1 / Vertical 9:16, independent thirds, and transient Theme-only compare. Compare never persists, disables preset audition while active, restores before capture, and Studio waits for the restored image/GIF decode before `MediaRecorder.start()`. Operator visual/interaction recheck remains.
+**Notes:** Crop lab and thirds received operator PASS. Theme-only follow-up keeps the current theme/style RAF alive with personal media hidden, hard-blocks preset pointer/focus/click/Apply paths, re-asserts null-image state on defensive restore, and exits only through exact committed restore. It never persists; recording still restores and decode-gates before `MediaRecorder.start()`. Recheck compare motion/mutex/record start, then mark the optional compare row.
 
 
 ---

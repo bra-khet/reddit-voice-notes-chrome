@@ -12,7 +12,7 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` · Phase 6 `e7346ca` |
 | **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
 | **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
 | **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
@@ -26,13 +26,31 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–6 landed · operator Phase 1–5 + real blur/GIF size gate **PASS** · Phase 6 recheck and full merge gate still open.
+**Track B in flight:** Phase 0–6 landed · operator Phase 1–5 + real blur/GIF size gate **PASS** · Phase 6 crop/thirds PASS; Theme-only follow-up recheck and full merge gate still open.
 
-**Next:** (1) operator-recheck Phase 6 crop/thirds/compare · (2) Phase 7 keyboard/ARIA/variants · (3) preview→record→bake parity + product smoke · package stays 5.11.0.
+**Next:** (1) operator-recheck live Theme-only A/B + preset exclusion + recording restore · (2) Phase 7 keyboard/ARIA/variants · (3) preview→record→bake parity + product smoke · package stays 5.11.0.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Phase 6 Theme-only live A/B follow-up implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Base:** Phase 6 `e7346ca` · **Commit:** this sprint<br>
+**Trigger:** operator passed crop lab/thirds but found Theme-only could freeze after hiding a personal GIF and preset hover/focus could desynchronize the pressed state from the canvas.
+
+- Null-image previews now keep the normal 12 FPS Studio theme/style clock alive after preferences hydrate. Spectrum/registry motion continues with the same resolved theme, style, atmosphere, bars, and colors; reduced motion still freezes at time zero.
+- Theme-only is now the sole transient background-identity owner while active. Preset pointer, keyboard-focus, click, and Apply paths are hard-blocked; defensive preset restore re-asserts `customBackgroundId: null`; every exit routes through `finishCompare`, which restores the exact committed image and layout.
+- Starting compare retires a preset layout without an intermediate committed-image paint. Active copy now states: “Current theme & style only — personal image hidden. Preview without image; export unchanged.”
+- Architecture-hardening result: a surgical Studio-page policy/state fix under Accepted ADR-0008. No preference/store/message/signal/renderer/export/compositing change; I1/I3 and the decode-gated record boundary remain unchanged. Map/extension-point versions stay deferred to Track B merge.
+
+**Automated:** focused Track B set **84/84** (prior 83 + null-image loop/mutual-exclusion regression) · compile only the same 2 pre-existing subtitle diagnostics · production build PASS · `git diff --check` PASS.
+
+**Browser smoke:** not claimed from this coding session. The connected Chrome session was the production browser, so no interaction or recording was started there; the short live-record check remains part of the dev-browser operator recheck below.
+
+**Operator recheck:** use an animated personal GIF and a visibly moving spectrum/atmosphere; toggle Theme only and confirm everything except the personal media keeps idling. Sweep pointer and keyboard focus across presets while compare stays on; the canvas must remain image-free. Toggle off, then toggle on and press Record; committed media must restore before the first frame with no guide/compare state persisted.
+
+**Next:** close the Phase 6 Theme-only recheck, then Phase 7.
 
 ### 2026-07-20 — Track B Phase 6 framing aids + compare implemented
 

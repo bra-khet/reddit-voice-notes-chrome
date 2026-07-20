@@ -128,7 +128,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–6 DONE · operator Phase 1–5 + real size gate PASS · Phase 6 recheck pending** · Phase 7 next.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–6 DONE · operator Phase 1–5 + real size + crop/thirds PASS · Theme-only recheck pending** · Phase 7 next.
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
@@ -202,17 +202,18 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 **Next:** superseded by the Phase 6 entry below. Package stays 5.11.0.
 
-### Track B Phase 6 — multi-aspect framing aids + compare (**IMPLEMENTED · operator recheck pending 2026-07-20**)
+### Track B Phase 6 — multi-aspect framing aids + compare (**IMPLEMENTED · crop/thirds PASS · Theme-only recheck pending 2026-07-20**)
 
 - Final Phase 5 operator residuals passed: visible plate makes all blends useful; custom plate/Holo/dim and precision-mini eye-dropper behavior work. Required blur/GIF size case is **23 MiB base / 29 MiB baked — PASS**; upper-end non-blur 28/35 MiB retained as informational.
 - Added a distinctive but compact Framing aids crop lab: Native 16:9, centered 1:1, centered 9:16, independent thirds, and explicit export-stays-16:9 language. All guide/mask pixels are DOM-only over the hero canvas hole.
 - Added transient Theme-only comparison through the existing image hot-swap. It does not persist or create another renderer, pauses preset audition, and restores on toggle/profile sync/recording entry.
 - Recording entry now awaits the restored image/GIF decode before `MediaRecorder.start()`, closing a potential first-frame theme-only/unloaded flash.
-- **Automated:** focused Track B **83/83** · UI tokens PASS · visual-size harness **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- Follow-up: null-image comparison keeps the current resolved theme/style RAF alive; preset pointer/focus/click/Apply are hard-mutually-exclusive; defensive restore re-asserts no image; every exit uses `finishCompare` to restore exact committed media/layout. Copy now names the current look explicitly.
+- **Automated:** focused Track B **84/84** · UI tokens PASS · visual-size harness **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
 - **Architecture:** Accepted ADR-0008 amended; no new context/message/store/signal/preference field or version/dependency/compositing layer. Map/seam MINOR bumps remain deferred to Track B merge.
 - **Deferred observation:** subtitle browser-composite/burn-in reportedly runs ~5–6× faster while Studio is minimized; non-breaking, investigate focused-window render/scheduling contention later.
 
-**Next:** operator-check Phase 6 crop geometry, thirds, preview-only output, and recording-safe compare restore; then Phase 7.
+**Operator:** crop geometry and thirds PASS. **Next:** check Theme-only live motion, preset mutex, and recording-safe restore; then Phase 7.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 
