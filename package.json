@@ -14,6 +14,7 @@
     "compile": "tsc --noEmit",
     "test:style-control-center": "node scripts/test-style-control-center.mjs",
     "qa:style-control-center": "vite --config scripts/fixtures/style-control-center-visual/vite.config.mjs",
+    "qa:popup-visual": "vite --config scripts/fixtures/popup-visual/vite.config.mjs",
     "qa:visual-size": "node scripts/qa-visual-size.mjs",
     "build:vosk-sandbox": "node scripts/build-vosk-sandbox.mjs",
     "postinstall": "wxt prepare && node scripts/copy-ffmpeg-core.mjs && node scripts/fetch-vosk-model.mjs && node scripts/build-vosk-sandbox.mjs"

@@ -1,0 +1,365 @@
+/* v6 Track C — popup chrome on the shared Cividis indigo→amber system.
+   WHY: one visual language across popup + Design Studio (roadmap
+   docs/v6.0.0-popup-ui-refresh.md). This file is imported ONLY by
+   entrypoints/popup/main.ts, AFTER style.css: style.css stays untouched as the
+   Design Studio's shared control-primitive base layer (design-studio/main.ts
+   imports it), so all popup re-skinning lives here. Every rule is additionally
+   prefixed with .popup so it outranks the base at any import order.
+   Guarded by scripts/test-ui-tokens.mjs: the @import below must stay the single
+   token source, and no off-axis Reddit hex may appear anywhere in this file
+   (banned list lives in the guard script; comments count too).
+   Chakra Petch @font-face rides along with the import but stays inert — no
+   popup rule may reference the family (system-ui only in the popup). */
+
+@import '../design-studio/studio-palette.css';
+
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+
+body {
+  background: var(--studio-bg-deep);
+  color: var(--studio-text);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.popup .popup__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.popup .popup__brand-mark {
+  display: block;
+  width: 16px;
+  height: 16px;
+  color: var(--studio-amber);
+}
+
+.popup .popup__version {
+  color: var(--studio-indigo-muted);
+}
+
+.popup .popup__readme-link {
+  color: var(--studio-indigo-muted);
+}
+
+.popup .popup__readme-link:hover {
+  color: var(--studio-amber);
+  background: rgba(255, 213, 79, 0.08);
+}
+
+.popup .popup__readme-link:focus-visible {
+  outline-color: var(--studio-focus);
+}
+
+/* ── Copy ───────────────────────────────────────────────────────────────── */
+
+.popup .popup__hint {
+  color: var(--studio-text-muted);
+}
+
+.popup .popup__micro,
+.popup .popup__micro--note {
+  color: var(--studio-indigo-muted);
+}
+
+/* ── Section cards ──────────────────────────────────────────────────────── */
+
+.popup .popup__section {
+  background: var(--studio-surface-raised);
+  border-color: var(--studio-hairline);
+}
+
+.popup .popup__section-title {
+  font-weight: 700;
+  color: var(--studio-text);
+}
+
+/* Clip appearance summary — previously unstyled in the popup (Studio-scope
+   rules only); these are the missing popup-side rules, not overrides. */
+.popup .popup__summary-line {
+  margin: 0 0 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--studio-text);
+}
+
+.popup .popup__summary-line--muted {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--studio-text-muted);
+}
+
+/* ── Rows, labels, help ─────────────────────────────────────────────────── */
+
+.popup .popup__info-label,
+.popup .popup__toggle-label,
+.popup .popup__info-value {
+  color: var(--studio-text);
+}
+
+.popup .popup__field-desc {
+  color: var(--studio-text-muted);
+}
+
+.popup .popup__help-tip {
+  border-color: var(--studio-indigo-accent);
+  color: var(--studio-indigo-muted);
+  background: transparent;
+}
+
+.popup .popup__help-tip:hover,
+.popup .popup__help-tip:focus-visible {
+  color: var(--studio-amber);
+  border-color: var(--studio-amber-edge);
+  background: rgba(255, 213, 79, 0.08);
+}
+
+.popup .popup__help-tip:focus-visible {
+  outline-color: var(--studio-focus);
+}
+
+.popup .popup__badge {
+  background: rgba(138, 134, 176, 0.18);
+  color: var(--studio-text-muted);
+}
+
+.popup .popup__toggle-row--disabled .popup__toggle-label,
+.popup .popup__toggle-row--disabled .popup__field-desc {
+  color: #6f6b90;
+}
+
+/* ── Toggles — amber "on" with dark knob (exact Studio parity) ──────────── */
+
+.popup .popup__toggle-input {
+  background: var(--studio-bg-deep);
+  /* Inset ring instead of border: keeps the 40×22 geometry byte-identical. */
+  box-shadow: inset 0 0 0 1px var(--studio-hairline-strong);
+}
+
+.popup .popup__toggle-input::before {
+  background: var(--studio-text);
+}
+
+.popup .popup__toggle-input:checked {
+  background: var(--studio-control-on);
+  box-shadow: none;
+}
+
+.popup .popup__toggle-input:checked::before {
+  background: #1a1000; /* dark knob on amber for AA contrast (Studio parity) */
+}
+
+.popup .popup__toggle-input:focus-visible {
+  outline-color: var(--studio-focus);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+/* Primary CTA — the strongest amber action in the popup (Studio: amber = action). */
+.popup .popup__button--studio {
+  width: 100%;
+  margin-top: 4px;
+  background: var(--studio-amber-action);
+  color: #1a1000;
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 2px 8px rgba(212, 160, 32, 0.3);
+}
+
+.popup .popup__button--studio:hover {
+  background: var(--studio-amber-action);
+  filter: brightness(1.06);
+  box-shadow:
+    0 0 0 1px var(--studio-amber-action-edge),
+    0 3px 12px rgba(212, 160, 32, 0.4);
+}
+
+/* Permanent bottom Reload — quiet charcoal secondary (Studio parity). */
+.popup .popup__button--secondary {
+  background: #35353f;
+  color: var(--studio-text-muted);
+  box-shadow: inset 0 0 0 1px rgba(138, 134, 176, 0.35);
+}
+
+.popup .popup__button--secondary:hover {
+  background: #3f3f4a;
+  color: var(--studio-text);
+  filter: none;
+  box-shadow: inset 0 0 0 1px rgba(138, 134, 176, 0.55);
+}
+
+.popup .popup__button:focus-visible {
+  outline-color: var(--studio-focus);
+}
+
+.popup .popup__button--secondary:focus-visible {
+  outline-color: var(--studio-indigo-muted);
+}
+
+/* ── Elevated restart caution (v6 Track C) ──────────────────────────────── */
+
+.popup .popup__restart-caution {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 184, 77, 0.55);
+  background: rgba(255, 184, 77, 0.12);
+  color: var(--studio-warning);
+}
+
+/* Must out-rank our display:flex above — the base [hidden] rule alone would lose. */
+.popup .popup__restart-caution[hidden] {
+  display: none;
+}
+
+.popup .popup__restart-caution-copy {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.popup .popup__restart-caution-reload {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--studio-amber-action);
+  color: #1a1000;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--studio-amber-action-edge);
+}
+
+.popup .popup__restart-caution-reload:hover {
+  filter: brightness(1.06);
+}
+
+.popup .popup__restart-caution-reload:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+/* ── Light mode — thin override, desaturated indigo/amber family ────────── */
+
+@media (prefers-color-scheme: light) {
+  body {
+    background: #f4f2fa;
+    color: #262046;
+  }
+
+  .popup .popup__brand-mark {
+    color: #9a7210;
+  }
+
+  .popup .popup__version,
+  .popup .popup__hint,
+  .popup .popup__micro,
+  .popup .popup__micro--note {
+    color: #6a648f;
+  }
+
+  .popup .popup__readme-link {
+    color: #6a648f;
+  }
+
+  .popup .popup__readme-link:hover {
+    color: #9a7210;
+    background: #edeaf6;
+  }
+
+  .popup .popup__section {
+    background: #ffffff;
+    border-color: rgba(74, 74, 138, 0.16);
+  }
+
+  .popup .popup__section-title,
+  .popup .popup__info-label,
+  .popup .popup__toggle-label,
+  .popup .popup__info-value,
+  .popup .popup__summary-line {
+    color: #262046;
+  }
+
+  .popup .popup__summary-line--muted,
+  .popup .popup__field-desc {
+    color: #6a648f;
+  }
+
+  .popup .popup__badge {
+    background: #e9e6f4;
+    color: #6a648f;
+  }
+
+  .popup .popup__toggle-row--disabled .popup__toggle-label,
+  .popup .popup__toggle-row--disabled .popup__field-desc {
+    color: #9a95b8;
+  }
+
+  .popup .popup__help-tip {
+    border-color: #b9b3d6;
+    color: #6a648f;
+    background: transparent;
+  }
+
+  .popup .popup__help-tip:hover,
+  .popup .popup__help-tip:focus-visible {
+    color: #6f520b;
+    border-color: #9a7210;
+    background: #f5efdc;
+  }
+
+  .popup .popup__toggle-input {
+    background: #dedaef;
+    box-shadow: inset 0 0 0 1px rgba(74, 74, 138, 0.25);
+  }
+
+  .popup .popup__toggle-input::before {
+    background: #ffffff;
+  }
+
+  .popup .popup__toggle-input:checked {
+    background: var(--studio-amber-action);
+    box-shadow: none;
+  }
+
+  .popup .popup__toggle-input:checked::before {
+    background: #1a1000;
+  }
+
+  .popup .popup__button--secondary {
+    background: #e9e6f4;
+    color: #4a4468;
+    box-shadow: inset 0 0 0 1px rgba(74, 74, 138, 0.3);
+  }
+
+  .popup .popup__button--secondary:hover {
+    background: #dfdaf0;
+    color: #262046;
+  }
+
+  .popup .popup__restart-caution {
+    border-color: rgba(154, 114, 16, 0.5);
+    background: rgba(154, 114, 16, 0.1);
+    color: #6f520b;
+  }
+
+  .popup .popup__readme-link:focus-visible,
+  .popup .popup__help-tip:focus-visible,
+  .popup .popup__toggle-input:focus-visible,
+  .popup .popup__button:focus-visible,
+  .popup .popup__restart-caution-reload:focus-visible {
+    outline-color: #9a7210;
+  }
+
+  .popup .popup__button--secondary:focus-visible {
+    outline-color: #6a648f;
+  }
+}

@@ -24,6 +24,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "9310", "--directory", "qa/QA-6.0.0/track-a/artifacts/visual-fixture"],
       "port": 9310
+    },
+    {
+      "name": "popup-visual",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "qa:popup-visual"],
+      "port": 4175
     }
   ]
 }

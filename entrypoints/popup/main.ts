@@ -1,4 +1,7 @@
 import './style.css';
+// CHANGED: v6 Track C popup skin overlays the legacy sheet (imported after, popup-only).
+// WHY: style.css doubles as the Design Studio's control-primitive base and must not change.
+import './popup-palette.css';
 import { reconcileBackgroundPreferences } from '@/src/storage/background-refs';
 import { loadUserPreferences } from '@/src/settings/user-preferences';
 import { mountAudioSettingsSection } from '@/src/ui/popup/audio-settings';
@@ -16,7 +19,15 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <header class="popup__header">
       <div class="popup__header-row">
         <div class="popup__header-copy">
-          <h1 class="popup__title">Reddit Voice Notes</h1>
+          <div class="popup__title-row">
+            <svg class="popup__brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+            <h1 class="popup__title">Reddit Voice Notes</h1>
+          </div>
           <p class="popup__version">v${APP_VERSION}</p>
         </div>
         <a
