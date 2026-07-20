@@ -207,6 +207,7 @@ export interface BackgroundDirectManipulationDeps {
 
 export interface BackgroundDirectManipulationHandle {
   sync(backgroundId: string | null, layout: NormalizedUserBackgroundLayout): void;
+  setInteractionBlocked(blocked: boolean): void;
   flushPersist(): Promise<void>;
   dispose(): void;
 }
@@ -248,6 +249,7 @@ export function mountBackgroundDirectManipulation(
   let pendingPersistLayout: NormalizedUserBackgroundLayout | null = null;
   let persistChain = Promise.resolve();
   let disposed = false;
+  let interactionBlocked = false;
   let snapState: PositionSnapState = {
     x: { snappedTo: null },
     y: { snappedTo: null },
@@ -428,7 +430,7 @@ export function mountBackgroundDirectManipulation(
   }
 
   function resetPosition(): void {
-    if (!backgroundId) return;
+    if (!backgroundId || interactionBlocked) return;
     deps.onInteractionStart();
     layout = normalizeUserBackgroundLayout({
       ...layout,
@@ -443,7 +445,13 @@ export function mountBackgroundDirectManipulation(
   }
 
   const pointerDownHandler = (event: PointerEvent): void => {
-    if (disposed || !backgroundId || !event.isPrimary || event.button !== 0) return;
+    if (
+      disposed
+      || interactionBlocked
+      || !backgroundId
+      || !event.isPrimary
+      || event.button !== 0
+    ) return;
     deps.onInteractionStart();
     if (persistTimer) {
       window.clearTimeout(persistTimer);
@@ -470,7 +478,12 @@ export function mountBackgroundDirectManipulation(
   };
 
   const wheelHandler = (event: WheelEvent): void => {
-    if (disposed || !backgroundId || !(event.ctrlKey || event.metaKey)) return;
+    if (
+      disposed
+      || interactionBlocked
+      || !backgroundId
+      || !(event.ctrlKey || event.metaKey)
+    ) return;
     const canvasRect = canvas.getBoundingClientRect();
     if (canvasRect.width <= 0 || canvasRect.height <= 0) return;
     event.preventDefault();
@@ -516,12 +529,13 @@ export function mountBackgroundDirectManipulation(
   };
 
   const doubleClickHandler = (event: MouseEvent): void => {
+    if (interactionBlocked) return;
     event.preventDefault();
     resetPosition();
   };
 
   const keyDownHandler = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape') return;
+    if (interactionBlocked || event.key !== 'Escape') return;
     event.preventDefault();
     if (activePointerId !== null && overlay.hasPointerCapture(activePointerId)) {
       overlay.releasePointerCapture(activePointerId);
@@ -572,6 +586,23 @@ export function mountBackgroundDirectManipulation(
         .catch(() => {
           if (!disposed && generation === imageSizeGeneration) imageSize = null;
         });
+    },
+
+    setInteractionBlocked(blocked): void {
+      if (interactionBlocked === blocked) return;
+      interactionBlocked = blocked;
+      // BUG FIX: eye-dropper clicks were captured by background pan/zoom
+      // Fix: suspend every direct-manipulation entry point while the preview owns color sampling.
+      // Sync: background-layout-controls.ts; mount-clip-studio.ts; scripts/test-background-control-ui.mjs
+      if (!blocked) return;
+      if (activePointerId !== null && overlay.hasPointerCapture(activePointerId)) {
+        overlay.releasePointerCapture(activePointerId);
+      }
+      activePointerId = null;
+      pendingPointer = null;
+      if (frameId) cancelAnimationFrame(frameId);
+      frameId = 0;
+      overlay.classList.remove(draggingClass);
     },
 
     flushPersist,

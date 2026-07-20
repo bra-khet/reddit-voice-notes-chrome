@@ -12,7 +12,6 @@ import { RECORDING_CRITICAL_SECONDS, RECORDING_WARNING_SECONDS } from '@/src/ui/
 import {
   normalizeUserBackgroundLayout,
   resolveAppearanceTheme,
-  userBackgroundLayoutFromAppearance,
   type UserBackgroundLayout,
 } from '@/src/theme';
 import {
@@ -41,6 +40,10 @@ import { voiceEffectUserIntentKey } from '@/src/voice/resolve-config';
 import { normalizeVoiceEffectConfig, type VoiceEffectConfig } from '@/src/voice/types';
 import { acquireMicStream } from './mic-constraints';
 import { WaveformRenderer } from './waveform';
+import {
+  resolveRecorderBackgroundState,
+  type RecorderBackgroundOverride,
+} from './recorder-background-state';
 
 /** Timeslice emits chunks during recording — required for reliable WebM assembly (spec). */
 const RECORDER_TIMESLICE_MS = 1000;
@@ -158,6 +161,7 @@ export class VoiceRecorderSession {
   private capTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stopInFlight = false;
   private prefsUnsubscribe: (() => void) | null = null;
+  private liveBackgroundOverride: RecorderBackgroundOverride = {};
 
   // CHANGED: v5.4.0 Phase 0 — take lifecycle tracking (roadmap §3.1).
   // WHY: this session is the single owner of the capture state machine, so it
@@ -180,12 +184,21 @@ export class VoiceRecorderSession {
   // CHANGED: Studio interactions can hot-swap layout before their debounced prefs write settles.
   // WHY: the live canvas is the captured canvas, so every drag frame must reach it synchronously.
   setUserBackgroundLayout(layout: UserBackgroundLayout): void {
-    this.waveform?.setUserBackgroundLayout(normalizeUserBackgroundLayout(layout));
+    const normalized = normalizeUserBackgroundLayout(layout);
+    // BUG FIX: live background position briefly reverted during an open recorder session
+    // Fix: retain the Studio's synchronous layout as a session override so stale prefs cannot repaint one frame.
+    // Sync: recorder-background-state.ts; waveform.ts; scripts/test-recorder-background-state.mjs
+    this.liveBackgroundOverride.layout = normalized;
+    this.waveform?.setUserBackgroundLayout(normalized);
   }
 
   // CHANGED: Studio preset audition may replace the image while this recorder session is open.
   // WHY: hot-swapping the existing WaveformRenderer keeps the audition and next captured frame WYSIWYG.
   setCustomBackgroundId(id: string | null): void {
+    // BUG FIX: live background position/image briefly reverted during an open recorder session
+    // Fix: retain Studio's synchronous image selection beside its layout override until the session closes.
+    // Sync: recorder-background-state.ts; mount-clip-studio.ts; waveform.ts
+    this.liveBackgroundOverride.customBackgroundId = id;
     this.waveform?.setCustomBackgroundId(id);
   }
 
@@ -322,8 +335,12 @@ export class VoiceRecorderSession {
 
       const theme = resolveAppearanceTheme(prefs.appearance);
       this.waveform = new WaveformRenderer(analyser, theme);
-      this.waveform.setCustomBackgroundId(prefs.appearance.customBackgroundId ?? null);
-      this.waveform.setUserBackgroundLayout(userBackgroundLayoutFromAppearance(prefs.appearance));
+      const initialBackground = resolveRecorderBackgroundState(
+        prefs.appearance,
+        this.liveBackgroundOverride,
+      );
+      this.waveform.setCustomBackgroundId(initialBackground.customBackgroundId);
+      this.waveform.setUserBackgroundLayout(initialBackground.layout);
       this.waveform.setBarAlignment(prefs.appearance.barAlignment ?? 'center');
       this.waveform.setFullSpectrumViz(prefs.audio.fullSpectrumViz ?? false);
       this.waveform.setReduceMotion(shouldReduceMotion(prefs));
@@ -336,9 +353,13 @@ export class VoiceRecorderSession {
       this.prefsUnsubscribe?.();
       this.prefsUnsubscribe = onUserPreferencesChanged((next) => {
         if (!this.waveform) return;
+        const background = resolveRecorderBackgroundState(
+          next.appearance,
+          this.liveBackgroundOverride,
+        );
         this.waveform.setTheme(resolveAppearanceTheme(next.appearance));
-        this.waveform.setCustomBackgroundId(next.appearance.customBackgroundId ?? null);
-        this.waveform.setUserBackgroundLayout(userBackgroundLayoutFromAppearance(next.appearance));
+        this.waveform.setCustomBackgroundId(background.customBackgroundId);
+        this.waveform.setUserBackgroundLayout(background.layout);
         this.waveform.setBarAlignment(next.appearance.barAlignment ?? 'center');
         this.waveform.setFullSpectrumViz(next.audio.fullSpectrumViz ?? false);
         this.waveform.setReduceMotion(shouldReduceMotion(next));

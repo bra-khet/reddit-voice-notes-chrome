@@ -51,6 +51,8 @@ export interface UserBackgroundLayout {
   blur?: number;
   /** Composite mode for the personal image draw only. */
   blendMode?: GlobalCompositeOperation;
+  /** Lightweight chromatic multi-pass treatment inside the personal-image slot. */
+  holo?: boolean;
   /** Animated-GIF playback multiplier. */
   gifSpeed?: number;
   /** Whether GIF timing may react to capture energy. */

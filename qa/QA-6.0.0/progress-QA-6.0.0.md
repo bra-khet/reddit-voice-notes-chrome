@@ -26,13 +26,33 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–5 landed · operator Phase 1–4 QA **PASS** · Phase 5 operator QA and full merge gate still open.
+**Track B in flight:** Phase 0–5 landed · operator Phase 1–4 + original Phase 5 §6 QA **PASS** · follow-up recheck and full merge gate still open.
 
-**Next:** operator-check Phase 5 treatments, GIF motion, eye-dropper, and recording-safe preset lockout; then Phase 6 framing aids · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
+**Next:** operator-recheck Y-key direction, record-time position continuity, eye-dropper hand-off, added blends, and Holo drift; then Phase 6 framing aids · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 5 operator pass + accessibility/state follow-up
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** this sprint<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §3, §6–§7, §11
+
+**Operator evidence:** original checklist §6 passed; double-click/Escape center reset passed. The pass exposed reversed keyboard semantics on the spatial Y slider, a one-frame stale position repaint only after live audition opened, and hero drag intercepting eye-dropper sampling.
+
+- Y slider keyboard handling is now inverted only for the spatial vertical control: ArrowUp lowers normalized Y and ArrowDown raises it. Pointer travel remains top→bottom, and other physical sliders retain their existing arrow behavior.
+- The open recorder session now treats Studio's synchronous image/layout as authoritative over delayed preference notifications. Every accepted Studio prefs/profile snapshot advances that override, and unchanged personal-image IDs no longer trigger redundant decode/load work during layout-only changes.
+- Eye-dropper sampling listens on the top hero manipulator surface and blocks hero/mini direct manipulation until valid sample, toggle-off, Esc, background removal, or disposal. Transparent/unavailable pixels keep sampling active and announce stronger guidance after three misses.
+- Added standards-native `color-burn`, `color-dodge`, and `difference` blend choices. Canvas 2D has no portable `divide`/`subtract`; `difference` is the useful subtract-like option.
+- Added opt-in **Holo drift** as a normalized boolean (default false): two low-alpha chromatic `screen` image passes plus one clipped slow `soft-light` sheen, mildly energy-modulated. It lives wholly inside the personal-image draw slot, uses the shared preview/capture clock, and freezes at time zero under reduced motion.
+- No new store, preference version, message, layer, dependency, WebGL path, or bake renderer. ADR-0008 remains authoritative; architecture map/extension-point MINOR bumps stay deferred to Track B merge.
+
+**Automated:** prior focused **69/69** + holo compositor **4/4** + recorder authority **3/3** = **76/76**. Shared UI tokens PASS; visual-size gate logic **5/5**; production build **PASS**; compile only the same two pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Operator recheck:** confirm no one-frame snap in pre-record/record output; eye-dropper selects and exits cleanly without panning; added blends and Holo are aesthetically useful; Y ArrowUp/ArrowDown follow spatial direction. The real ~120 s blur+GIF size artifacts remain open before the Track B merge gate.
+
+**Next:** perform that focused recheck, then begin Phase 6 framing aids.
 
 ### 2026-07-20 — Track B Phase 5 properties/effects + recording-safe preset audition implemented
 

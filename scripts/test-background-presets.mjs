@@ -91,6 +91,7 @@ check('preset resolution applies image-layout fields through the shared normaliz
     dim: 0.8,
     blur: 3,
     blendMode: 'screen',
+    holo: true,
     gifSpeed: 1.5,
     gifReactToAudio: true,
     lockToSafeText: true,
@@ -111,6 +112,7 @@ check('presets preserve effects and safe-text intent outside their Phase 4 scope
     dim: 0.35,
     blur: 7,
     blendMode: 'multiply',
+    holo: true,
     gifSpeed: 0.75,
     gifReactToAudio: true,
     lockToSafeText: true,
@@ -119,6 +121,7 @@ check('presets preserve effects and safe-text intent outside their Phase 4 scope
     const result = resolveBackgroundLayoutPreset(preset, current);
     assert.equal(result.blur, current.blur);
     assert.equal(result.blendMode, current.blendMode);
+    assert.equal(result.holo, current.holo);
     assert.equal(result.gifSpeed, current.gifSpeed);
     assert.equal(result.gifReactToAudio, current.gifReactToAudio);
     assert.equal(result.lockToSafeText, current.lockToSafeText);

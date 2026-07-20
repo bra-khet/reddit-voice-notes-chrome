@@ -179,6 +179,7 @@ export class WaveformRenderer {
   private readonly timeDomainData: Uint8Array;
   private theme: WaveformTheme;
   private customBackgroundId: string | null = null;
+  private customBackgroundIdInitialized = false;
   private userBackgroundLayout: UserBackgroundLayout = userBackgroundLayoutFromAppearance({});
   private bundledBackgroundImage: HTMLImageElement | null = null;
   private userBackgroundImage: DrawableBackgroundImage | null = null;
@@ -260,10 +261,13 @@ export class WaveformRenderer {
   /** Uploaded/included background reference — hot-swaps during recording like theme (pretty-7b). */
   setCustomBackgroundId(id: string | null | undefined): void {
     const nextId = normalizeBackgroundAssetId(id);
-    if (nextId !== this.customBackgroundId) {
-      this.userBackgroundAnimationTimeMs = 0;
-      this.userBackgroundAnimationLastAt = 0;
-    }
+    // BUG FIX: live background adjustments repeatedly restarted an unchanged image load
+    // Fix: retain the decoded image when only layout changes; this also removes avoidable async paint churn.
+    // Sync: voice-recorder.ts; recorder-background-state.ts
+    if (this.customBackgroundIdInitialized && nextId === this.customBackgroundId) return;
+    this.customBackgroundIdInitialized = true;
+    this.userBackgroundAnimationTimeMs = 0;
+    this.userBackgroundAnimationLastAt = 0;
     this.customBackgroundId = nextId;
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }

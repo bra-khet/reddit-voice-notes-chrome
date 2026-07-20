@@ -6,13 +6,13 @@
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
-**Date:** 2026-07-20 (Phase 0–5 landed; Phase 1–4 operator QA PASS; Phase 5 operator pending)<br>
+**Date:** 2026-07-20 (Phase 0–5 landed; Phase 1–4 + Phase 5 §6 operator QA PASS; follow-up recheck pending)<br>
 **Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (as of Phase 5):** focused layout/interaction/UI set **69/69** — layout **11/11** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **10/10** · presets **5/5** · canvas sampler **5/5** · caption geometry **7/7** · prefs storage **12/12**. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
+**Automated (Phase 5 follow-up):** focused layout/interaction/UI set **76/76** — prior **69/69** plus holo compositor **4/4** and recorder background authority **3/3**. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -75,20 +75,20 @@
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
 | 0 | Pre-flight | ■ | Phase 1–3 operator path PASS |
-| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 69/69 · build PASS |
+| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 76/76 · build PASS |
 | 2 | Phase 0 migration + zero visual change | ■ | Normalization/default migration contract remains green |
-| 3 | Direct manipulation (drag / focal / reset) | ■ | Operator Phase 1 QA PASS — hero only |
+| 3 | Direct manipulation (drag / focal / reset) | ▲ | Core operator PASS; record-time no-flash fix awaits recheck |
 | 4 | Precision widget + bidirectional sync | ■ | Phase 2 behavior + Phase 3 redesigned console operator PASS |
 | 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ■ | Phase 3 operator QA PASS |
-| 6 | Properties / effects / GIF | ▲ | Phase 5 code/automated PASS; operator smoke open |
-| 7 | Presets + eye-dropper hand-off | ▲ | Presets operator PASS; recording guard + Phase 5 eye-dropper operator smoke open |
+| 6 | Properties / effects / GIF | ▲ | Original Phase 5 §6 operator PASS; added blends + holo recheck open |
+| 7 | Presets + eye-dropper hand-off | ▲ | Presets operator PASS; sampling-ownership fix awaits operator recheck |
 | 8 | Framing aids (crop guides / thirds) | ☐ | Phase 6 |
 | 9 | Preview ↔ record ↔ bake parity (I1/I3) | ☐ | |
 | 10 | 120 s size — blur + GIF stress | ☐ | |
 | 11 | a11y (keyboard / ARIA / reduced-motion) | ☐ | Phase 7 |
 | 12 | Product smoke + Classic / default no-regression | ☐ | |
 
-**Overall:** ▲ partial (Phase 0–5 code complete; operator Phase 1–4 PASS; Phase 5 operator QA + full Track B merge gate open)
+**Overall:** ▲ partial (Phase 0–5 code complete; operator Phase 1–4 + original §6 PASS; follow-up recheck + full Track B merge gate open)
 
 **Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
 
@@ -118,13 +118,15 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [x] `node scripts/test-background-control-ui.mjs` PASS (embedded mini, Y fine/coarse order, spatial rails, Phase 3 controls, Phase 4 contact sheet, recording lockout, Phase 5 treatment/sampler behavior) — **Phase 3–5 · 10/10**
 - [x] `node scripts/test-background-presets.mjs` PASS (stable bundled references/assets, catalog guards, normalized recipes, effect-field preservation) — **Phase 4 · 5/5**
 - [x] `node scripts/test-background-color-sampler.mjs` PASS (CSS→bitmap coordinate mapping, clamp, hex read, transparent/error guards) — **Phase 5 · 5/5**
+- [x] `node scripts/test-background-holo.mjs` PASS (default pass count, chromatic/sheens, bounded time/energy modulation, dim ordering) — **Phase 5 experiment · 4/4**
+- [x] `node scripts/test-recorder-background-state.mjs` PASS (persisted initial state, session override precedence, normalization/null-ID guards) — **Phase 5 follow-up · 3/3**
 - [x] `node scripts/test-cue-measurement.mjs` PASS (including shared normalized caption-safe band) — **7/7**
-- [x] Focused Track B layout/interaction/UI set green — **69/69** including prefs storage **12/12**
+- [x] Focused Track B layout/interaction/UI set green — **76/76** including prefs storage **12/12**
 - [x] `node scripts/test-ui-tokens.mjs` PASS; `node scripts/test-visual-size-qa.mjs` **5/5**
 - [x] `npm run build` PASS
 - [x] `npm run compile` — only the 2 pre-existing subtitle diagnostics
 
-**Notes:** Phase 5 agent gate 2026-07-20 (`16e3dd0`): focused **69/69**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics.
+**Notes:** Phase 5 follow-up 2026-07-20: focused **76/76**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics.
 
 
 ---
@@ -145,13 +147,14 @@ Fill as pure-math suites land; re-run only when related code changes.
 ## 3 · Direct manipulation (Phase 1+)
 
 - [x] Drag on hero pan updates live preview immediately
-- [ ] Live audition (recording) reflects arrangement via hot-swap (`setUserBackgroundLayout`) *(wiring present; full record-path eyeball optional / later parity §9)*
+- [x] Live audition (recording) reflects arrangement via hot-swap (`setUserBackgroundLayout`) *(operator exercised pre-record + record hot adjustment)*
 - [x] Focal dot / dashed hover / BG chip affordances present and usable
-- [ ] Double-click and Esc reset to center (or documented default) *(confirm if exercised; leave open if not)*
+- [x] Double-click and Esc reset to center (or documented default)
+- [ ] Pre-record/record hot adjustments stay continuous with no one-frame position snap *(session-authority fix landed; operator recheck pending)*
 - [x] RAF throttle: no jank during sustained drag on a mid-device session *(operator: usable drag)*
 - [x] Persist: layout survives Studio reload / prefs reload *(debounced persist path; operator accepted Phase 1)*
 
-**Notes:** **Operator Phase 1 QA PASS (2026-07-20).** Drag lives on the main Design Studio live preview only. Background panel submenu not remodeled (correct for Phase 1). Commit `1e3118f`.
+**Notes:** **Operator Phase 1 QA PASS (2026-07-20).** The later pre-record/record pass confirmed hot-swap and reset behavior, then exposed a one-frame stale-prefs repaint. The recorder now keeps Studio's synchronous image/layout authoritative for the open session and avoids unchanged-ID reload churn; recheck the captured result.
 
 
 ---
@@ -186,14 +189,16 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 ## 6 · Properties / effects / GIF (Phase 5+)
 
-- [ ] Scale segmented Fit / Fill / Custom+slider
-- [ ] **Dim** slider is a real field (default = old constant; movable)
-- [ ] Blur toggle + amount (cheap `ctx.filter`; reset after draw)
-- [ ] Each allow-listed blend mode (`source-over`, `multiply`, `overlay`, `screen`, `soft-light`)
-- [ ] GIF speed 0.5–2×; `gifReactToAudio` during live audition
-- [ ] Reduced-motion still freezes animated GIF to frame 0
+- [x] Scale segmented Fit / Fill / Custom+slider
+- [x] **Dim** slider is a real field (default = old constant; movable)
+- [x] Blur toggle + amount (cheap `ctx.filter`; reset after draw)
+- [x] Original allow-listed blend modes (`source-over`, `multiply`, `overlay`, `screen`, `soft-light`)
+- [x] GIF speed 0.5–2×; `gifReactToAudio` during live audition
+- [x] Reduced-motion still freezes animated GIF to frame 0
+- [ ] Added standards-safe blends (`color-burn`, `color-dodge`, `difference`) render usefully across themes
+- [ ] Opt-in **Holo drift** stays subtle, animates in preview/record parity, and freezes under reduced motion
 
-**Notes:** Phase 5 implementation is complete in `16e3dd0`; leave these rows open until the live-canvas/operator treatment pass is complete. Fit/Fill remain the base algorithm and the existing custom zoom rail supplies the guarded manual scale.
+**Notes:** User/operator reported §6 PASS on 2026-07-20 for the original Phase 5 treatment set. Canvas exposes no portable `divide`/`subtract`; this follow-up adds `difference` as the broadly useful subtract-like option plus burn/dodge. Holo is an additive boolean treatment inside the personal-image draw slot, default off.
 
 
 ---
@@ -207,8 +212,9 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [ ] Starting an actual recording restores any hover/focus audition before capture, disables preset hot-update during recording, and re-enables it afterward
 - [ ] Eye-dropper samples via canvas `getImageData` (in-surface; no whole-screen permission)
 - [ ] Sampled color hands off to Style / bar color path (`onSampleColor`) without corrupting layout
+- [ ] While sampling, the hero owns pointer input (no pan/drag); repeated unavailable pixels announce guidance and Esc/toggle exits cleanly
 
-**Notes:** Phase 4 operator QA PASS on 2026-07-20. Its recording-time accessibility caveat is guarded in Phase 5 commit `16e3dd0` and covered by the control UI suite; the explicit record-boundary smoke remains open with the Phase 5 eye-dropper rows.
+**Notes:** Phase 4 operator QA PASS on 2026-07-20. Eye-dropper toggle activation worked, but hero drag intercepted sampling. The follow-up samples from the top manipulator surface, blocks both drag controllers until exit, and escalates its live hint after three transparent/unavailable clicks; operator recheck remains open.
 
 
 ---

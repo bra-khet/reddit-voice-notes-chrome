@@ -18,6 +18,9 @@ export const USER_BACKGROUND_BLEND_MODES = [
   'overlay',
   'screen',
   'soft-light',
+  'color-burn',
+  'color-dodge',
+  'difference',
 ] as const satisfies readonly GlobalCompositeOperation[];
 
 type UserBackgroundBlendMode = (typeof USER_BACKGROUND_BLEND_MODES)[number];
@@ -30,6 +33,7 @@ export const DEFAULT_USER_BACKGROUND_LAYOUT: NormalizedUserBackgroundLayout = {
   dim: USER_BACKGROUND_DIM_OVERLAY,
   blur: 0,
   blendMode: 'source-over',
+  holo: false,
   gifSpeed: 1,
   gifReactToAudio: false,
   lockToSafeText: false,
@@ -129,6 +133,9 @@ export function normalizeUserBackgroundLayout(
     dim: clampFinite(raw?.dim, 0, 1, USER_BACKGROUND_DIM_OVERLAY),
     blur: clampFinite(raw?.blur, 0, MAX_USER_BACKGROUND_BLUR, DEFAULT_USER_BACKGROUND_LAYOUT.blur),
     blendMode: normalizeBackgroundBlendMode(raw?.blendMode),
+    // CHANGED: holo is an additive guarded treatment flag, not a synthetic composite mode.
+    // WHY: static Canvas blend modes retain their exact allow-list semantics and old profiles stay pixel-identical.
+    holo: normalizeBoolean(raw?.holo, DEFAULT_USER_BACKGROUND_LAYOUT.holo),
     gifSpeed: clampFinite(
       raw?.gifSpeed,
       MIN_USER_BACKGROUND_GIF_SPEED,
@@ -160,6 +167,7 @@ export function userBackgroundLayoutFromAppearance(appearance: {
     dim: nested?.dim,
     blur: nested?.blur,
     blendMode: nested?.blendMode,
+    holo: nested?.holo,
     gifSpeed: nested?.gifSpeed,
     gifReactToAudio: nested?.gifReactToAudio,
     lockToSafeText: nested?.lockToSafeText,
@@ -178,6 +186,7 @@ export function userBackgroundLayoutsEqual(
     && left.dim === right.dim
     && left.blur === right.blur
     && left.blendMode === right.blendMode
+    && left.holo === right.holo
     && left.gifSpeed === right.gifSpeed
     && left.gifReactToAudio === right.gifReactToAudio
     && left.lockToSafeText === right.lockToSafeText;

@@ -60,6 +60,7 @@ check('missing layout defaults to legacy pixels and guarded v6 values', () => {
     dim: 0.35,
     blur: 0,
     blendMode: 'source-over',
+    holo: false,
     gifSpeed: 1,
     gifReactToAudio: false,
     lockToSafeText: false,
@@ -101,7 +102,8 @@ check('non-finite, wrong-type, and invalid enum values fall back safely', () => 
     manualScale: Number.NaN,
     dim: Number.POSITIVE_INFINITY,
     blur: '12',
-    blendMode: 'difference',
+    blendMode: 'destination-over',
+    holo: 'yes',
     gifSpeed: Number.NEGATIVE_INFINITY,
     gifReactToAudio: 'yes',
     lockToSafeText: 1,
@@ -111,15 +113,19 @@ check('non-finite, wrong-type, and invalid enum values fall back safely', () => 
 
 check('boolean fields preserve explicit true and false', () => {
   const enabled = normalizeUserBackgroundLayout({
+    holo: true,
     gifReactToAudio: true,
     lockToSafeText: true,
   });
+  assert.equal(enabled.holo, true);
   assert.equal(enabled.gifReactToAudio, true);
   assert.equal(enabled.lockToSafeText, true);
   const disabled = normalizeUserBackgroundLayout({
+    holo: false,
     gifReactToAudio: false,
     lockToSafeText: false,
   });
+  assert.equal(disabled.holo, false);
   assert.equal(disabled.gifReactToAudio, false);
   assert.equal(disabled.lockToSafeText, false);
 });
@@ -131,6 +137,9 @@ check('blend mode uses the exact allow-list', () => {
     'overlay',
     'screen',
     'soft-light',
+    'color-burn',
+    'color-dodge',
+    'difference',
   ]);
   for (const blendMode of USER_BACKGROUND_BLEND_MODES) {
     assert.equal(normalizeUserBackgroundLayout({ blendMode }).blendMode, blendMode);

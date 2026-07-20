@@ -167,9 +167,16 @@ export function wirePhysicalSliders(host: HTMLElement, options: PhysicalSliderWi
     const max = Number(slider.dataset.max);
     const step = Number(slider.dataset.step) || 1;
     const current = Number(slider.dataset.value);
+    const invertVerticalKeyboard = slider.dataset.orientation === 'vertical'
+      && slider.dataset.keyboardInverted === 'true';
     let next = current;
-    if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next = current + step;
-    else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next = current - step;
+    // BUG FIX: Y-axis slider keyboard direction
+    // Fix: allow spatial vertical sliders to map ArrowUp to lower normalized Y and ArrowDown to higher Y.
+    // Sync: background-layout-controls.ts; scripts/test-background-control-ui.mjs
+    if (event.key === 'ArrowRight') next = current + step;
+    else if (event.key === 'ArrowLeft') next = current - step;
+    else if (event.key === 'ArrowUp') next = current + (invertVerticalKeyboard ? -step : step);
+    else if (event.key === 'ArrowDown') next = current + (invertVerticalKeyboard ? step : -step);
     else if (event.key === 'Home') next = min;
     else if (event.key === 'End') next = max;
     else return;

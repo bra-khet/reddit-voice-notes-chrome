@@ -695,7 +695,10 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     // WHY: animated branch Phase 2 — otherwise the Studio preview would freeze while the
     //      recorder/export loop, breaking the WYSIWYG promise.
     const animatedBackground = isAnimatedBackgroundCached(activeCustomBackgroundId());
-    const shouldAnimate = presetBokeh || animatedOverlay || animatedBackground;
+    // CHANGED: opt-in holo uses the same bounded preview clock as GIF and registry motion.
+    // WHY: its slow sheen must animate in Studio and share the recorder's time-zero reduced-motion freeze.
+    const animatedHolo = activeBackgroundLayout().holo;
+    const shouldAnimate = presetBokeh || animatedOverlay || animatedBackground || animatedHolo;
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
       // BUG FIX: Reduced-motion overlays retained an animated frame
@@ -899,6 +902,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     syncProfileButton(activePrefs);
     refreshHeroPreview(layout);
     refreshPrecisionPreview(layout);
+    // CHANGED: layout toggles can start or stop the holo animation without a full preference refresh.
+    // WHY: both enabling and disabling the treatment must reconcile the preview RAF immediately.
+    syncPreviewLoop();
   }
 
   function scheduleDesignPersist(overrides: DesignOverrides): void {
@@ -1007,6 +1013,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       prefs.appearance.customBackgroundId ?? null,
       userBackgroundLayoutFromAppearance(prefs.appearance),
     );
+    // BUG FIX: a recorder-session override could outlive a subsequent Studio profile/prefs change
+    // Fix: every accepted Studio snapshot advances the session's authoritative image and layout together.
+    // Sync: voice-recorder.ts; recorder-background-state.ts; scripts/test-recorder-background-state.mjs
+    studioRecorder.setCustomBackgroundId(prefs.appearance.customBackgroundId ?? null);
+    studioRecorder.setUserBackgroundLayout(userBackgroundLayoutFromAppearance(prefs.appearance));
     voiceControls.syncFromPreferences(prefs);
     subtitleControls.syncFromPreferences(prefs);
 
@@ -1072,6 +1083,15 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       ?? root.querySelector<HTMLCanvasElement>(
         '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
       ),
+    getEyeDropperSurface: () =>
+      root.querySelector<HTMLElement>('.studio__hero [data-background-manipulator]'),
+    onColorSamplingChange: (sampling) => {
+      // BUG FIX: eye-dropper clicks were captured by background pan/zoom
+      // Fix: both hero and precision controllers stop all gesture entry points while sampling owns the hero.
+      // Sync: background-layout-controls.ts; background-direct-manipulation.ts; studio-v4-controls.css
+      backgroundDirect?.setInteractionBlocked(sampling);
+      backgroundPrecisionDirect?.setInteractionBlocked(sampling);
+    },
     onSampleColor: (hex) => {
       const overrides: DesignOverrides = {
         barColor: hex,

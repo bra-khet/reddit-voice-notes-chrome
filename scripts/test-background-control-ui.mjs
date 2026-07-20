@@ -81,10 +81,12 @@ check('Y up pair places fine 0.01 before coarse 0.05', () => {
 });
 
 check('Y slider declares vertical semantics while X and zoom remain horizontal', () => {
-  assert.equal(
-    document.querySelector('[data-background-position-slider="y"]').getAttribute('aria-orientation'),
-    'vertical',
-  );
+  const ySlider = document.querySelector('[data-background-position-slider="y"]');
+  assert.equal(ySlider.getAttribute('aria-orientation'), 'vertical');
+  // BUG FIX: Y-axis slider keyboard direction
+  // Fix: Pin the per-control inversion marker while leaving pointer geometry unchanged.
+  // Sync: src/ui/design-studio/physical-slider.ts; src/ui/design-studio/background-layout-controls.ts
+  assert.equal(ySlider.getAttribute('data-keyboard-inverted'), 'true');
   assert.equal(
     document.querySelector('[data-background-position-slider="x"]').getAttribute('aria-orientation'),
     'horizontal',
@@ -125,7 +127,8 @@ check('Phase 5 darkroom controls expose treatment, motion, and in-canvas samplin
   assert.ok(document.querySelector('[data-background-dim-slider]'));
   assert.ok(document.querySelector('[data-background-blur-toggle]'));
   assert.ok(document.querySelector('[data-background-blur-slider]'));
-  assert.equal(document.querySelectorAll('[data-background-blend-mode] option').length, 5);
+  assert.equal(document.querySelectorAll('[data-background-blend-mode] option').length, 8);
+  assert.ok(document.querySelector('[data-background-holo]'));
   assert.ok(document.querySelector('[data-background-gif-speed-slider]'));
   assert.ok(document.querySelector('[data-background-gif-react]'));
   assert.ok(document.querySelector('[data-background-eyedropper]'));
@@ -135,12 +138,23 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   const changes = [];
   let gestures = 0;
   let sampledHex = null;
+  let sampleAttempt = 0;
+  const samplingChanges = [];
   const sampleCanvas = document.createElement('canvas');
+  const sampleSurface = document.createElement('div');
+  document.querySelector('main').append(sampleSurface);
   sampleCanvas.width = 200;
   sampleCanvas.height = 100;
   sampleCanvas.getBoundingClientRect = () => ({ left: 10, top: 20, width: 100, height: 50 });
   sampleCanvas.getContext = () => ({
-    getImageData: () => ({ data: new Uint8ClampedArray([12, 34, 56, 255]) }),
+    getImageData: () => {
+      sampleAttempt += 1;
+      return {
+        data: new Uint8ClampedArray(
+          sampleAttempt <= 3 ? [12, 34, 56, 0] : [12, 34, 56, 255],
+        ),
+      };
+    },
   });
   const handle = mountBackgroundLayoutControls(
     document.querySelector('main'),
@@ -148,6 +162,8 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
     {
       onGestureStart: () => { gestures += 1; },
       getEyeDropperCanvas: () => sampleCanvas,
+      getEyeDropperSurface: () => sampleSurface,
+      onColorSamplingChange: (sampling) => samplingChanges.push(sampling),
       onSampleColor: (hex) => { sampledHex = hex; },
     },
   );
@@ -202,6 +218,20 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
   assert.equal(gestures, 1);
 
+  const ySlider = document.querySelector('[data-background-position-slider="y"]');
+  const yBefore = changes.at(-1).patch.backgroundLayout.customPosition.y;
+  const arrowUp = new window.Event('keydown', { bubbles: true, cancelable: true });
+  Object.defineProperty(arrowUp, 'key', { value: 'ArrowUp' });
+  ySlider.dispatchEvent(arrowUp);
+  // BUG FIX: Y-axis slider keyboard direction
+  // Fix: ArrowUp lowers normalized Y (moves the image up); ArrowDown restores it.
+  // Sync: src/ui/design-studio/physical-slider.ts; src/ui/design-studio/background-layout-controls.ts
+  assert.equal(changes.at(-1).patch.backgroundLayout.customPosition.y, yBefore - 0.01);
+  const arrowDown = new window.Event('keydown', { bubbles: true, cancelable: true });
+  Object.defineProperty(arrowDown, 'key', { value: 'ArrowDown' });
+  ySlider.dispatchEvent(arrowDown);
+  assert.equal(changes.at(-1).patch.backgroundLayout.customPosition.y, yBefore);
+
   const blurToggle = document.querySelector('[data-background-blur-toggle]');
   blurToggle.checked = true;
   blurToggle.dispatchEvent(new window.Event('change'));
@@ -216,6 +246,10 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   Object.defineProperty(blend, 'value', { configurable: true, value: 'multiply' });
   blend.dispatchEvent(new window.Event('change'));
   assert.equal(changes.at(-1).patch.backgroundLayout.blendMode, 'multiply');
+  const holo = document.querySelector('[data-background-holo]');
+  holo.checked = true;
+  holo.dispatchEvent(new window.Event('change'));
+  assert.equal(changes.at(-1).patch.backgroundLayout.holo, true);
   const gifReact = document.querySelector('[data-background-gif-react]');
   gifReact.checked = true;
   gifReact.dispatchEvent(new window.Event('change'));
@@ -224,14 +258,29 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   const eyeDropper = document.querySelector('[data-background-eyedropper]');
   eyeDropper.dispatchEvent(new window.Event('click'));
   assert.equal(eyeDropper.getAttribute('aria-pressed'), 'true');
-  const sampleEvent = new window.Event('pointerdown');
-  Object.defineProperties(sampleEvent, {
-    clientX: { value: 60 },
-    clientY: { value: 45 },
-  });
-  sampleCanvas.dispatchEvent(sampleEvent);
+  assert.deepEqual(samplingChanges, [true]);
+  const dispatchSample = () => {
+    const sampleEvent = new window.Event('pointerdown', { bubbles: true, cancelable: true });
+    Object.defineProperties(sampleEvent, {
+      clientX: { value: 60 },
+      clientY: { value: 45 },
+    });
+    sampleSurface.dispatchEvent(sampleEvent);
+    return sampleEvent;
+  };
+  // BUG FIX: eye-dropper clicks were captured by background pan/zoom
+  // Fix: exercise the top interaction surface and keep sampling active with feedback on misses.
+  // Sync: src/ui/design-studio/background-layout-controls.ts; src/ui/design-studio/background-direct-manipulation.ts
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    assert.equal(dispatchSample().defaultPrevented, true);
+  }
+  assert.equal(sampledHex, null);
+  assert.equal(eyeDropper.getAttribute('aria-pressed'), 'true');
+  assert.match(document.querySelector('[data-background-sample-status]').value, /Still sampling/i);
+  dispatchSample();
   assert.equal(sampledHex, '#0c2238');
   assert.equal(eyeDropper.getAttribute('aria-pressed'), 'false');
+  assert.deepEqual(samplingChanges, [true, false]);
   handle.dispose();
 });
 

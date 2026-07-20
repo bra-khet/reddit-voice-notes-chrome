@@ -70,6 +70,8 @@ export interface BackgroundLayoutControlsOptions {
   onRedo?: () => void;
   getCaptionSafeBand?: () => NormalizedBand | null;
   getEyeDropperCanvas?: () => HTMLCanvasElement | null;
+  getEyeDropperSurface?: () => HTMLElement | null;
+  onColorSamplingChange?: (sampling: boolean) => void;
   onSampleColor?: (hex: string) => void;
 }
 
@@ -224,6 +226,9 @@ const BACKGROUND_BLEND_LABELS: Record<(typeof USER_BACKGROUND_BLEND_MODES)[numbe
   overlay: 'Overlay',
   screen: 'Screen',
   'soft-light': 'Soft light',
+  'color-burn': 'Color burn',
+  'color-dodge': 'Color dodge',
+  difference: 'Difference',
 };
 
 function renderBackgroundTreatment(): string {
@@ -284,6 +289,13 @@ function renderBackgroundTreatment(): string {
           </select>
         </label>
       </div>
+      <label class="studio__background-holo-toggle">
+        <input type="checkbox" data-background-holo>
+        <span>
+          <strong>Holo drift</strong>
+          <small>Gentle chromatic offset and moving sheen</small>
+        </span>
+      </label>
       <div class="studio__background-color-sampler">
         <button type="button" class="studio__background-eyedropper" data-background-eyedropper aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -328,7 +340,13 @@ function renderPrecisionAxis(axis: BackgroundPositionAxis): string {
     value: 0.5,
     ariaLabel: `${horizontal ? 'Horizontal' : 'Vertical'} background position`,
     orientation: horizontal ? 'horizontal' : 'vertical',
-    dataAttrs: { 'background-position-slider': axis },
+    // BUG FIX: Y-axis slider keyboard direction
+    // Fix: pointer values remain top→bottom, but keyboard arrows follow their spatial names.
+    // Sync: physical-slider.ts; scripts/test-background-control-ui.mjs
+    dataAttrs: {
+      'background-position-slider': axis,
+      ...(horizontal ? {} : { 'keyboard-inverted': 'true' }),
+    },
   });
   const heading = `
     <span class="studio__precision-axis-heading">
@@ -497,6 +515,7 @@ export function mountBackgroundLayoutControls(
   const blurSlider = panel.querySelector<HTMLElement>('[data-background-blur-slider]')!;
   const blurValue = panel.querySelector<HTMLOutputElement>('[data-background-blur-value]')!;
   const blendSelect = panel.querySelector<HTMLSelectElement>('[data-background-blend-mode]')!;
+  const holoToggle = panel.querySelector<HTMLInputElement>('[data-background-holo]')!;
   const gifSpeedSlider = panel.querySelector<HTMLElement>('[data-background-gif-speed-slider]')!;
   const gifSpeedValue = panel.querySelector<HTMLOutputElement>('[data-background-gif-speed-value]')!;
   const gifReactToggle = panel.querySelector<HTMLInputElement>('[data-background-gif-react]')!;
@@ -520,6 +539,8 @@ export function mountBackgroundLayoutControls(
   let recordingActive = false;
   let lastNonZeroBlur = 6;
   let samplingCanvas: HTMLCanvasElement | null = null;
+  let samplingSurface: HTMLElement | null = null;
+  let sampleMissCount = 0;
   let scaleMode: BackgroundScaleMode = layout.scaleMode;
   let position: BackgroundImagePosition = layout.position;
 
@@ -645,6 +666,7 @@ export function mountBackgroundLayoutControls(
       option.selected = selected;
       option.toggleAttribute('selected', selected);
     }
+    holoToggle.checked = layout.holo;
     setPhysicalSliderValue(gifSpeedSlider, Math.round(layout.gifSpeed * 100));
     gifSpeedValue.value = `${layout.gifSpeed.toFixed(2)}×`;
     gifReactToggle.checked = layout.gifReactToAudio;
@@ -738,10 +760,14 @@ export function mountBackgroundLayoutControls(
   }
 
   function finishColorSampling(message?: string): void {
-    samplingCanvas?.removeEventListener('pointerdown', onCanvasSample, true);
+    const wasSampling = Boolean(samplingCanvas || samplingSurface);
+    samplingSurface?.removeEventListener('pointerdown', onCanvasSample, true);
     samplingCanvas = null;
+    samplingSurface = null;
+    sampleMissCount = 0;
     samplingHost.classList.remove('studio__background-layout--sampling');
     eyeDropperButton.setAttribute('aria-pressed', 'false');
+    if (wasSampling) options.onColorSamplingChange?.(false);
     if (message) sampleStatus.value = message;
   }
 
@@ -751,7 +777,13 @@ export function mountBackgroundLayoutControls(
     event.stopImmediatePropagation();
     const hex = sampleCanvasColorAtClient(samplingCanvas, event.clientX, event.clientY);
     if (!hex) {
-      finishColorSampling('That pixel could not be sampled. Choose another clear background area.');
+      sampleMissCount += 1;
+      // BUG FIX: failed eye-dropper clicks looked inert and left users unsure which tool owned the canvas
+      // Fix: keep sampling active and escalate the live hint after repeated unavailable/transparent pixels.
+      // Sync: scripts/test-background-control-ui.mjs
+      sampleStatus.value = sampleMissCount >= 3
+        ? 'Still sampling—choose a visible background pixel, or press Esc to cancel.'
+        : 'That pixel could not be sampled. Choose another clear background area.';
       return;
     }
     sampledColor.style.background = hex;
@@ -773,11 +805,20 @@ export function mountBackgroundLayoutControls(
       sampleStatus.value = 'Open the main preview before sampling a color.';
       return;
     }
+    const surface = options.getEyeDropperSurface?.()
+      ?? root.querySelector<HTMLElement>('[data-background-manipulator]')
+      ?? canvas;
     samplingCanvas = canvas;
+    samplingSurface = surface;
+    sampleMissCount = 0;
     samplingHost.classList.add('studio__background-layout--sampling');
     eyeDropperButton.setAttribute('aria-pressed', 'true');
     sampleStatus.value = 'Click a clear background pixel. Press Esc to cancel.';
-    canvas.addEventListener('pointerdown', onCanvasSample, true);
+    // BUG FIX: eye-dropper clicks were captured by background pan/zoom
+    // Fix: sample from the top interaction surface and suspend direct manipulation until sampling ends.
+    // Sync: background-direct-manipulation.ts; mount-clip-studio.ts; studio-v4-controls.css
+    options.onColorSamplingChange?.(true);
+    surface.addEventListener('pointerdown', onCanvasSample, true);
   }
 
   function onSamplerKeydown(event: KeyboardEvent): void {
@@ -961,6 +1002,17 @@ export function mountBackgroundLayoutControls(
     syncLayout(layout);
     emit();
   });
+  holoToggle.addEventListener('change', () => {
+    options.onGestureStart?.();
+    // CHANGED: the experimental holo treatment persists through the same normalized layout patch.
+    // WHY: it must remain a personal-image property with preview/capture parity and no new state seam.
+    layout = normalizeUserBackgroundLayout({
+      ...layout,
+      holo: holoToggle.checked,
+    });
+    syncLayout(layout);
+    emit();
+  });
   gifReactToggle.addEventListener('change', () => {
     options.onGestureStart?.();
     layout = normalizeUserBackgroundLayout({
@@ -971,7 +1023,7 @@ export function mountBackgroundLayoutControls(
     emit();
   });
   eyeDropperButton.addEventListener('click', beginColorSampling);
-  root.addEventListener('keydown', onSamplerKeydown);
+  root.addEventListener('keydown', onSamplerKeydown, true);
   undoButton.addEventListener('click', () => options.onUndo?.());
   redoButton.addEventListener('click', () => options.onRedo?.());
 
@@ -981,7 +1033,10 @@ export function mountBackgroundLayoutControls(
     sync(prefs) {
       const hasBackground = Boolean(prefs.appearance.customBackgroundId);
       panel.hidden = !hasBackground;
-      if (!hasBackground) return;
+      if (!hasBackground) {
+        finishColorSampling();
+        return;
+      }
       committedBackgroundId = prefs.appearance.customBackgroundId ?? null;
       syncLayout(userBackgroundLayoutFromAppearance(prefs.appearance), true);
     },
@@ -997,7 +1052,7 @@ export function mountBackgroundLayoutControls(
     isGuidesEnabled: () => guidesEnabled,
     dispose() {
       finishColorSampling();
-      root.removeEventListener('keydown', onSamplerKeydown);
+      root.removeEventListener('keydown', onSamplerKeydown, true);
       disposeSliders();
     },
   };

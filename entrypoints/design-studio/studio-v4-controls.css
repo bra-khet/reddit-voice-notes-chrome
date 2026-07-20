@@ -418,6 +418,46 @@
   opacity: 0.38;
 }
 
+.studio-v4 .studio__background-holo-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--studio-accent-background) 34%, var(--studio-hairline));
+  border-radius: 6px;
+  color: var(--studio-text-muted);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--studio-accent-background) 14%, transparent),
+    color-mix(in srgb, var(--studio-accent-background) 7%, transparent)
+  );
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-holo-toggle input {
+  accent-color: var(--studio-accent-background);
+}
+
+.studio-v4 .studio__background-holo-toggle span {
+  display: grid;
+  gap: 1px;
+}
+
+.studio-v4 .studio__background-holo-toggle strong {
+  color: var(--studio-text);
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-holo-toggle small {
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-holo-toggle:has(input:focus-visible) {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
 .studio-v4 .studio__background-blend-field {
   display: grid;
   align-content: center;
@@ -485,10 +525,19 @@
   line-height: 1.3;
 }
 
-.studio-v4.studio__background-layout--sampling .studio__hero .studio__preview-canvas {
+/* BUG FIX: eye-dropper clicks were captured by background pan/zoom
+   Fix: surface the sampling state on the top interaction layer that actually receives pointer input.
+   Sync: background-layout-controls.ts; background-direct-manipulation.ts; mount-clip-studio.ts */
+.studio-v4.studio__background-layout--sampling .studio__hero .studio__preview-canvas,
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-manipulator] {
   outline: 2px solid var(--studio-amber);
   outline-offset: -3px;
   cursor: crosshair;
+}
+
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-focal-dot],
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-guide-layer] {
+  visibility: hidden;
 }
 
 .studio-v4 .studio__background-motion {

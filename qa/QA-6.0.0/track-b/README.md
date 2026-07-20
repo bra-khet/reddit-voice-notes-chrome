@@ -1,6 +1,6 @@
 # Track B — background layout QA (**open · Phase 0–5 DONE**)
 
-**Status:** **OPEN** — Phase 0–5 landed; **operator Phase 1–4 QA PASS**; Phase 5 operator QA, Phase 6–7, and full merge gate still ahead<br>
+**Status:** **OPEN** — Phase 0–5 landed; **operator Phase 1–4 + original Phase 5 §6 QA PASS**; follow-up recheck, Phase 6–7, and full merge gate still ahead<br>
 **Branch:** `feature/v6.0.0-background-panel-refactor`  
 **Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` (baseline was `main@2b42db5`)<br>
 **Baseline package:** v5.11.0 · Track A confidence PASS · Track C agent gate PASS  
@@ -30,10 +30,10 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 | **2** precision-widget | **DONE · operator behavior PASS** | Background subpanel mini frame, X/Y readouts, and ±0.01/±0.05 nudges sync with hero. |
 | **3** interaction-utils | **DONE · operator QA PASS** | Spatial X/Y console, single/double chevrons, physical sliders, cursor-anchored zoom, sticky guides, caption-safe lock, and isolated undo/redo. |
 | **4** presets | **DONE · operator QA PASS** | Four Aurora/Warm Glow image-layout recipes; hover/focus auditions without saving; selection + Apply persists. Capture now restores and locks auditions before recording. |
-| **5** properties/effects | **DONE · operator QA pending** | Darkroom dim/blur/blend controls, GIF speed/voice response, and permission-free preview-canvas eye-dropper. |
+| **5** properties/effects | **DONE · base §6 PASS; follow-up recheck** | Darkroom effects/GIF, sampling ownership, recorder no-flash authority, added burn/dodge/difference blends, and opt-in Canvas 2D Holo drift. |
 | **6+** | Not started | Crop guides, compare, keyboard/ARIA/variants, confidence polish |
 
-**Automated (Phase 0–5):** focused layout/interaction/UI set **69/69** (layout 11 · direct-manip 8 · precision 5 · interaction utils 6 · control UI 10 · presets 5 · canvas sampler 5 · caption geometry 7 · prefs storage 12) · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics.
+**Automated (Phase 0–5 follow-up):** focused layout/interaction/UI set **76/76** (prior 69 + holo compositor 4 + recorder authority 3) · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics.
 
 ## Scope reminder
 
@@ -56,10 +56,10 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 | **2** | Precision widget + bidirectional sync | **DONE** `b129713` · operator behavior PASS |
 | **3** | Zoom, sticky snap, safe-text lock, undo/redo + positioning-console redesign | **DONE** `844a81f` · operator QA PASS |
 | **4** | Presets row + live hover preview | **DONE** `1166d51` · operator QA PASS; recording guard in `16e3dd0` |
-| **5** | Properties/effects + eye-dropper | **DONE** `16e3dd0` · operator QA pending |
+| **5** | Properties/effects + eye-dropper | **DONE** `16e3dd0` · original §6 operator PASS; follow-up recheck pending |
 | **6** | Multi-aspect crop guides + compare | pending |
 | **7** | Keyboard, ARIA, variants, confidence QA | pending |
 
-**Immediate next:** operator-check Phase 5 checklist §6–§7, including recording-safe hover lockout and the real 120 s blur+GIF size case; then implement Phase 6 framing aids.
+**Immediate next:** operator-recheck Y-key direction, record-time position continuity, eye-dropper hand-off, added blends, and Holo drift; complete the real 120 s blur+GIF size case; then implement Phase 6 framing aids.
 
 Workspace ledger: [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · session log: [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md).

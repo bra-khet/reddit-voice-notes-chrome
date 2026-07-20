@@ -145,6 +145,7 @@ interface DrawImageBackgroundOptions {
   letterboxColor: string;
   scaleMode: BackgroundScaleMode;
   layout: NormalizedUserBackgroundLayout;
+  audioFrame?: AudioVizFrame;
   /** When true, theme backdrop is already drawn — only place the image (fit mode). */
   skipLetterboxFill?: boolean;
 }
@@ -157,6 +158,58 @@ function applyBackgroundImageEffects(
   ctx.filter = layout.blur > 0 ? `blur(${layout.blur}px)` : 'none';
 }
 
+function drawHoloBackgroundImage(
+  ctx: CanvasRenderingContext2D,
+  image: DrawableBackgroundImage,
+  dx: number,
+  dy: number,
+  drawWidth: number,
+  drawHeight: number,
+  layout: NormalizedUserBackgroundLayout,
+  audioFrame: AudioVizFrame,
+): void {
+  const seconds = Math.max(0, audioFrame.timeMs) / 1000;
+  const energy = Math.max(0, Math.min(1, audioFrame.energy));
+  const drift = Math.sin(seconds * 1.15);
+  const offset = 1.25 + energy * 0.75 + (drift + 1) * 0.25;
+  const blur = layout.blur > 0 ? `blur(${layout.blur}px) ` : '';
+
+  ctx.save();
+  try {
+    // CHANGED: holo is two translucent chromatic image passes plus one clipped slow sheen.
+    // WHY: it stays cheap Canvas 2D work inside the personal-image slot and shares capture time/energy.
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.085 + energy * 0.035;
+    ctx.filter = `${blur}saturate(1.35) hue-rotate(${52 + drift * 14}deg)`;
+    ctx.drawImage(image, dx + offset, dy, drawWidth, drawHeight);
+    ctx.filter = `${blur}saturate(1.3) hue-rotate(${228 - drift * 18}deg)`;
+    ctx.drawImage(image, dx - offset, dy, drawWidth, drawHeight);
+
+    const sweep = (seconds % 12) / 12;
+    const sheenCenter = dx - drawWidth * 0.25 + sweep * drawWidth * 1.5;
+    const sheen = ctx.createLinearGradient(
+      sheenCenter - drawWidth * 0.18,
+      dy,
+      sheenCenter + drawWidth * 0.18,
+      dy + drawHeight,
+    );
+    sheen.addColorStop(0, 'rgba(103, 232, 249, 0)');
+    sheen.addColorStop(0.42, 'rgba(103, 232, 249, 0.34)');
+    sheen.addColorStop(0.58, 'rgba(253, 231, 37, 0.28)');
+    sheen.addColorStop(1, 'rgba(192, 132, 252, 0)');
+    ctx.beginPath();
+    ctx.rect(dx, dy, drawWidth, drawHeight);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = 0.08 + energy * 0.025;
+    ctx.filter = 'none';
+    ctx.fillStyle = sheen;
+    ctx.fillRect(dx, dy, drawWidth, drawHeight);
+  } finally {
+    ctx.restore();
+  }
+}
+
 function drawImageBackground({
   ctx,
   canvas,
@@ -164,6 +217,7 @@ function drawImageBackground({
   letterboxColor,
   scaleMode,
   layout,
+  audioFrame = EMPTY_AUDIO_VIZ_FRAME,
   skipLetterboxFill = false,
 }: DrawImageBackgroundOptions): void {
   const { width, height } = canvas;
@@ -196,6 +250,18 @@ function drawImageBackground({
   try {
     applyBackgroundImageEffects(ctx, layout);
     ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+    if (layout.holo) {
+      drawHoloBackgroundImage(
+        ctx,
+        image,
+        dx,
+        dy,
+        drawWidth,
+        drawHeight,
+        layout,
+        audioFrame,
+      );
+    }
   } finally {
     ctx.restore();
   }
@@ -244,6 +310,7 @@ function drawUserBackgroundLayer(
       letterboxColor: theme.colors.bg,
       scaleMode: 'fit',
       layout,
+      audioFrame,
       skipLetterboxFill: true,
     });
   } else {
@@ -254,6 +321,7 @@ function drawUserBackgroundLayer(
       letterboxColor: theme.colors.bg,
       scaleMode: 'fill',
       layout,
+      audioFrame,
     });
   }
 
