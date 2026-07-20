@@ -59,8 +59,8 @@ Previous: **v4.0.0** (Eloquent I — subtitles + v4 Studio), **v3.x** (voice + U
 
 | Area | Highlights |
 |------|------------|
-| **Collapsible Studio** | Bar style, Background, and Voice roll-ups with live collapsed summaries |
-| **Bar style** | Renamed from Style; Effects nested inside; summary shows swatch, S/V, alignment badge |
+| **Collapsible Studio** | Style, Background, Voice, and Subtitles roll-ups with live collapsed summaries |
+| **Style Control Center** | Registry-driven Spectrum, Atmosphere, and Accent pickers; shared tuning, contextual layout/readability controls, and a visible capture-performance governor |
 | **Background** | 3×3 corner alignment; sizing + position side-by-side |
 | **Voice tips** | Robot / Whisper / Slight mask show compensating hints when selected |
 | **Preview** | One master Live preview (secondary/tertiary previews removed) |

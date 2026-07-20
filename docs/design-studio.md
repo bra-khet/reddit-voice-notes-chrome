@@ -1,9 +1,9 @@
 # Design Studio — semantic framework & architecture reference
 
-**Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v5.11.0 preferences-IDB implementation** (manual browser QA pending). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
+**Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v6.0 Track A Phase 4 Style Control Center integration** (focused responsive browser QA PASS; real-capture FPS/heavy-artifact matrix remains open). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
 **Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.0, seams v1.14, backlog v2.11.
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.21, seams v1.35, backlog v2.13.
 
 ---
 
@@ -75,7 +75,7 @@ Runtime root: `.studio-v4` (`mount-clip-studio.ts`). **§10.2 hero + 1×4 strip*
 │ LIVE PREVIEW (hero, WYSIWYG) │ PROFILE + STATUS strip   │
 │ canvas + mask-cutout bezel   │ (Subtitles? / Ready?)    │
 ├──────────┬──────────┬──────────┬──────────┤
-│ Bar style│Background│  Voice   │ Subtitles│  ← status cards
+│  Style   │Background│  Voice   │ Subtitles│  ← status cards
 │ summary  │ summary  │ summary  │ summary  │  → tap opens sub-panel
 └──────────┴──────────┴──────────┴──────────┘
 ```
@@ -166,7 +166,7 @@ The **single** Live preview canvas uses `renderThemePreview()` with the same inp
 - Personal background id + layout (Studio reads ImageDB directly)
 - Subtitle overlay options from `subtitleControls.getPreviewOptions()`; offline bake reuses `createOverlayFramePainter`
 
-Animated preview (bokeh, sparkle) runs at 12 fps RAF unless `shouldReduceMotion(prefs)`.
+Animated preview (Bubbles/`bokeh`, Sparkle) runs at 12 fps RAF unless `shouldReduceMotion(prefs)`.
 
 **Invariant:** If it appears in Live preview, the export path must reproduce it—either in the captured base canvas or the post-base subtitle painter/fallback. Timeline cue edits snap to the painter frame grid (I17). Trim ghosts and destructive apply share the same cue projection, so trim preview = applied result (I18).
 
@@ -174,7 +174,7 @@ Animated preview (bokeh, sparkle) runs at 12 fps RAF unless `shouldReduceMotion(
 
 Bottom → top:
 
-1. **Background** — theme gradient/SVG/bokeh + optional personal image.
+1. **Background** — theme gradient/SVG/Bubbles + optional personal image.
 2. **Bars** — waveform + glow/effects (canvas capture at 24 fps on Reddit).
 3. **Subtitles** — post-`base.mp4` composite, never in the live capture RAF. Default: in-page VideoDecoder → shared painter blend → VideoEncoder+mux. Permanent fallbacks: dual-IVF+FFmpeg, MediaRecorder+FFmpeg, then drawtext.
 
@@ -224,20 +224,30 @@ Implement new Studio surfaces via `studio-save-pathways.ts` and `studio-exit.ts`
 
 ---
 
-## 4. Section — Bar style
+## 4. Section — Style
 
-**Panel id:** `data-studio-panel="bar-style"`  
-**Summary:** `renderBarStyleSummaryHtml` — style name, color swatch, S/V, alignment badge, effects chip.
+**Panel id:** `data-studio-panel="style"`
+**Summary:** `renderStyleSummaryHtml` — style name, registry spectrum label, color swatch, S/V, alignment badge, atmosphere/accent chip, and semantic governor state.
+
+**v6 Phase 4 implementation (2026-07-14):** the former Bar Style surface is now a registry-driven visual instrument rack. Its first row explains the real render order—**Atmosphere → ordered Accents → Spectrum → Captions**—and every production definition is selectable: six spectra, seven atmosphere overlays (plus Clean), and seven stackables capped at three. The panel uses the existing physical-slider and Cividis/indigo/amber asset language, with CSS-native thumbnails instead of new bitmap payloads. Focused desktop/mobile browser QA found and fixed grid min-content overflow; keyboard Detail changes, local picker scrolling, max-three unlocking, visible suspended state, and semantic warning text all pass. This is focused panel QA, not the still-required live-recording FPS and 120-second heavy-artifact matrix.
 
 ### 4.1 Controls inventory
 
 | Control | Data field | Persist path |
 |---------|------------|--------------|
-| Clip style select | `activeThemeId`, `activeCustomStyleId`, preset virtual ids | `applyPresetClipStyle` / `applyCustomClipStyle` / `enterCustomStyleMode` |
+| Style collection select | `activeThemeId`, `activeCustomStyleId`, preset virtual ids | `applyPresetClipStyle` / `applyCustomClipStyle` / `enterCustomStyleMode` |
 | Color picker (HSV/HEX) | `designOverrides.barColor`, `glowColor` | Debounced `saveCustomStyleColors` (200 ms) |
-| Bar alignment | `appearance.barAlignment` | `saveAppearancePreferences` |
-| Boosted bar glow | `designOverrides.barGlow` | Debounced style colors |
-| Background flair | `designOverrides.backgroundEffect` | Debounced style colors |
+| Spectrum anchor | `appearance.barAlignment` | `saveAppearancePreferences` |
+| Spectrum picker | `designOverrides.spectrumPreset` | Immediate local override + debounced `saveCustomStyleColors` |
+| Atmosphere picker | `designOverrides.overlayPreset` (`null` = Clean) | Same existing custom-style pathway; `backgroundEffect` is compatibility-only |
+| Accent multi-select | `designOverrides.stackables` (ordered, deduped, max 3) | Same existing custom-style pathway |
+| Intensity / Sensitivity / Smoothing | `visualizerParams` 0–1 | Same existing custom-style pathway |
+| Color language | preset defaults, clip color, or ≤7 normalized palette colors | `visualizerParams.color` |
+| Bass / Mid / Treble | optional `visualizerParams.*Weight` 0–2 | Same existing custom-style pathway |
+| Scene geometry / Afterimage | guarded `layoutMode`, contextual `afterimageStrength` | Same existing custom-style pathway |
+| High Contrast / Caption-safe dim | `highContrast`, `subtitleSafeDim` | Same existing custom-style pathway |
+| Classic halo | existing `designOverrides.barGlow` | Same existing custom-style pathway; visible only for Classic |
+| Detail + governor | `visualizerParams.density` + registry `maxElements` estimate | Density persists; governor suspension never rewrites the saved accent list |
 
 Custom style sub-panel (`data-custom-style-panel`) visible when user picks **Custom** or a saved style — hosts color picker + style Save/Update/Clone/Delete.
 
@@ -245,13 +255,15 @@ Custom style sub-panel (`data-custom-style-panel`) visible when user picks **Cus
 
 - **Theme preset** — bundled SVG/gradient in `src/theme/`; selectable without creating a saved style.
 - **Custom style** — named `savedStyles[]` entry holding `designOverrides`.
-- **Design overrides** — merge onto resolved theme for preview and canvas; drive bar color, glow, flair.
+- **Design overrides** — merge onto the resolved theme for preview and capture; drive colors, spectrum, atmosphere, shared params, and the ordered accent list without a preference-version bump.
+- **Performance snapshot** — pure registry-backed cost estimate. Comfortable ≤560, Elevated ≤980, Guarded above 980. In Guarded, the single most expensive selected accent is suspended in both Studio and capture while the saved selection remains intact; lowering Detail restores it automatically.
+- **Caption-safe dim** — optional lower-center ellipse painted after record-time visuals and before the post-base caption layer, so the reading zone never covers caption glyphs.
 
 Selecting a bundled preset in Studio clears `activeProfileId` (manual/custom mode) unless user later saves as profile.
 
 ### 4.3 Preview coupling
 
-Color/effect changes call `applyLocalDesignOverrides` → immediate preview refresh. Debounced persist avoids storage RMW storms during HSV drag.
+Style changes call `applyLocalDesignOverrides` → immediate preview refresh. Identity changes reset only per-canvas visual runtimes so stale trails/grids/particles cannot return when a preset is revisited; tuning changes preserve bounded smoothing state. Debounced persist avoids storage RMW storms during physical-slider and HSV input.
 
 ### 4.4 Extension to recorder
 
@@ -261,10 +273,12 @@ Color/effect changes call `applyLocalDesignOverrides` → immediate preview refr
 
 | File | Role |
 |------|------|
-| `color-picker.ts` | HSV/HEX radial controls |
-| `effect-controls.ts` | Bar glow + background flair |
+| `color-picker.ts` | HSV/HEX radial controls for the custom color lab |
+| `style-controls.ts` | Registry discovery, pickers, shared/contextual controls, accessible state, and live governor presentation |
+| `performance-governor.ts` | Pure shared cost policy and active-vs-suspended accent resolution used by UI and renderer |
+| `subtitle-safe-dim.ts` | Shared bounded lower-center canvas dim for preview/capture |
 | `radial-knob.ts` | Shared dial widget |
-| `mount-clip-studio.ts` | Select handlers, style buttons, preview loop |
+| `mount-clip-studio.ts` | Existing save pathway, Style mounting, identity resets, select handlers, and preview loop |
 
 ---
 
@@ -568,7 +582,7 @@ Styles live in `entrypoints/design-studio/style.css` (+ shared `entrypoints/popu
 
 | Attribute | Owner |
 |-----------|-------|
-| `data-studio-panel` | Panel identity: `bar-style`, `background`, `voice`, `subtitles` |
+| `data-studio-panel` | Panel identity: `style`, `background`, `voice`, `subtitles` |
 | `data-summary-*` | Collapsed chip targets |
 | `data-preview-canvas` | Live preview canvas |
 | `data-profile-select`, `data-save-profile`, … | Profile bar |
@@ -655,7 +669,7 @@ Replace `<details>` accordion with always-visible “dressed” cards + nested s
 | **Monolith orchestrator** | `mount-clip-studio.ts` (~950 lines) | Single `innerHTML` template + all `querySelector` roots. Any DOM move must preserve: profile buttons, theme/alignment selects, `data-custom-style-panel`, four panel bodies, preview canvas. **Split template into layout partials** before styling — reduces diff blast radius. |
 | **Profile bar relocation** | `mount-clip-studio.ts`, CSS | Profile select + Save/Update/Clone/Delete beside preview. All `syncProfileButton` / `isProfileDirty` logic stays; only queries must still find `[data-profile-select]`, `[data-save-profile]`, etc. |
 | **Major vs full controls** | Each `render*Fields()` module | New pattern: split each section into `render*MajorFields()` + `render*AdvancedFields()` (or sub-panel). **Highest product-design work** — define what’s “major” per section without losing features. |
-| **Bar style nesting** | `color-picker.ts`, `effect-controls.ts` | Hue wheel + radial knobs need ~300px width; compact 2×2 cards may clip. Sub-panel or landscape-only full picker. `isUserAdjusting()` / `endInteraction()` must survive panel open/close. |
+| **Style nesting** | `color-picker.ts`, `style-controls.ts` | Hue wheel + visual picker rails need room; compact card faces must remain summaries only. `isUserAdjusting()` / `endInteraction()` must survive panel open/close. |
 | **Subtitles nesting** | `subtitle-controls.ts`, `subtitle-segment-editor.ts` | Already has hidden bodies (`data-subtitle-body`, glow options, special hue, bake dialog, **modal**). Segment modal is `position: fixed` — z-index vs new grid. Bake unsaved dialog competes with exit modal (`z-index: 20`). |
 | **Voice preview** | `voice-controls.ts` | Play/stop polls IDB; independent of layout if `[data-voice-*]` preserved. |
 
@@ -666,7 +680,7 @@ Replace `<details>` accordion with always-visible “dressed” cards + nested s
 | **Boot / prefs hydration** | `main.ts` boot order + `applyPrefs` voice/subtitle sync **before** `syncProfileActions` (BUG-027). Re-mounting or re-ordering panel init can resurrect false “Update profile”. |
 | **Four dirty layers** | Profile, style, transcript panel, segment modal — UI refresh must not merge dirty booleans. Exit modal (`studio-exit.ts`) only knows profile/style. |
 | **Storage listener gate** | `prefsHydrated`, `ignoreStoragePrefs`, `invalidateInFlightSaves` — remounting sections on breakpoint change would reset drafts; **avoid re-mount on resize**. |
-| **Preview RAF loop** | `syncPreviewLoop` / `previewCanvases()` — multiple canvases or resize must not duplicate RAF or starve rainbow/bokeh. |
+| **Preview RAF loop** | `syncPreviewLoop` / `previewCanvases()` — multiple canvases or resize must not duplicate RAF or starve rainbow/Bubbles. |
 | **Color debounce** | `COLOR_SAVE_DEBOUNCE_MS` + `colorPicker.endInteraction()` on external sync — collapsing panels must not stomp in-progress hue drags. |
 | **Subtitle `flushPersist` on pagehide** | Teardown order in `unmount()` — must run before tab death (BUG-017/021). |
 | **WYSIWYG copy** | Header says “preview matches recorded video” — rainbow and future effects need honest hints (see `Bake: stepped`). Refresh tagline may need qualification. |
@@ -690,7 +704,7 @@ If card faces expose **no interactive controls** — only read-only status/summa
 | Full-scope item (§10.1) | Narrow-scope change |
 |-------------------------|---------------------|
 | **Major vs full control split** (`render*MajorFields` + `render*AdvancedFields`) | **Removed** — keep existing `render*Fields()` modules intact; mount entire body in sub-panel only. |
-| **Bar style 2×2 clipping** (hue wheel ~300px in compact card) | **Removed** — picker runs full-width inside open sub-panel. |
+| **Style 2×2 clipping** (hue wheel ~300px in compact card) | **Removed** — picker runs full-width inside open sub-panel. |
 | **Summary chips → card headers** | **Becomes the main card deliverable** — `studio-section-summaries.ts` + `data-summary-*` stay; add optional status cues (e.g. “Bake pending”, “Custom style”). |
 | **Portrait vs landscape control density** | **One pattern** — card = status; sub-panel = full controls at both breakpoints. |
 | **Tier A shell / grid / hero preview** | Unchanged |
@@ -732,7 +746,7 @@ Landscape (wide):
 │                              │ + STATUS strip  │
 └──────────────────────────────┴─────────────────┘
 ┌──────────┬──────────┬──────────┬──────────┐
-│ Bar style│Background│  Voice   │ Subtitles│
+│  Style   │Background│  Voice   │ Subtitles│
 │ (status) │ (status) │ (status) │ (status) │
 └──────────┴──────────┴──────────┴──────────┘
 ```
@@ -742,7 +756,7 @@ Narrow (stack — typical breakpoint when four cards cannot hold min readable wi
 ```
 PROFILE + STATUS
 LIVE PREVIEW
-Bar style   (status card)
+Style       (status card)
 Background  (status card)
 Voice       (status card)
 Subtitles   (status card)
@@ -766,7 +780,7 @@ Assumes §10.1.1 narrow scope (status cards + sub-panel only).
 | **UX / intuitiveness** (1–10) | **7** | **9** | B separates “watch” (hero) from “configure” (four doors); scan line matches four bounded sections; profile/status beside preview answers “what am I editing?” |
 | **Ease of development** (1–10) | **7** | **9** | B is pure CSS grid (`2fr 1fr` hero + `repeat(4,1fr)` strip); one collapse rule (`4→1` columns). A fights vertical budget (preview vs 2×2 height) and uneven card aspect ratios |
 
-**Pain vs §10.1 plan:** Switching B→vertical **reduces** overall pain vs 2×2 — not increases. Tier C unchanged. Tier B **bar-style clipping in cards** already removed by narrow scope; B’s thinner landscape cards only affect summary truncation (solved with progressive disclosure, not control layout). **New watchpoint:** subtitle summary verbosity — use card badge + hover tooltip, not full cue list on the face.
+**Pain vs §10.1 plan:** Switching B→vertical **reduces** overall pain vs 2×2 — not increases. Tier C unchanged. Tier B **Style clipping in cards** already removed by narrow scope; B’s thinner landscape cards only affect summary truncation (solved with progressive disclosure, not control layout). **New watchpoint:** subtitle summary verbosity — use card badge + hover tooltip, not full cue list on the face.
 
 **Recommended breakpoint:** collapse the four-card strip to a single column when `min(card) < ~160px` or container width `< ~720px` (tune in CSS prototype). Aspect ratio alone is a weak signal; **container query on the strip** is more reliable than `1:1`.
 
@@ -873,7 +887,7 @@ reddit.com).
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
-| v6 visual maturity | Shell / Background | Theme/background/elevation/reduced-motion audit after the functional editing arc |
+| v6 visual maturity | Style / Background | **In progress:** Track A Phase 4 Style Control Center + shared performance governor are integrated over the complete 6-spectrum / 7-overlay / 7-stackable catalog. Focused responsive browser QA and 226/226 registry/render/control checks pass; the real-capture FPS and per-heavy-preset 120-second artifact matrix remains open. Track B background direct manipulation remains planned. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -904,7 +918,7 @@ reddit.com).
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (planned)** audio-reactive visuals + six spectrum presets + simulation backbone (ADR-0007) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; Phase 4 Style panel/governor integration is complete over six spectra, seven overlay families, and seven stackable IDs; live-capture FPS/heavy-artifact QA follows (ADR-0007/0009/0010 Accepted) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 (planned)** direct-manipulation background layout — Design-phase; `dim`→field, `customPosition` (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |
@@ -974,8 +988,8 @@ src/ui/design-studio/
   open-design-studio.ts    tabs.create relay
   workflow-phase-banner.ts 3-phase stepper + CTA; reads rvn.workflow.phase + live status
   preview-block.ts         Canvas markup
-  color-picker.ts          Bar style colors
-  effect-controls.ts       Glow + flair
+  color-picker.ts          Custom Style color lab
+  style-controls.ts        Registry pickers + tuning + governor UI
   background-layout-controls.ts
   voice-controls.ts
   subtitle-controls.ts
@@ -1008,5 +1022,5 @@ Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Stu
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
 H8 resolved + browser QA PASS: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result even if resume-time prefs were mutated/nuked. Legacy drafts disclose current-prefs fallback. No H8 re-run for v5.11.
 Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix only.
-Read docs/architecture/architecture-map.md v3.0 before changing cross-context behavior.
+Read docs/architecture/architecture-map.md v3.21 before changing cross-context behavior. Track A next: complete the Phase 4 live-recording FPS, accessibility, and 120-second heavy-artifact matrix.
 ```

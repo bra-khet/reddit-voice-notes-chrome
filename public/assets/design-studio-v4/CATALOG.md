@@ -23,7 +23,7 @@ See `panels/9-slice-usage.md` for CSS recipes.
 
 | Path | Size | Role |
 |------|------|------|
-| `icons/waveform-bars-32.svg` | 32 | Bar style card |
+| `icons/waveform-bars-32.svg` | 32 | Style card (signal/spectrum) |
 | `icons/frame-icon-32.svg` | 32 | Background card |
 | `icons/mic-wave-32.svg` | 32 | Voice card |
 | `icons/caption-lines-32.svg` | 32 | Subtitles card |

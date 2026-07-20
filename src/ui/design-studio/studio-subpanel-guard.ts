@@ -1,4 +1,4 @@
-export type StudioSubpanelGuardPanelId = 'bar-style' | 'background' | 'voice' | 'subtitles';
+export type StudioSubpanelGuardPanelId = 'style' | 'background' | 'voice' | 'subtitles';
 
 export type StudioSubpanelGuardActions = {
   onApply: () => void | Promise<void>;
@@ -28,9 +28,9 @@ const GUARD_COPY_BY_PANEL: Partial<Record<StudioSubpanelGuardPanelId, StudioSubp
     discardLabel: 'Discard & leave',
     cancelLabel: 'Keep editing',
   },
-  'bar-style': {
+  style: {
     message:
-      'You have unsaved bar style edits. Save them before leaving, discard the changes, or keep editing.',
+      'You have unsaved visual style edits. Save them before leaving, discard the changes, or keep editing.',
     applyLabel: 'Save & leave',
     discardLabel: 'Discard & leave',
     cancelLabel: 'Keep editing',

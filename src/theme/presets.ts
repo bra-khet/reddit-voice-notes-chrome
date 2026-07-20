@@ -1,4 +1,5 @@
 import { RVN_COLORS } from '@/src/ui/tokens';
+import { BUBBLES_OVERLAY_LABEL } from './audio-reactive/catalog';
 import type { WaveformTheme } from './types';
 
 export const DEFAULT_THEME_ID = 'classic' as const;
@@ -68,7 +69,7 @@ export const THEME_PRESETS: WaveformTheme[] = [
   },
   {
     id: 'midnight-bokeh',
-    name: 'Midnight Bokeh',
+    name: `Midnight ${BUBBLES_OVERLAY_LABEL}`,
     bars: {
       width: 10,
       spacing: 6,
@@ -76,9 +77,9 @@ export const THEME_PRESETS: WaveformTheme[] = [
       glow: 10,
     },
     colors: {
-      bar: '#0a0e14',
-      glow: '#58a6ff55',
-      bg: '#1f6feb',
+      bar: '#d9f7ff',
+      glow: '#67e8f9bb',
+      bg: '#050814',
     },
     background: {
       type: 'bokeh',

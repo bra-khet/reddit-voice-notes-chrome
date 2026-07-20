@@ -24,19 +24,29 @@ export type BrowserCompositeVideoCodec =
   (typeof BROWSER_COMPOSITE_VIDEO_CODEC_CANDIDATES)[number];
 
 /**
- * Composite output video bitrate. Pinned at the overlay path's proven
- * OVERLAY_VIDEO_BPS figure — and, decisively, under the ceiling imposed by
- * the 30 MB rvnLastBakedMp4 store cap (R13): saveLastBakedMp4 REJECTS (throws
- * on) larger blobs since H13, so at the 2:00 recording cap total bitrate must
- * stay below ~2.0 Mbps. 1.5 Mbps video + 128 kbps AAC ≈ 24.5 MB worst case.
+ * Composite output video bitrate.
+ * CHANGED: 1.5 → 2.2 Mbps per QA-6.0.0 Pass D operator decision — the old pin
+ * (chosen under the retired 30 MiB store cap) crushed every 2:00 bake to ~25 MB
+ * regardless of scene entropy, visibly costing Digital Rain quality while the
+ * raised 40 MiB cap sat unused. 2.2 Mbps video + 128 kbps AAC ≈ 35 MiB at the
+ * 2:00 recording cap (the operator's stated target), leaving ~5 MiB of cap
+ * headroom. Future intent (operator): revisit toward a 48 MiB budget if worker
+ * memory allows; that requires raising the store caps first.
+ * Sync: last-baked-mp4-db.ts LAST_BAKED_MP4_MAX_BYTES commentary,
+ *       scripts/test-browser-composite-plan.mjs size-guard checks.
  */
-export const BROWSER_COMPOSITE_VIDEO_BPS = 1_500_000;
+export const BROWSER_COMPOSITE_VIDEO_BPS = 2_200_000;
 
 /** Keyframe cadence for the composite output (seconds). Matches web-video norms. */
 export const BROWSER_COMPOSITE_KEYFRAME_INTERVAL_SECONDS = 2;
 
 /** rvnLastBakedMp4 hard cap — mirrored from last-baked-mp4-db.ts MAX_BYTES. */
-export const BAKED_MP4_MAX_BYTES = 30 * 1024 * 1024;
+// BUG FIX: stale 30 MiB mirror of the raised store cap
+// Fix: last-baked-mp4-db.ts moved to 40 MiB in Pass A but this mirror (which the
+//      R13 pre-encode size guard reads) still said 30 — an honest-warning path
+//      that would have fired ~10 MiB early once bitrates grew.
+// Sync: LAST_BAKED_MP4_MAX_BYTES (src/storage/last-baked-mp4-db.ts).
+export const BAKED_MP4_MAX_BYTES = 40 * 1024 * 1024;
 
 /** Assumed audio bitrate for the size guard (transcode uses AAC 128k). */
 const SIZE_GUARD_AUDIO_BPS = 128_000;

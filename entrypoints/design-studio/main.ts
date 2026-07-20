@@ -5,6 +5,9 @@ import './studio-v4-layout.css';
 import './studio-v4-buttons.css';
 import './style.css';
 import './studio-v4-controls.css';
+// CHANGED: Phase 4 Style Control Center owns a focused instrument-rack stylesheet.
+// WHY: keeping its dense responsive selectors isolated avoids specificity fights with subtitle timelines.
+import './style-control-center.css';
 import { reconcileBackgroundPreferences } from '@/src/storage/background-refs';
 import { loadUserPreferences } from '@/src/settings/user-preferences';
 import { mountClipStudio } from '@/src/ui/design-studio/mount-clip-studio';

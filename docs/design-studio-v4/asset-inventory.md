@@ -32,7 +32,7 @@ All P1/P2 gaps closed. Runtime shell uses asset-based 9-slice chrome. Hero bezel
 
 ## Section icons 16px (added)
 
-`icons/section-16/` — bar, background, voice, subtitles
+`icons/section-16/` — waveform/Style, background, voice, subtitles. The existing waveform glyph intentionally remains the Style card's signal icon.
 
 ## Knobs (added)
 

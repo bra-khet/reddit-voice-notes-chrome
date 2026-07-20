@@ -6,10 +6,18 @@ const STORE_NAME = 'exports';
 const RECORD_KEY = 'last';
 // CHANGED: H13 — persistability bounds exported (were private literals).
 // WHY: callers and Node tests need the exact gate the save function enforces;
-//      mirrors LAST_RECORDING_MIN/MAX_BYTES (v5.10 precedent). The 30 MB cap
-//      is load-bearing for BROWSER_COMPOSITE_VIDEO_BPS (composite-plan.ts).
+//      mirrors LAST_RECORDING_MIN/MAX_BYTES (v5.10 precedent). This cap is
+//      load-bearing for BROWSER_COMPOSITE_VIDEO_BPS (composite-plan.ts).
 export const LAST_BAKED_MP4_MIN_BYTES = 256;
-export const LAST_BAKED_MP4_MAX_BYTES = 30 * 1024 * 1024;
+// CHANGED: 30 → 40 MiB per QA-6.0.0 Pass A §8-12 operator decision.
+// WHY: matches the raised base cap. Pass D then raised the composite bitrate pin
+//      (BROWSER_COMPOSITE_VIDEO_BPS, composite-plan.ts) so 2:00 bakes target
+//      ~35 MiB of this budget; ~5 MiB stays protective headroom. Operator's
+//      future intent: ~48 MiB if worker memory allows (raise this cap first).
+// Sync: LAST_BASE_MP4_MAX_BYTES (last-base-mp4-db.ts), BAKED_MP4_MAX_BYTES
+//       (composite-plan.ts), VISUAL_SIZE_QA_*_MAX_BYTES
+//       (scripts/visual-size-qa-core.mjs), qa/QA-6.0.0 checklist caps.
+export const LAST_BAKED_MP4_MAX_BYTES = 40 * 1024 * 1024;
 
 export interface LastBakedMp4Meta {
   byteLength: number;

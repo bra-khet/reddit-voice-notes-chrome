@@ -1,12 +1,17 @@
 import {
-  buildPresetBokehOverlayStyle,
-  buildTintedBokehOverlayStyle,
-  drawBokehBackground,
-  drawBokehOverlay,
-  resolveBokehStyle,
-  type BokehDrawOptions,
-} from './bokeh';
-import { drawSparkleOverlay } from './sparkle';
+  EMPTY_AUDIO_VIZ_FRAME,
+  renderAudioVisualForCanvas,
+  renderStackableEffectsForCanvas,
+  type AudioVisualRenderEnvironment,
+  type AudioVizFrame,
+  type VisualizerParams,
+} from './audio-reactive';
+import {
+  drawBokehBackdrop,
+  registerCoreOverlayVisuals,
+} from './audio-reactive/overlays';
+import { registerCoreStackableEffects } from './audio-reactive/stackables';
+import { evaluateVisualPerformance } from './audio-reactive/performance-governor';
 import {
   type DrawableBackgroundImage,
   getDrawableBackgroundSize,
@@ -29,15 +34,27 @@ import type {
   WaveformTheme,
 } from './types';
 
+// CHANGED: Sparkle and Bubbles are registry-native built-ins, not hard-coded draw branches.
+// WHY: every current and future overlay must use the same per-canvas lifecycle and parameter seam.
+registerCoreOverlayVisuals();
+// CHANGED: built-in stackables register beside overlays but keep their own ordered runtime.
+// WHY: Rising Ember must be independently selectable without masquerading as the primary preset.
+registerCoreStackableEffects();
+
+const MIDNIGHT_BOKEH_PARAMS: Partial<VisualizerParams> = Object.freeze({
+  sensitivity: 0.62,
+  intensity: 0.78,
+  smoothing: 0.8,
+  density: 0.62,
+  color: ['#67e8f9', '#818cf8', '#c084fc'],
+});
+
 export { DEFAULT_USER_BACKGROUND_LAYOUT, normalizeUserBackgroundLayout } from './background-layout';
 export type { UserBackgroundLayout } from './types';
-
-export type { BokehDrawOptions };
 
 /** Bundled static backgrounds under `public/assets/backgrounds/`. */
 export const BACKGROUND_ASSETS = {
   aurora: 'assets/backgrounds/aurora.svg',
-  'midnight-bokeh': 'assets/backgrounds/midnight-bokeh.svg',
   'warm-glow': 'assets/backgrounds/warm-glow.svg',
 } as const;
 
@@ -183,8 +200,9 @@ function drawUserBackgroundLayer(
   theme: WaveformTheme,
   image: DrawableBackgroundImage,
   bundledBackgroundImage: HTMLImageElement | null,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
   layout: UserBackgroundLayout,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   if (!isDrawableBackgroundReady(image)) {
     drawThemeFallbackBackground(ctx, canvas, theme.colors);
@@ -192,7 +210,14 @@ function drawUserBackgroundLayer(
   }
 
   if (layout.scaleMode === 'fit') {
-    drawBundledThemeBackground(ctx, canvas, theme, bundledBackgroundImage, bokehOptions);
+    drawBundledThemeBackground(
+      ctx,
+      canvas,
+      theme,
+      bundledBackgroundImage,
+      audioFrame,
+      visualEnvironment,
+    );
     drawImageBackground({
       ctx,
       canvas,
@@ -225,7 +250,8 @@ function drawBundledThemeBackground(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   const { background, colors } = theme;
 
@@ -272,13 +298,16 @@ function drawBundledThemeBackground(
       break;
     }
     case 'bokeh': {
-      const style = resolveBokehStyle(background);
-      if (style) {
-        drawBokehBackground(ctx, canvas, style, bokehOptions);
-      } else {
-        ctx.fillStyle = colors.bg;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
+      drawBokehBackdrop(ctx, canvas, colors.bg);
+      renderAudioVisualForCanvas(
+        'overlay',
+        'bokeh',
+        ctx,
+        canvas,
+        audioFrame,
+        MIDNIGHT_BOKEH_PARAMS,
+        visualEnvironment,
+      );
       break;
     }
     default:
@@ -287,16 +316,23 @@ function drawBundledThemeBackground(
   }
 }
 
-function drawPresetBokehOverlay(
+function drawBokehThemeOverlay(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   background: ThemeBackground,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
-  if (background.type !== 'bokeh' || typeof background.value !== 'string') return;
-  const style = buildPresetBokehOverlayStyle(background.value);
-  if (!style) return;
-  drawBokehOverlay(ctx, canvas, style, bokehOptions, 'screen', false);
+  if (background.type !== 'bokeh') return;
+  renderAudioVisualForCanvas(
+    'overlay',
+    'bokeh',
+    ctx,
+    canvas,
+    audioFrame,
+    MIDNIGHT_BOKEH_PARAMS,
+    visualEnvironment,
+  );
 }
 
 export function drawThemeBackground(
@@ -304,11 +340,24 @@ export function drawThemeBackground(
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
   backgroundImage: HTMLImageElement | null,
-  bokehOptions: BokehDrawOptions = {},
+  audioFrame: AudioVizFrame = EMPTY_AUDIO_VIZ_FRAME,
   userBackgroundImage: DrawableBackgroundImage | null = null,
   userLayout: UserBackgroundLayout = DEFAULT_USER_BACKGROUND_LAYOUT,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   const layout = normalizeUserBackgroundLayout(userLayout);
+
+  // CHANGED: overlays learn whether a photographic image actually painted (Pass C §3b).
+  // WHY: Bubbles lifts its alpha over image backdrops; the flag is derived here because
+  //      only this seam knows which background branch really drew.
+  const imageBackdrop = (userBackgroundImage !== null
+    && isDrawableBackgroundReady(userBackgroundImage))
+    || (theme.background.type === 'image'
+      && backgroundImage?.complete === true
+      && backgroundImage.naturalWidth > 0);
+  const overlayEnvironment = imageBackdrop
+    ? { ...visualEnvironment, imageBackdrop: true }
+    : visualEnvironment;
 
   if (userBackgroundImage) {
     drawUserBackgroundLayer(
@@ -317,42 +366,82 @@ export function drawThemeBackground(
       theme,
       userBackgroundImage,
       backgroundImage,
-      bokehOptions,
+      audioFrame,
       layout,
+      visualEnvironment,
     );
     // BUG FIX: Midnight Bokeh missing over personal backgrounds (fill mode)
     // Fix: Preset bokeh draws as orb overlay when fill mode replaces the dark bokeh base
     // Sync: skip when fit mode — letterbox already shows the full preset backdrop
     if (layout.scaleMode === 'fill') {
-      drawPresetBokehOverlay(ctx, canvas, theme.background, bokehOptions);
+      drawBokehThemeOverlay(ctx, canvas, theme.background, audioFrame, overlayEnvironment);
     }
   } else {
-    drawBundledThemeBackground(ctx, canvas, theme, backgroundImage, bokehOptions);
+    drawBundledThemeBackground(
+      ctx,
+      canvas,
+      theme,
+      backgroundImage,
+      audioFrame,
+      visualEnvironment,
+    );
   }
 
-  drawDesignEffectOverlays(ctx, canvas, theme, bokehOptions);
+  // CHANGED: one normalized frame plus capture/preview accessibility context crosses the overlay seam.
+  // WHY: Forest Spirits needs honest synthetic-preview motion and the same reduced-motion state as capture.
+  drawDesignEffectOverlays(ctx, canvas, theme, audioFrame, overlayEnvironment);
 }
 
 function drawDesignEffectOverlays(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   theme: WaveformTheme,
-  bokehOptions: BokehDrawOptions,
+  audioFrame: AudioVizFrame,
+  visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
-  const overlay = theme.designEffects?.backgroundOverlay;
-  if (!overlay) return;
+  const effects = theme.designEffects;
+  const overlay = effects?.overlayPreset !== undefined
+    ? effects.overlayPreset
+    : effects?.backgroundOverlay;
+  // BUG FIX: Empty visual-stack hot-path allocation
+  // Fix: Exit before palette creation when neither a primary overlay nor stackable is active.
+  if (!overlay && !effects?.stackables?.length) return;
 
-  if (overlay === 'bokeh') {
-    const style = buildTintedBokehOverlayStyle(theme.colors.bar);
-    drawBokehOverlay(ctx, canvas, style, bokehOptions, 'screen', true);
-    return;
+  const stripAlpha = (color: string): string => color.length === 9 ? color.slice(0, 7) : color;
+  const fallbackPalette = [stripAlpha(theme.colors.bar), stripAlpha(theme.colors.glow)];
+  if (overlay) {
+    renderAudioVisualForCanvas('overlay', overlay, ctx, canvas, audioFrame, {
+      ...effects?.visualizerParams,
+      color: effects?.visualizerParams?.color ?? fallbackPalette,
+    }, visualEnvironment);
   }
 
-  if (overlay === 'sparkle') {
-    drawSparkleOverlay(ctx, canvas, theme.colors.bar, theme.colors.glow, bokehOptions);
+  // CHANGED: stackables paint in saved order after the primary overlay and before the spectrum.
+  // WHY: Rising Ember must remain independently selectable while preserving the existing layer model.
+  if (effects?.stackables?.length) {
+    // CHANGED: the red-zone governor suspends one bounded accent in the real render path.
+    // WHY: a warning that only changes the Studio UI would not protect capture FPS or encoded size.
+    const performance = evaluateVisualPerformance({
+      spectrumPreset: effects.spectrumPreset,
+      overlayPreset: overlay,
+      stackables: effects.stackables,
+      density: effects.visualizerParams?.density,
+    });
+    renderStackableEffectsForCanvas(
+      performance.activeStackables,
+      ctx,
+      canvas,
+      audioFrame,
+      effects.visualizerParams,
+      visualEnvironment,
+    );
   }
 }
 
 export function backgroundNeedsImage(background: ThemeBackground): boolean {
   return background.type === 'image' && typeof background.value === 'string';
+}
+
+export function backgroundIsBokeh(background: ThemeBackground): boolean {
+  return background.type === 'bokeh';
 }

@@ -6,7 +6,7 @@ import {
 } from '@/src/ui/design-studio/studio-v4-assets';
 
 const PANEL_ICON_BY_ID: Record<string, string> = {
-  'bar-style': STUDIO_V4_ASSETS.icons.barStyle32,
+  style: STUDIO_V4_ASSETS.icons.barStyle32,
   background: STUDIO_V4_ASSETS.icons.background32,
   voice: STUDIO_V4_ASSETS.icons.voice32,
   subtitles: STUDIO_V4_ASSETS.icons.subtitles32,
