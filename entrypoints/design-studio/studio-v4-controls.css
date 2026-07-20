@@ -470,6 +470,76 @@
   font-size: var(--studio-font-caption);
 }
 
+/* CHANGED: blend destination uses the existing select + HSV instrument as progressive disclosure.
+   WHY: presets stay one-line compact while Custom solid retains full hue/saturation/value/HEX control. */
+.studio-v4 .studio__background-blend-plate {
+  display: grid;
+  grid-template-columns: minmax(122px, 0.58fr) 28px minmax(150px, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--studio-accent-background) 30%, var(--studio-hairline));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--studio-bg-deep) 72%, var(--studio-surface-raised));
+}
+
+.studio-v4 .studio__background-blend-plate-field,
+.studio-v4 .studio__background-blend-plate-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.studio-v4 .studio__background-blend-plate-field .popup__select {
+  width: 100%;
+  min-height: 32px;
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-blend-plate-swatch {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--studio-text-muted);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--studio-bg-deep);
+}
+
+.studio-v4 .studio__background-blend-plate-copy strong {
+  overflow: hidden;
+  color: var(--studio-text);
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-v4 .studio__background-blend-plate-copy small {
+  color: var(--studio-indigo-muted);
+  font-size: var(--studio-font-caption);
+  line-height: 1.25;
+}
+
+.studio-v4 .studio__background-blend-plate-custom {
+  grid-column: 1 / -1;
+  padding-top: 7px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__background-blend-plate-custom summary {
+  color: var(--studio-amber);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-blend-plate-picker .studio__color-panel {
+  margin-bottom: 0;
+  padding: 9px;
+  border-color: var(--studio-hairline-strong);
+  background: rgb(0 0 0 / 0.18);
+}
+
 .studio-v4 .studio__background-color-sampler {
   gap: 8px;
   margin-top: 9px;
@@ -525,18 +595,22 @@
   line-height: 1.3;
 }
 
-/* BUG FIX: eye-dropper clicks were captured by background pan/zoom
-   Fix: surface the sampling state on the top interaction layer that actually receives pointer input.
+/* BUG FIX: precision mini was locked by sampling but could not produce a sample
+   Fix: surface sampling state on both registered interaction layers and hide their drag chrome.
    Sync: background-layout-controls.ts; background-direct-manipulation.ts; mount-clip-studio.ts */
 .studio-v4.studio__background-layout--sampling .studio__hero .studio__preview-canvas,
-.studio-v4.studio__background-layout--sampling .studio__hero [data-background-manipulator] {
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-manipulator],
+.studio-v4.studio__background-layout--sampling [data-preview-kind='background-precision'],
+.studio-v4.studio__background-layout--sampling [data-background-precision-manipulator] {
   outline: 2px solid var(--studio-amber);
   outline-offset: -3px;
   cursor: crosshair;
 }
 
 .studio-v4.studio__background-layout--sampling .studio__hero [data-background-focal-dot],
-.studio-v4.studio__background-layout--sampling .studio__hero [data-background-guide-layer] {
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-guide-layer],
+.studio-v4.studio__background-layout--sampling [data-background-precision-manipulator] [data-background-focal-dot],
+.studio-v4.studio__background-layout--sampling [data-background-precision-manipulator] [data-background-guide-layer] {
   visibility: hidden;
 }
 
@@ -836,6 +910,10 @@
 
   .studio-v4 .studio__background-treatment-grid {
     grid-template-columns: 1fr;
+  }
+
+  .studio-v4 .studio__background-blend-plate {
+    grid-template-columns: minmax(118px, 0.72fr) 28px minmax(0, 1fr);
   }
 
   .studio-v4 .studio__precision-stage {

@@ -26,6 +26,7 @@ import {
   computeImageDrawOffset,
   DEFAULT_USER_BACKGROUND_LAYOUT,
   normalizeUserBackgroundLayout,
+  resolveUserBackgroundBlendPlateColor,
 } from './background-layout';
 import type {
   BackgroundScaleMode,
@@ -145,6 +146,8 @@ interface DrawImageBackgroundOptions {
   letterboxColor: string;
   scaleMode: BackgroundScaleMode;
   layout: NormalizedUserBackgroundLayout;
+  /** Null preserves the exact pre-plate theme underlay path. */
+  blendPlateColor?: string | null;
   audioFrame?: AudioVizFrame;
   /** When true, theme backdrop is already drawn — only place the image (fit mode). */
   skipLetterboxFill?: boolean;
@@ -217,15 +220,11 @@ function drawImageBackground({
   letterboxColor,
   scaleMode,
   layout,
+  blendPlateColor = null,
   audioFrame = EMPTY_AUDIO_VIZ_FRAME,
   skipLetterboxFill = false,
 }: DrawImageBackgroundOptions): void {
   const { width, height } = canvas;
-  if (!skipLetterboxFill) {
-    ctx.fillStyle = letterboxColor;
-    ctx.fillRect(0, 0, width, height);
-  }
-
   const { width: imageWidth, height: imageHeight } = getDrawableBackgroundSize(image);
   const { width: drawWidth, height: drawHeight } = computeImageDrawSize(
     width,
@@ -243,6 +242,26 @@ function drawImageBackground({
     layout.position,
     layout.customPosition,
   );
+
+  if (!skipLetterboxFill && !blendPlateColor) {
+    // Legacy branch intentionally retains the exact pre-plate fill path.
+    ctx.fillStyle = letterboxColor;
+    ctx.fillRect(0, 0, width, height);
+  } else if (blendPlateColor) {
+    // CHANGED: a selected plate is one solid fill immediately beneath the blended image.
+    // WHY: this makes Canvas blend math legible while staying inside the existing personal-image slot.
+    ctx.save();
+    try {
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.filter = 'none';
+      ctx.fillStyle = blendPlateColor ?? letterboxColor;
+      if (skipLetterboxFill) ctx.fillRect(dx, dy, drawWidth, drawHeight);
+      else ctx.fillRect(0, 0, width, height);
+    } finally {
+      ctx.restore();
+    }
+  }
 
   // CHANGED: personal-image scale and effects are isolated to the existing image draw slot.
   // WHY: preview/capture parity requires layout effects without leaking filter/composite state to dim, overlays, or bars.
@@ -294,6 +313,10 @@ function drawUserBackgroundLayer(
     return;
   }
 
+  const blendPlateColor = layout.blendPlateSource === 'legacy'
+    ? null
+    : resolveUserBackgroundBlendPlateColor(layout, theme.colors);
+
   if (layout.scaleMode === 'fit') {
     drawBundledThemeBackground(
       ctx,
@@ -310,6 +333,7 @@ function drawUserBackgroundLayer(
       letterboxColor: theme.colors.bg,
       scaleMode: 'fit',
       layout,
+      blendPlateColor,
       audioFrame,
       skipLetterboxFill: true,
     });
@@ -321,6 +345,7 @@ function drawUserBackgroundLayer(
       letterboxColor: theme.colors.bg,
       scaleMode: 'fill',
       layout,
+      blendPlateColor,
       audioFrame,
     });
   }

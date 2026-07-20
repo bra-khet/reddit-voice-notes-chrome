@@ -26,13 +26,30 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–5 landed · operator Phase 1–4 + original Phase 5 §6 QA **PASS** · follow-up recheck and full merge gate still open.
+**Track B in flight:** Phase 0–5 landed · operator Phase 1–5 core QA **PASS** · blend-plate/precision-sampler recheck and full merge gate still open.
 
-**Next:** (1) **user-controlled blend plate** so modes actually read to humans · (2) eye-dropper precision mini · (3) remaining Phase 5 recheck · (4) Phase 6 · package stays 5.11.0.
+**Next:** (1) operator-recheck visible blend plates + custom HSV/HEX · (2) operator-recheck eye-dropper precision mini · (3) 120 s blur+GIF gate · (4) Phase 6 · package stays 5.11.0.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Phase 5 blend plate + precision-mini sampler implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** this sprint<br>
+**Trigger:** operator passed Y-key direction, sustained pre-record/record positioning, main-hero eye-dropper sampling/cancellation, added blend mechanics, and Holo; remaining visual defect was near-black blend destination.
+
+- Added normalized `blendPlateSource` / `blendPlateColor` fields to `UserBackgroundLayout`. Missing/invalid values default to `legacy` + `#808080`; `legacy` takes the exact prior theme underlay, so existing profiles remain pixel-stable with no prefs-version bump.
+- Treatment now offers Legacy void, a visible theme tint, bar-linked color, mid-gray, soft white, and Custom solid. Custom progressively reveals the existing HSV wheel/saturation/brightness/HEX chrome; exact HEX commits no longer drift through integer HSV conversion.
+- `drawImageBackground` paints one solid plate immediately before the blended personal image. Fill plates the frame; Fit plates only the image rect and retains the theme letterbox. Blur/blend/Holo remain image-slot work and dim remains final. No second image, layer, store, message, dependency, WebGL path, or bake renderer.
+- Eye-dropper ownership now registers both hero and precision manipulator surfaces, pairs each with its own rendered canvas, samples whichever surface receives the click, and extends crosshair/drag-lock chrome to the mini. Existing miss guidance and Esc/toggle-off/valid-sample exits are reused.
+- Architecture-hardening feature check: this is an additive extension of Accepted ADR-0008. The ADR/roadmap were amended; architecture map/extension-point MINOR bumps remain deferred to Track B merge.
+
+**Automated:** focused Track B set **82/82** (prior 76 + layout plate 2 + compositor plate 4) · UI tokens PASS · visual-size gate logic **5/5** · production build PASS · compile only the same 2 pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Operator recheck:** with dim 0, compare Normal vs multiply/overlay/difference on Theme tint, Mid gray, Soft white, and Custom; confirm exact custom black/white/HEX reload; confirm Holo reads against a plate; activate Sample for bars and click the precision mini (crosshair, no drag, correct Style color), including unavailable-pixel guidance and Esc.
+
+**Next:** finish those two browser checks, run the real 120 s blur+GIF artifact gate, then Phase 6 framing aids.
 
 ### 2026-07-20 — Blend modes “do nothing” (operator visual verdict · plan only)
 

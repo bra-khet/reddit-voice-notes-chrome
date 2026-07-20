@@ -4,6 +4,7 @@ import {
   getBundledUserBackground,
   listThemePresets,
   renderThemePreview,
+  resolveUserBackgroundBlendPlateColor,
   resolveAppearanceTheme,
   themeHasAnimatedOverlay,
   userBackgroundLayoutFromAppearance,
@@ -1078,16 +1079,36 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     onUndo: undoBackgroundLayout,
     onRedo: redoBackgroundLayout,
     getCaptionSafeBand: activeCaptionSafeBand,
-    getEyeDropperCanvas: () =>
-      root.querySelector<HTMLCanvasElement>('.studio__hero .studio__preview-canvas--live')
-      ?? root.querySelector<HTMLCanvasElement>(
+    getBlendPlateColor: (layout) =>
+      resolveUserBackgroundBlendPlateColor(layout, resolvedTheme().colors),
+    getEyeDropperTargets: () => {
+      const heroCanvas = root.querySelector<HTMLCanvasElement>(
+        '.studio__hero .studio__preview-canvas--live',
+      ) ?? root.querySelector<HTMLCanvasElement>(
         '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
-      ),
-    getEyeDropperSurface: () =>
-      root.querySelector<HTMLElement>('.studio__hero [data-background-manipulator]'),
+      );
+      const heroSurface = root.querySelector<HTMLElement>(
+        '.studio__hero [data-background-manipulator]',
+      );
+      const precisionCanvas = root.querySelector<HTMLCanvasElement>(
+        '[data-preview-canvas][data-preview-kind="background-precision"]',
+      );
+      const precisionSurface = root.querySelector<HTMLElement>(
+        '[data-background-precision-manipulator]',
+      );
+      // BUG FIX: precision mini was locked by sampling but could not produce a sample
+      // Fix: hand the sampler both preview surfaces with their own rendered bitmap.
+      // Sync: background-layout-controls.ts; studio-v4-controls.css; scripts/test-background-control-ui.mjs
+      return [
+        ...(heroCanvas && heroSurface ? [{ canvas: heroCanvas, surface: heroSurface }] : []),
+        ...(precisionCanvas && precisionSurface
+          ? [{ canvas: precisionCanvas, surface: precisionSurface }]
+          : []),
+      ];
+    },
     onColorSamplingChange: (sampling) => {
-      // BUG FIX: eye-dropper clicks were captured by background pan/zoom
-      // Fix: both hero and precision controllers stop all gesture entry points while sampling owns the hero.
+      // BUG FIX: precision mini was locked by sampling but could not produce a sample
+      // Fix: both controllers stay suspended while either registered preview owns sampling.
       // Sync: background-layout-controls.ts; background-direct-manipulation.ts; studio-v4-controls.css
       backgroundDirect?.setInteractionBlocked(sampling);
       backgroundPrecisionDirect?.setInteractionBlocked(sampling);

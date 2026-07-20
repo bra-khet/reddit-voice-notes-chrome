@@ -91,6 +91,8 @@ check('preset resolution applies image-layout fields through the shared normaliz
     dim: 0.8,
     blur: 3,
     blendMode: 'screen',
+    blendPlateSource: 'theme-tint',
+    blendPlateColor: '#234567',
     holo: true,
     gifSpeed: 1.5,
     gifReactToAudio: true,
@@ -112,6 +114,8 @@ check('presets preserve effects and safe-text intent outside their Phase 4 scope
     dim: 0.35,
     blur: 7,
     blendMode: 'multiply',
+    blendPlateSource: 'custom',
+    blendPlateColor: '#123456',
     holo: true,
     gifSpeed: 0.75,
     gifReactToAudio: true,
@@ -121,6 +125,8 @@ check('presets preserve effects and safe-text intent outside their Phase 4 scope
     const result = resolveBackgroundLayoutPreset(preset, current);
     assert.equal(result.blur, current.blur);
     assert.equal(result.blendMode, current.blendMode);
+    assert.equal(result.blendPlateSource, current.blendPlateSource);
+    assert.equal(result.blendPlateColor, current.blendPlateColor);
     assert.equal(result.holo, current.holo);
     assert.equal(result.gifSpeed, current.gifSpeed);
     assert.equal(result.gifReactToAudio, current.gifReactToAudio);

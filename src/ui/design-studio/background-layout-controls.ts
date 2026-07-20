@@ -7,6 +7,7 @@ import {
   MIN_USER_BACKGROUND_GIF_SPEED,
   MIN_USER_BACKGROUND_MANUAL_SCALE,
   normalizeUserBackgroundLayout,
+  USER_BACKGROUND_BLEND_PLATE_SOURCES,
   USER_BACKGROUND_BLEND_MODES,
   userBackgroundLayoutFromAppearance,
   userBackgroundLayoutsEqual,
@@ -18,10 +19,15 @@ import {
   type BackgroundLayoutPresetDefinition,
 } from '@/src/theme/background-layout-presets';
 import type {
+  BackgroundBlendPlateSource,
   BackgroundImagePosition,
   BackgroundScaleMode,
   NormalizedUserBackgroundLayout,
 } from '@/src/theme/types';
+import {
+  mountColorPickerControls,
+  renderColorPickerFields,
+} from '@/src/ui/design-studio/color-picker';
 import {
   BACKGROUND_POSITION_COARSE_STEP,
   BACKGROUND_POSITION_FINE_STEP,
@@ -71,8 +77,15 @@ export interface BackgroundLayoutControlsOptions {
   getCaptionSafeBand?: () => NormalizedBand | null;
   getEyeDropperCanvas?: () => HTMLCanvasElement | null;
   getEyeDropperSurface?: () => HTMLElement | null;
+  getEyeDropperTargets?: () => readonly BackgroundColorSampleTarget[];
+  getBlendPlateColor?: (layout: NormalizedUserBackgroundLayout) => string;
   onColorSamplingChange?: (sampling: boolean) => void;
   onSampleColor?: (hex: string) => void;
+}
+
+export interface BackgroundColorSampleTarget {
+  canvas: HTMLCanvasElement;
+  surface: HTMLElement;
 }
 
 // V4 NOTE: Background layout controls may move into a dedicated Background panel when Studio sections are segmented.
@@ -231,6 +244,15 @@ const BACKGROUND_BLEND_LABELS: Record<(typeof USER_BACKGROUND_BLEND_MODES)[numbe
   difference: 'Difference',
 };
 
+const BACKGROUND_BLEND_PLATE_LABELS: Record<BackgroundBlendPlateSource, string> = {
+  legacy: 'Legacy void',
+  'theme-tint': 'Theme tint',
+  'bar-color': 'Bar color',
+  'mid-gray': 'Mid gray',
+  'soft-white': 'Soft white',
+  custom: 'Custom solid',
+};
+
 function renderBackgroundTreatment(): string {
   const dimSlider = renderPhysicalSliderHtml({
     min: 0,
@@ -258,6 +280,8 @@ function renderBackgroundTreatment(): string {
   });
   const blendOptions = USER_BACKGROUND_BLEND_MODES.map((mode) =>
     `<option value="${mode}">${BACKGROUND_BLEND_LABELS[mode]}</option>`).join('');
+  const plateOptions = USER_BACKGROUND_BLEND_PLATE_SOURCES.map((source) =>
+    `<option value="${source}">${BACKGROUND_BLEND_PLATE_LABELS[source]}</option>`).join('');
 
   return `
     <section class="studio__background-treatment" aria-labelledby="background-treatment-title">
@@ -288,6 +312,28 @@ function renderBackgroundTreatment(): string {
             ${blendOptions}
           </select>
         </label>
+      </div>
+      <div class="studio__background-blend-plate">
+        <label class="studio__background-blend-plate-field">
+          <span class="studio__background-treatment-label">Blend plate</span>
+          <select class="popup__select" data-background-blend-plate-source aria-label="Blend plate source">
+            ${plateOptions}
+          </select>
+        </label>
+        <span class="studio__background-blend-plate-swatch" data-background-blend-plate-swatch aria-hidden="true"></span>
+        <span class="studio__background-blend-plate-copy">
+          <strong data-background-blend-plate-name>Legacy void</strong>
+          <small>Blend combines the image with this solid; Dim darkens afterward.</small>
+        </span>
+        <details class="studio__background-blend-plate-custom" data-background-blend-plate-custom hidden>
+          <summary>Open custom HSV color</summary>
+          <div data-background-blend-plate-picker>
+            ${renderColorPickerFields({
+              hexAriaLabel: 'Custom blend plate color hex',
+              note: 'Full-range solid color — hue, saturation, brightness, or exact HEX.',
+            })}
+          </div>
+        </details>
       </div>
       <label class="studio__background-holo-toggle">
         <input type="checkbox" data-background-holo>
@@ -515,6 +561,11 @@ export function mountBackgroundLayoutControls(
   const blurSlider = panel.querySelector<HTMLElement>('[data-background-blur-slider]')!;
   const blurValue = panel.querySelector<HTMLOutputElement>('[data-background-blur-value]')!;
   const blendSelect = panel.querySelector<HTMLSelectElement>('[data-background-blend-mode]')!;
+  const blendPlateSelect = panel.querySelector<HTMLSelectElement>('[data-background-blend-plate-source]')!;
+  const blendPlateSwatch = panel.querySelector<HTMLElement>('[data-background-blend-plate-swatch]')!;
+  const blendPlateName = panel.querySelector<HTMLElement>('[data-background-blend-plate-name]')!;
+  const blendPlateCustom = panel.querySelector<HTMLDetailsElement>('[data-background-blend-plate-custom]')!;
+  const blendPlatePickerRoot = panel.querySelector<HTMLElement>('[data-background-blend-plate-picker]')!;
   const holoToggle = panel.querySelector<HTMLInputElement>('[data-background-holo]')!;
   const gifSpeedSlider = panel.querySelector<HTMLElement>('[data-background-gif-speed-slider]')!;
   const gifSpeedValue = panel.querySelector<HTMLOutputElement>('[data-background-gif-speed-value]')!;
@@ -538,9 +589,11 @@ export function mountBackgroundLayoutControls(
   let emittingPresetPreview = false;
   let recordingActive = false;
   let lastNonZeroBlur = 6;
-  let samplingCanvas: HTMLCanvasElement | null = null;
-  let samplingSurface: HTMLElement | null = null;
+  let samplingTargets: BackgroundColorSampleTarget[] = [];
   let sampleMissCount = 0;
+  let blendPlatePersistTimer = 0;
+  let blendPlateEditActive = false;
+  let blendPlatePicker!: ReturnType<typeof mountColorPickerControls>;
   let scaleMode: BackgroundScaleMode = layout.scaleMode;
   let position: BackgroundImagePosition = layout.position;
 
@@ -666,6 +719,27 @@ export function mountBackgroundLayoutControls(
       option.selected = selected;
       option.toggleAttribute('selected', selected);
     }
+    for (const option of blendPlateSelect.options) {
+      const selected = option.value === layout.blendPlateSource;
+      option.selected = selected;
+      option.toggleAttribute('selected', selected);
+    }
+    const fallbackPlateColors: Record<BackgroundBlendPlateSource, string> = {
+      legacy: '#080a10',
+      'theme-tint': '#52647a',
+      'bar-color': '#00e5ff',
+      'mid-gray': '#808080',
+      'soft-white': '#e8edf2',
+      custom: layout.blendPlateColor,
+    };
+    const resolvedPlateColor = options.getBlendPlateColor?.(layout)
+      ?? fallbackPlateColors[layout.blendPlateSource];
+    blendPlateSwatch.style.background = resolvedPlateColor;
+    blendPlateName.textContent = `${BACKGROUND_BLEND_PLATE_LABELS[layout.blendPlateSource]} · ${resolvedPlateColor}`;
+    blendPlateCustom.hidden = layout.blendPlateSource !== 'custom';
+    if (layout.blendPlateSource === 'custom' && !blendPlatePicker.isUserAdjusting()) {
+      blendPlatePicker.sync({ barColor: layout.blendPlateColor });
+    }
     holoToggle.checked = layout.holo;
     setPhysicalSliderValue(gifSpeedSlider, Math.round(layout.gifSpeed * 100));
     gifSpeedValue.value = `${layout.gifSpeed.toFixed(2)}×`;
@@ -760,10 +834,11 @@ export function mountBackgroundLayoutControls(
   }
 
   function finishColorSampling(message?: string): void {
-    const wasSampling = Boolean(samplingCanvas || samplingSurface);
-    samplingSurface?.removeEventListener('pointerdown', onCanvasSample, true);
-    samplingCanvas = null;
-    samplingSurface = null;
+    const wasSampling = samplingTargets.length > 0;
+    for (const target of samplingTargets) {
+      target.surface.removeEventListener('pointerdown', onCanvasSample, true);
+    }
+    samplingTargets = [];
     sampleMissCount = 0;
     samplingHost.classList.remove('studio__background-layout--sampling');
     eyeDropperButton.setAttribute('aria-pressed', 'false');
@@ -772,10 +847,15 @@ export function mountBackgroundLayoutControls(
   }
 
   function onCanvasSample(event: PointerEvent): void {
-    if (!samplingCanvas) return;
+    const surface = event.currentTarget as HTMLElement | null;
+    const target = samplingTargets.find((candidate) => candidate.surface === surface);
+    if (!target) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    const hex = sampleCanvasColorAtClient(samplingCanvas, event.clientX, event.clientY);
+    // BUG FIX: precision mini was locked by sampling but could not produce a sample
+    // Fix: resolve the bitmap paired with whichever registered preview surface received the click.
+    // Sync: mount-clip-studio.ts; studio-v4-controls.css; scripts/test-background-control-ui.mjs
+    const hex = sampleCanvasColorAtClient(target.canvas, event.clientX, event.clientY);
     if (!hex) {
       sampleMissCount += 1;
       // BUG FIX: failed eye-dropper clicks looked inert and left users unsure which tool owned the canvas
@@ -793,36 +873,45 @@ export function mountBackgroundLayoutControls(
   }
 
   function beginColorSampling(): void {
-    if (samplingCanvas) {
+    if (samplingTargets.length > 0) {
       finishColorSampling('Color sampling cancelled.');
       return;
     }
-    const canvas = options.getEyeDropperCanvas?.()
+    const providedTargets = options.getEyeDropperTargets?.() ?? [];
+    const fallbackCanvas = options.getEyeDropperCanvas?.()
       ?? root.querySelector<HTMLCanvasElement>(
         '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
       );
-    if (!canvas) {
-      sampleStatus.value = 'Open the main preview before sampling a color.';
+    const fallbackSurface = options.getEyeDropperSurface?.()
+      ?? root.querySelector<HTMLElement>('[data-background-manipulator]')
+      ?? fallbackCanvas;
+    const candidates = providedTargets.length > 0
+      ? providedTargets
+      : fallbackCanvas && fallbackSurface
+        ? [{ canvas: fallbackCanvas, surface: fallbackSurface }]
+        : [];
+    samplingTargets = candidates.filter(
+      (target, index, all) => all.findIndex((other) => other.surface === target.surface) === index,
+    );
+    if (samplingTargets.length === 0) {
+      sampleStatus.value = 'Open a background preview before sampling a color.';
       return;
     }
-    const surface = options.getEyeDropperSurface?.()
-      ?? root.querySelector<HTMLElement>('[data-background-manipulator]')
-      ?? canvas;
-    samplingCanvas = canvas;
-    samplingSurface = surface;
     sampleMissCount = 0;
     samplingHost.classList.add('studio__background-layout--sampling');
     eyeDropperButton.setAttribute('aria-pressed', 'true');
-    sampleStatus.value = 'Click a clear background pixel. Press Esc to cancel.';
-    // BUG FIX: eye-dropper clicks were captured by background pan/zoom
-    // Fix: sample from the top interaction surface and suspend direct manipulation until sampling ends.
+    sampleStatus.value = 'Click either preview to sample a clear pixel. Press Esc to cancel.';
+    // BUG FIX: precision mini was locked by sampling but could not produce a sample
+    // Fix: register every preview surface while direct manipulation is suspended on both.
     // Sync: background-direct-manipulation.ts; mount-clip-studio.ts; studio-v4-controls.css
     options.onColorSamplingChange?.(true);
-    surface.addEventListener('pointerdown', onCanvasSample, true);
+    for (const target of samplingTargets) {
+      target.surface.addEventListener('pointerdown', onCanvasSample, true);
+    }
   }
 
   function onSamplerKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Escape' || !samplingCanvas) return;
+    if (event.key !== 'Escape' || samplingTargets.length === 0) return;
     event.preventDefault();
     finishColorSampling('Color sampling cancelled.');
     eyeDropperButton.focus();
@@ -1002,6 +1091,16 @@ export function mountBackgroundLayoutControls(
     syncLayout(layout);
     emit();
   });
+  blendPlateSelect.addEventListener('change', () => {
+    options.onGestureStart?.();
+    layout = normalizeUserBackgroundLayout({
+      ...layout,
+      blendPlateSource: blendPlateSelect.value as BackgroundBlendPlateSource,
+    });
+    syncLayout(layout);
+    if (layout.blendPlateSource === 'custom') blendPlateCustom.open = true;
+    emit();
+  });
   holoToggle.addEventListener('change', () => {
     options.onGestureStart?.();
     // CHANGED: the experimental holo treatment persists through the same normalized layout patch.
@@ -1027,6 +1126,26 @@ export function mountBackgroundLayoutControls(
   undoButton.addEventListener('click', () => options.onUndo?.());
   redoButton.addEventListener('click', () => options.onRedo?.());
 
+  blendPlatePicker = mountColorPickerControls(blendPlatePickerRoot, (overrides) => {
+    if (syncing) return;
+    if (!blendPlateEditActive) {
+      blendPlateEditActive = true;
+      options.onGestureStart?.();
+    }
+    layout = normalizeUserBackgroundLayout({
+      ...layout,
+      blendPlateColor: overrides.barColor,
+    });
+    syncTreatmentValues();
+    emit(false);
+    if (blendPlatePersistTimer) window.clearTimeout(blendPlatePersistTimer);
+    blendPlatePersistTimer = window.setTimeout(() => {
+      blendPlatePersistTimer = 0;
+      blendPlateEditActive = false;
+      emit(true);
+    }, 200);
+  });
+
   syncGuideVisibility();
 
   return {
@@ -1051,6 +1170,13 @@ export function mountBackgroundLayoutControls(
     isSnapEnabled: () => snapEnabled,
     isGuidesEnabled: () => guidesEnabled,
     dispose() {
+      if (blendPlatePersistTimer) {
+        window.clearTimeout(blendPlatePersistTimer);
+        blendPlatePersistTimer = 0;
+        blendPlateEditActive = false;
+        emit(true);
+      }
+      blendPlatePicker.endInteraction();
       finishColorSampling();
       root.removeEventListener('keydown', onSamplerKeydown, true);
       disposeSliders();

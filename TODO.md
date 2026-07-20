@@ -26,10 +26,10 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Active bra
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
 | **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E) · merged** |
-| **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper — **OPEN · Phase 0–5 DONE · Phase 1–4 + Phase 5 §6 operator PASS · follow-up recheck · Phase 6 next** |
+| **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper — **OPEN · Phase 0–5 DONE · Phase 1–5 core operator PASS · plate/mini recheck · Phase 6 next** |
 | **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup Cividis skin + elevated restart caution — **agent QA gate PASS · merged** |
 
-**Track B status:** ✅ branch FF · ✅ QA scaffold · ✅ ADR-0008 Accepted · ✅ **Phase 0–4** through bundled live-audition presets (operator PASS) · ✅ **Phase 5** base effects/GIF (`16e3dd0`; original §6 operator PASS) · ✅ follow-up Y-key semantics, recorder no-flash authority, sampler ownership, added blends, and Holo drift (focused **76/76**, build PASS; operator recheck pending). **Next code:** Phase 6 framing aids after recheck. Full Track B merge gate still open.
+**Track B status:** ✅ branch FF · ✅ QA scaffold · ✅ ADR-0008 Accepted · ✅ **Phase 0–4** through bundled live-audition presets (operator PASS) · ✅ **Phase 5** base effects/GIF (`16e3dd0`) + Y-key/recorder no-flash/hero sampling/added blends/Holo (core operator PASS) · ✅ visible six-source blend plate + precision-mini sampler mirror (focused **82/82**, build PASS; operator recheck pending). **Next code:** Phase 6 framing aids after recheck. Full Track B merge gate still open.
 
 **Track A status:** ✅ full catalog + Style panel + governor · ✅ Pass E confidence · ✅ merged · map **v3.21** / seams **v1.35**. **Package still 5.11.0** until explicit v6 ship/tag. **Accepted residual:** Conway long-horizon corner parking (documented; not a blocker).
 
@@ -37,7 +37,7 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Active bra
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklist [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md)
 
-**NEXT:** Track B follow-up operator recheck + real 120 s blur/GIF size gate, then Phase 6 · optional v6.0.0 version bump after B · user-owned push of `main` · optional Track C §8 eyeball.
+**NEXT:** Track B blend-plate/precision-mini operator recheck + real 120 s blur/GIF size gate, then Phase 6 · optional v6.0.0 version bump after B · user-owned push of `main` · optional Track C §8 eyeball.
 
 **Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0.
 

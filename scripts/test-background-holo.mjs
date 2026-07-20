@@ -52,6 +52,8 @@ const baseLayout = {
   dim: 0.35,
   blur: 0,
   blendMode: 'source-over',
+  blendPlateSource: 'legacy',
+  blendPlateColor: '#808080',
   holo: false,
   gifSpeed: 1,
   gifReactToAudio: false,

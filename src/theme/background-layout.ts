@@ -1,16 +1,28 @@
 import type {
+  BackgroundBlendPlateSource,
   BackgroundImagePosition,
   BackgroundScaleMode,
   NormalizedUserBackgroundLayout,
   UserBackgroundLayout,
 } from './types';
 import { USER_BACKGROUND_DIM_OVERLAY } from '../storage/image-db-types';
+import { hexToHsv, hsvToHex, normalizeHexColor } from './color-utils';
 
 export const MIN_USER_BACKGROUND_MANUAL_SCALE = 0.5;
 export const MAX_USER_BACKGROUND_MANUAL_SCALE = 3;
 export const MAX_USER_BACKGROUND_BLUR = 12;
 export const MIN_USER_BACKGROUND_GIF_SPEED = 0.5;
 export const MAX_USER_BACKGROUND_GIF_SPEED = 2;
+export const DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR = '#808080';
+
+export const USER_BACKGROUND_BLEND_PLATE_SOURCES = [
+  'legacy',
+  'theme-tint',
+  'bar-color',
+  'mid-gray',
+  'soft-white',
+  'custom',
+] as const satisfies readonly BackgroundBlendPlateSource[];
 
 export const USER_BACKGROUND_BLEND_MODES = [
   'source-over',
@@ -33,6 +45,8 @@ export const DEFAULT_USER_BACKGROUND_LAYOUT: NormalizedUserBackgroundLayout = {
   dim: USER_BACKGROUND_DIM_OVERLAY,
   blur: 0,
   blendMode: 'source-over',
+  blendPlateSource: 'legacy',
+  blendPlateColor: DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR,
   holo: false,
   gifSpeed: 1,
   gifReactToAudio: false,
@@ -85,6 +99,22 @@ function normalizeBackgroundBlendMode(raw: unknown): UserBackgroundBlendMode {
   return 'source-over';
 }
 
+function normalizeBlendPlateSource(raw: unknown): BackgroundBlendPlateSource {
+  if (
+    typeof raw === 'string'
+    && USER_BACKGROUND_BLEND_PLATE_SOURCES.includes(raw as BackgroundBlendPlateSource)
+  ) {
+    return raw as BackgroundBlendPlateSource;
+  }
+  return DEFAULT_USER_BACKGROUND_LAYOUT.blendPlateSource;
+}
+
+function normalizeBlendPlateColor(raw: unknown): string {
+  return typeof raw === 'string'
+    ? normalizeHexColor(raw) ?? DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR
+    : DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR;
+}
+
 export function backgroundPositionToCustomPosition(
   position: BackgroundImagePosition,
 ): { x: number; y: number } {
@@ -133,6 +163,10 @@ export function normalizeUserBackgroundLayout(
     dim: clampFinite(raw?.dim, 0, 1, USER_BACKGROUND_DIM_OVERLAY),
     blur: clampFinite(raw?.blur, 0, MAX_USER_BACKGROUND_BLUR, DEFAULT_USER_BACKGROUND_LAYOUT.blur),
     blendMode: normalizeBackgroundBlendMode(raw?.blendMode),
+    // CHANGED: blend math gets an additive, solid draw-time destination with a legacy default.
+    // WHY: creative modes must be human-visible without changing a single existing profile pixel.
+    blendPlateSource: normalizeBlendPlateSource(raw?.blendPlateSource),
+    blendPlateColor: normalizeBlendPlateColor(raw?.blendPlateColor),
     // CHANGED: holo is an additive guarded treatment flag, not a synthetic composite mode.
     // WHY: static Canvas blend modes retain their exact allow-list semantics and old profiles stay pixel-identical.
     holo: normalizeBoolean(raw?.holo, DEFAULT_USER_BACKGROUND_LAYOUT.holo),
@@ -167,6 +201,8 @@ export function userBackgroundLayoutFromAppearance(appearance: {
     dim: nested?.dim,
     blur: nested?.blur,
     blendMode: nested?.blendMode,
+    blendPlateSource: nested?.blendPlateSource,
+    blendPlateColor: nested?.blendPlateColor,
     holo: nested?.holo,
     gifSpeed: nested?.gifSpeed,
     gifReactToAudio: nested?.gifReactToAudio,
@@ -186,10 +222,43 @@ export function userBackgroundLayoutsEqual(
     && left.dim === right.dim
     && left.blur === right.blur
     && left.blendMode === right.blendMode
+    && left.blendPlateSource === right.blendPlateSource
+    && left.blendPlateColor === right.blendPlateColor
     && left.holo === right.holo
     && left.gifSpeed === right.gifSpeed
     && left.gifReactToAudio === right.gifReactToAudio
     && left.lockToSafeText === right.lockToSafeText;
+}
+
+function sixDigitThemeColor(raw: string, fallback: string): string {
+  const withoutAlpha = /^#[0-9a-f]{8}$/i.test(raw) ? raw.slice(0, 7) : raw;
+  return normalizeHexColor(withoutAlpha) ?? fallback;
+}
+
+/** Resolve the selected plate against current theme colors at draw time. */
+export function resolveUserBackgroundBlendPlateColor(
+  layout: NormalizedUserBackgroundLayout,
+  colors: { bg: string; bar: string },
+): string {
+  switch (layout.blendPlateSource) {
+    case 'theme-tint': {
+      const bar = sixDigitThemeColor(colors.bar, DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR);
+      const hsv = hexToHsv(bar);
+      if (!hsv) return DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR;
+      return hsvToHex(hsv.h, Math.min(52, Math.max(20, hsv.s * 0.58)), 48);
+    }
+    case 'bar-color':
+      return sixDigitThemeColor(colors.bar, DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR);
+    case 'mid-gray':
+      return '#808080';
+    case 'soft-white':
+      return '#e8edf2';
+    case 'custom':
+      return layout.blendPlateColor;
+    case 'legacy':
+    default:
+      return colors.bg;
+  }
 }
 
 export function userBackgroundGifPlaybackRate(

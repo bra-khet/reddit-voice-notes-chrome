@@ -38,6 +38,15 @@ export type BackgroundImagePosition =
   | 'left'
   | 'right';
 
+/** Solid destination used by personal-image blend math. */
+export type BackgroundBlendPlateSource =
+  | 'legacy'
+  | 'theme-tint'
+  | 'bar-color'
+  | 'mid-gray'
+  | 'soft-white'
+  | 'custom';
+
 export interface UserBackgroundLayout {
   scaleMode: BackgroundScaleMode;
   position: BackgroundImagePosition;
@@ -51,6 +60,10 @@ export interface UserBackgroundLayout {
   blur?: number;
   /** Composite mode for the personal image draw only. */
   blendMode?: GlobalCompositeOperation;
+  /** Solid destination painted immediately beneath the personal image. */
+  blendPlateSource?: BackgroundBlendPlateSource;
+  /** Full-range custom solid used when blendPlateSource is custom. */
+  blendPlateColor?: string;
   /** Lightweight chromatic multi-pass treatment inside the personal-image slot. */
   holo?: boolean;
   /** Animated-GIF playback multiplier. */

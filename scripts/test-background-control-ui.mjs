@@ -128,6 +128,9 @@ check('Phase 5 darkroom controls expose treatment, motion, and in-canvas samplin
   assert.ok(document.querySelector('[data-background-blur-toggle]'));
   assert.ok(document.querySelector('[data-background-blur-slider]'));
   assert.equal(document.querySelectorAll('[data-background-blend-mode] option').length, 8);
+  assert.equal(document.querySelectorAll('[data-background-blend-plate-source] option').length, 6);
+  assert.ok(document.querySelector('[data-background-blend-plate-swatch]'));
+  assert.ok(document.querySelector('[data-background-blend-plate-picker] [data-color-panel]'));
   assert.ok(document.querySelector('[data-background-holo]'));
   assert.ok(document.querySelector('[data-background-gif-speed-slider]'));
   assert.ok(document.querySelector('[data-background-gif-react]'));
@@ -140,29 +143,37 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   let sampledHex = null;
   let sampleAttempt = 0;
   const samplingChanges = [];
-  const sampleCanvas = document.createElement('canvas');
-  const sampleSurface = document.createElement('div');
-  document.querySelector('main').append(sampleSurface);
-  sampleCanvas.width = 200;
-  sampleCanvas.height = 100;
-  sampleCanvas.getBoundingClientRect = () => ({ left: 10, top: 20, width: 100, height: 50 });
-  sampleCanvas.getContext = () => ({
+  const heroCanvas = document.createElement('canvas');
+  const heroSurface = document.createElement('div');
+  const precisionCanvas = document.createElement('canvas');
+  const precisionSurface = document.createElement('div');
+  document.querySelector('main').append(heroSurface, precisionSurface);
+  for (const canvas of [heroCanvas, precisionCanvas]) {
+    canvas.width = 200;
+    canvas.height = 100;
+    canvas.getBoundingClientRect = () => ({ left: 10, top: 20, width: 100, height: 50 });
+  }
+  heroCanvas.getContext = () => ({
     getImageData: () => {
       sampleAttempt += 1;
-      return {
-        data: new Uint8ClampedArray(
-          sampleAttempt <= 3 ? [12, 34, 56, 0] : [12, 34, 56, 255],
-        ),
-      };
+      return { data: new Uint8ClampedArray([12, 34, 56, 0]) };
     },
+  });
+  precisionCanvas.getContext = () => ({
+    getImageData: () => ({ data: new Uint8ClampedArray([74, 108, 136, 255]) }),
   });
   const handle = mountBackgroundLayoutControls(
     document.querySelector('main'),
     (patch, options) => changes.push({ patch, options }),
     {
       onGestureStart: () => { gestures += 1; },
-      getEyeDropperCanvas: () => sampleCanvas,
-      getEyeDropperSurface: () => sampleSurface,
+      getEyeDropperTargets: () => [
+        { canvas: heroCanvas, surface: heroSurface },
+        { canvas: precisionCanvas, surface: precisionSurface },
+      ],
+      getBlendPlateColor: (layout) => layout.blendPlateSource === 'custom'
+        ? layout.blendPlateColor
+        : '#52647a',
       onColorSamplingChange: (sampling) => samplingChanges.push(sampling),
       onSampleColor: (hex) => { sampledHex = hex; },
     },
@@ -246,6 +257,23 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   Object.defineProperty(blend, 'value', { configurable: true, value: 'multiply' });
   blend.dispatchEvent(new window.Event('change'));
   assert.equal(changes.at(-1).patch.backgroundLayout.blendMode, 'multiply');
+  const plate = document.querySelector('[data-background-blend-plate-source]');
+  for (const option of plate.querySelectorAll('option')) {
+    const selected = option.value === 'custom';
+    option.selected = selected;
+    option.toggleAttribute('selected', selected);
+  }
+  Object.defineProperty(plate, 'value', { configurable: true, value: 'custom' });
+  plate.dispatchEvent(new window.Event('change'));
+  assert.equal(changes.at(-1).patch.backgroundLayout.blendPlateSource, 'custom');
+  assert.equal(document.querySelector('[data-background-blend-plate-custom]').hidden, false);
+  const plateHex = document.querySelector('[data-background-blend-plate-picker] [data-color-hex]');
+  // BUG FIX: exact HEX input drifted after integer HSV round-trip
+  // Fix: pin verbatim six-digit custom plate commits through the shared picker.
+  // Sync: src/ui/design-studio/color-picker.ts
+  plateHex.value = '#123456';
+  plateHex.dispatchEvent(new window.Event('change'));
+  assert.equal(changes.at(-1).patch.backgroundLayout.blendPlateColor, '#123456');
   const holo = document.querySelector('[data-background-holo]');
   holo.checked = true;
   holo.dispatchEvent(new window.Event('change'));
@@ -259,26 +287,26 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   eyeDropper.dispatchEvent(new window.Event('click'));
   assert.equal(eyeDropper.getAttribute('aria-pressed'), 'true');
   assert.deepEqual(samplingChanges, [true]);
-  const dispatchSample = () => {
+  const dispatchSample = (surface = heroSurface) => {
     const sampleEvent = new window.Event('pointerdown', { bubbles: true, cancelable: true });
     Object.defineProperties(sampleEvent, {
       clientX: { value: 60 },
       clientY: { value: 45 },
     });
-    sampleSurface.dispatchEvent(sampleEvent);
+    surface.dispatchEvent(sampleEvent);
     return sampleEvent;
   };
-  // BUG FIX: eye-dropper clicks were captured by background pan/zoom
-  // Fix: exercise the top interaction surface and keep sampling active with feedback on misses.
-  // Sync: src/ui/design-studio/background-layout-controls.ts; src/ui/design-studio/background-direct-manipulation.ts
+  // BUG FIX: precision mini was locked by sampling but could not produce a sample
+  // Fix: miss on the hero, then prove the mini resolves and samples its own bitmap.
+  // Sync: src/ui/design-studio/background-layout-controls.ts; src/ui/design-studio/mount-clip-studio.ts
   for (let attempt = 0; attempt < 3; attempt += 1) {
     assert.equal(dispatchSample().defaultPrevented, true);
   }
   assert.equal(sampledHex, null);
   assert.equal(eyeDropper.getAttribute('aria-pressed'), 'true');
   assert.match(document.querySelector('[data-background-sample-status]').value, /Still sampling/i);
-  dispatchSample();
-  assert.equal(sampledHex, '#0c2238');
+  dispatchSample(precisionSurface);
+  assert.equal(sampledHex, '#4a6c88');
   assert.equal(eyeDropper.getAttribute('aria-pressed'), 'false');
   assert.deepEqual(samplingChanges, [true, false]);
   handle.dispose();

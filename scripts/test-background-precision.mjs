@@ -40,6 +40,8 @@ const baseLayout = {
   dim: 0.42,
   blur: 3,
   blendMode: 'multiply',
+  blendPlateSource: 'custom',
+  blendPlateColor: '#456789',
   holo: true,
   gifSpeed: 1.5,
   gifReactToAudio: true,

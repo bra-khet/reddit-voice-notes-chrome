@@ -128,7 +128,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–5 DONE · operator Phase 1–4 + Phase 5 §6 QA PASS · follow-up recheck pending** · Phase 6 next.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–5 DONE · operator Phase 1–5 core QA PASS · plate/mini recheck pending** · Phase 6 next.
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
@@ -196,11 +196,11 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 - **Automated:** focused Track B set **76/76** (prior 69 + holo 4 + recorder authority 3) · UI tokens PASS · visual-size gate **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
 - No new preference version, dependency, store, signal, message, compositing layer, or architecture seam; ADR-0008 remains authoritative and map/seam bumps stay deferred to merge.
 
-**Eye-dropper recheck (2026-07-20, docs only):** main hero samples OK after ownership fix; Background **precision mini** still cannot click-to-sample (drag correctly locked). Cause: sample surface/canvas + sampling CSS are hero-only. Color purpose: Style **bar/glow** for record-time visuals in the base video (not bake, not layout). Full write-up: [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
+**Eye-dropper recheck (2026-07-20):** operator passed main-hero sampling/cancellation. The remaining precision-mini gap is implemented: hero + mini now register their own surface/canvas pairs, share sampling exits/miss guidance, and show crosshair chrome without drag. Mini browser recheck remains. Full write-up: [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
 
-**Blend plate (2026-07-20, operator + plan):** `theme.colors.bg` / derived custom bg are **~0–8% value** — human-indistinguishable from black; difference ≈ source-over proves destination ≈ void. Phase 5 blend UI is **visually inert** without a user-controlled midtone plate (draw-time fill only — not a second image). Fix direction: layout-owned plate color next to blend so modes “do something.” Detail: QA progress session log.
+**Blend plate (2026-07-20, implemented):** operator proved the old `theme.colors.bg` destination (~0–8% value) made blend math vision-dead. Additive normalized `blendPlateSource`/`blendPlateColor` now offer legacy void, theme tint, bar-linked, mid-gray, soft white, and full-range custom HSV/HEX. One solid paints beneath the personal image; Fit retains theme letterbox; dim stays after image/Holo. Legacy is default, so old profiles stay pixel-stable. Focused **82/82**, build PASS; browser visual/reload recheck remains.
 
-**Next:** product — (1) user-controlled blend plate · (2) eye-dropper on precision mini · then remaining Phase 5 recheck + 120 s blur+GIF · Phase 6. Package stays 5.11.0.
+**Next:** operator-recheck blend plate + precision-mini sampler, then 120 s blur+GIF and Phase 6. Package stays 5.11.0.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

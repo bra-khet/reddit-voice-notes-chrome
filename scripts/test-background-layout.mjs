@@ -28,16 +28,19 @@ await build({
 
 const {
   DEFAULT_USER_BACKGROUND_LAYOUT,
+  DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR,
   MAX_USER_BACKGROUND_BLUR,
   MAX_USER_BACKGROUND_GIF_SPEED,
   MAX_USER_BACKGROUND_MANUAL_SCALE,
   MIN_USER_BACKGROUND_GIF_SPEED,
   MIN_USER_BACKGROUND_MANUAL_SCALE,
   USER_BACKGROUND_BLEND_MODES,
+  USER_BACKGROUND_BLEND_PLATE_SOURCES,
   backgroundPositionToCustomPosition,
   computeImageDrawSize,
   computeImageDrawOffset,
   normalizeUserBackgroundLayout,
+  resolveUserBackgroundBlendPlateColor,
   userBackgroundGifPlaybackRate,
   userBackgroundLayoutFromAppearance,
 } = await import(pathToFileURL(outfile).href);
@@ -60,6 +63,8 @@ check('missing layout defaults to legacy pixels and guarded v6 values', () => {
     dim: 0.35,
     blur: 0,
     blendMode: 'source-over',
+    blendPlateSource: 'legacy',
+    blendPlateColor: '#808080',
     holo: false,
     gifSpeed: 1,
     gifReactToAudio: false,
@@ -103,6 +108,8 @@ check('non-finite, wrong-type, and invalid enum values fall back safely', () => 
     dim: Number.POSITIVE_INFINITY,
     blur: '12',
     blendMode: 'destination-over',
+    blendPlateSource: 'backdrop-image',
+    blendPlateColor: 'not-a-color',
     holo: 'yes',
     gifSpeed: Number.NEGATIVE_INFINITY,
     gifReactToAudio: 'yes',
@@ -148,6 +155,48 @@ check('blend mode uses the exact allow-list', () => {
     normalizeUserBackgroundLayout({ blendMode: 'destination-over' }).blendMode,
     'source-over',
   );
+});
+
+check('blend plate sources and custom color normalize without changing the legacy default', () => {
+  assert.deepEqual(USER_BACKGROUND_BLEND_PLATE_SOURCES, [
+    'legacy',
+    'theme-tint',
+    'bar-color',
+    'mid-gray',
+    'soft-white',
+    'custom',
+  ]);
+  assert.equal(DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR, '#808080');
+  for (const blendPlateSource of USER_BACKGROUND_BLEND_PLATE_SOURCES) {
+    assert.equal(
+      normalizeUserBackgroundLayout({ blendPlateSource }).blendPlateSource,
+      blendPlateSource,
+    );
+  }
+  assert.equal(
+    normalizeUserBackgroundLayout({ blendPlateColor: '#A1B2C3' }).blendPlateColor,
+    '#a1b2c3',
+  );
+  assert.equal(
+    normalizeUserBackgroundLayout({ blendPlateColor: '#fff' }).blendPlateColor,
+    '#808080',
+  );
+});
+
+check('draw-time plate resolver offers visible presets and a full-range custom solid', () => {
+  const colors = { bg: '#05070b', bar: '#67e8f9cc' };
+  const resolve = (blendPlateSource, blendPlateColor = '#808080') =>
+    resolveUserBackgroundBlendPlateColor(
+      normalizeUserBackgroundLayout({ blendPlateSource, blendPlateColor }),
+      colors,
+    );
+  assert.equal(resolve('legacy'), colors.bg);
+  assert.equal(resolve('bar-color'), '#67e8f9');
+  assert.equal(resolve('mid-gray'), '#808080');
+  assert.equal(resolve('soft-white'), '#e8edf2');
+  assert.equal(resolve('custom', '#000000'), '#000000');
+  assert.equal(resolve('custom', '#ffffff'), '#ffffff');
+  assert.notEqual(resolve('theme-tint'), colors.bg);
 });
 
 check('GIF playback rate honors speed and bounded audio reactivity', () => {

@@ -21,7 +21,13 @@ const HUE_RING_INNER = 42;
 const HUE_RING_OUTER = 58;
 const HUE_CORE_RADIUS = HUE_RING_INNER - 2;
 
-export function renderColorPickerFields(): string {
+export function renderColorPickerFields(options?: {
+  hexAriaLabel?: string;
+  note?: string;
+}): string {
+  const hexAriaLabel = options?.hexAriaLabel ?? 'Bar color hex';
+  const note = options?.note
+    ?? 'Drag around each ring — pointer can leave the control while you spin (like the hue wheel).';
   return `
     <div class="studio__color-panel" data-color-panel>
       <div class="studio__color-knobs">
@@ -51,12 +57,12 @@ export function renderColorPickerFields(): string {
             maxlength="7"
             spellcheck="false"
             autocomplete="off"
-            aria-label="Bar color hex"
+            aria-label="${hexAriaLabel}"
           />
         </label>
       </div>
       <p class="popup__micro studio__color-note">
-        Drag around each ring — pointer can leave the control while you spin (like the hue wheel).
+        ${note}
       </p>
     </div>
   `;
@@ -171,7 +177,15 @@ export function mountColorPickerControls(
     paintHueWheel();
     syncing = false;
 
-    if (emit) onColorChange(overridesFromHsv(hue, sat, val));
+    // BUG FIX: exact HEX input drifted after integer HSV round-trip
+    // Fix: wheel/knob state may stay quantized, but direct HEX commits the normalized six-digit value verbatim.
+    // Sync: scripts/test-background-control-ui.mjs
+    if (emit) {
+      onColorChange({
+        barColor: normalized,
+        glowColor: deriveGlowColor(normalized),
+      });
+    }
     return true;
   }
 
