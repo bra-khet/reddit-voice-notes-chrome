@@ -122,25 +122,18 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A Phase 4 complete · confidence QA open (2026-07-15)**
+## v6.0 "Polish & Visual Maturity" — **TRACK A confidence PASS (Pass E 2026-07-19) · merge to main 2026-07-20**
 
-Two feature branches exist off `main@98c37ab`; three supplemental design docs (in `.ignore/prep-v6.0.0/`) were reconciled against v5.11.0 code via `/architecture-hardening` feature-integration and resynthesized into two committed roadmaps + two ADRs. Active work is Track A on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 is Accepted.
+Two feature branches off `main@98c37ab` ancestry; roadmaps + ADRs from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. Track A implemented on `feature/v6.0.0-custom-styles-refactor` (ADR-0007/0009/0010).
 
-- **Roadmap A — audio-reactive visuals + spectrum presets:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · [ADR-0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [ADR-0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [ADR-0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md). Six curated spectra + simulation backbone; Sparkle/Bubbles are complete v6 replacements rather than legacy adapters.
-- **Roadmap B — direct-manipulation background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · [ADR-0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md). Drag/zoom/snap on the hero preview; promote `dim` to a field; `customPosition`; new `interaction-utils.ts`.
+- **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E packet `qa/QA-6.0.0/track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`; blockers none).
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 · **not started**.
 
-**QA workspace (scoped nested project — all QA churn lives here, not in this file):**
+**QA workspace (history + evidence):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · closed ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
 
-| | |
-|--|--|
-| Root | [`qa/QA-6.0.0/`](qa/QA-6.0.0/) |
-| TODO | [`qa/QA-6.0.0/TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) |
-| Progress | [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) |
-| Checklist | [`qa/QA-6.0.0/track-a/qa-checklist.md`](qa/QA-6.0.0/track-a/qa-checklist.md) |
-| Evidence | `qa/QA-6.0.0/track-a/{logs,screenshot,artifacts}/` |
-| Track B | placeholder only · [`qa/QA-6.0.0/track-b/`](qa/QA-6.0.0/track-b/) |
+**Pivotal resolution:** bars/background/effects paint at **record time** (`WaveformRenderer.drawFrame` → `captureStream`); bake only burns subtitles (I3). Caps at close: base/baked **40/40 MiB**. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented in `conway.ts`; not a merge blocker).
 
-**Pivotal resolution (both):** bars/background/effects are **captured at record time** into `baseRecording` (`WaveformRenderer.drawFrame` → `captureStream`); the bake never re-renders them, only subtitles (I3). So both features are **Design/Capture-phase**, not post-capture editors — WYSIWYG = "arranges the next recording" (I1). The `AnalyserNode` + 32-band FFT (`computeBandValues`) + `smoothedAudioEnergy` **already exist**; no new audio infra. **Hard ceiling = the encoded-size caps** (base ≤25 MB / baked ≤30 MB): visuals are captured→transcoded, so high-entropy effects inflate the MP4 — density caps + perf slider protect size *and* CPU. No new deps/WASM, no version bump (additive `normalize`-guarded fields), no fourth compositing layer.
+**Next:** Track B when ready · optional `6.0.0` tag + release notes · user-owned push.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 
@@ -331,7 +324,7 @@ Two feature branches exist off `main@98c37ab`; three supplemental design docs (i
 - **Browser fixture QA:** desktop + narrow responsive containment PASS; intended Spectrum/Atmosphere local rails scroll; signal chain stacks on mobile; max-three unlock, paused label, semantic warning transition, and keyboard Detail restoration PASS. QA found and fixed CSS Grid min-content page overflow. Browser console had no fixture-origin errors (unrelated installed-extension warnings only).
 - **Architecture:** map **v3.21** / I22 · extension-points **v1.35** (audio-reactive v20). Complete live capture/FPS/a11y and 120-second heavy preset/three-stack artifact evidence before raising confidence/release readiness.
 
-**Immediate next actions:** Track A confidence QA in [`qa/QA-6.0.0/`](qa/QA-6.0.0/) — live reactive capture/FPS/a11y matrix + real 120-second base/baked reports for Digital Rain, Aurora, Glitch, Inferno + a heavy three-stack. Use scoped [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) / [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md); keep this global file to short verdicts only.
+**Track A confidence close (2026-07-19/20):** Pass E full PASS — see short verdict at top of this section and [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
 
 ### 2026-07-15 — Track A QA workspace scaffold
 

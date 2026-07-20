@@ -17,24 +17,35 @@ Do not dump long QA narrative into the global progress file — update a short v
 | **Track A roadmap** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) §9 QA matrix · §11 item 23 |
 | **Track B** | Not started · [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) |
 | **ADRs** | 0007 (core) · 0009 (registry Sparkle/Bubbles) · 0010 (Bubbles label / `bokeh` key) |
-| **Architecture** | map **v3.21** / I22 · seams **v1.35** · confidence **Medium** until this QA closes |
+| **Architecture** | map **v3.21** / I22 · seams **v1.35** · confidence **High** (Track A Pass E closed 2026-07-19/20) |
 | **Key product fact** | Bars + overlays paint at **record time** (`WaveformRenderer.drawFrame` → `captureStream`). Bake only burns subtitles (I3). Studio preview is **representative** (synthetic bands/energy); capture is **truly reactive**. |
 
-**Already proven (do not re-prove unless a fix lands):**
+**Proven at confidence close:**
 
 - Full curated catalog + Style Control Center + governor
 - Focused fixture browser QA (desktop + narrow; max-three; keyboard Detail; overflow fix)
-- Automated focused v6 set **226/226** · build PASS · tsc = 2 pre-existing subtitle diagnostics
+- Automated focused v6 set **226/226** (and full 57 Node suites through Conway land) · build PASS · tsc = 2 pre-existing subtitle diagnostics
+- Live capture / FPS / a11y matrix + 120 s size gates — **Pass E full PASS**
 
-**Still open (this workspace’s job):**
-
-1. Live reactive capture / FPS / a11y matrix  
-2. Real **120 s** heavy-preset + three-stack size reports (`npm run qa:visual-size`)  
-3. Raise confidence / release readiness only after both land  
+**Next outside this workspace:** Track B when ready · optional explicit **v6.0.0** package tag/release notes · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Pass E operator full PASS · Track A confidence close
+
+**Packet:** [`track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`](track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json)  
+**Operator:** bra-khet · Win 10 / RTX 4050 Laptop · Chrome 150 · build `.output/chrome-mv3-dev/`  
+**Overall:** `pass` · **blockers:** *None. Pass E is a full pass.* · fifth and final Track A QA pass.
+
+All required sections marked pass: pre-flight · preview↔capture↔bake · 6 spectra · 7 atmospheres · accents/max-three/governor · audio axes · FPS/Detail · a11y · 120 s size gate · saved styles/hot-swap/Bubbles · product smoke · early-log triage · Classic no-regression.
+
+**Size rows (Pass E packet):** rain ~30/25 · aurora 11/25 · glitch 10/23 · inferno 13/25 · three-stack 18/25 MiB (all under 40/40).
+
+**Accepted residual (operator follow-up, not a fail):** Conway Life can still park in a dead-edge corner after a *long* run while other colonies keep moving — whole-grid stagnation detector does not see regional freeze. Documented in `conway.ts` KNOWN LIMIT + `TODO-6.0.0.md` accepted residual. No further code change for merge.
+
+**Closeout:** confidence ledger closed; root `TODO.md` / `claude-progress.md` short verdict updated; feature branch eligible to merge to `main` (Track B stays deferred; package version remains 5.11.0 until an explicit v6 ship).
 
 ### 2026-07-19 (late) — Conway Life stagnation detector (agent)
 
@@ -277,12 +288,13 @@ re-run the digital-rain 120 s size gate under the new caps, and re-export a pack
 
 ---
 
-## Verdict (update when Track A confidence close finishes)
+## Verdict
 
 | Gate | Result | Date |
 |------|--------|------|
-| Live capture / FPS / a11y | ☐ open | — |
-| 120 s heavy size reports | ☐ open | — |
-| **Track A overall** | ☐ open | — |
+| Live capture / FPS / a11y | ■ PASS | 2026-07-19 (Pass E) |
+| 120 s heavy size reports | ■ PASS | 2026-07-19 (Pass C + Pass E reconfirm) |
+| **Track A overall** | ■ PASS | 2026-07-19/20 |
 
-**Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open
+**Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
+**Evidence:** `track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`

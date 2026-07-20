@@ -193,6 +193,12 @@ class ConwayLifeEffect implements StackableEffect {
    *   one before last) repetition; after CONWAY_STAGNATION_GENERATIONS consecutive stagnant
    *   generations with audio present, a small audio-biased spur is stamped onto a living anchor so
    *   the frozen structure breaks in place instead of new life spawning beside it.
+   *
+   * KNOWN LIMIT (Pass E, accepted — not a merge blocker): over a *long* take with several
+   * independent colonies still evolving, life can slowly park in a dead-edge corner while other
+   * regions keep changing. The fingerprint detector only fires when the *whole grid* is period-1
+   * or period-2, so multi-entity motion elsewhere masks corner parking. Leave as-is unless a
+   * future pass elevates spatial/regional stagnation; do not treat as a regression of f231938.
    */
   private trackStagnation(
     frame: AudioVizFrame,
