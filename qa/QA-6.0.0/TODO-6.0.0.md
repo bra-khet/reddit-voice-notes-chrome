@@ -23,6 +23,7 @@
 - [ ] Size gate: one 120 s digital-rain re-run — baked should now land ~35 MiB (bitrate pin 1.5 → 2.2 Mbps) under the 40 MiB cap
 - [ ] Digital Rain follow-up (`882a61e`): streams no longer fade / re-light mid-fall with the live drive — spawn-gated only, spawn-residual brightness for the whole pass
 - [ ] Glitch photosensitivity hardening (`87efdb0`, HIGH PRIORITY): invert cadence must feel stochastic (full hits ≥ 340 ms apart interleaved with soft eased ramps — never a strobe); saturated-red user palettes desaturate; selection-card courtesy note present
+- [ ] Conway Life stagnation detector (`f231938`): let a Conway scene run through several speech pauses and confirm the field no longer parks on a still-life tapestry or blinker — it should keep churning while you talk, and stay honestly still during silence (the nudge is gated at `drive > 0.02`). Watch for the opposite failure too: the nudge should read as the colony reorganising, never as cells "popping" in at a visible cadence
 - [ ] Note: visual-fixture dev server moved to **port 9310** (8600 also fell into a Windows excluded-port range after reboot)
 
 **Architecture at Phase 4:** map **v3.21** / I22 · extension-points **v1.35** · confidence stays **Medium** until live capture/FPS + 120 s heavy-artifact reports land.

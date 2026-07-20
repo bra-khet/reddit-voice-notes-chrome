@@ -36,6 +36,56 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 ## Session log
 
+### 2026-07-19 (late) — Conway Life stagnation detector (agent)
+
+Operator-reported: Conway frequently freezes into still-lifes or period-2 blinkers on the
+48×16 non-wrapping grid. Fixed in `f231938` (conway.ts only — `BoundedLifeGrid` untouched,
+no toroidal change).
+
+**Root cause.** The only escape hatch was the near-extinction reseed (`alive < 5`). The two
+attractors this dead-edge field actually falls into — a tapestry of stable blocks/beehives,
+and blinkers — both sit at a **high and constant** population, so that guard never fired.
+Ambient `seedAudioPatterns` seeding is gated by `spectral + familyDrive` and gets rejected at
+conversational drive, so nothing reopened the field. Note a population check could never have
+caught this: a blinker has identical alive counts in both phases. It needed a *state* compare.
+
+**Fix.** `trackStagnation` runs once per generation after `grid.step()`, keeping two prior
+post-step fingerprints; a match against the last (period-1) or the one before last (period-2)
+counts as stagnant. After **3** consecutive stagnant generations with `drive > 0.02`, 1–2
+audio-biased cells are stamped onto a **living anchor** so the frozen structure breaks in
+place instead of new life spawning beside it. `fingerprintLife` does double duty — FNV-1a
+hash + anchor pick in one sweep, per generation (80–220 ms), not per frame. Spur probing
+leans on the grid's existing out-of-bounds rejection, so an edge anchor just falls through to
+the next probe.
+
+**Evidence** — 18-cell sweep (layout × sensitivity × density) under a realistic speech
+envelope, longest frozen stretch over 60 s:
+
+| scene | before | after | mean alive |
+|-------|--------|-------|------------|
+| centered · sens 0.35 · dens 0.90 | **54.37 s** | 1.43 s | 12.4 → 37.9 |
+| linear · sens 0.35 · dens 0.90 | **24.73 s** | 0.83 s | 62.1 → 61.0 |
+| remaining 16 cells | healthy | healthy | no regression |
+
+Mean alive *rises* in the frozen cases, so the field genuinely churns rather than flickering.
+Threshold 3 was chosen over 4 on measurement (worst case 1.87 s → 1.53 s; linear 1.57 s →
+0.40 s); both sit in the requested 3–4 band.
+
+**Trap for future passes:** the freeze is **trajectory-dependent** — it appeared in only 2 of
+18 configurations, and small shifts in seeding phase or band weights make it vanish. That
+matches the operator's "frequently", not "always". A browser before/after fixture was built
+and **discarded** because it would not reproduce the freeze; a non-reproducing comparison page
+in this workspace is worse than none. Reach for the Node sweep, not a fixture, for this class
+of defect.
+
+Tests: two new checks (17/17 in the Conway suite). The stagnation check is a real
+discriminator — **2** generations held with the fix vs **16** without, bound at 9. The second
+pins that the nudge can never light up a silent capture. **All 57 Node suites PASS** · `tsc` =
+same 2 pre-existing subtitle diagnostics · `wxt build` PASS.
+
+**Pass E addition:** confirm the colony keeps reorganising across speech pauses, stays still
+in silence, and that the nudge never reads as cells "popping" in on a visible cadence.
+
 ### 2026-07-19 (evening) — Pass D targeted follow-up: digital-rain visibility + glitch photosensitivity (agent)
 
 Two operator-directed fixes (commits `882a61e` + `87efdb0`):
