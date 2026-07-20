@@ -33,6 +33,17 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 ## Session log
 
+### 2026-07-19 — Track C popup refresh: implementation + agent QA gate PASS
+
+**Branch:** `feature/v6.0.0-popup-ui-refresh` · **Checklist:** [`track-c/qa-checklist.md`](track-c/qa-checklist.md) · **Evidence:** `track-c/logs/computed-style-qa-2026-07-19.json`  
+**Overall:** agent gate (checklist §1–§7) **PASS**, blockers none · §8 operator visual pass **open** (`npm run qa:popup-visual` @ 4175 + real-extension smoke)
+
+- Popup skinned onto the Cividis axis via popup-only `entrypoints/popup/popup-palette.css` (`@import`s the Studio palette); `entrypoints/popup/style.css` untouched — it is the **Studio's shared control-primitive base** (discovered import in `design-studio/main.ts`; isolation git-verified, empty diff vs `f1653c4`).
+- Elevated restart caution: bar under the header + inline amber "Reload now"; same `restart-caution.ts` API + call sites. Verified behaviorally (reveal on toggle flip, placement geometry, aria, stubbed reload invocation).
+- Guard: `test-ui-tokens.mjs` + popup adoption + banned-hex scan; fixture `scripts/fixtures/popup-visual/`.
+- QA method note: Browser-pane pixel capture faulted all session (screenshot/zoom timeouts; DOM/JS/keyboard fine) → computed-style + CSSOM + real-Tab evidence instead. Light mode must be judged on a **fresh load** — flipping emulated color scheme on a live page left one stale-painted control (renderer-level, not a cascade defect; documented in the evidence JSON).
+- Drive-by: `APP_VERSION` 5.10.0→5.11.0 (popup displayed a stale release string).
+
 ### 2026-07-20 — Pass E operator full PASS · Track A confidence close
 
 **Packet:** [`track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`](track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json)  

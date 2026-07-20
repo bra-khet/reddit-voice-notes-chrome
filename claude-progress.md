@@ -326,6 +326,18 @@ Two feature branches off `main@98c37ab` ancestry; roadmaps + ADRs from `.ignore/
 
 **Track A confidence close (2026-07-19/20):** Pass E full PASS — see short verdict at top of this section and [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
 
+### Track C — popup UI refresh (**IMPLEMENTED 2026-07-19; agent QA gate PASS · operator visual pass open**)
+
+**Branch:** `feature/v6.0.0-popup-ui-refresh` (from post-Track-A `main` merge `f1653c4`) · **Roadmap:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) (redrafted 2026-07-19 against as-landed Track A) · **QA:** [`qa/QA-6.0.0/track-c/`](qa/QA-6.0.0/track-c/)
+
+- **Load-bearing discovery:** `design-studio/main.ts` imports `entrypoints/popup/style.css` as the Studio's shared control-primitive base → Track C ships a popup-only overlay (`entrypoints/popup/popup-palette.css`, `@import`s `studio-palette.css`, `.popup`-prefixed rules) with **zero edits** to the shared base; Studio isolation git-verified (empty diff vs `f1653c4` for style.css + all Studio CSS). Shared-primitives extraction deferred as a hardening candidate.
+- Popup now lives on the Cividis axis: deep-indigo shell/cards/hairlines, amber-action CTA (`#d4a020` + `#1a1000` text; amber=action, violet=confirm per Studio semantics), Studio-parity toggles (amber fill + dark knob), amber focus rings, quiet charcoal bottom Reload, inline currentColor `mic.svg` brand mark, first popup-side rules for the previously unstyled `popup__summary-line*` / `popup__button--studio`. Light mode remapped to a desaturated indigo/amber family.
+- **Elevated restart caution:** now a bar directly under the header (was text-only above the bottom button) with inline amber "Reload now" (`browser.runtime.reload()`); `role=status`/`aria-live=polite`; `mountRestartCaution`/`showRestartCaution` API + all four call sites unchanged.
+- **Guard:** `test-ui-tokens.mjs` extended — palette `@import` + popup adoption + 7-hex banned off-axis scan (it caught banned hexes quoted in the palette's own header comment during development). **Fixture:** `scripts/fixtures/popup-visual/` + `npm run qa:popup-visual` (port 4175) — production CSS + production row builders + production caution module, reload stubbed.
+- **Drive-by BUG FIX:** `APP_VERSION` was stale at `5.10.0` on a `5.11.0` package — popup header displayed the wrong release; bumped per the file's own contract.
+- **Automated:** tokens guard PASS · `compile` = same 2 pre-existing subtitle diagnostics · production build PASS. **Agent browser QA (fixture):** dark/light computed-style parity, caution behavior/placement, real keyboard Tab focus-ring pass — evidence `qa/QA-6.0.0/track-c/logs/computed-style-qa-2026-07-19.json`; pixel screenshots deferred (harness capture fault), one `npm run qa:popup-visual` operator eyeball + real-extension smoke closes §8.
+- **Architecture:** extension-points **v1.36** (no new seam; base-layer constraint documented). No ADR — presentational unification under ADR-0007's token contract. No IA/prefs/message/dependency change; package stays **5.11.0**.
+
 ### 2026-07-15 — Track A QA workspace scaffold
 
 - Nested QA project established under `qa/QA-6.0.0/` (out of `.ignore/` for lasting scope).

@@ -27,12 +27,13 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. Track A live
 |-------|---------|-----|------|
 | **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E)** |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) | Direct drag/zoom/snap on hero preview — **not started** |
+| **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup on the Cividis axis via popup-only `popup-palette.css` overlay + elevated restart caution — **implemented; agent QA gate PASS 2026-07-19; operator visual pass open** (branch `feature/v6.0.0-popup-ui-refresh`) |
 
 **Track A status:** ✅ full catalog + Style panel + governor + fixture QA · ✅ Pass A–E live confidence (Pass E full pass, blockers none; packet `qa/QA-6.0.0/track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`) · ✅ size gates under 40/40 · ✅ automated green · map **v3.21** / seams **v1.35**. **Package still 5.11.0** until an explicit v6 ship/tag. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented; not a blocker).
 
 **QA workspace (scoped history):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md)
 
-**NEXT:** Track B when ready · optional v6.0.0 version bump + release notes · user-owned push of `main`.
+**NEXT:** Track C operator visual pass (`npm run qa:popup-visual` + real-extension smoke → [`qa/QA-6.0.0/track-c/qa-checklist.md`](qa/QA-6.0.0/track-c/qa-checklist.md) §8) then merge · Track B when ready · optional v6.0.0 version bump + release notes · user-owned push of `main`.
 
 **Non-negotiables (both):** capture-time visuals; `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0.
 
