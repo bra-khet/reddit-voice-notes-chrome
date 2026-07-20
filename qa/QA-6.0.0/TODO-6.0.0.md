@@ -43,10 +43,11 @@
 - [x] **Phase 4** — four bundled image/layout presets + non-destructive hover/focus live preview + explicit Apply · commit `1166d51` · **operator QA PASS** (2026-07-20); recording-time hover caveat guarded in Phase 5
 - [x] **Phase 5** — dim/blur/blend treatment bay + GIF speed/audio reactivity + in-canvas eye-dropper + recording-safe preset lockout · commit `16e3dd0` · original operator §6 PASS
 - [x] **Phase 5 follow-up** — spatial Y-key semantics; recorder-session layout authority/no redundant image reload; sampler-owned hero interaction + miss guidance; burn/dodge/difference; opt-in Canvas 2D Holo drift · operator recheck pending
+- [ ] **Phase 5 follow-up (eye-dropper gap)** — precision mini still cannot sample (hero-only listener/CSS; both drags correctly blocked) · investigated 2026-07-20 · product mirror fix pending
 - [ ] **Phase 6** — multi-aspect crop guides + compare
 - [ ] **Phase 7** — keyboard / ARIA / variants + confidence QA
 
-**Immediate next:** operator-recheck the Phase 5 follow-up (Y keys, no-flash record positioning, eye-dropper, added blends, Holo), run real 120 s blur+GIF artifacts, then implement Phase 6 framing aids.
+**Immediate next:** product fix — eye-dropper ownership on precision mini (mirror hero); finish Phase 5 follow-up operator recheck (Y keys, no-flash record, blends, Holo); real 120 s blur+GIF artifacts; then Phase 6 framing aids.
 
 ### Phase gates (partial)
 

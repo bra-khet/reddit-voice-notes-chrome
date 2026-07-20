@@ -28,11 +28,40 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 **Track B in flight:** Phase 0–5 landed · operator Phase 1–4 + original Phase 5 §6 QA **PASS** · follow-up recheck and full merge gate still open.
 
-**Next:** operator-recheck Y-key direction, record-time position continuity, eye-dropper hand-off, added blends, and Holo drift; then Phase 6 framing aids · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
+**Next:** fix eye-dropper so precision mini can sample too (see session log below); finish Phase 5 follow-up operator recheck (Y keys, no-flash record, blends, Holo); then Phase 6 framing aids · package stays 5.11.0 · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Eye-dropper incomplete fix investigation (docs only)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Code unchanged this sprint**  
+**Trigger:** operator recheck — main live preview samples correctly after follow-up; Background subpanel precision mini still cannot pick a color (drag correctly locked out).
+
+**Root cause (incomplete ownership surface):**
+
+| Path | What the follow-up did | Effect |
+|------|------------------------|--------|
+| `onColorSamplingChange` → `setInteractionBlocked` | Suspends **both** hero + precision direct-manipulation controllers | Drag/pan/zoom correctly disabled on main hero **and** small position preview |
+| `getEyeDropperSurface` / `getEyeDropperCanvas` | Only the **main** `.studio__hero` manipulator + live canvas | Capture-phase `pointerdown` sample listener attaches **only** there |
+| CSS `.studio__background-layout--sampling` | Crosshair + amber outline only on `.studio__hero …` | Mini frame shows no sampling chrome |
+
+So the fix solved “drag eats the sample click” on the **hero**, but never registered the precision surface (`[data-background-precision-manipulator]` + canvas `data-preview-kind="background-precision"`). Clicks on the mini do nothing useful: no sample, no status update (unless the click somehow hit the hero listener, which it does not).
+
+**Mirror fix (next product sprint, not done here):** attach sampling to **both** surfaces; on each `pointerdown`, resolve the canvas under the click (hero live vs precision) and run `sampleCanvasColorAtClient` against **that** bitmap (client→pixel mapping is per-canvas `getBoundingClientRect`). Extend sampling CSS to the precision manipulator. Reuse existing miss/Esc/toggle-off exit. No new prefs/store.
+
+**What the sampled color is for (product purpose):**
+
+- **Not** a preview-only contrast swatch and **not** a background recolor.
+- Hand-off: `onSampleColor(hex)` → `DesignOverrides.barColor` + derived `glowColor` (+ string `visualizerParams.color` when that mode is active) via the same Style color path as the HSV picker.
+- **Record-time impact:** audio-reactive **bars/glow** are painted into the canvas at capture (I3). The next recording therefore carries that bar color into the **base video**. Bake still only burns subtitles — the color is not a post-bake overlay.
+- Layout / personal image / dim-blur-blend are **untouched** by sampling.
+- UI already labels the control “Sample for bars” and status “Pick a clear background pixel to color the bars.” Optional later polish: one line that the color applies to **recorded** bars, not just the live preview (progress note only for now).
+
+**Files of record:** `background-layout-controls.ts` (`beginColorSampling` / `onCanvasSample`), `mount-clip-studio.ts` (`getEyeDropper*` + `onSampleColor`), `background-color-sampler.ts`, `background-direct-manipulation.ts` (`setInteractionBlocked`), `studio-v4-controls.css` (sampling chrome).
+
+**Next:** product sprint to mirror sample ownership onto the precision mini; then finish remaining Phase 5 operator recheck.
 
 ### 2026-07-20 — Track B Phase 5 operator pass + accessibility/state follow-up
 

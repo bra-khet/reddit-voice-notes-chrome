@@ -196,7 +196,9 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 - **Automated:** focused Track B set **76/76** (prior 69 + holo 4 + recorder authority 3) · UI tokens PASS · visual-size gate **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
 - No new preference version, dependency, store, signal, message, compositing layer, or architecture seam; ADR-0008 remains authoritative and map/seam bumps stay deferred to merge.
 
-**Next:** operator-recheck the no-flash position path, eye-dropper, added blends, Holo, and Y keys plus the real 120 s blur+GIF artifact gate; then Phase 6 framing aids. Full Track B confidence gate remains open; package stays 5.11.0.
+**Eye-dropper recheck (2026-07-20, docs only):** main hero samples OK after ownership fix; Background **precision mini** still cannot click-to-sample (drag correctly locked). Cause: sample surface/canvas + sampling CSS are hero-only. Color purpose: Style **bar/glow** for record-time visuals in the base video (not bake, not layout). Full write-up: [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
+
+**Next:** product sprint to mirror sample ownership onto the precision mini; finish remaining Phase 5 follow-up operator recheck (Y keys, no-flash, blends, Holo) + real 120 s blur+GIF gate; then Phase 6. Package stays 5.11.0.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

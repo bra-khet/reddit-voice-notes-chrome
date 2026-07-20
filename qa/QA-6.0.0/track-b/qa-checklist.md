@@ -214,7 +214,7 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [ ] Sampled color hands off to Style / bar color path (`onSampleColor`) without corrupting layout
 - [ ] While sampling, the hero owns pointer input (no pan/drag); repeated unavailable pixels announce guidance and Esc/toggle exits cleanly
 
-**Notes:** Phase 4 operator QA PASS on 2026-07-20. Eye-dropper toggle activation worked, but hero drag intercepted sampling. The follow-up samples from the top manipulator surface, blocks both drag controllers until exit, and escalates its live hint after three transparent/unavailable clicks; operator recheck remains open.
+**Notes:** Phase 4 operator QA PASS on 2026-07-20. Eye-dropper toggle activation worked, but hero drag intercepted sampling. The follow-up samples from the **main hero** manipulator surface, blocks both drag controllers until exit, and escalates its live hint after three transparent/unavailable clicks. **Operator recheck 2026-07-20:** main live preview samples successfully; precision mini still cannot sample (drag correctly locked; sample listener + sampling CSS are hero-only). Purpose: sampled hex → Style `barColor`/`glowColor` (record-time bars/glow in base video, not bake, not layout). Mirror fix onto precision surface is the next product sprint — see `progress-QA-6.0.0.md` session log.
 
 
 ---
