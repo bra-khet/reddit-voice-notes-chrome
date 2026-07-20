@@ -121,7 +121,9 @@ import {
 import { mountStudioRecorder } from '@/src/ui/design-studio/studio-recorder';
 import {
   mountBackgroundDirectManipulation,
+  type BackgroundDirectManipulationDeps,
   type BackgroundDirectManipulationHandle,
+  type BackgroundImageSize,
 } from '@/src/ui/design-studio/background-direct-manipulation';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
@@ -265,7 +267,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
         ${renderStudioV4PanelCard('Background', 'data-summary-background', 'background')}
         <div class="studio__panel-body" hidden>
-          ${renderPreviewBlock('subpanel')}
+          ${renderPreviewBlock('background-precision')}
           ${renderPersonalBackgroundFields()}
           ${renderBackgroundLayoutFields()}
         </div>
@@ -390,6 +392,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
   let styleControls: StyleControlsHandle | null = null;
   let backgroundDirect: BackgroundDirectManipulationHandle | null = null;
+  let backgroundPrecisionDirect: BackgroundDirectManipulationHandle | null = null;
   let subpanelShell!: StudioSubpanelShellHandle;
   let workflowBanner!: WorkflowBannerHandle;
   const PREVIEW_ANIM_FPS = 12;
@@ -417,14 +420,21 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     });
   }
 
+  async function flushPendingBackgroundManipulation(): Promise<void> {
+    await Promise.all([
+      backgroundDirect?.flushPersist() ?? Promise.resolve(),
+      backgroundPrecisionDirect?.flushPersist() ?? Promise.resolve(),
+    ]);
+  }
+
   async function studioPersist(
     saveFn: () => Promise<UserPreferencesV1>,
     options?: { skipBackgroundFlush?: boolean },
   ): Promise<UserPreferencesV1 | undefined> {
-    // CHANGED: every unrelated Studio save observes the last debounced hero drag first.
-    // WHY: profile snapshots and control changes must not read a stale persisted background position.
+    // CHANGED: every unrelated Studio save observes both debounced positioning surfaces first.
+    // WHY: profile snapshots and control changes must not read a stale hero or precision-widget position.
     if (!options?.skipBackgroundFlush) {
-      await backgroundDirect?.flushPersist();
+      await flushPendingBackgroundManipulation();
     }
     const generation = ++studioSaveGeneration;
     ignoreStoragePrefs = true;
@@ -670,6 +680,22 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     );
   }
 
+  function refreshPrecisionPreview(layout: NormalizedUserBackgroundLayout): void {
+    const canvas = root.querySelector<HTMLCanvasElement>(
+      '[data-preview-canvas][data-preview-kind="background-precision"]',
+    );
+    if (!canvas) return;
+    void renderThemePreview(
+      canvas,
+      resolvedTheme(),
+      activeAlignment,
+      performance.now(),
+      activeCustomBackgroundId(),
+      layout,
+      subtitleControls?.getPreviewOptions(),
+    );
+  }
+
   function syncProfileActions(prefs: UserPreferencesV1): void {
     const profileId = prefs.appearance.activeProfileId;
     const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
@@ -772,9 +798,14 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         backgroundLayout: layout,
       },
     };
+    backgroundLayout.syncLayout(layout);
+    const backgroundId = activeCustomBackgroundId();
+    backgroundDirect?.sync(backgroundId, layout);
+    backgroundPrecisionDirect?.sync(backgroundId, layout);
     studioRecorder.setUserBackgroundLayout(layout);
     syncProfileButton(activePrefs);
     refreshHeroPreview(layout);
+    refreshPrecisionPreview(layout);
   }
 
   function scheduleDesignPersist(overrides: DesignOverrides): void {
@@ -805,7 +836,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   }
 
   async function flushPendingDesignPersist(): Promise<void> {
-    await backgroundDirect?.flushPersist();
+    await flushPendingBackgroundManipulation();
     if (!colorSaveTimer || !activePrefs?.appearance.designOverrides) return;
     cancelPendingColorSave();
     const overrides = activePrefs.appearance.designOverrides;
@@ -878,6 +909,10 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       prefs.appearance.customBackgroundId ?? null,
       userBackgroundLayoutFromAppearance(prefs.appearance),
     );
+    backgroundPrecisionDirect?.sync(
+      prefs.appearance.customBackgroundId ?? null,
+      userBackgroundLayoutFromAppearance(prefs.appearance),
+    );
     voiceControls.syncFromPreferences(prefs);
     subtitleControls.syncFromPreferences(prefs);
 
@@ -925,6 +960,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const backgroundLayout = mountBackgroundLayoutControls(root, (patch) => {
     invalidateInFlightSaves();
     resetProfileUpdateConfirm();
+    applyLocalBackgroundLayout(patch.backgroundLayout);
     void studioPersist(() => saveAppearancePreferences(patch));
   });
 
@@ -978,11 +1014,19 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     },
   });
 
-  backgroundDirect = mountBackgroundDirectManipulation(root, {
+  let backgroundSizeRequest: {
+    id: string;
+    promise: Promise<BackgroundImageSize | null>;
+  } | null = null;
+  const backgroundDirectDeps = {
     async resolveImageSize(id) {
-      const meta = await getBackgroundAssetMeta(id);
-      if (!meta?.width || !meta.height) return null;
-      return { width: meta.width, height: meta.height };
+      if (backgroundSizeRequest?.id === id) return backgroundSizeRequest.promise;
+      const promise = getBackgroundAssetMeta(id).then((meta) => {
+        if (!meta?.width || !meta.height) return null;
+        return { width: meta.width, height: meta.height };
+      });
+      backgroundSizeRequest = { id, promise };
+      return promise;
     },
     onInteractionStart() {
       invalidateInFlightSaves();
@@ -1003,6 +1047,14 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       const message = error instanceof Error ? error.message : 'Could not save background position.';
       window.alert(message);
     },
+  } satisfies BackgroundDirectManipulationDeps;
+
+  backgroundDirect = mountBackgroundDirectManipulation(root, backgroundDirectDeps);
+  backgroundPrecisionDirect = mountBackgroundDirectManipulation(root, backgroundDirectDeps, {
+    overlaySelector: '[data-background-precision-manipulator]',
+    canvasSelector: '[data-preview-canvas][data-preview-kind="background-precision"]',
+    draggingClass: 'studio__background-precision-manipulator--dragging',
+    resetEnabled: false,
   });
 
   takeDeck = mountCurrentTakeDeck(root, {
@@ -1355,8 +1407,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     cancelPendingColorSave();
     stopPreviewLoop();
     takeUnsub();
-    void backgroundDirect?.flushPersist();
+    void flushPendingBackgroundManipulation();
     backgroundDirect?.dispose();
+    backgroundPrecisionDirect?.dispose();
     studioRecorder.dispose();
     takeDeck?.dispose();
     workflowBanner.dispose();

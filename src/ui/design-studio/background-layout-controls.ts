@@ -9,9 +9,22 @@ import type {
   BackgroundScaleMode,
   NormalizedUserBackgroundLayout,
 } from '@/src/theme/types';
+import {
+  BACKGROUND_POSITION_COARSE_STEP,
+  BACKGROUND_POSITION_FINE_STEP,
+  nudgeBackgroundPosition,
+  type BackgroundPositionAxis,
+} from '@/src/ui/design-studio/background-precision';
 
 export interface BackgroundLayoutControlsHandle {
   sync(prefs: UserPreferencesV1): void;
+  syncLayout(layout: NormalizedUserBackgroundLayout): void;
+}
+
+export interface BackgroundLayoutChange {
+  backgroundScaleMode: BackgroundScaleMode;
+  backgroundPosition: BackgroundImagePosition;
+  backgroundLayout: NormalizedUserBackgroundLayout;
 }
 
 // V4 NOTE: Background layout controls may move into a dedicated Background panel when Studio sections are segmented.
@@ -84,6 +97,35 @@ function positionIcon(position: BackgroundImagePosition): string {
   `;
 }
 
+function renderPrecisionAxis(
+  axis: BackgroundPositionAxis,
+  label: string,
+  negativeDirection: string,
+  positiveDirection: string,
+): string {
+  const valueAttribute = axis === 'x' ? 'data-background-position-x' : 'data-background-position-y';
+  const button = (delta: number, direction: string) => `
+    <button
+      type="button"
+      class="studio__precision-nudge"
+      data-background-nudge-axis="${axis}"
+      data-background-nudge-delta="${delta}"
+      aria-label="Move ${direction} by ${Math.abs(delta).toFixed(2)}"
+      title="${direction} ${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(2)}"
+    >${delta > 0 ? '+' : '−'}${Math.abs(delta).toFixed(2)}</button>
+  `;
+  return `
+    <div class="studio__precision-axis">
+      <span class="studio__precision-axis-label">${label}</span>
+      ${button(-BACKGROUND_POSITION_COARSE_STEP, negativeDirection)}
+      ${button(-BACKGROUND_POSITION_FINE_STEP, negativeDirection)}
+      <output class="studio__precision-value" ${valueAttribute}>0.50</output>
+      ${button(BACKGROUND_POSITION_FINE_STEP, positiveDirection)}
+      ${button(BACKGROUND_POSITION_COARSE_STEP, positiveDirection)}
+    </div>
+  `;
+}
+
 export function renderBackgroundLayoutFields(): string {
   const scaleButtons = SCALE_OPTIONS.map(
     (option) => `
@@ -117,6 +159,19 @@ export function renderBackgroundLayoutFields(): string {
 
   return `
     <div class="studio__background-layout" data-background-layout hidden>
+      <section class="studio__precision-controls" aria-labelledby="background-precision-title">
+        <div class="studio__precision-heading">
+          <span class="popup__field-label" id="background-precision-title">Fine position</span>
+          <span class="popup__micro">Drag preview or nudge</span>
+        </div>
+        <p class="popup__field-desc studio__precision-help">
+          X runs left to right; Y runs top to bottom. Values stay between 0 and 1.
+        </p>
+        <div class="studio__precision-axis-list">
+          ${renderPrecisionAxis('x', 'X', 'left', 'right')}
+          ${renderPrecisionAxis('y', 'Y', 'up', 'down')}
+        </div>
+      </section>
       <div class="studio__layout-row">
         <div class="studio__layout-group">
           <span class="popup__field-label">Image sizing</span>
@@ -137,17 +192,17 @@ export function renderBackgroundLayoutFields(): string {
 
 export function mountBackgroundLayoutControls(
   root: HTMLElement,
-  onLayoutChange: (patch: {
-    backgroundScaleMode: BackgroundScaleMode;
-    backgroundPosition: BackgroundImagePosition;
-    backgroundLayout: NormalizedUserBackgroundLayout;
-  }) => void,
+  onLayoutChange: (patch: BackgroundLayoutChange) => void,
 ): BackgroundLayoutControlsHandle {
   const panel = root.querySelector<HTMLElement>('[data-background-layout]')!;
   const scaleButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-scale-mode]')];
   const positionButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-position]')];
+  const nudgeButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-nudge-axis]')];
+  const xValue = panel.querySelector<HTMLOutputElement>('[data-background-position-x]')!;
+  const yValue = panel.querySelector<HTMLOutputElement>('[data-background-position-y]')!;
 
   let syncing = false;
+  let buttonsSynced = false;
   let layout = userBackgroundLayoutFromAppearance({});
   let scaleMode: BackgroundScaleMode = layout.scaleMode;
   let position: BackgroundImagePosition = layout.position;
@@ -176,6 +231,24 @@ export function mountBackgroundLayoutControls(
       button.setAttribute('aria-pressed', active ? 'true' : 'false');
     }
     syncing = false;
+    buttonsSynced = true;
+  }
+
+  function syncPrecisionValues(): void {
+    xValue.value = layout.customPosition.x.toFixed(2);
+    yValue.value = layout.customPosition.y.toFixed(2);
+  }
+
+  function syncLayout(next: NormalizedUserBackgroundLayout): void {
+    const normalized = normalizeUserBackgroundLayout(next);
+    const discreteControlsChanged = !buttonsSynced
+      || normalized.scaleMode !== scaleMode
+      || normalized.position !== position;
+    layout = normalized;
+    scaleMode = layout.scaleMode;
+    position = layout.position;
+    if (discreteControlsChanged) syncButtons();
+    syncPrecisionValues();
   }
 
   for (const button of scaleButtons) {
@@ -184,7 +257,7 @@ export function mountBackgroundLayoutControls(
       if (!next || next === scaleMode) return;
       scaleMode = next;
       layout = normalizeUserBackgroundLayout({ ...layout, scaleMode });
-      syncButtons();
+      syncLayout(layout);
       emit();
     });
   }
@@ -199,7 +272,18 @@ export function mountBackgroundLayoutControls(
         position,
         customPosition: backgroundPositionToCustomPosition(position),
       });
-      syncButtons();
+      syncLayout(layout);
+      emit();
+    });
+  }
+
+  for (const button of nudgeButtons) {
+    button.addEventListener('click', () => {
+      const axis = button.dataset.backgroundNudgeAxis as BackgroundPositionAxis | undefined;
+      const delta = Number(button.dataset.backgroundNudgeDelta);
+      if (!axis || !Number.isFinite(delta)) return;
+      layout = nudgeBackgroundPosition(layout, axis, delta);
+      syncLayout(layout);
       emit();
     });
   }
@@ -210,10 +294,8 @@ export function mountBackgroundLayoutControls(
       panel.hidden = !hasBackground;
       if (!hasBackground) return;
 
-      layout = userBackgroundLayoutFromAppearance(prefs.appearance);
-      scaleMode = layout.scaleMode;
-      position = layout.position;
-      syncButtons();
+      syncLayout(userBackgroundLayoutFromAppearance(prefs.appearance));
     },
+    syncLayout,
   };
 }

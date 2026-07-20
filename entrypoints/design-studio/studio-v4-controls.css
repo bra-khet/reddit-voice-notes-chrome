@@ -89,3 +89,88 @@
   color: var(--studio-amber-dim);
   letter-spacing: var(--studio-letter-meta);
 }
+
+/* CHANGED: precision positioning reads as a compact instrument below the live mini frame.
+   WHY: explicit coarse/fine controls expose Phase 2's ±0.05/±0.01 contract without Phase 7 shortcuts. */
+.studio-v4 .studio__precision-controls {
+  margin-bottom: 14px;
+  padding: 11px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--studio-surface-raised) 88%, var(--studio-panel-edge));
+}
+
+.studio-v4 .studio__precision-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.studio-v4 .studio__precision-help {
+  margin: 5px 0 9px;
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__precision-axis-list {
+  display: grid;
+  gap: 7px;
+}
+
+.studio-v4 .studio__precision-axis {
+  display: grid;
+  grid-template-columns: 20px repeat(2, minmax(42px, 1fr)) 48px repeat(2, minmax(42px, 1fr));
+  align-items: center;
+  gap: 5px;
+}
+
+.studio-v4 .studio__precision-axis-label,
+.studio-v4 .studio__precision-value,
+.studio-v4 .studio__precision-nudge {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-v4 .studio__precision-axis-label {
+  color: var(--studio-accent-background);
+  font-weight: var(--studio-font-weight-strong);
+  text-align: center;
+}
+
+.studio-v4 .studio__precision-value {
+  color: var(--studio-amber);
+  font-size: var(--studio-font-body);
+  font-weight: var(--studio-font-weight-value);
+  text-align: center;
+}
+
+.studio-v4 .studio__precision-nudge {
+  min-height: 30px;
+  padding: 4px 3px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 6px;
+  color: var(--studio-text);
+  background: var(--studio-surface-raised);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__precision-nudge:hover {
+  border-color: var(--studio-amber-edge);
+  color: var(--studio-amber);
+}
+
+.studio-v4 .studio__precision-nudge:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+@media (max-width: 380px) {
+  .studio-v4 .studio__precision-axis {
+    grid-template-columns: 18px repeat(2, minmax(36px, 1fr)) 42px repeat(2, minmax(36px, 1fr));
+    gap: 3px;
+  }
+
+  .studio-v4 .studio__precision-nudge {
+    font-size: 0.5625rem;
+  }
+}

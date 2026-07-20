@@ -1171,6 +1171,48 @@ body:has(.studio-v4) {
   font-size: var(--studio-font-caption);
 }
 
+/* CHANGED: Background's existing subpanel preview doubles as the Phase 2 precision frame.
+   WHY: one shared renderThemePreview canvas keeps the mini widget honest to hero/capture pixels. */
+.studio-v4 .studio__subpanel-content .studio__background-precision-manipulator {
+  position: absolute;
+  left: calc(var(--studio-v4-preview-hole-x) / var(--studio-v4-preview-w) * 100%);
+  top: calc(var(--studio-v4-preview-hole-y) / var(--studio-v4-preview-h) * 100%);
+  width: calc(var(--studio-v4-preview-hole-w) / var(--studio-v4-preview-w) * 100%);
+  height: calc(var(--studio-v4-preview-hole-h) / var(--studio-v4-preview-h) * 100%);
+  z-index: 5;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in srgb, var(--studio-accent-background) 72%, transparent);
+  border-radius: 4px;
+  outline: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.studio-v4 .studio__background-precision-manipulator[hidden] {
+  display: none;
+}
+
+.studio-v4 .studio__background-precision-manipulator:hover,
+.studio-v4 .studio__background-precision-manipulator:focus-visible,
+.studio-v4 .studio__background-precision-manipulator--dragging {
+  border-color: var(--studio-amber);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--studio-amber) 12%, transparent);
+}
+
+.studio-v4 .studio__background-precision-manipulator:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__background-precision-manipulator--dragging {
+  cursor: grabbing;
+}
+
+.studio-v4 .studio__background-focal--precision {
+  width: 16px;
+  height: 16px;
+}
+
 /* Caption text preview — Subtitles sub-panel (style fidelity without full canvas). */
 .studio-v4 .studio__preview-wrap--subtitle-text {
   position: relative;

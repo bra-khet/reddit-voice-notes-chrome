@@ -3,6 +3,7 @@ export type PreviewBlockKind =
   | 'secondary'
   | 'tertiary'
   | 'subpanel'
+  | 'background-precision'
   | 'subtitle-text';
 
 const PREVIEW_LABELS: Record<PreviewBlockKind, string> = {
@@ -10,6 +11,7 @@ const PREVIEW_LABELS: Record<PreviewBlockKind, string> = {
   secondary: 'Preview',
   tertiary: 'Effects preview',
   subpanel: 'Live preview',
+  'background-precision': 'Position preview',
   'subtitle-text': 'Caption preview',
 };
 
@@ -17,6 +19,7 @@ const PREVIEW_MODIFIERS: Partial<Record<PreviewBlockKind, string>> = {
   secondary: ' studio__preview-wrap--secondary',
   tertiary: ' studio__preview-wrap--tertiary',
   subpanel: ' studio__preview-wrap--subpanel',
+  'background-precision': ' studio__preview-wrap--subpanel studio__preview-wrap--background-precision',
   'subtitle-text': ' studio__preview-wrap--subtitle-text',
 };
 
@@ -38,6 +41,24 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
       </div>
     `
     : '';
+  const precisionManipulator = kind === 'background-precision'
+    ? `
+      <div
+        class="studio__background-precision-manipulator"
+        data-background-precision-manipulator
+        tabindex="0"
+        role="group"
+        aria-label="Fine background position. Drag the image or focal point."
+        hidden
+      >
+        <span
+          class="studio__background-focal studio__background-focal--precision"
+          data-background-focal-dot
+          aria-hidden="true"
+        ></span>
+      </div>
+    `
+    : '';
   return `
     <div class="studio__preview-wrap${modifier}">
       <span class="studio__preview-label">${label}</span>
@@ -51,6 +72,7 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
         role="img"
       ></canvas>
       ${backgroundManipulator}
+      ${precisionManipulator}
     </div>
   `;
 }

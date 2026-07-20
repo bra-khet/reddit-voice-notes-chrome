@@ -114,14 +114,27 @@ export interface BackgroundDirectManipulationHandle {
   dispose(): void;
 }
 
+export interface BackgroundDirectManipulationOptions {
+  overlaySelector?: string;
+  canvasSelector?: string;
+  draggingClass?: string;
+  resetEnabled?: boolean;
+}
+
 export function mountBackgroundDirectManipulation(
   root: HTMLElement,
   deps: BackgroundDirectManipulationDeps,
+  options: BackgroundDirectManipulationOptions = {},
 ): BackgroundDirectManipulationHandle {
-  const overlay = root.querySelector<HTMLElement>('[data-background-manipulator]')!;
-  const canvas = root.querySelector<HTMLCanvasElement>(
-    '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
-  )!;
+  // CHANGED: selectors and reset behavior are configurable for the Phase 2 mini preview.
+  // WHY: hero and precision surfaces must share identical pointer/persistence semantics, not fork them.
+  const overlaySelector = options.overlaySelector ?? '[data-background-manipulator]';
+  const canvasSelector = options.canvasSelector
+    ?? '.studio__hero [data-preview-canvas][data-preview-kind="primary"]';
+  const draggingClass = options.draggingClass ?? 'studio__background-manipulator--dragging';
+  const resetEnabled = options.resetEnabled ?? true;
+  const overlay = root.querySelector<HTMLElement>(overlaySelector)!;
+  const canvas = root.querySelector<HTMLCanvasElement>(canvasSelector)!;
 
   let backgroundId: string | null = null;
   let imageSize: BackgroundImageSize | null = null;
@@ -231,7 +244,7 @@ export function mountBackgroundDirectManipulation(
       overlay.releasePointerCapture(event.pointerId);
     }
     activePointerId = null;
-    overlay.classList.remove('studio__background-manipulator--dragging');
+    overlay.classList.remove(draggingClass);
     if (pendingPersistLayout) schedulePersistTimer();
   }
 
@@ -265,7 +278,7 @@ export function mountBackgroundDirectManipulation(
     pendingPointer = null;
     overlay.focus({ preventScroll: true });
     overlay.setPointerCapture(event.pointerId);
-    overlay.classList.add('studio__background-manipulator--dragging');
+    overlay.classList.add(draggingClass);
     event.preventDefault();
   };
 
@@ -290,7 +303,7 @@ export function mountBackgroundDirectManipulation(
     pendingPointer = null;
     if (frameId) cancelAnimationFrame(frameId);
     frameId = 0;
-    overlay.classList.remove('studio__background-manipulator--dragging');
+    overlay.classList.remove(draggingClass);
     resetPosition();
   };
 
@@ -298,8 +311,10 @@ export function mountBackgroundDirectManipulation(
   overlay.addEventListener('pointermove', pointerMoveHandler);
   overlay.addEventListener('pointerup', finishGesture);
   overlay.addEventListener('pointercancel', finishGesture);
-  overlay.addEventListener('dblclick', doubleClickHandler);
-  overlay.addEventListener('keydown', keyDownHandler);
+  if (resetEnabled) {
+    overlay.addEventListener('dblclick', doubleClickHandler);
+    overlay.addEventListener('keydown', keyDownHandler);
+  }
 
   return {
     sync(nextBackgroundId, nextLayout): void {
@@ -315,7 +330,7 @@ export function mountBackgroundDirectManipulation(
       if (!backgroundId) {
         activePointerId = null;
         pendingPointer = null;
-        overlay.classList.remove('studio__background-manipulator--dragging');
+        overlay.classList.remove(draggingClass);
         return;
       }
 
@@ -339,8 +354,10 @@ export function mountBackgroundDirectManipulation(
       overlay.removeEventListener('pointermove', pointerMoveHandler);
       overlay.removeEventListener('pointerup', finishGesture);
       overlay.removeEventListener('pointercancel', finishGesture);
-      overlay.removeEventListener('dblclick', doubleClickHandler);
-      overlay.removeEventListener('keydown', keyDownHandler);
+      if (resetEnabled) {
+        overlay.removeEventListener('dblclick', doubleClickHandler);
+        overlay.removeEventListener('keydown', keyDownHandler);
+      }
     },
   };
 }
