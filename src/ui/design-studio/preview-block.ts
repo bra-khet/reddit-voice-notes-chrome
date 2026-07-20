@@ -39,6 +39,28 @@ function renderBackgroundGuideLayer(): string {
   `;
 }
 
+function renderBackgroundFramingOverlay(): string {
+  return `
+    <span
+      class="studio__background-framing-overlay"
+      data-background-framing-overlay
+      data-background-framing-aspect="native"
+      aria-hidden="true"
+      hidden
+    >
+      <span class="studio__background-framing-frame">
+        <span class="studio__background-framing-thirds" data-background-framing-thirds hidden>
+          <span class="studio__background-framing-third studio__background-framing-third--x" style="--studio-background-third:33.333%"></span>
+          <span class="studio__background-framing-third studio__background-framing-third--x" style="--studio-background-third:66.667%"></span>
+          <span class="studio__background-framing-third studio__background-framing-third--y" style="--studio-background-third:33.333%"></span>
+          <span class="studio__background-framing-third studio__background-framing-third--y" style="--studio-background-third:66.667%"></span>
+        </span>
+        <span class="studio__background-framing-label" data-background-framing-label>Native 16:9</span>
+      </span>
+    </span>
+  `;
+}
+
 export function renderPreviewBlock(kind: PreviewBlockKind): string {
   const label = PREVIEW_LABELS[kind];
   const modifier = PREVIEW_MODIFIERS[kind] ?? '';
@@ -77,6 +99,11 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
       </div>
     `
     : '';
+  // CHANGED: the hero owns one DOM-only crop/thirds overlay above the canvas bitmap.
+  // WHY: alternate-aspect framing must guide the 16:9 export without creating a renderer or captured layer.
+  const backgroundFramingOverlay = kind === 'primary'
+    ? renderBackgroundFramingOverlay()
+    : '';
   return `
     <div class="studio__preview-wrap${modifier}">
       <span class="studio__preview-label">${label}</span>
@@ -89,6 +116,7 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
         aria-label="Clip style preview"
         role="img"
       ></canvas>
+      ${backgroundFramingOverlay}
       ${backgroundManipulator}
       ${precisionManipulator}
     </div>

@@ -215,6 +215,94 @@ body:has(.studio-v4) {
   cursor: grabbing;
 }
 
+/* CHANGED: Phase 6 crop and thirds guides are DOM chrome aligned to the full 16:9 hero canvas.
+   WHY: crop ratios must describe exported pixels exactly; the decorative bezel masks the canvas edges above them. */
+.studio-v4 .studio__background-framing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.studio-v4 .studio__background-framing-overlay[hidden],
+.studio-v4 .studio__background-framing-thirds[hidden] {
+  display: none;
+}
+
+.studio-v4 .studio__background-framing-frame {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--studio-amber) 84%, white);
+  box-shadow:
+    0 0 0 100vmax rgb(7 2 17 / 0.58),
+    inset 0 0 0 1px rgb(0 0 0 / 0.72),
+    0 0 12px rgb(0 0 0 / 0.68);
+}
+
+.studio-v4 [data-background-framing-aspect='native'] .studio__background-framing-frame {
+  left: 0;
+  width: 100%;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.72);
+}
+
+.studio-v4 [data-background-framing-aspect='square'] .studio__background-framing-frame {
+  left: 21.875%;
+  width: 56.25%;
+}
+
+.studio-v4 [data-background-framing-aspect='vertical'] .studio__background-framing-frame {
+  left: 34.1796875%;
+  width: 31.640625%;
+}
+
+.studio-v4 .studio__background-framing-thirds {
+  position: absolute;
+  inset: 0;
+}
+
+.studio-v4 .studio__background-framing-third {
+  position: absolute;
+  background: color-mix(in srgb, var(--studio-amber) 72%, white);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.38);
+  opacity: 0.9;
+}
+
+.studio-v4 .studio__background-framing-third--x {
+  top: 0;
+  bottom: 0;
+  left: var(--studio-background-third);
+  width: 1px;
+}
+
+.studio-v4 .studio__background-framing-third--y {
+  right: 0;
+  left: 0;
+  top: var(--studio-background-third);
+  height: 1px;
+}
+
+.studio-v4 .studio__background-framing-label {
+  position: absolute;
+  top: 18px;
+  left: 16px;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--studio-amber) 45%, transparent);
+  border-radius: 999px;
+  color: #fff7d1;
+  background: rgb(18 0 31 / 0.82);
+  font-family: var(--studio-font-mono);
+  font-size: 0.52rem;
+  font-weight: var(--studio-font-weight-strong);
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .studio-v4 .studio__background-chip {
   position: absolute;
   top: 7px;

@@ -1066,9 +1066,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   });
 
   const backgroundLayout = mountBackgroundLayoutControls(root, (patch, emitOptions) => {
-    // CHANGED: hover/focus preset auditions bypass persistence-generation invalidation.
-    // WHY: moving across the contact sheet must not cancel an unrelated preference save in flight.
-    if (!emitOptions.presetPreview) {
+    // CHANGED: preset auditions and Theme-only compare bypass persistence-generation invalidation.
+    // WHY: transient preview state must not cancel an unrelated preference save in flight.
+    if (!emitOptions.presetPreview && !emitOptions.comparePreview) {
       invalidateInFlightSaves();
       resetProfileUpdateConfirm();
     }

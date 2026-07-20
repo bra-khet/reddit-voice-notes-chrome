@@ -202,6 +202,13 @@ export class VoiceRecorderSession {
     this.waveform?.setCustomBackgroundId(id);
   }
 
+  // BUG FIX: transient background restore could race the first captured frame
+  // Fix: expose the renderer's current background-load promise so Studio can wait after restoring preview-only state.
+  // Sync: studio-recorder.ts; background-layout-controls.ts
+  async whenBackgroundReady(): Promise<void> {
+    await this.waveform?.whenReady();
+  }
+
   /** Exposed for host teardown — pagehide must not abort mid-transcode dispose. */
   getPhase(): RecorderPhase {
     return this.phase;

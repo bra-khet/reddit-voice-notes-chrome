@@ -68,6 +68,7 @@ export interface BackgroundLayoutChange {
 export interface BackgroundLayoutEmitOptions {
   persist: boolean;
   presetPreview?: boolean;
+  comparePreview?: boolean;
 }
 
 export interface BackgroundLayoutControlsOptions {
@@ -121,6 +122,19 @@ const POSITION_OPTIONS: {
 ];
 
 const NAV_ICON_ROOT = '/assets/design-studio-v4/icons/navigation';
+
+type BackgroundFramingAspect = 'native' | 'square' | 'vertical';
+
+const BACKGROUND_FRAMING_ASPECTS: readonly {
+  id: BackgroundFramingAspect;
+  label: string;
+  shortLabel: string;
+  description: string;
+}[] = [
+  { id: 'native', label: 'Native 16:9', shortLabel: '16:9', description: 'Full recorded frame' },
+  { id: 'square', label: 'Square 1:1', shortLabel: '1:1', description: 'Centered square crop guide' },
+  { id: 'vertical', label: 'Vertical 9:16', shortLabel: '9:16', description: 'Centered vertical crop guide' },
+];
 
 function scaleModeIcon(mode: BackgroundScaleMode): string {
   if (mode === 'fit') {
@@ -252,6 +266,71 @@ const BACKGROUND_BLEND_PLATE_LABELS: Record<BackgroundBlendPlateSource, string> 
   'soft-white': 'Soft white',
   custom: 'Custom solid',
 };
+
+function framingAspectIcon(aspect: BackgroundFramingAspect): string {
+  const frame = aspect === 'native'
+    ? '<rect x="3" y="7" width="26" height="14" rx="1.5"/>'
+    : aspect === 'square'
+      ? '<rect x="9" y="7" width="14" height="14" rx="1.5"/>'
+      : '<rect x="12" y="6" width="8" height="16" rx="1.5"/>';
+  return `
+    <svg viewBox="0 0 32 28" aria-hidden="true">
+      <rect x="1" y="5" width="30" height="18" rx="2" opacity="0.28"/>
+      ${frame}
+    </svg>
+  `;
+}
+
+function renderBackgroundFraming(): string {
+  const aspectButtons = BACKGROUND_FRAMING_ASPECTS.map((aspect) => `
+    <button
+      type="button"
+      class="studio__background-framing-aspect${aspect.id === 'native' ? ' studio__background-framing-aspect--active' : ''}"
+      data-background-framing-aspect-button="${aspect.id}"
+      aria-pressed="${aspect.id === 'native' ? 'true' : 'false'}"
+      title="${aspect.description}"
+    >
+      ${framingAspectIcon(aspect.id)}
+      <span>${aspect.shortLabel}</span>
+    </button>
+  `).join('');
+
+  return `
+    <section class="studio__background-framing" aria-labelledby="background-framing-title">
+      <div class="studio__background-framing-heading">
+        <span>
+          <span class="studio__background-framing-eyebrow">Preview-only crop lab</span>
+          <span class="popup__field-label" id="background-framing-title">Framing aids</span>
+        </span>
+        <span class="studio__background-framing-badge">EXPORT 16:9</span>
+      </div>
+      <p class="popup__field-desc studio__background-framing-help">
+        Check whether the focal point survives a centered social crop. These guides never enter the recording.
+      </p>
+      <div class="studio__background-framing-tools">
+        <div class="studio__background-framing-aspects" role="group" aria-label="Framing crop guide">
+          ${aspectButtons}
+        </div>
+        <button type="button" class="studio__background-framing-toggle" data-background-framing-thirds aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 3v18M16 3v18M3 8h18M3 16h18"/>
+          </svg>
+          Thirds
+        </button>
+        <button type="button" class="studio__background-compare" data-background-compare aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v18M12 5H5v14h7M12 5h7v14h-7"/>
+            <path d="m7 15 2.5-3 2.5 2.5M15 9h2"/>
+          </svg>
+          Theme only
+        </button>
+      </div>
+      <output class="studio__background-framing-status" data-background-framing-status aria-live="polite">
+        Full 16:9 frame. Turn on Thirds or choose a crop guide.
+      </output>
+    </section>
+  `;
+}
 
 function renderBackgroundTreatment(): string {
   const dimSlider = renderPhysicalSliderHtml({
@@ -514,6 +593,7 @@ export function renderBackgroundLayoutFields(): string {
       ${renderBackgroundPresets()}
       ${renderPrecisionInstrument()}
       ${renderBackgroundTreatment()}
+      ${renderBackgroundFraming()}
       <div class="studio__layout-row">
         <div class="studio__layout-group">
           <span class="popup__field-label">Image sizing</span>
@@ -573,6 +653,13 @@ export function mountBackgroundLayoutControls(
   const eyeDropperButton = panel.querySelector<HTMLButtonElement>('[data-background-eyedropper]')!;
   const sampledColor = panel.querySelector<HTMLElement>('[data-background-sampled-color]')!;
   const sampleStatus = panel.querySelector<HTMLOutputElement>('[data-background-sample-status]')!;
+  const framingAspectButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-framing-aspect-button]')];
+  const framingThirdsButton = panel.querySelector<HTMLButtonElement>('[data-background-framing-thirds]')!;
+  const compareButton = panel.querySelector<HTMLButtonElement>('[data-background-compare]')!;
+  const framingStatus = panel.querySelector<HTMLOutputElement>('[data-background-framing-status]')!;
+  const framingOverlay = root.querySelector<HTMLElement>('[data-background-framing-overlay]');
+  const framingThirdsOverlay = framingOverlay?.querySelector<HTMLElement>('[data-background-framing-thirds]') ?? null;
+  const framingLabel = framingOverlay?.querySelector<HTMLElement>('[data-background-framing-label]') ?? null;
   const samplingHost = root.querySelector<HTMLElement>('.studio-v4') ?? root;
 
   let syncing = false;
@@ -587,7 +674,12 @@ export function mountBackgroundLayoutControls(
   let hoveredPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
   let focusedPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
   let emittingPresetPreview = false;
+  let emittingComparePreview = false;
   let recordingActive = false;
+  let backgroundAvailable = false;
+  let framingAspect: BackgroundFramingAspect = 'native';
+  let framingThirds = false;
+  let compareActive = false;
   let lastNonZeroBlur = 6;
   let samplingTargets: BackgroundColorSampleTarget[] = [];
   let sampleMissCount = 0;
@@ -609,6 +701,7 @@ export function mountBackgroundLayoutControls(
 
   function syncPresetUi(message?: string): void {
     presetSection.classList.toggle('studio__background-presets--recording', recordingActive);
+    presetSection.classList.toggle('studio__background-presets--comparing', compareActive);
     for (const button of presetButtons) {
       const id = button.dataset.backgroundPreset;
       const selected = id === selectedPresetId;
@@ -616,11 +709,15 @@ export function mountBackgroundLayoutControls(
       button.classList.toggle('studio__background-preset--selected', selected);
       button.classList.toggle('studio__background-preset--previewing', previewed);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-      button.disabled = recordingActive;
+      button.disabled = recordingActive || compareActive;
     }
-    presetApply.disabled = recordingActive || !selectedPresetId;
+    presetApply.disabled = recordingActive || compareActive || !selectedPresetId;
     if (recordingActive) {
       presetStatus.value = 'Preset audition is paused while recording to prevent flashes in the captured video.';
+      return;
+    }
+    if (compareActive) {
+      presetStatus.value = 'Preset audition is paused during Theme-only compare.';
       return;
     }
     if (message) {
@@ -640,6 +737,7 @@ export function mountBackgroundLayoutControls(
     persist = true,
     backgroundId?: string | null,
     presetPreview = false,
+    comparePreview = false,
   ): void {
     if (syncing) return;
     // CHANGED: discrete and continuous controls emit one nested/legacy-compatible layout patch.
@@ -651,10 +749,12 @@ export function mountBackgroundLayoutControls(
     };
     if (backgroundId !== undefined) patch.customBackgroundId = backgroundId;
     emittingPresetPreview = presetPreview;
+    emittingComparePreview = comparePreview;
     try {
-      onLayoutChange(patch, { persist, presetPreview });
+      onLayoutChange(patch, { persist, presetPreview, comparePreview });
     } finally {
       emittingPresetPreview = false;
+      emittingComparePreview = false;
     }
   }
 
@@ -818,19 +918,87 @@ export function mountBackgroundLayoutControls(
     }
   }
 
+  function syncFramingUi(message?: string): void {
+    const activeDefinition = BACKGROUND_FRAMING_ASPECTS.find((aspect) => aspect.id === framingAspect)
+      ?? BACKGROUND_FRAMING_ASPECTS[0];
+    for (const button of framingAspectButtons) {
+      const active = button.dataset.backgroundFramingAspectButton === framingAspect;
+      button.classList.toggle('studio__background-framing-aspect--active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+    framingThirdsButton.classList.toggle('studio__background-framing-toggle--active', framingThirds);
+    framingThirdsButton.setAttribute('aria-pressed', framingThirds ? 'true' : 'false');
+    compareButton.classList.toggle('studio__background-compare--active', compareActive);
+    compareButton.setAttribute('aria-pressed', compareActive ? 'true' : 'false');
+    compareButton.disabled = recordingActive || !backgroundAvailable;
+    if (framingOverlay) {
+      framingOverlay.dataset.backgroundFramingAspect = framingAspect;
+      framingOverlay.hidden = !backgroundAvailable || (framingAspect === 'native' && !framingThirds);
+    }
+    if (framingThirdsOverlay) framingThirdsOverlay.hidden = !framingThirds;
+    if (framingLabel) framingLabel.textContent = activeDefinition.label;
+    if (message) {
+      framingStatus.value = message;
+    } else if (compareActive) {
+      framingStatus.value = 'Theme-only preview. Toggle again to restore the personal image.';
+    } else if (framingAspect === 'native' && !framingThirds) {
+      framingStatus.value = 'Full 16:9 frame. Turn on Thirds or choose a crop guide.';
+    } else {
+      framingStatus.value = `${activeDefinition.label}${framingThirds ? ' with thirds' : ''} · guide only; export remains 16:9.`;
+    }
+  }
+
+  function finishCompare(message?: string): void {
+    if (!compareActive) {
+      syncFramingUi(message);
+      return;
+    }
+    compareActive = false;
+    // CHANGED: compare restores the exact committed image through the existing transient preview seam.
+    // WHY: leaving comparison must never save theme-only state or disturb the current layout recipe.
+    emit(false, committedBackgroundId, false, true);
+    syncFramingUi(message);
+    syncPresetUi();
+  }
+
+  function toggleCompare(): void {
+    if (recordingActive || !backgroundAvailable) return;
+    if (compareActive) {
+      finishCompare('Personal background restored.');
+      return;
+    }
+    finishColorSampling('Color sampling cancelled for comparison.');
+    hoveredPresetId = null;
+    focusedPresetId = null;
+    restorePresetPreview();
+    compareActive = true;
+    syncFramingUi();
+    syncPresetUi();
+    // CHANGED: Theme-only compare removes the personal image non-destructively in the live preview.
+    // WHY: one existing hot-swap path keeps the comparison faithful without a second canvas or saved preference.
+    emit(false, null, false, true);
+  }
+
   function syncRecordingState(next: boolean): void {
     if (recordingActive === next) return;
-    recordingActive = next;
     if (next) {
+      // BUG FIX: Theme-only compare could survive until the first captured frame
+      // Fix: restore the personal image at the capture boundary before Studio waits for its decode.
+      // Sync: studio-recorder.ts; voice-recorder.ts
+      if (compareActive) finishCompare('Compare paused while recording; personal background restored.');
+      recordingActive = true;
       // BUG FIX: recording-time preset hover could create flash-heavy captured video
       // Fix: restore the committed frame before capture starts, then disable every transient preset entry point.
       // Sync: studio-recorder.ts; mount-clip-studio.ts; scripts/test-background-control-ui.mjs
       hoveredPresetId = null;
       focusedPresetId = null;
       restorePresetPreview();
+      syncFramingUi();
       return;
     }
+    recordingActive = false;
     syncPresetUi();
+    syncFramingUi();
   }
 
   function finishColorSampling(message?: string): void {
@@ -877,6 +1045,7 @@ export function mountBackgroundLayoutControls(
       finishColorSampling('Color sampling cancelled.');
       return;
     }
+    if (compareActive) finishCompare('Personal background restored for color sampling.');
     const providedTargets = options.getEyeDropperTargets?.() ?? [];
     const fallbackCanvas = options.getEyeDropperCanvas?.()
       ?? root.querySelector<HTMLCanvasElement>(
@@ -1064,6 +1233,19 @@ export function mountBackgroundLayoutControls(
     syncModeButton(guidesToggle, guidesEnabled);
     syncGuideVisibility();
   });
+  for (const button of framingAspectButtons) {
+    button.addEventListener('click', () => {
+      const next = button.dataset.backgroundFramingAspectButton as BackgroundFramingAspect | undefined;
+      if (!next || !BACKGROUND_FRAMING_ASPECTS.some((aspect) => aspect.id === next)) return;
+      framingAspect = next;
+      syncFramingUi();
+    });
+  }
+  framingThirdsButton.addEventListener('click', () => {
+    framingThirds = !framingThirds;
+    syncFramingUi();
+  });
+  compareButton.addEventListener('click', toggleCompare);
   safeLock.addEventListener('change', () => {
     options.onGestureStart?.();
     layout = constrainForSafeText(normalizeUserBackgroundLayout({
@@ -1147,20 +1329,27 @@ export function mountBackgroundLayoutControls(
   });
 
   syncGuideVisibility();
+  syncFramingUi();
 
   return {
     sync(prefs) {
       const hasBackground = Boolean(prefs.appearance.customBackgroundId);
+      backgroundAvailable = hasBackground;
+      // CHANGED: an authoritative preference/profile sync retires any transient comparison locally.
+      // WHY: applyPrefs already owns the restored image identity, so emitting a stale compare restore would race it.
+      compareActive = false;
       panel.hidden = !hasBackground;
       if (!hasBackground) {
         finishColorSampling();
+        syncFramingUi();
         return;
       }
       committedBackgroundId = prefs.appearance.customBackgroundId ?? null;
       syncLayout(userBackgroundLayoutFromAppearance(prefs.appearance), true);
+      syncFramingUi();
     },
     syncLayout(next) {
-      syncLayout(next, !emittingPresetPreview);
+      syncLayout(next, !emittingPresetPreview && !emittingComparePreview);
     },
     syncRecordingState,
     syncHistory(canUndo, canRedo) {
@@ -1170,6 +1359,7 @@ export function mountBackgroundLayoutControls(
     isSnapEnabled: () => snapEnabled,
     isGuidesEnabled: () => guidesEnabled,
     dispose() {
+      if (compareActive) finishCompare();
       if (blendPlatePersistTimer) {
         window.clearTimeout(blendPlatePersistTimer);
         blendPlatePersistTimer = 0;

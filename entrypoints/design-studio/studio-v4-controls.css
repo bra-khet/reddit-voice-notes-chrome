@@ -639,6 +639,169 @@
   font-size: var(--studio-font-caption);
 }
 
+/* CHANGED: Phase 6 framing is a compact optical bench: aspect silhouettes, thirds, and transient compare.
+   WHY: the controls must explain preview-only center crops without implying new export formats. */
+.studio-v4 .studio__background-framing {
+  margin-bottom: 14px;
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--studio-amber-edge) 56%, var(--studio-hairline));
+  border-radius: 9px;
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--studio-amber) 7%, transparent), transparent 46%),
+    color-mix(in srgb, var(--studio-surface-raised) 88%, var(--studio-bg-deep));
+}
+
+.studio-v4 .studio__background-framing-heading,
+.studio-v4 .studio__background-framing-heading > span:first-child,
+.studio-v4 .studio__background-framing-tools,
+.studio-v4 .studio__background-framing-aspects,
+.studio-v4 .studio__background-framing-aspect,
+.studio-v4 .studio__background-framing-toggle,
+.studio-v4 .studio__background-compare {
+  display: flex;
+  align-items: center;
+}
+
+.studio-v4 .studio__background-framing-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.studio-v4 .studio__background-framing-heading > span:first-child {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.studio-v4 .studio__background-framing-eyebrow,
+.studio-v4 .studio__background-framing-badge {
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  letter-spacing: var(--studio-letter-meta);
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__background-framing-eyebrow {
+  color: var(--studio-amber-dim);
+}
+
+.studio-v4 .studio__background-framing-badge {
+  padding: 3px 6px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 999px;
+  color: var(--studio-indigo-muted);
+  background: var(--studio-bg-deep);
+  white-space: nowrap;
+}
+
+.studio-v4 .studio__background-framing-help {
+  margin: 4px 0 9px;
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-framing-tools {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.studio-v4 .studio__background-framing-aspects {
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--studio-bg-deep) 82%, transparent);
+}
+
+.studio-v4 .studio__background-framing-aspect,
+.studio-v4 .studio__background-framing-toggle,
+.studio-v4 .studio__background-compare {
+  justify-content: center;
+  gap: 5px;
+  min-height: 33px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--studio-text-muted);
+  background: transparent;
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-label);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-framing-aspect svg,
+.studio-v4 .studio__background-framing-toggle svg,
+.studio-v4 .studio__background-compare svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.studio-v4 .studio__background-framing-aspect svg rect:first-child {
+  fill: currentColor;
+  stroke: none;
+}
+
+.studio-v4 .studio__background-framing-aspect svg rect:last-child {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.studio-v4 .studio__background-framing-aspect--active,
+.studio-v4 .studio__background-framing-toggle--active {
+  border-color: var(--studio-amber-edge);
+  color: var(--studio-amber);
+  background: color-mix(in srgb, var(--studio-amber) 10%, var(--studio-surface-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--studio-amber) 9%, transparent);
+}
+
+.studio-v4 .studio__background-framing-toggle,
+.studio-v4 .studio__background-compare {
+  border-color: var(--studio-hairline-strong);
+  background: color-mix(in srgb, var(--studio-bg-deep) 70%, var(--studio-surface-raised));
+}
+
+.studio-v4 .studio__background-compare {
+  margin-left: auto;
+}
+
+.studio-v4 .studio__background-compare--active {
+  border-color: var(--studio-violet-confirm-edge);
+  color: var(--studio-text);
+  background: color-mix(in srgb, var(--studio-violet-confirm) 24%, var(--studio-bg-deep));
+}
+
+.studio-v4 .studio__background-compare:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.studio-v4 .studio__background-framing-aspect:focus-visible,
+.studio-v4 .studio__background-framing-toggle:focus-visible,
+.studio-v4 .studio__background-compare:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__background-framing-status {
+  display: block;
+  margin-top: 8px;
+  color: var(--studio-indigo-muted);
+  font-size: var(--studio-font-caption);
+  line-height: 1.3;
+}
+
+.studio-v4 .studio__background-presets--comparing .studio__background-preset {
+  filter: saturate(0.62);
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
 /* CHANGED: Fine position is a camera-style jog console wrapped around its live frame.
    WHY: spatial placement, directional SVGs, and physical rails communicate axis + step without decoding +/- text. */
 .studio-v4 .studio__precision-controls {
@@ -914,6 +1077,26 @@
 
   .studio-v4 .studio__background-blend-plate {
     grid-template-columns: minmax(118px, 0.72fr) 28px minmax(0, 1fr);
+  }
+
+  .studio-v4 .studio__background-framing-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studio-v4 .studio__background-framing-aspects {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .studio-v4 .studio__background-framing-aspect {
+    min-width: 0;
+    padding-inline: 5px;
+  }
+
+  .studio-v4 .studio__background-compare {
+    margin-left: 0;
   }
 
   .studio-v4 .studio__precision-stage {

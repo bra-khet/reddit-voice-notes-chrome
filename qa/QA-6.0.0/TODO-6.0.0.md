@@ -12,10 +12,10 @@
 | Track | Status | Roadmap | ADR |
 |-------|--------|---------|-----|
 | **A — audio-reactive visuals** | **Confidence PASS (Pass E) · merged** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
-| **B — background layout** | **OPEN · Phase 0–5 DONE · Phase 1–5 core operator PASS · plate/mini recheck · Phase 6 next** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
+| **B — background layout** | **OPEN · Phase 0–6 DONE · Phase 1–5 + size operator PASS · Phase 6 recheck · Phase 7 next** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
 | **C — popup UI refresh** | **Agent QA gate PASS · merged to `main`** · §8 residual optional ([`track-c/qa-checklist.md`](track-c/qa-checklist.md)) | [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md) | none — presentational under 0007 tokens |
 
-**Automated (Track B Phase 0–5 residual):** focused layout/interaction/UI set **82/82** (prior 76 + plate normalization/resolution 2 + compositor ordering 4) · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics.
+**Automated (Track B through Phase 6):** focused layout/interaction/UI set **83/83** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate **23/29 MiB PASS**.
 
 **Architecture at Track A confidence close:** map **v3.21** / I22 · extension-points **v1.35** · package version remains **5.11.0** until an explicit v6 ship/tag. Track B architecture MINOR bumps deferred to merge closeout (§9).
 
@@ -43,12 +43,15 @@
 - [x] **Phase 4** — four bundled image/layout presets + non-destructive hover/focus live preview + explicit Apply · commit `1166d51` · **operator QA PASS** (2026-07-20); recording-time hover caveat guarded in Phase 5
 - [x] **Phase 5** — dim/blur/blend treatment bay + GIF speed/audio reactivity + in-canvas eye-dropper + recording-safe preset lockout · commit `16e3dd0` · original operator §6 PASS
 - [x] **Phase 5 follow-up** — spatial Y-key semantics; recorder-session layout authority/no redundant image reload; sampler-owned hero interaction + miss guidance; burn/dodge/difference; opt-in Canvas 2D Holo drift · **operator core recheck PASS**
-- [x] **Phase 5 residual — blend plate (P0 visual)** — normalized six-source draw-time solid (legacy/theme tint/bar/mid-gray/soft-white/custom HSV+HEX), one fill beneath image, dim after, no second image · automated PASS · operator visual/reload recheck pending
-- [x] **Phase 5 follow-up (eye-dropper gap)** — hero + precision surface/canvas pairs, mini crosshair chrome, shared miss/cancel exits · automated PASS · operator mini recheck pending
-- [ ] **Phase 6** — multi-aspect crop guides + compare
+- [x] **Phase 5 residual — blend plate (P0 visual)** — normalized six-source draw-time solid (legacy/theme tint/bar/mid-gray/soft-white/custom HSV+HEX), one fill beneath image, dim after, no second image · operator PASS
+- [x] **Phase 5 follow-up (eye-dropper gap)** — hero + precision surface/canvas pairs, mini crosshair chrome, shared miss/cancel exits · operator PASS
+- [x] **Phase 5 size gate** — required blur/GIF stress **23 MiB base / 29 MiB baked — PASS**; upper-end non-blur observation 28/35 MiB recorded as informational
+- [x] **Phase 6** — native/1:1/9:16 hero crop lab + independent thirds + transient Theme-only compare + restore/decode guard · operator recheck pending
 - [ ] **Phase 7** — keyboard / ARIA / variants + confidence QA
 
-**Immediate next:** operator-recheck blend plate + precision-mini sampler; 120 s blur+GIF; Phase 6.
+**Immediate next:** operator-recheck Phase 6 crop/thirds/compare, then Phase 7.
+
+**Non-blocking performance note:** subtitle browser-composite/burn-in reportedly runs roughly **5–6× faster while the Studio window is minimized**. Not breaking and out of Track B Phase 6 scope; investigate later for focused-window RAF/render contention, scheduling, or GPU-throttling interaction before treating it as an optimization.
 
 ### Phase gates (partial)
 
@@ -63,9 +66,11 @@
 | Phase 3 operator UI (spatial console + zoom/snap/safe/history) | **PASS** (user) |
 | Phase 4 automated (preset catalog + contact sheet behavior) | **PASS** 14/14 |
 | Phase 4 operator UI (hover/focus restore + Apply + live audition) | **PASS** (user; recording caveat guarded in `16e3dd0`) |
-| Phase 5 automated (effects/GIF/sampler/recording guard + residual) | **PASS** · focused total 82/82 |
-| Phase 5 operator UI + recording-safety smoke | **partial** · core follow-up PASS; plate/mini + 120 s recheck open |
-| Full Track B checklist merge gate | **open** (Phase 5 operator + Phase 6–7 + parity/size still ahead) |
+| Phase 5 automated (effects/GIF/sampler/recording guard + residual) | **PASS** · included in focused total 83/83 |
+| Phase 5 operator UI + recording-safety smoke | **PASS** · blend plate + precision sampler + size gate closed |
+| Phase 6 automated | **PASS** · framing/compare UI + recording restore contract; focused total 83/83 |
+| Phase 6 operator UI | **open** |
+| Full Track B checklist merge gate | **open** (Phase 6–7 + parity/product smoke still ahead) |
 
 ### Non-negotiables (Track B)
 
@@ -100,4 +105,4 @@ Full section checklist remains in git history / prior ledger revisions; verdict 
 - ✅ Track A Phase 0–4 full catalog + Style panel + governor + fixture QA + Pass A–E live confidence
 - ✅ Track C popup-only Cividis skin + elevated restart caution + tokens guard + fixture + agent gate
 - ✅ Track B branch FF + QA scaffold
-- ✅ Track B Phase 0 layout core + Phase 1 hero direct drag + Phase 2 precision widget + Phase 3 positioning console/zoom/snap/safe/history + Phase 4 bundled presets/live audition + Phase 5 effects/GIF/no-flash/blends/Holo (core operator PASS) + visible blend plate and precision-mini sampling mirror (operator recheck pending)
+- ✅ Track B Phase 0 layout core + Phase 1 hero direct drag + Phase 2 precision widget + Phase 3 positioning console/zoom/snap/safe/history + Phase 4 bundled presets/live audition + Phase 5 effects/GIF/no-flash/blends/Holo/plate/sampling (operator PASS + size PASS) + Phase 6 framing aids/compare (operator recheck pending)

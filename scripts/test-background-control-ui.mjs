@@ -38,8 +38,17 @@ const { physicalSliderValueFromPointer } = await bundle(
   'src/ui/design-studio/physical-slider.ts',
   'physical-slider',
 );
+const { renderPreviewBlock } = await bundle(
+  'src/ui/design-studio/preview-block.ts',
+  'preview-block',
+);
 
-const { document, window } = parseHTML(`<main>${renderBackgroundLayoutFields()}</main>`);
+const { document, window } = parseHTML(`
+  <div class="studio-v4" data-test-root>
+    <section class="studio__hero">${renderPreviewBlock('primary')}</section>
+    <main>${renderBackgroundLayoutFields()}</main>
+  </div>
+`);
 globalThis.window = window;
 globalThis.document = document;
 globalThis.HTMLElement = window.HTMLElement;
@@ -137,6 +146,20 @@ check('Phase 5 darkroom controls expose treatment, motion, and in-canvas samplin
   assert.ok(document.querySelector('[data-background-eyedropper]'));
 });
 
+check('Phase 6 exposes honest crop, thirds, and Theme-only compare controls', () => {
+  const aspects = [...document.querySelectorAll('[data-background-framing-aspect-button]')];
+  assert.deepEqual(aspects.map((button) => button.getAttribute('data-background-framing-aspect-button')), [
+    'native',
+    'square',
+    'vertical',
+  ]);
+  assert.equal(aspects[0].getAttribute('aria-pressed'), 'true');
+  assert.ok(document.querySelector('button[data-background-framing-thirds]'));
+  assert.ok(document.querySelector('[data-background-compare][aria-pressed="false"]'));
+  assert.ok(document.querySelector('[data-background-framing-status][aria-live="polite"]'));
+  assert.ok(document.querySelector('.studio__hero [data-background-framing-overlay][hidden]'));
+});
+
 check('preset safety, Apply, treatment controls, and sampler emit guarded changes', () => {
   const changes = [];
   let gestures = 0;
@@ -163,7 +186,7 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
     getImageData: () => ({ data: new Uint8ClampedArray([74, 108, 136, 255]) }),
   });
   const handle = mountBackgroundLayoutControls(
-    document.querySelector('main'),
+    document.querySelector('[data-test-root]'),
     (patch, options) => changes.push({ patch, options }),
     {
       onGestureStart: () => { gestures += 1; },
@@ -222,12 +245,45 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   handle.syncRecordingState(false);
   assert.equal(card.disabled, false);
 
+  const framingOverlay = document.querySelector('[data-background-framing-overlay]');
+  const squareGuide = document.querySelector('[data-background-framing-aspect-button="square"]');
+  squareGuide.dispatchEvent(new window.Event('click'));
+  assert.equal(squareGuide.getAttribute('aria-pressed'), 'true');
+  assert.equal(framingOverlay.dataset.backgroundFramingAspect, 'square');
+  assert.equal(framingOverlay.hidden, false);
+  const thirdsToggle = document.querySelector('button[data-background-framing-thirds]');
+  thirdsToggle.dispatchEvent(new window.Event('click'));
+  assert.equal(thirdsToggle.getAttribute('aria-pressed'), 'true');
+  assert.equal(framingOverlay.querySelector('[data-background-framing-thirds]').hidden, false);
+
   card.dispatchEvent(new window.Event('click'));
   document.querySelector('[data-background-preset-apply]').dispatchEvent(new window.Event('click'));
   assert.equal(changes.at(-1).options.persist, true);
   assert.equal(changes.at(-1).options.presetPreview, false);
   assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
   assert.equal(gestures, 1);
+
+  const compare = document.querySelector('[data-background-compare]');
+  compare.dispatchEvent(new window.Event('click'));
+  assert.equal(compare.getAttribute('aria-pressed'), 'true');
+  assert.equal(changes.at(-1).options.persist, false);
+  assert.equal(changes.at(-1).options.comparePreview, true);
+  assert.equal(changes.at(-1).patch.customBackgroundId, null);
+  assert.equal(card.disabled, true);
+  compare.dispatchEvent(new window.Event('click'));
+  assert.equal(compare.getAttribute('aria-pressed'), 'false');
+  assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
+
+  compare.dispatchEvent(new window.Event('click'));
+  assert.equal(changes.at(-1).patch.customBackgroundId, null);
+  // CHANGED: recording entry must retire Theme-only compare before capture can begin.
+  // WHY: this structural gate prevents transient comparison frames from entering the output video.
+  handle.syncRecordingState(true);
+  assert.equal(compare.getAttribute('aria-pressed'), 'false');
+  assert.equal(compare.disabled, true);
+  assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
+  handle.syncRecordingState(false);
+  assert.equal(compare.disabled, false);
 
   const ySlider = document.querySelector('[data-background-position-slider="y"]');
   const yBefore = changes.at(-1).patch.backgroundLayout.customPosition.y;

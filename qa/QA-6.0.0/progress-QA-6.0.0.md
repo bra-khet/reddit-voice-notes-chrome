@@ -26,13 +26,31 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–5 landed · operator Phase 1–5 core QA **PASS** · blend-plate/precision-sampler recheck and full merge gate still open.
+**Track B in flight:** Phase 0–6 landed · operator Phase 1–5 + real blur/GIF size gate **PASS** · Phase 6 recheck and full merge gate still open.
 
-**Next:** (1) operator-recheck visible blend plates + custom HSV/HEX · (2) operator-recheck eye-dropper precision mini · (3) 120 s blur+GIF gate · (4) Phase 6 · package stays 5.11.0.
+**Next:** (1) operator-recheck Phase 6 crop/thirds/compare · (2) Phase 7 keyboard/ARIA/variants · (3) preview→record→bake parity + product smoke · package stays 5.11.0.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 6 framing aids + compare implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** this sprint<br>
+**Trigger:** final Phase 5 operator recheck and required real size gate passed; continue roadmap §7 Phase 6.
+
+- Closed Phase 5 browser residuals: all blend modes visibly useful against the exposed plate; custom plate/Holo/dim behavior works; precision-mini sampling/cancellation/miss guidance works. Required blur/GIF case is **23 MiB base / 29 MiB baked — PASS**. An upper-end non-blur combination reached 28/35 MiB and is logged informationally.
+- Added a compact **Framing aids** optical bench: Native 16:9, centered Square 1:1, centered Vertical 9:16, and an independent rule-of-thirds switch. The crop mask, grid, and labels are DOM siblings above the hero canvas hole, never pixels in preview/capture/export.
+- Added transient **Theme only** comparison using the existing image/layout hot-swap. It never persists, disables preset audition while active, restores the exact committed image, and retires on authoritative profile/prefs sync.
+- Hardened capture entry: compare/preset transient state restores before the boundary, then Studio awaits the current image/GIF decode before `MediaRecorder.start()`. This prevents theme-only or unloaded first-frame flashes.
+- Architecture-hardening result: additive implementation of Accepted ADR-0008; no new context, message, store, signal, preference field/version, renderer, or compositing layer. ADR amended; map/extension-point MINOR bumps remain deferred to Track B merge.
+- Deferred note: subtitle browser-composite/burn-in reportedly runs **~5–6× faster while Studio is minimized**. Non-breaking; later investigation should separate focused-window RAF/render contention from browser/GPU scheduling.
+
+**Automated:** focused Track B set **83/83** · UI tokens PASS · visual-size gate logic **5/5** · production build PASS · compile only the same 2 pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Operator recheck:** select 1:1 and 9:16 and confirm centered crop geometry/mask; toggle Thirds in native and cropped frames; confirm all guide chrome is absent from a short recording; toggle Theme only on/off and start recording while it is active to confirm exact restore/no first-frame flash.
+
+**Next:** Phase 6 operator recheck, then Phase 7.
 
 ### 2026-07-20 — Phase 5 blend plate + precision-mini sampler implemented
 

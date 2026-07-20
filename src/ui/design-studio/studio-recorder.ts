@@ -248,9 +248,17 @@ export function mountStudioRecorder(
         // Same 3-phase workflow signal the Reddit panel sends — cross-tab
         // banners stay coherent regardless of where capture happens.
         void setWorkflowPhase('capture');
-        // Guard transient preset audition before the first encoded frame can be captured.
+        // BUG FIX: transient background restore could race the first captured frame
+        // Fix: publish the capture boundary, then wait for the restored image/GIF decode before MediaRecorder starts.
+        // Sync: voice-recorder.ts; background-layout-controls.ts
+        const recordingHost = host;
         setRecording(true);
-        void host.startRecording().catch(() => setRecording(false));
+        void recordingHost.session.whenBackgroundReady()
+          .then(() => {
+            if (!recording || host !== recordingHost) return;
+            return recordingHost.startRecording();
+          })
+          .catch(() => setRecording(false));
         break;
       case 'recording':
         void host.stopRecording();
