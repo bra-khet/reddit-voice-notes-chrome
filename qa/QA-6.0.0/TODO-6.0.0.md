@@ -13,6 +13,7 @@
 |-------|--------|---------|-----|
 | **A — audio-reactive visuals** | Phase 4 **implemented** · fixture QA PASS · **live confidence QA PASS (Pass E 2026-07-19)** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
 | **B — background layout** | **Not started** (open when ready; Track A no longer blocks) | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) |
+| **C — popup UI refresh** | **Agent QA gate PASS (2026-07-19) · merged to `main`** · §8 residual optional ([`track-c/qa-checklist.md`](track-c/qa-checklist.md)) | [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md) | none — presentational under 0007 tokens |
 
 **Automated (last full re-run through Conway stagnation land):** all **57 Node suites PASS** · `npm run build` PASS · `npm run compile` = same 2 pre-existing subtitle diagnostics.
 

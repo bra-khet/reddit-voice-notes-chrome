@@ -1,0 +1,23 @@
+/* Fixture chrome only — no class below may exist in production popup markup. */
+
+.fixture-stage {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 8px;
+}
+
+/* Chrome sizes the real browser-action popup to the body's 300px min-width. */
+.fixture-stage .popup {
+  width: 300px;
+  box-sizing: border-box;
+}
+
+.fixture-note {
+  max-width: 440px;
+  margin: 0 auto 24px;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8a86b0;
+}
