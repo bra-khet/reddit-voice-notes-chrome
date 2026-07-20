@@ -44,6 +44,8 @@ const {
   CONWAY_LIFE_MAX_CELLS,
   CONWAY_LIFE_MAX_ELEMENTS,
   CONWAY_LIFE_ROWS,
+  CONWAY_STAGNATION_DRIVE,
+  CONWAY_STAGNATION_GENERATIONS,
   ELECTRIC_ARC_ID,
   RISING_EMBER_ID,
   drawThemeBackground,
@@ -356,6 +358,84 @@ check('reduced motion is a fixed time-independent cellular constellation', () =>
   ).operations;
   assert.deepEqual(first, second);
   assert.ok(paintOperations(first).length <= CONWAY_LIFE_MAX_ELEMENTS);
+});
+
+// A talker: ~2.5 s phrases separated by ~1.2 s breaths, at syllable rate. `smoothing: 0` puts the
+// generation tick at exactly 0.08 s, so a matching dt advances exactly one generation per frame
+// and the sampled signatures line up 1:1 with generations.
+const SPEECH_TICK_SECONDS = 0.08;
+function speechFrameAt(index) {
+  const seconds = index * SPEECH_TICK_SECONDS;
+  const voiced = (seconds % 3.7) < 2.5;
+  const level = voiced ? 0.18 + (0.55 + 0.45 * Math.sin(seconds * 8.1)) * 0.22 : 0.004;
+  return {
+    voiced,
+    frame: {
+      energy: level,
+      bands: Array.from({ length: 32 }, (_, band) => {
+        const shape = band < 6 ? 0.8 : band < 16 ? 1 : band < 24 ? 0.35 : 0.12;
+        return Math.max(0, level * shape * (0.7 + 0.3 * Math.sin(seconds * 3.3 + band * 0.7)));
+      }),
+      timeMs: 1000 + index * SPEECH_TICK_SECONDS * 1000,
+      transient: false,
+    },
+  };
+}
+
+/** Geometry only — cell colour cycles with `generation` even while the cell set is frozen. */
+function cellGeometrySignature(operations) {
+  return JSON.stringify(cellOperations(operations).map((operation) => operation.slice(2)));
+}
+
+check('a stagnant field is nudged instead of holding a still-life or blinker', () => {
+  // sensitivity 0.35 + density 0.90 seeds a rich field and then gates ongoing seeding out —
+  // before the stagnation detector this froze for the entire take.
+  const stagnationParams = { ...params, smoothing: 0, sensitivity: 0.35, density: 0.9 };
+  const visual = CONWAY_LIFE_EFFECT_DEFINITION.create();
+  const samples = [];
+  for (let index = 0; index < 260; index += 1) {
+    const { voiced, frame: speechFrame } = speechFrameAt(index);
+    const { operations } = render(
+      visual,
+      speechFrame,
+      stagnationParams,
+      captureEnvironment,
+      SPEECH_TICK_SECONDS,
+    );
+    samples.push({ voiced, signature: cellGeometrySignature(operations) });
+  }
+
+  let longestHeld = 0;
+  let held = 0;
+  for (let index = 2; index < samples.length; index += 1) {
+    // The detector deliberately leaves a quiet field alone, so only voiced runs are the contract.
+    if (!samples[index].voiced) { held = 0; continue; }
+    const stagnant = samples[index].signature === samples[index - 1].signature
+      || samples[index].signature === samples[index - 2].signature;
+    held = stagnant ? held + 1 : 0;
+    longestHeld = Math.max(longestHeld, held);
+  }
+  assert.ok(
+    longestHeld <= CONWAY_STAGNATION_GENERATIONS * 3,
+    `field held a period-1/period-2 state for ${longestHeld} generations `
+    + `(threshold ${CONWAY_STAGNATION_GENERATIONS})`,
+  );
+});
+
+check('the stagnation nudge never lights up a silent capture', () => {
+  const visual = CONWAY_LIFE_EFFECT_DEFINITION.create();
+  const silence = { ...frame, energy: 0, bands: Array(32).fill(0), transient: false };
+  for (let index = 0; index < 60; index += 1) {
+    const { operations } = render(
+      visual,
+      { ...silence, timeMs: 1000 + index * 80 },
+      { ...params, smoothing: 0 },
+      captureEnvironment,
+      SPEECH_TICK_SECONDS,
+    );
+    assert.equal(paintOperations(operations).length, 0);
+  }
+  assert.ok(CONWAY_STAGNATION_DRIVE > 0);
 });
 
 check('180 frames of generations stay finite and bounded without growing state', () => {

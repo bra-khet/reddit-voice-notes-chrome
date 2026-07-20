@@ -30,6 +30,20 @@ const LIFE_PATTERNS: readonly (readonly CellOffset[])[] = Object.freeze([
   Object.freeze([[0, 0], [1, 0], [2, 0]] as const), // oscillator
 ]);
 
+/** Consecutive period-1/period-2 generations tolerated before the field is nudged. */
+export const CONWAY_STAGNATION_GENERATIONS = 3;
+/** Audio floor under which a frozen field is left alone so capture silence stays empty. */
+export const CONWAY_STAGNATION_DRIVE = 0.02;
+
+/**
+ * Probe order for the stagnation spur. Diagonals come first because a single diagonal
+ * neighbour is enough to break a block or a beehive; the orthogonal pair at distance two
+ * is the fallback when an anchor is already boxed in.
+ */
+const STAGNATION_SPURS: readonly CellOffset[] = Object.freeze([
+  [1, 1], [-1, -1], [1, -1], [-1, 1], [2, 0], [0, 2],
+] as const);
+
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 }
@@ -93,6 +107,11 @@ class ConwayLifeEffect implements StackableEffect {
   private bassDrive = 0;
   private midDrive = 0;
   private trebleDrive = 0;
+  private stagnantGenerations = 0;
+  private previousFingerprint: number | null = null;
+  private olderFingerprint: number | null = null;
+  private anchorColumn = -1;
+  private anchorRow = -1;
 
   update(_frame: AudioVizFrame, dt: number): void {
     this.pendingDt = Math.min(0.1, Math.max(0, Number.isFinite(dt) ? dt : 0));
@@ -141,6 +160,7 @@ class ConwayLifeEffect implements StackableEffect {
       this.seedAudioPatterns(frame, params, layout, false);
       const alive = this.grid.step();
       if (alive < 5 && this.drive > 0.025) this.seedAudioPatterns(frame, params, layout, true);
+      this.trackStagnation(frame, params, layout, alive);
       this.accumulator -= tickSeconds;
       steps += 1;
     }
@@ -157,6 +177,99 @@ class ConwayLifeEffect implements StackableEffect {
     this.grid.clear();
     this.accumulator = 0;
     this.seedSerial = 0;
+    this.stagnantGenerations = 0;
+    this.previousFingerprint = null;
+    this.olderFingerprint = null;
+    this.anchorColumn = -1;
+    this.anchorRow = -1;
+  }
+
+  /**
+   * BUG FIX: Conway Life freezes into still-lifes and period-2 blinkers
+   * Fix: the only escape hatch was the near-extinction reseed (`alive < 5`), which never fires
+   *   for the two attractors the 48x16 dead-edge field actually falls into — a tapestry of stable
+   *   blocks/beehives, or blinkers, both of which sit at a high and *constant* population. Two
+   *   prior post-step fingerprints now identify period-1 (same as last) and period-2 (same as the
+   *   one before last) repetition; after CONWAY_STAGNATION_GENERATIONS consecutive stagnant
+   *   generations with audio present, a small audio-biased spur is stamped onto a living anchor so
+   *   the frozen structure breaks in place instead of new life spawning beside it.
+   */
+  private trackStagnation(
+    frame: AudioVizFrame,
+    params: VisualizerParams,
+    layout: LayoutMode,
+    aliveAfterStep: number,
+  ): void {
+    const anchorTarget = 1 + Math.floor(
+      seededUnit(this.seedSerial, 43) * Math.max(0, aliveAfterStep),
+    );
+    const fingerprint = this.fingerprintLife(anchorTarget);
+    const stagnant = fingerprint === this.previousFingerprint
+      || fingerprint === this.olderFingerprint;
+    this.stagnantGenerations = stagnant ? this.stagnantGenerations + 1 : 0;
+    this.olderFingerprint = this.previousFingerprint;
+    this.previousFingerprint = fingerprint;
+
+    if (
+      this.stagnantGenerations < CONWAY_STAGNATION_GENERATIONS
+      || this.drive <= CONWAY_STAGNATION_DRIVE
+    ) return;
+    this.perturbStagnantLife(frame, params, layout);
+    this.stagnantGenerations = 0;
+  }
+
+  /**
+   * Hashes the live cells and, as a free side effect of the same sweep, records the
+   * `target`-th live cell as the perturbation anchor. Runs once per generation (80-220 ms),
+   * never once per frame, so it stays far below the cost of the generation it follows.
+   */
+  private fingerprintLife(target: number): number {
+    let fingerprint = 0x811c9dc5;
+    let liveSeen = 0;
+    this.anchorColumn = -1;
+    this.anchorRow = -1;
+    for (let row = 0; row < CONWAY_LIFE_ROWS; row += 1) {
+      for (let column = 0; column < CONWAY_LIFE_COLUMNS; column += 1) {
+        if (!this.grid.isAlive(column, row)) continue;
+        fingerprint = Math.imul(fingerprint ^ (row * CONWAY_LIFE_COLUMNS + column), 16777619);
+        liveSeen += 1;
+        if (this.anchorColumn < 0 || liveSeen === target) {
+          this.anchorColumn = column;
+          this.anchorRow = row;
+        }
+      }
+    }
+    return fingerprint;
+  }
+
+  private perturbStagnantLife(
+    frame: AudioVizFrame,
+    params: VisualizerParams,
+    layout: LayoutMode,
+  ): void {
+    if (this.anchorColumn < 0) {
+      this.seedAudioPatterns(frame, params, layout, false, 1);
+      return;
+    }
+    const serial = this.seedSerial;
+    this.seedSerial += 1;
+    const bandIndex = (serial * 5 + this.anchorColumn + this.anchorRow) % frame.bands.length;
+    const spectral = clamp01(frame.bands[bandIndex] ?? 0);
+    const wanted = spectral + this.midDrive > 0.35 ? 2 : 1;
+    const start = Math.floor(seededUnit(serial, 47) * STAGNATION_SPURS.length);
+
+    let placed = 0;
+    for (let probe = 0; probe < STAGNATION_SPURS.length && placed < wanted; probe += 1) {
+      const offset = STAGNATION_SPURS[(start + probe) % STAGNATION_SPURS.length];
+      if (!offset) continue;
+      const column = this.anchorColumn + offset[0];
+      const row = this.anchorRow + offset[1];
+      // Dead-edge reads/writes already reject out-of-bounds cells, so a boxed-in or edge
+      // anchor simply falls through to the next probe. No topology change.
+      if (this.grid.isAlive(column, row)) continue;
+      if (this.grid.setAlive(column, row)) placed += 1;
+    }
+    if (placed === 0) this.seedAudioPatterns(frame, params, layout, false, 1);
   }
 
   private resolveAudioDrive(
