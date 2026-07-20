@@ -12,7 +12,7 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` |
 | **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
 | **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
 | **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
@@ -26,13 +26,30 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–3 landed · operator Phase 1–2 QA **PASS** · redesigned positioning-console + Phase 3 operator QA pending · full merge gate still open.
+**Track B in flight:** Phase 0–4 landed · operator Phase 1–3 QA **PASS** · Phase 4 operator QA pending · full merge gate still open.
 
-**Next:** Track B Phase 3 operator QA, then Phase 4 presets/live hover preview · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
+**Next:** Track B Phase 4 operator QA, then Phase 5 properties/effects + eye-dropper · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 4 presets + live audition implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `1166d51`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §7 operator smoke remains open
+
+- Applied the final Phase 3 operator tweak: upward Y-axis controls now place fine `.01` before coarse `.05`; the control UI suite locks that DOM order. The user confirmed all other Phase 3 behavior/UI passed QA, so checklist §4 additions and §5 are closed.
+- Added four normalized Aurora/Warm Glow image-layout recipes (`image + scaleMode + customPosition + manualScale + dim`) in a Cividis contact-sheet row using the actual packaged SVGs.
+- Hover or keyboard focus auditions a complete recipe on the hero, mini frame, and any open recorder session without saving. Leaving both hover/focus states restores the exact committed image/layout; selection only arms explicit Apply, which snapshots history and persists once.
+- Included backgrounds use stable `bg-…` references but resolve directly from extension assets. They appear in the existing background selector, cannot be deleted, and are excluded from ImageDB quota/reference pruning. No prefs version/store/message/signal/dependency/layer change.
+- Preset resolution deliberately preserves Phase 5 effect intent (`blur`, `blendMode`, GIF controls, safe-text lock) while applying only Phase 4-owned recipe fields.
+
+**Automated:** layout **10/10** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **9/9** · presets **5/5** · caption geometry **7/7** · prefs storage **12/12** = focused **62/62**. Production build **PASS** and contains both SVG assets; compile only the same 2 pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Architecture:** ADR-0008 already owns the Design-phase preset/layout seam; the recipes reuse the existing preference, preview, recorder, and draw path. Architecture map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Next:** operator-check checklist §7 hover/focus restore, Apply/reload, included choices, and open-audition hot-swap; then Phase 5 properties/effects + eye-dropper.
 
 ### 2026-07-20 — Track B Phase 3 positioning console + interactions implemented
 
@@ -53,7 +70,7 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 **Architecture:** ADR-0008 already owns this exact Design-phase seam. Map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
 
-**Next:** reload and operator-check checklist §4 additions + §5, then implement Phase 4 presets/live hover preview.
+**Operator follow-up:** user reported the Phase 3 UI/behavior passes QA on 2026-07-20; the only requested adjustment was the upward Y-button order recorded in the Phase 4 entry above.
 
 ### 2026-07-20 — Track B Phase 2 precision widget implemented
 

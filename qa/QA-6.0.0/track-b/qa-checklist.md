@@ -6,13 +6,13 @@
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
-**Date:** 2026-07-20 (Phase 0–3 landed; Phase 1–2 operator QA PASS; Phase 3 operator pending)<br>
+**Date:** 2026-07-20 (Phase 0–4 landed; Phase 1–3 operator QA PASS; Phase 4 operator pending)<br>
 **Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (as of Phase 3):** focused layout/interaction/UI set **54/54** — layout **10/10** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **6/6** · caption geometry **7/7** · prefs storage **12/12**. `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
+**Automated (as of Phase 4):** focused layout/interaction/UI set **62/62** — layout **10/10** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **9/9** · presets **5/5** · caption geometry **7/7** · prefs storage **12/12**. `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -74,21 +74,21 @@
 
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
-| 0 | Pre-flight | ▲ | Phase 1–2 operator path PASS · Phase 3 build reload pending |
-| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 54/54 · build PASS |
-| 2 | Phase 0 migration + zero visual change | ■ | Node + design intent; panel still legacy 9-grid |
+| 0 | Pre-flight | ■ | Phase 1–3 operator path PASS |
+| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 62/62 · build PASS |
+| 2 | Phase 0 migration + zero visual change | ■ | Normalization/default migration contract remains green |
 | 3 | Direct manipulation (drag / focal / reset) | ■ | Operator Phase 1 QA PASS — hero only |
-| 4 | Precision widget + bidirectional sync | ▲ | Phase 2 behavior operator PASS · redesigned spatial console operator smoke pending |
-| 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ▲ | Phase 3 code + automated gate PASS · operator UI pending |
+| 4 | Precision widget + bidirectional sync | ■ | Phase 2 behavior + Phase 3 redesigned console operator PASS |
+| 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ■ | Phase 3 operator QA PASS |
 | 6 | Properties / effects / GIF | ☐ | Phase 5+ |
-| 7 | Presets + eye-dropper hand-off | ☐ | Phase 4–5 |
+| 7 | Presets + eye-dropper hand-off | ▲ | Phase 4 code/automated PASS; preset operator QA + Phase 5 eye-dropper open |
 | 8 | Framing aids (crop guides / thirds) | ☐ | Phase 6 |
 | 9 | Preview ↔ record ↔ bake parity (I1/I3) | ☐ | |
 | 10 | 120 s size — blur + GIF stress | ☐ | |
 | 11 | a11y (keyboard / ARIA / reduced-motion) | ☐ | Phase 7 |
 | 12 | Product smoke + Classic / default no-regression | ☐ | |
 
-**Overall:** ▲ partial (Phase 0–3 code complete; redesigned console/Phase 3 operator QA + full Track B merge gate open)
+**Overall:** ▲ partial (Phase 0–4 code complete; operator Phase 1–3 PASS; Phase 4 operator QA + full Track B merge gate open)
 
 **Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
 
@@ -99,10 +99,10 @@
 - [x] Branch is `feature/v6.0.0-background-panel-refactor` (or equivalent Track B build loaded)
 - [x] Extension reloaded from `.output/chrome-mv3-dev/` (or prod); no red errors on load (SW / offscreen)
 - [x] Design Studio opens; background panel still **hidden** until a personal background is selected
-- [ ] Selecting / uploading a custom background reveals the spatial precision console plus existing fit/grid controls *(re-check on Phase 3 build)*
+- [x] Selecting / uploading a custom background reveals the spatial precision console plus existing fit/grid controls
 - [x] Evidence folders ready: `logs/` · `screenshot/` · `artifacts/`
 
-**Notes:** Operator Phase 1–2 paths passed 2026-07-20. Reload and check the redesigned Phase 3 positioning console before closing pre-flight.
+**Notes:** Operator Phase 1–3 paths passed 2026-07-20. Phase 4 adds included Aurora/Warm Glow choices without changing the no-background hidden state.
 
 
 ---
@@ -115,13 +115,14 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [x] `node scripts/test-background-direct-manipulation.mjs` PASS (pan/focal drag + cursor-anchored zoom math) — **Phase 1+3 · 8/8**
 - [x] `node scripts/test-background-precision.mjs` PASS (±0.01/±0.05 axis nudges, clamps, field preservation) — **Phase 2 · 5/5**
 - [x] `node scripts/test-interaction-utils.mjs` PASS (sliderToScale round-trip, sticky-snap hysteresis, per-axis `snapPosition`, caption-band constraint, `clamp01`) — **Phase 3 · 6/6**
-- [x] `node scripts/test-background-control-ui.mjs` PASS (embedded mini, spatial rails, single/double assets, slider orientation/pointer mapping, Phase 3 controls) — **Phase 3 · 6/6**
+- [x] `node scripts/test-background-control-ui.mjs` PASS (embedded mini, Y fine/coarse order, spatial rails, slider semantics, Phase 3 controls, Phase 4 contact sheet + preview/Apply behavior) — **Phase 3–4 · 9/9**
+- [x] `node scripts/test-background-presets.mjs` PASS (stable bundled references/assets, catalog guards, normalized recipes, effect-field preservation) — **Phase 4 · 5/5**
 - [x] `node scripts/test-cue-measurement.mjs` PASS (including shared normalized caption-safe band) — **7/7**
-- [x] Focused Track B layout/interaction/UI set green — **54/54** including prefs storage **12/12**
+- [x] Focused Track B layout/interaction/UI set green — **62/62** including prefs storage **12/12**
 - [x] `npm run build` PASS
 - [x] `npm run compile` — only the 2 pre-existing subtitle diagnostics
 
-**Notes:** Phase 3 agent gate 2026-07-20: focused **54/54**, production build PASS, and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics.
+**Notes:** Phase 4 agent gate 2026-07-20: focused **62/62**, production build PASS (including packaged Aurora/Warm Glow SVGs), and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics.
 
 
 ---
@@ -159,26 +160,26 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [x] Drag on mini frame updates hero + prefs
 - [x] Numeric nudges (±0.01 / ±0.05) work and stay in [0,1]
 - [x] Bidirectional sync: hero drag → widget numbers; widget → hero
-- [ ] X rail is below the mini preview; Y rail is immediately to its right and remains usable at narrow widths
-- [ ] Single chevrons communicate ±0.01; doubled chevrons communicate ±0.05 in all four directions
-- [ ] Horizontal and vertical physical sliders track their axes, support pointer/keyboard input, and commit once per gesture
+- [x] X rail is below the mini preview; Y rail is immediately to its right and remains usable at narrow widths
+- [x] Single chevrons communicate ±0.01; doubled chevrons communicate ±0.05 in all four directions *(upward pair finalized as `.01`, then `.05`)*
+- [x] Horizontal and vertical physical sliders track their axes, support pointer/keyboard input, and commit once per gesture
 
-**Notes:** Original Phase 2 behavior in `b129713` received user/operator PASS on 2026-07-20. Phase 3 `844a81f` preserves it while reorganizing the controls around the embedded mini-preview; the three new presentation/input rows remain open for operator confirmation.
+**Notes:** Original Phase 2 behavior in `b129713` and the Phase 3 `844a81f` spatial redesign received user/operator PASS on 2026-07-20. The final upward-button order tweak is pinned by `test-background-control-ui.mjs`.
 
 
 ---
 
 ## 5 · Zoom, snap, undo/redo, lock-to-safe-text (Phase 3)
 
-- [ ] Ctrl/Cmd+wheel adjusts `manualScale` at cursor (clamped)
-- [ ] Center / thirds / edges sticky-snap with hysteresis (enter harder than exit)
-- [ ] Guides match rendered caption band (`lockToSafeText` keeps subject clear of captions)
-- [ ] Undo / redo for layout gestures (bounded stack; **not** entangled with subtitle editor undo)
-- [ ] Snap off / guides off still allows free position
+- [x] Ctrl/Cmd+wheel adjusts `manualScale` at cursor (clamped)
+- [x] Center / thirds / edges sticky-snap with hysteresis (enter harder than exit)
+- [x] Guides match rendered caption band (`lockToSafeText` keeps subject clear of captions)
+- [x] Undo / redo for layout gestures (bounded stack; **not** entangled with subtitle editor undo)
+- [x] Snap off / guides off still allows free position
 
 **Notes:**
 
-Automated math/UI contracts pass in `844a81f`; this section intentionally remains open for real-extension interaction and visual confirmation.
+User/operator QA PASS on 2026-07-20; automated math/UI contracts remain green.
 
 
 ---
@@ -199,11 +200,14 @@ Automated math/UI contracts pass in `844a81f`; this section intentionally remain
 
 ## 7 · Presets + eye-dropper (Phase 4–5)
 
-- [ ] Curated presets apply image + scaleMode + position + dim (non-destructive hover preview)
+- [ ] Curated presets apply image + scaleMode + customPosition + dim; hover/focus preview is non-destructive and explicit Apply persists once
+- [ ] Aurora and Warm Glow appear as included choices; they consume no ImageDB quota and cannot be deleted
+- [ ] Leaving hover/focus restores the prior uploaded/included background and layout exactly
+- [ ] Open live audition hot-swaps image + layout together; preset selection without Apply does not survive reload
 - [ ] Eye-dropper samples via canvas `getImageData` (in-surface; no whole-screen permission)
 - [ ] Sampled color hands off to Style / bar color path (`onSampleColor`) without corrupting layout
 
-**Notes:**
+**Notes:** Phase 4 code `1166d51`; automated catalog/contact-sheet contracts **14/14** across the two focused suites. Operator smoke remains open. Eye-dropper belongs to Phase 5.
 
 
 ---

@@ -1,8 +1,8 @@
-# Track B — background layout QA (**open · Phase 0–3 DONE**)
+# Track B — background layout QA (**open · Phase 0–4 DONE**)
 
-**Status:** **OPEN** — Phase 0–3 landed; **operator Phase 1–2 QA PASS**; redesigned positioning console + Phase 3 operator QA, Phase 4–7, and full merge gate still ahead<br>
+**Status:** **OPEN** — Phase 0–4 landed; **operator Phase 1–3 QA PASS**; Phase 4 operator QA, Phase 5–7, and full merge gate still ahead<br>
 **Branch:** `feature/v6.0.0-background-panel-refactor`  
-**Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` (baseline was `main@2b42db5`)<br>
+**Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` (baseline was `main@2b42db5`)<br>
 **Baseline package:** v5.11.0 · Track A confidence PASS · Track C agent gate PASS  
 **Roadmap:** [`docs/v6.0.0-background-panel-refactor.md`](../../../docs/v6.0.0-background-panel-refactor.md)  
 **ADR:** [0008 — background direct-manipulation layout](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
@@ -11,7 +11,7 @@
 ```
 track-b/
   README.md           # this file
-  qa-checklist.md     # committed gate (Phase 0–3 partial; full gate open)
+  qa-checklist.md     # committed gate (Phase 0–4 partial; full gate open)
   logs/               # gitignored evidence
   screenshot/         # gitignored evidence
   artifacts/          # gitignored evidence (size/parity packets when needed)
@@ -28,10 +28,11 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 | **0** layout-core | **DONE** | Under the hood only — nested layout, normalize, draw path. Old 9-grid still the side panel. |
 | **1** direct-drag | **DONE · operator QA PASS** | Click/drag personal background on the **main live preview**. |
 | **2** precision-widget | **DONE · operator behavior PASS** | Background subpanel mini frame, X/Y readouts, and ±0.01/±0.05 nudges sync with hero. |
-| **3** interaction-utils | **DONE · operator QA pending** | Spatial X/Y console, single/double chevrons, physical sliders, cursor-anchored zoom, sticky guides, caption-safe lock, and isolated undo/redo. |
-| **4+** | Not started | Presets, dim/blur UI, crop guides, polish |
+| **3** interaction-utils | **DONE · operator QA PASS** | Spatial X/Y console, single/double chevrons, physical sliders, cursor-anchored zoom, sticky guides, caption-safe lock, and isolated undo/redo. |
+| **4** presets | **DONE · operator QA pending** | Four Aurora/Warm Glow image-layout recipes; hover/focus auditions without saving; selection + Apply persists. |
+| **5+** | Not started | Dim/blur/effects UI, crop guides, polish |
 
-**Automated (Phase 0–3):** focused layout/interaction/UI set **54/54** (layout 10 · direct-manip 8 · precision 5 · interaction utils 6 · control UI 6 · caption geometry 7 · prefs storage 12) · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics.
+**Automated (Phase 0–4):** focused layout/interaction/UI set **62/62** (layout 10 · direct-manip 8 · precision 5 · interaction utils 6 · control UI 9 · presets 5 · caption geometry 7 · prefs storage 12) · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics.
 
 ## Scope reminder
 
@@ -52,12 +53,12 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 | **0** | Types + normalize + compute (dim field, `customPosition` path) | **DONE** `08a2de5` |
 | **1** | Direct canvas drag + focal affordances | **DONE** `1e3118f` · operator QA PASS |
 | **2** | Precision widget + bidirectional sync | **DONE** `b129713` · operator behavior PASS |
-| **3** | Zoom, sticky snap, safe-text lock, undo/redo + positioning-console redesign | **DONE** `844a81f` · operator QA pending |
-| **4** | Presets row + live hover preview | pending |
+| **3** | Zoom, sticky snap, safe-text lock, undo/redo + positioning-console redesign | **DONE** `844a81f` · operator QA PASS |
+| **4** | Presets row + live hover preview | **DONE** `1166d51` · operator QA pending |
 | **5** | Properties/effects + eye-dropper | pending |
 | **6** | Multi-aspect crop guides + compare | pending |
 | **7** | Keyboard, ARIA, variants, confidence QA | pending |
 
-**Immediate next:** operator-check the redesigned console in checklist §4 and Phase 3 behavior in §5, then Phase 4 presets/live hover preview.
+**Immediate next:** operator-check Phase 4 presets in checklist §7, then implement Phase 5 properties/effects + eye-dropper.
 
 Workspace ledger: [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · session log: [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md).

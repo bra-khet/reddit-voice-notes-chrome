@@ -128,7 +128,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–3 DONE · operator Phase 1–2 QA PASS · Phase 3 operator QA pending** · Phase 4 next.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–4 DONE · operator Phase 1–3 QA PASS · Phase 4 operator QA pending** · Phase 5 next.
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
@@ -161,7 +161,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 **Next:** superseded by the Phase 3 entry below.
 
-### Track B Phase 3 — spatial positioning console + zoom/snap/safe/history (**IMPLEMENTED · operator QA pending 2026-07-20**)
+### Track B Phase 3 — spatial positioning console + zoom/snap/safe/history (**DONE · operator QA PASS 2026-07-20**)
 
 **Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `844a81f`
 
@@ -172,7 +172,18 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 - No new context, message, store, signal, dependency, compositing layer, preference version, or bake renderer. Existing ADR-0008 owns the seam; map/extension-point MINOR bumps remain deferred to Track B merge.
 - **Automated:** focused layout/interaction/UI set **54/54** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics · `git diff --check` PASS.
 
-**Next:** operator-check Track B checklist §4 additions + §5, then Phase 4 presets/live hover preview. Full Track B confidence gate remains open; package stays 5.11.0.
+**Operator:** user confirmed the redesigned console and Phase 3 behaviors pass; final upward Y-button order is `.01` then `.05` and is regression-tested. Superseded by Phase 4 below.
+
+### Track B Phase 4 — bundled presets + non-destructive live audition (**IMPLEMENTED · operator QA pending 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `1166d51`
+
+- Four Aurora/Warm Glow image-layout recipes render as a Cividis contact sheet. Hover/focus auditions the real hero, mini frame, and open recorder without saving; leaving restores the committed image/layout; explicit Apply persists once.
+- Included `bg-…` references resolve directly from packaged SVGs, appear in the existing background selector, and are protected from ImageDB deletion/quota reconciliation. Presets preserve blur/blend/GIF/safe-text fields for Phase 5.
+- Existing ADR-0008 and the Design-phase preview→recorder→draw seam remain authoritative; no version/store/message/signal/dependency/compositing change. Map/seam bumps remain deferred to Track B merge.
+- **Automated:** focused Track B set **62/62** · production build PASS with both assets · compile only the same two pre-existing subtitle diagnostics.
+
+**Next:** operator-check Track B checklist §7, then Phase 5 properties/effects + eye-dropper. Full Track B confidence gate remains open; package stays 5.11.0.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 
