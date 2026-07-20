@@ -28,11 +28,37 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 **Track B in flight:** Phase 0–5 landed · operator Phase 1–4 + original Phase 5 §6 QA **PASS** · follow-up recheck and full merge gate still open.
 
-**Next:** fix eye-dropper so precision mini can sample too (see session log below); finish Phase 5 follow-up operator recheck (Y keys, no-flash record, blends, Holo); then Phase 6 framing aids · package stays 5.11.0 · push of `main` remains user-owned.
+**Next:** (1) **user-controlled blend plate** so modes actually read to humans · (2) eye-dropper precision mini · (3) remaining Phase 5 recheck · (4) Phase 6 · package stays 5.11.0.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Blend modes “do nothing” (operator visual verdict · plan only)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Code unchanged**  
+**Operator:** bra-khet — human perception check, not Node math.
+
+**Verdict (accepted as product gap, not “user error”):**
+
+- Fill-mode plate under the personal image is `theme.colors.bg` (or custom-style `deriveBackgroundColor` ≈ **4–8% value** of the bar hue). Preset solids sit in the `#000`–`#1a…` band. On a normal display these are **indistinguishable from pure black** without zooming; a ~3% delta vs pure black is not a usable design surface.
+- Operator difference test: **difference ≈ slightly dimmer source-over** ⇒ destination is near zero. That matches Canvas math (`|src − ~0| ≈ src`) and proves the blend allow-list is **mathematically live but visually inert** for human aesthetics.
+- Historical intent (dark visualizer stage + legible bars) does **not** make this OK for photo×blend UX. Phase 5 shipped blend UI without a human-visible plate; result: blend “doesn’t do anything.”
+- Dim→0 does not invent a midtone plate. Fit can use full `theme.background`, but many themes’ backdrops are still near-black solids; Fill never uses pretty art under the photo.
+
+**How we make it “do something” (agreed direction — simple, no second image):**
+
+Plate is already a **draw-time fill** (`letterboxColor` / fillRect before `drawImage` with `globalCompositeOperation`). Expose that as layout-owned prefs, same seam as dim/blur/blend:
+
+1. **User-visible plate color** (hex or Style-linked default) — mid/light values allowed; default for *new* creative use should not be void-black.
+2. Optional modes later: `theme-solid` (legacy) | `custom` | `full-theme` (draw `theme.background` under image).
+3. Wire: `UserBackgroundLayout` + `normalize…` + `drawUserBackgroundLayer` / `drawImageBackground` only; preview = capture; no new layer pipeline, ImageDB asset, or prefs version bump if additive.
+4. UI: treatment bay next to blend — color control + short copy: *“Blend multiplies your image onto this plate; dim darkens after.”*
+5. Acceptance: difference / multiply / overlay produce **obvious** change vs source-over on a mid-gray or theme-tint plate with dim at 0; operator can make modes “read” without DevTools zoom.
+
+**Out of scope for first pass:** dual-image FG/BG, Photoshop layer stack, changing global Classic-with-no-photo bar stage (keep legacy dark when no personal image / source-over Fill if needed for byte stability).
+
+**Priority:** Phase 5 residual — **before** treating blend QA as closed. Track with eye-dropper mini fix as treatment-bay follow-ups.
 
 ### 2026-07-20 — Eye-dropper incomplete fix investigation (docs only)
 

@@ -200,6 +200,8 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 **Notes:** User/operator reported §6 PASS on 2026-07-20 for the original Phase 5 treatment set. Canvas exposes no portable `divide`/`subtract`; this follow-up adds `difference` as the broadly useful subtract-like option plus burn/dodge. Holo is an additive boolean treatment inside the personal-image draw slot, default off.
 
+**2026-07-20 blend plate (operator):** modes are **not** visually attractive on the current underlay. Plate is `theme.colors.bg` / derived ~0–8% value — human-black; difference ≈ source-over. Do **not** close blend UX until a user-controlled midtone (or full-theme) plate exists. See `progress-QA-6.0.0.md` plan.
+
 
 ---
 

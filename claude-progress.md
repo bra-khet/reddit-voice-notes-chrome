@@ -198,7 +198,9 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 **Eye-dropper recheck (2026-07-20, docs only):** main hero samples OK after ownership fix; Background **precision mini** still cannot click-to-sample (drag correctly locked). Cause: sample surface/canvas + sampling CSS are hero-only. Color purpose: Style **bar/glow** for record-time visuals in the base video (not bake, not layout). Full write-up: [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
 
-**Next:** product sprint to mirror sample ownership onto the precision mini; finish remaining Phase 5 follow-up operator recheck (Y keys, no-flash, blends, Holo) + real 120 s blur+GIF gate; then Phase 6. Package stays 5.11.0.
+**Blend plate (2026-07-20, operator + plan):** `theme.colors.bg` / derived custom bg are **~0–8% value** — human-indistinguishable from black; difference ≈ source-over proves destination ≈ void. Phase 5 blend UI is **visually inert** without a user-controlled midtone plate (draw-time fill only — not a second image). Fix direction: layout-owned plate color next to blend so modes “do something.” Detail: QA progress session log.
+
+**Next:** product — (1) user-controlled blend plate · (2) eye-dropper on precision mini · then remaining Phase 5 recheck + 120 s blur+GIF · Phase 6. Package stays 5.11.0.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 
