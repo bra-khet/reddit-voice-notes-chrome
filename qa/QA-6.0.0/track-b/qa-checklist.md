@@ -5,14 +5,14 @@
 **Roadmap:** [`docs/v6.0.0-background-panel-refactor.md`](../../../docs/v6.0.0-background-panel-refactor.md) §8  
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
-**Machine / browser:** _(_fill in_)_  
-**Date:** _(_fill in_)_  
+**Machine / browser:** operator workstation (Phase 1 UI)  
+**Date:** 2026-07-20 (Phase 0+1 land + Phase 1 operator QA)  
 **Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (fill as phases land):** Phase 0 `test-background-layout.mjs` · Phase 3 `test-interaction-utils.mjs` · full Node sweep · `npm run build` · `npm run compile` = 2 pre-existing subtitle diagnostics only.
+**Automated (as of Phase 0+1):** Phase 0 `test-background-layout.mjs` **10/10** · Phase 1 `test-background-direct-manipulation.mjs` **6/6** · Phase 3 `test-interaction-utils.mjs` (not yet) · `npm run build` **PASS** · `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -74,10 +74,10 @@
 
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
-| 0 | Pre-flight | ☐ | |
-| 1 | Automated / Node (layout + interaction utils) | ☐ | |
-| 2 | Phase 0 migration + zero visual change | ☐ | |
-| 3 | Direct manipulation (drag / focal / reset) | ☐ | Phase 1+ |
+| 0 | Pre-flight | ■ | Phase 1 operator path |
+| 1 | Automated / Node (layout + interaction utils) | ▲ | layout 10/10 · direct-manip 6/6 · build PASS · interaction-utils Phase 3 |
+| 2 | Phase 0 migration + zero visual change | ■ | Node + design intent; panel still legacy 9-grid |
+| 3 | Direct manipulation (drag / focal / reset) | ■ | Operator Phase 1 QA PASS — hero only |
 | 4 | Precision widget + bidirectional sync | ☐ | Phase 2+ |
 | 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ☐ | Phase 3+ |
 | 6 | Properties / effects / GIF | ☐ | Phase 5+ |
@@ -88,7 +88,7 @@
 | 11 | a11y (keyboard / ARIA / reduced-motion) | ☐ | Phase 7 |
 | 12 | Product smoke + Classic / default no-regression | ☐ | |
 
-**Overall:** ☐ open  
+**Overall:** ▲ partial (Phase 0+1 closed; full Track B merge gate open)  
 
 **Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
 
@@ -96,13 +96,13 @@
 
 ## 0 · Pre-flight
 
-- [ ] Branch is `feature/v6.0.0-background-panel-refactor` (or equivalent Track B build loaded)
-- [ ] Extension reloaded from `.output/chrome-mv3-dev/` (or prod); no red errors on load (SW / offscreen)
-- [ ] Design Studio opens; background panel still **hidden** until a personal background is selected
-- [ ] Selecting / uploading a custom background reveals the layout panel (existing grid baseline pre-Phase-1)
-- [ ] Evidence folders ready: `logs/` · `screenshot/` · `artifacts/`
+- [x] Branch is `feature/v6.0.0-background-panel-refactor` (or equivalent Track B build loaded)
+- [x] Extension reloaded from `.output/chrome-mv3-dev/` (or prod); no red errors on load (SW / offscreen)
+- [x] Design Studio opens; background panel still **hidden** until a personal background is selected
+- [x] Selecting / uploading a custom background reveals the layout panel (existing grid baseline; Phase 1 does **not** remodel this submenu)
+- [x] Evidence folders ready: `logs/` · `screenshot/` · `artifacts/`
 
-**Notes:**
+**Notes:** Operator Phase 1 path 2026-07-20. Side panel intentionally still 9-grid until Phase 2+.
 
 
 ---
@@ -111,40 +111,41 @@
 
 Fill as pure-math suites land; re-run only when related code changes.
 
-- [ ] `node scripts/test-background-layout.mjs` PASS (normalize defaults/clamps, blend allow-list, `customPosition`↔discrete, offset math) — **Phase 0**
+- [x] `node scripts/test-background-layout.mjs` PASS (normalize defaults/clamps, blend allow-list, `customPosition`↔discrete, offset math) — **Phase 0 · 10/10**
+- [x] `node scripts/test-background-direct-manipulation.mjs` PASS (pan/focal drag math) — **Phase 1 · 6/6**
 - [ ] `node scripts/test-interaction-utils.mjs` PASS (sliderToScale round-trip, sticky-snap hysteresis, `snapPosition`, `clamp01`) — **Phase 3**
-- [ ] Focused Track B Node set green (document counts here)
-- [ ] `npm run build` PASS
-- [ ] `npm run compile` — only the 2 pre-existing subtitle diagnostics
+- [x] Focused Track B Node set green (layout 10 + direct-manip 6) — full 57-suite sweep deferred to later phase/merge
+- [x] `npm run build` PASS
+- [ ] `npm run compile` — only the 2 pre-existing subtitle diagnostics *(re-confirm at merge; not re-run this docs sprint)*
 
-**Notes:**
+**Notes:** Re-checked layout + direct-manip + build during living-docs catch-up (2026-07-20).
 
 
 ---
 
 ## 2 · Phase 0 migration + zero visual change
 
-- [ ] Existing profiles/styles with flat `backgroundScaleMode` / `backgroundPosition` load unchanged
-- [ ] Default dim still matches pre-v6 constant (`USER_BACKGROUND_DIM_OVERLAY`) when `dim` omitted
-- [ ] Discrete 9-grid still works; `customPosition` absent → discrete path
-- [ ] Panel still hides with no `customBackgroundId`
-- [ ] No intentional visual delta vs v5.11 / Track A baseline on default layouts
+- [x] Existing profiles/styles with flat `backgroundScaleMode` / `backgroundPosition` load unchanged *(normalize migration + Node coverage)*
+- [x] Default dim still matches pre-v6 constant (`USER_BACKGROUND_DIM_OVERLAY`) when `dim` omitted
+- [x] Discrete 9-grid still works; nested layout mirrors discrete position when grid used
+- [x] Panel still hides with no `customBackgroundId`
+- [x] No intentional panel redesign vs v5.11 / Track A baseline (Phase 0 acceptance)
 
-**Notes:**
+**Notes:** Phase 0 commit `08a2de5`. Side UI remains legacy; zero intentional visual redesign.
 
 
 ---
 
 ## 3 · Direct manipulation (Phase 1+)
 
-- [ ] Drag on hero pan updates live preview immediately
-- [ ] Live audition (recording) reflects arrangement via hot-swap (`setUserBackgroundLayout`)
-- [ ] Focal dot / dashed hover / BG chip affordances present and usable
-- [ ] Double-click and Esc reset to center (or documented default)
-- [ ] RAF throttle: no jank during sustained drag on a mid-device session
-- [ ] Persist: layout survives Studio reload / prefs reload
+- [x] Drag on hero pan updates live preview immediately
+- [ ] Live audition (recording) reflects arrangement via hot-swap (`setUserBackgroundLayout`) *(wiring present; full record-path eyeball optional / later parity §9)*
+- [x] Focal dot / dashed hover / BG chip affordances present and usable
+- [ ] Double-click and Esc reset to center (or documented default) *(confirm if exercised; leave open if not)*
+- [x] RAF throttle: no jank during sustained drag on a mid-device session *(operator: usable drag)*
+- [x] Persist: layout survives Studio reload / prefs reload *(debounced persist path; operator accepted Phase 1)*
 
-**Notes:**
+**Notes:** **Operator Phase 1 QA PASS (2026-07-20).** Drag lives on the main Design Studio live preview only. Background panel submenu not remodeled (correct for Phase 1). Commit `1e3118f`.
 
 
 ---

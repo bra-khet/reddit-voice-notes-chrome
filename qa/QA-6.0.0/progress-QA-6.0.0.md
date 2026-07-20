@@ -12,13 +12,13 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Active branch** | `feature/v6.0.0-background-panel-refactor` (FF to `main@2b42db5`) |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` |
 | **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
 | **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
 | **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
 | **Track C** | Closed · agent gate PASS · merged |
 | **ADRs** | 0008 **Accepted** (Track B) · 0007 / 0009 / 0010 (Track A, landed) |
-| **Architecture** | map **v3.21** / I22 · seams **v1.35** · Track A confidence **High** |
+| **Architecture** | map **v3.21** / I22 · seams **v1.35** · Track A confidence **High** (B map bumps at merge) |
 | **Key product fact** | Background + bars/overlays paint at **record time**. Bake only burns subtitles (I3). Track B is Design-phase layout for the *next* recording (I1). |
 
 **Proven (closed tracks):**
@@ -26,15 +26,34 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Next:** Track B Phase 0 (types + normalize + compute; zero visual change) · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
+**Track B in flight:** Phase 0+1 landed · operator Phase 1 QA **PASS** · side panel still legacy until Phase 2+ · full merge gate still open.
+
+**Next:** Track B Phase 2 (precision widget + bidirectional sync) · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
 
 ---
 
 ## Session log
 
+### 2026-07-20 — Track B living-docs catch-up (Phase 0+1 + operator Phase 1 QA PASS)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f`  
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) — sections **0–3** marked for Phase 0/1; full merge gate remains open
+
+**Product state (already on branch; docs had lagged):**
+
+- **Phase 0:** nested `UserBackgroundLayout` + normalize/clamps/migration; custom offset + field dim/manualScale/blur/blend in draw path; old panel wires nested layout; Node **10/10**.
+- **Phase 1:** hero-only direct pan/focal (`background-direct-manipulation.ts`); debounced persist; overlay CSS; Node **6/6**.
+- **Operator:** confirmed drag works on the Design Studio **live preview** only; background **submenu unchanged** — correct for Phase 1.
+
+**Automated re-check this sprint:** layout 10/10 · direct-manip 6/6 · `npm run build` PASS.
+
+**Docs updated:** root `TODO.md` / `claude-progress.md` · this file · `TODO-6.0.0.md` · workspace README · `track-b/README.md` + checklist · roadmap header/§10/carry-forward.
+
+**Next code:** Phase 2 precision widget. Standing by for further operator QA.
+
 ### 2026-07-20 — Track B init: branch FF + QA scaffold
 
-**Branch:** `feature/v6.0.0-background-panel-refactor` · **HEAD:** `2b42db5` (identical to `main` after FF)  
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **was HEAD:** `2b42db5` (identical to `main` after FF)  
 **Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) · **README:** [`track-b/README.md`](track-b/README.md)
 
 **Done:**
@@ -45,7 +64,7 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Flipped workspace ledger / README / this progress file to **Track B open**; short root `TODO.md` / `claude-progress.md` pointers.
 - Roadmap header + §10 updated; ADR-0008 **Proposed → Accepted** (branch open / implementation track).
 
-**Not started:** any product code. Next code sprint = **Phase 0** (`layout-core`): extend `UserBackgroundLayout`, promote `dim`, `customPosition` path in `computeImageDrawOffset`, full normalize guards, `test-background-layout.mjs`. Acceptance bar = **zero visual change** for existing users.
+**Follow-on (same day):** Phase 0 + Phase 1 product commits landed; see session entry above.
 
 ### 2026-07-19 — Track C popup refresh: implementation + agent QA gate PASS · merged
 

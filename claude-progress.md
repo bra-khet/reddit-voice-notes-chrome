@@ -128,20 +128,24 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** (scaffold ready; Phase 0 next).
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0+1 DONE · operator Phase 1 QA PASS** · Phase 2 next.
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
 **Pivotal:** bars/background/effects paint at **record time**; bake only burns subtitles (I3). Track B is Design-phase layout for the *next* recording (I1) — not post-capture re-composite. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual (A):** Conway long-horizon corner parking (documented in `conway.ts`; not a merge blocker).
 
-### Track B init — branch FF + QA scaffold (**DONE 2026-07-20**)
+### Track B Phase 0 + Phase 1 — layout core + hero direct drag (**DONE · operator Phase 1 QA PASS 2026-07-20**)
 
-- Fast-forwarded `feature/v6.0.0-background-panel-refactor` from stale `98c37ab` → `main@2b42db5` (no unique B commits lost).
-- Scaffolded [`qa/QA-6.0.0/track-b/`](qa/QA-6.0.0/track-b/) (README + checklist + evidence dirs) mirroring track-a / track-c process.
-- ADR-0008 Accepted; living docs flipped to Track B open.
-- **Next code:** Phase 0 `layout-core` — extend `UserBackgroundLayout`, promote `dim`, `customPosition` path, normalize guards, `test-background-layout.mjs` (zero visual change).
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **HEAD commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f`
 
-**Next:** Phase 0 implementation · optional `6.0.0` tag + release notes after B · user-owned push.
+- **Phase 0 (`layout-core`):** extended `UserBackgroundLayout` (`customPosition`, `manualScale`, field `dim`, blur/blend/GIF hooks); full `normalizeUserBackgroundLayout` guards; nested prefs + discrete migration; `computeImageDrawOffset` custom path; draw path uses layout fields; `test-background-layout.mjs` **10/10**. Acceptance: zero intentional panel redesign.
+- **Phase 1 (`direct-drag`):** hero live-preview pan/focal drag via `background-direct-manipulation.ts`; RAF + debounced persist; overlay affordances; `test-background-direct-manipulation.mjs` **6/6**. **Side background submenu still legacy 9-grid** — by design until Phase 2+.
+- **Operator QA:** Phase 1 confirmed — drag works on the Design Studio main live preview only; panel not remodeled yet.
+- **Automated re-check (docs sprint):** layout **10/10** · direct-manip **6/6** · `npm run build` **PASS**.
+
+**Prior init (same day):** branch FF `98c37ab` → `main@2b42db5`; track-b QA scaffold; ADR-0008 Accepted.
+
+**Next:** Phase 2 precision widget + bidirectional sync · full Track B confidence gate still open · optional `6.0.0` tag after B · user-owned push.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

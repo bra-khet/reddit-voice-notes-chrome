@@ -7,12 +7,12 @@
 | [`TODO-6.0.0.md`](TODO-6.0.0.md) | Actionable QA task ledger for this workspace |
 | [`progress-QA-6.0.0.md`](progress-QA-6.0.0.md) | Living session notes / evidence pointers |
 | [`track-a/`](track-a/) | Track A — audio-reactive visuals (**confidence PASS · closed**) |
-| [`track-b/`](track-b/) | Track B — background layout (**open · scaffold ready**) |
+| [`track-b/`](track-b/) | Track B — background layout (**open · Phase 0+1 DONE · Phase 1 QA PASS · Phase 2 next**) |
 | [`track-c/`](track-c/) | Track C — popup UI refresh (**agent gate PASS · merged**) |
 
 **Globals (pointers only):** root [`TODO.md`](../../TODO.md) · [`claude-progress.md`](../../claude-progress.md)
 
-**Active branch:** `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `main@2b42db5`)  
+**Active branch:** `feature/v6.0.0-background-panel-refactor` (Phase 0 `08a2de5` · Phase 1 `1e3118f`)  
 **Roadmap B:** [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) · ADR [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Closed A:** [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md)  
 **Closed C:** [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md)
@@ -30,7 +30,7 @@ qa/QA-6.0.0/
     logs/ · screenshot/ · artifacts/   (gitignored)
   track-b/
     README.md               ← open status + phase map
-    qa-checklist.md         ← committed gate (open)
+    qa-checklist.md         ← committed gate (Phase 0–1 partial; full gate open)
     logs/ · screenshot/ · artifacts/   (gitignored)
   track-c/
     README.md · qa-checklist.md        (closed)
