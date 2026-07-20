@@ -183,6 +183,18 @@ export function userBackgroundLayoutsEqual(
     && left.lockToSafeText === right.lockToSafeText;
 }
 
+export function userBackgroundGifPlaybackRate(
+  userLayout: Partial<UserBackgroundLayout> | null | undefined,
+  audioEnergy = 0,
+): number {
+  const layout = normalizeUserBackgroundLayout(userLayout);
+  const energy = clampFinite(audioEnergy, 0, 1, 0);
+  // CHANGED: audio-reactive GIF timing changes playback velocity, never the absolute clock.
+  // WHY: continuous rate modulation avoids discontinuous frame jumps while still making speech audible in motion.
+  const reactiveRate = layout.gifReactToAudio ? 0.65 + energy * 0.7 : 1;
+  return layout.gifSpeed * reactiveRate;
+}
+
 export function computeImageDrawOffset(
   canvasWidth: number,
   canvasHeight: number,

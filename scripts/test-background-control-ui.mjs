@@ -121,13 +121,35 @@ check('Phase 4 contact sheet renders four explicit image-layout recipes', () => 
   assert.ok(document.querySelector('[data-background-preset-status][aria-live="polite"]'));
 });
 
-check('preset hover restores baseline while Apply emits one persistent recipe', () => {
+check('Phase 5 darkroom controls expose treatment, motion, and in-canvas sampling', () => {
+  assert.ok(document.querySelector('[data-background-dim-slider]'));
+  assert.ok(document.querySelector('[data-background-blur-toggle]'));
+  assert.ok(document.querySelector('[data-background-blur-slider]'));
+  assert.equal(document.querySelectorAll('[data-background-blend-mode] option').length, 5);
+  assert.ok(document.querySelector('[data-background-gif-speed-slider]'));
+  assert.ok(document.querySelector('[data-background-gif-react]'));
+  assert.ok(document.querySelector('[data-background-eyedropper]'));
+});
+
+check('preset safety, Apply, treatment controls, and sampler emit guarded changes', () => {
   const changes = [];
   let gestures = 0;
+  let sampledHex = null;
+  const sampleCanvas = document.createElement('canvas');
+  sampleCanvas.width = 200;
+  sampleCanvas.height = 100;
+  sampleCanvas.getBoundingClientRect = () => ({ left: 10, top: 20, width: 100, height: 50 });
+  sampleCanvas.getContext = () => ({
+    getImageData: () => ({ data: new Uint8ClampedArray([12, 34, 56, 255]) }),
+  });
   const handle = mountBackgroundLayoutControls(
     document.querySelector('main'),
     (patch, options) => changes.push({ patch, options }),
-    { onGestureStart: () => { gestures += 1; } },
+    {
+      onGestureStart: () => { gestures += 1; },
+      getEyeDropperCanvas: () => sampleCanvas,
+      onSampleColor: (hex) => { sampledHex = hex; },
+    },
   );
   handle.sync({
     appearance: {
@@ -157,12 +179,59 @@ check('preset hover restores baseline while Apply emits one persistent recipe', 
   assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-uploaded-fixture');
   assert.deepEqual(changes.at(-1).patch.backgroundLayout.customPosition, { x: 0.5, y: 0.5 });
 
+  card.dispatchEvent(new window.Event('pointerenter'));
+  assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
+  // BUG FIX: recording-time preset hover could create flash-heavy captured video
+  // Fix: entering capture restores the baseline and blocks every further transient preset update.
+  // Sync: background-layout-controls.ts; studio-recorder.ts; mount-clip-studio.ts
+  handle.syncRecordingState(true);
+  assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-uploaded-fixture');
+  const changesWhileRecording = changes.length;
+  card.dispatchEvent(new window.Event('pointerenter'));
+  assert.equal(changes.length, changesWhileRecording);
+  assert.equal(card.disabled, true);
+  assert.equal(document.querySelector('[data-background-preset-apply]').disabled, true);
+  assert.match(document.querySelector('[data-background-preset-status]').value, /paused while recording/i);
+  handle.syncRecordingState(false);
+  assert.equal(card.disabled, false);
+
   card.dispatchEvent(new window.Event('click'));
   document.querySelector('[data-background-preset-apply]').dispatchEvent(new window.Event('click'));
   assert.equal(changes.at(-1).options.persist, true);
   assert.equal(changes.at(-1).options.presetPreview, false);
   assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
   assert.equal(gestures, 1);
+
+  const blurToggle = document.querySelector('[data-background-blur-toggle]');
+  blurToggle.checked = true;
+  blurToggle.dispatchEvent(new window.Event('change'));
+  assert.equal(changes.at(-1).patch.backgroundLayout.blur, 6);
+  const blend = document.querySelector('[data-background-blend-mode]');
+  for (const option of blend.querySelectorAll('option')) {
+    const selected = option.value === 'multiply';
+    option.selected = selected;
+    option.toggleAttribute('selected', selected);
+  }
+  // linkedom exposes select.value as getter-only; pin the interaction value for this DOM harness.
+  Object.defineProperty(blend, 'value', { configurable: true, value: 'multiply' });
+  blend.dispatchEvent(new window.Event('change'));
+  assert.equal(changes.at(-1).patch.backgroundLayout.blendMode, 'multiply');
+  const gifReact = document.querySelector('[data-background-gif-react]');
+  gifReact.checked = true;
+  gifReact.dispatchEvent(new window.Event('change'));
+  assert.equal(changes.at(-1).patch.backgroundLayout.gifReactToAudio, true);
+
+  const eyeDropper = document.querySelector('[data-background-eyedropper]');
+  eyeDropper.dispatchEvent(new window.Event('click'));
+  assert.equal(eyeDropper.getAttribute('aria-pressed'), 'true');
+  const sampleEvent = new window.Event('pointerdown');
+  Object.defineProperties(sampleEvent, {
+    clientX: { value: 60 },
+    clientY: { value: 45 },
+  });
+  sampleCanvas.dispatchEvent(sampleEvent);
+  assert.equal(sampledHex, '#0c2238');
+  assert.equal(eyeDropper.getAttribute('aria-pressed'), 'false');
   handle.dispose();
 });
 

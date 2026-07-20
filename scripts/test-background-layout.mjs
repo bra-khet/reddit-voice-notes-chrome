@@ -38,6 +38,7 @@ const {
   computeImageDrawSize,
   computeImageDrawOffset,
   normalizeUserBackgroundLayout,
+  userBackgroundGifPlaybackRate,
   userBackgroundLayoutFromAppearance,
 } = await import(pathToFileURL(outfile).href);
 
@@ -138,6 +139,15 @@ check('blend mode uses the exact allow-list', () => {
     normalizeUserBackgroundLayout({ blendMode: 'destination-over' }).blendMode,
     'source-over',
   );
+});
+
+check('GIF playback rate honors speed and bounded audio reactivity', () => {
+  assert.equal(userBackgroundGifPlaybackRate({}, 1), 1);
+  assert.equal(userBackgroundGifPlaybackRate({ gifSpeed: 2 }, 0.5), 2);
+  assert.equal(userBackgroundGifPlaybackRate({ gifReactToAudio: true }, 0), 0.65);
+  assert.equal(userBackgroundGifPlaybackRate({ gifReactToAudio: true }, 0.5), 1);
+  assert.equal(userBackgroundGifPlaybackRate({ gifReactToAudio: true }, 1), 1.35);
+  assert.equal(userBackgroundGifPlaybackRate({ gifSpeed: 0.5, gifReactToAudio: true }, 5), 0.675);
 });
 
 check('all legacy discrete positions migrate to equivalent normalized anchors', () => {

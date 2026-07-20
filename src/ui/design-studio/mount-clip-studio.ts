@@ -1,5 +1,6 @@
 import {
   backgroundIsBokeh,
+  deriveGlowColor,
   getBundledUserBackground,
   listThemePresets,
   renderThemePreview,
@@ -1019,7 +1020,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     void refreshPreview();
   }
 
-  const colorPicker = mountColorPickerControls(root, (overrides) => {
+  function applyColorOverrides(overrides: DesignOverrides): void {
     const currentParams = activePrefs?.appearance.designOverrides?.visualizerParams;
     // CHANGED: the Clip color palette mode follows fine HSV edits as one coherent control.
     // WHY: otherwise the legacy bar swatch would change while a string visual color stayed stale.
@@ -1031,7 +1032,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     applyLocalDesignOverrides(merged);
     syncSectionSummaries();
     scheduleDesignPersist(merged);
-  });
+  }
+
+  const colorPicker = mountColorPickerControls(root, applyColorOverrides);
 
   styleControls = mountStyleControlCenter(root, (patch) => {
     const merged = mergeDesignOverrides(patch);
@@ -1064,6 +1067,19 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     onUndo: undoBackgroundLayout,
     onRedo: redoBackgroundLayout,
     getCaptionSafeBand: activeCaptionSafeBand,
+    getEyeDropperCanvas: () =>
+      root.querySelector<HTMLCanvasElement>('.studio__hero .studio__preview-canvas--live')
+      ?? root.querySelector<HTMLCanvasElement>(
+        '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
+      ),
+    onSampleColor: (hex) => {
+      const overrides: DesignOverrides = {
+        barColor: hex,
+        glowColor: deriveGlowColor(hex),
+      };
+      applyColorOverrides(overrides);
+      colorPicker.sync(activePrefs?.appearance.designOverrides);
+    },
   });
 
   voiceControls = mountVoiceControls(root, () => {
@@ -1119,6 +1135,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       } else {
         void refreshPreview();
       }
+    },
+    onRecordingChange: (recording) => {
+      // BUG FIX: recording-time preset hover could create flash-heavy captured video
+      // Fix: drive the Background safety guard from the recorder's real capture phase, not audition visibility.
+      // Sync: studio-recorder.ts; background-layout-controls.ts; scripts/test-background-control-ui.mjs
+      backgroundLayout.syncRecordingState(recording);
     },
   });
 

@@ -1,9 +1,13 @@
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 import {
   backgroundPositionToCustomPosition,
+  MAX_USER_BACKGROUND_BLUR,
+  MAX_USER_BACKGROUND_GIF_SPEED,
   MAX_USER_BACKGROUND_MANUAL_SCALE,
+  MIN_USER_BACKGROUND_GIF_SPEED,
   MIN_USER_BACKGROUND_MANUAL_SCALE,
   normalizeUserBackgroundLayout,
+  USER_BACKGROUND_BLEND_MODES,
   userBackgroundLayoutFromAppearance,
   userBackgroundLayoutsEqual,
 } from '@/src/theme/background-layout';
@@ -36,11 +40,13 @@ import {
   type NormalizedBand,
 } from '@/src/ui/design-studio/interaction-utils';
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
+import { sampleCanvasColorAtClient } from '@/src/ui/design-studio/background-color-sampler';
 
 export interface BackgroundLayoutControlsHandle {
   sync(prefs: UserPreferencesV1): void;
   syncLayout(layout: NormalizedUserBackgroundLayout): void;
   syncHistory(canUndo: boolean, canRedo: boolean): void;
+  syncRecordingState(recording: boolean): void;
   isSnapEnabled(): boolean;
   isGuidesEnabled(): boolean;
   dispose(): void;
@@ -63,6 +69,8 @@ export interface BackgroundLayoutControlsOptions {
   onUndo?: () => void;
   onRedo?: () => void;
   getCaptionSafeBand?: () => NormalizedBand | null;
+  getEyeDropperCanvas?: () => HTMLCanvasElement | null;
+  onSampleColor?: (hex: string) => void;
 }
 
 // V4 NOTE: Background layout controls may move into a dedicated Background panel when Studio sections are segmented.
@@ -210,6 +218,104 @@ function renderBackgroundPresets(): string {
   `;
 }
 
+const BACKGROUND_BLEND_LABELS: Record<(typeof USER_BACKGROUND_BLEND_MODES)[number], string> = {
+  'source-over': 'Normal',
+  multiply: 'Multiply',
+  overlay: 'Overlay',
+  screen: 'Screen',
+  'soft-light': 'Soft light',
+};
+
+function renderBackgroundTreatment(): string {
+  const dimSlider = renderPhysicalSliderHtml({
+    min: 0,
+    max: 100,
+    step: 1,
+    value: 35,
+    ariaLabel: 'Background dim amount',
+    dataAttrs: { 'background-dim-slider': 'true' },
+  });
+  const blurSlider = renderPhysicalSliderHtml({
+    min: 0,
+    max: MAX_USER_BACKGROUND_BLUR,
+    step: 1,
+    value: 6,
+    ariaLabel: 'Background blur amount',
+    dataAttrs: { 'background-blur-slider': 'true' },
+  });
+  const gifSpeedSlider = renderPhysicalSliderHtml({
+    min: MIN_USER_BACKGROUND_GIF_SPEED * 100,
+    max: MAX_USER_BACKGROUND_GIF_SPEED * 100,
+    step: 5,
+    value: 100,
+    ariaLabel: 'Animated GIF playback speed',
+    dataAttrs: { 'background-gif-speed-slider': 'true' },
+  });
+  const blendOptions = USER_BACKGROUND_BLEND_MODES.map((mode) =>
+    `<option value="${mode}">${BACKGROUND_BLEND_LABELS[mode]}</option>`).join('');
+
+  return `
+    <section class="studio__background-treatment" aria-labelledby="background-treatment-title">
+      <div class="studio__background-treatment-heading">
+        <span>
+          <span class="studio__background-treatment-eyebrow">Image darkroom</span>
+          <span class="popup__field-label" id="background-treatment-title">Treatment</span>
+        </span>
+        <span class="popup__micro">Live canvas · saved per profile</span>
+      </div>
+      <div class="studio__background-treatment-grid">
+        <div class="studio__background-treatment-rail">
+          <span class="studio__background-treatment-label">Dim</span>
+          <div class="studio__precision-slider-shell">${dimSlider}</div>
+          <output class="studio__background-treatment-value" data-background-dim-value>35%</output>
+        </div>
+        <div class="studio__background-treatment-rail">
+          <label class="studio__background-treatment-toggle">
+            <input type="checkbox" data-background-blur-toggle>
+            <span>Blur</span>
+          </label>
+          <div class="studio__precision-slider-shell">${blurSlider}</div>
+          <output class="studio__background-treatment-value" data-background-blur-value>Off</output>
+        </div>
+        <label class="studio__background-blend-field">
+          <span class="studio__background-treatment-label">Blend</span>
+          <select class="popup__select" data-background-blend-mode aria-label="Background blend mode">
+            ${blendOptions}
+          </select>
+        </label>
+      </div>
+      <div class="studio__background-color-sampler">
+        <button type="button" class="studio__background-eyedropper" data-background-eyedropper aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14.8 3.2a2.5 2.5 0 0 1 3.5 0l2.5 2.5a2.5 2.5 0 0 1 0 3.5l-2.1 2.1-1.4-1.4-7.6 7.6-3.9.8.8-3.9 7.6-7.6-1.4-1.4 2-2.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          </svg>
+          Sample for bars
+        </button>
+        <span class="studio__background-sampled-color" data-background-sampled-color aria-hidden="true" hidden></span>
+        <output class="studio__background-sample-status" data-background-sample-status aria-live="polite">Pick a clear background pixel to color the bars.</output>
+      </div>
+      <details class="studio__background-motion" data-background-motion>
+        <summary>
+          <span>Animated GIF motion</span>
+          <span class="popup__micro">Advanced</span>
+        </summary>
+        <div class="studio__background-motion-body">
+          <div class="studio__background-treatment-rail">
+            <span class="studio__background-treatment-label">Speed</span>
+            <div class="studio__precision-slider-shell">${gifSpeedSlider}</div>
+            <output class="studio__background-treatment-value" data-background-gif-speed-value>1.00×</output>
+          </div>
+          <label class="studio__background-motion-toggle">
+            <input type="checkbox" data-background-gif-react>
+            <span>Let voice energy gently drive GIF speed</span>
+          </label>
+          <p class="popup__field-desc">Static images ignore these controls. Reduced motion always freezes GIFs at frame zero.</p>
+        </div>
+      </details>
+    </section>
+  `;
+}
+
 function renderPrecisionAxis(axis: BackgroundPositionAxis): string {
   const horizontal = axis === 'x';
   const negativeDirection = horizontal ? 'left' : 'up';
@@ -287,7 +393,7 @@ function renderPrecisionInstrument(): string {
         ${renderPrecisionAxis('x')}
       </div>
       <div class="studio__precision-zoom-row">
-        <span class="studio__precision-tool-label">Zoom</span>
+        <span class="studio__precision-tool-label">Custom zoom</span>
         <div class="studio__precision-slider-shell">${zoomSlider}</div>
         <output class="studio__precision-value studio__precision-value--zoom" data-background-scale-value>1.00×</output>
         <span class="popup__micro">Ctrl/⌘ + wheel on frame</span>
@@ -343,6 +449,7 @@ export function renderBackgroundLayoutFields(): string {
     <div class="studio__background-layout" data-background-layout hidden>
       ${renderBackgroundPresets()}
       ${renderPrecisionInstrument()}
+      ${renderBackgroundTreatment()}
       <div class="studio__layout-row">
         <div class="studio__layout-group">
           <span class="popup__field-label">Image sizing</span>
@@ -381,8 +488,22 @@ export function mountBackgroundLayoutControls(
   const undoButton = panel.querySelector<HTMLButtonElement>('[data-background-undo]')!;
   const redoButton = panel.querySelector<HTMLButtonElement>('[data-background-redo]')!;
   const presetButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-preset]')];
+  const presetSection = panel.querySelector<HTMLElement>('.studio__background-presets')!;
   const presetApply = panel.querySelector<HTMLButtonElement>('[data-background-preset-apply]')!;
   const presetStatus = panel.querySelector<HTMLOutputElement>('[data-background-preset-status]')!;
+  const dimSlider = panel.querySelector<HTMLElement>('[data-background-dim-slider]')!;
+  const dimValue = panel.querySelector<HTMLOutputElement>('[data-background-dim-value]')!;
+  const blurToggle = panel.querySelector<HTMLInputElement>('[data-background-blur-toggle]')!;
+  const blurSlider = panel.querySelector<HTMLElement>('[data-background-blur-slider]')!;
+  const blurValue = panel.querySelector<HTMLOutputElement>('[data-background-blur-value]')!;
+  const blendSelect = panel.querySelector<HTMLSelectElement>('[data-background-blend-mode]')!;
+  const gifSpeedSlider = panel.querySelector<HTMLElement>('[data-background-gif-speed-slider]')!;
+  const gifSpeedValue = panel.querySelector<HTMLOutputElement>('[data-background-gif-speed-value]')!;
+  const gifReactToggle = panel.querySelector<HTMLInputElement>('[data-background-gif-react]')!;
+  const eyeDropperButton = panel.querySelector<HTMLButtonElement>('[data-background-eyedropper]')!;
+  const sampledColor = panel.querySelector<HTMLElement>('[data-background-sampled-color]')!;
+  const sampleStatus = panel.querySelector<HTMLOutputElement>('[data-background-sample-status]')!;
+  const samplingHost = root.querySelector<HTMLElement>('.studio-v4') ?? root;
 
   let syncing = false;
   let buttonsSynced = false;
@@ -396,6 +517,9 @@ export function mountBackgroundLayoutControls(
   let hoveredPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
   let focusedPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
   let emittingPresetPreview = false;
+  let recordingActive = false;
+  let lastNonZeroBlur = 6;
+  let samplingCanvas: HTMLCanvasElement | null = null;
   let scaleMode: BackgroundScaleMode = layout.scaleMode;
   let position: BackgroundImagePosition = layout.position;
 
@@ -410,6 +534,7 @@ export function mountBackgroundLayoutControls(
   }
 
   function syncPresetUi(message?: string): void {
+    presetSection.classList.toggle('studio__background-presets--recording', recordingActive);
     for (const button of presetButtons) {
       const id = button.dataset.backgroundPreset;
       const selected = id === selectedPresetId;
@@ -417,8 +542,13 @@ export function mountBackgroundLayoutControls(
       button.classList.toggle('studio__background-preset--selected', selected);
       button.classList.toggle('studio__background-preset--previewing', previewed);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      button.disabled = recordingActive;
     }
-    presetApply.disabled = !selectedPresetId;
+    presetApply.disabled = recordingActive || !selectedPresetId;
+    if (recordingActive) {
+      presetStatus.value = 'Preset audition is paused while recording to prevent flashes in the captured video.';
+      return;
+    }
     if (message) {
       presetStatus.value = message;
       return;
@@ -502,6 +632,24 @@ export function mountBackgroundLayoutControls(
     safeLock.checked = layout.lockToSafeText;
   }
 
+  function syncTreatmentValues(): void {
+    setPhysicalSliderValue(dimSlider, Math.round(layout.dim * 100));
+    dimValue.value = `${Math.round(layout.dim * 100)}%`;
+    if (layout.blur > 0) lastNonZeroBlur = layout.blur;
+    blurToggle.checked = layout.blur > 0;
+    setPhysicalSliderValue(blurSlider, layout.blur > 0 ? layout.blur : lastNonZeroBlur);
+    blurSlider.setAttribute('aria-disabled', blurToggle.checked ? 'false' : 'true');
+    blurValue.value = blurToggle.checked ? `${layout.blur.toFixed(0)} px` : 'Off';
+    for (const option of blendSelect.options) {
+      const selected = option.value === layout.blendMode;
+      option.selected = selected;
+      option.toggleAttribute('selected', selected);
+    }
+    setPhysicalSliderValue(gifSpeedSlider, Math.round(layout.gifSpeed * 100));
+    gifSpeedValue.value = `${layout.gifSpeed.toFixed(2)}×`;
+    gifReactToggle.checked = layout.gifReactToAudio;
+  }
+
   function syncLayout(next: NormalizedUserBackgroundLayout, commit = true): void {
     const normalized = normalizeUserBackgroundLayout(next);
     const discreteControlsChanged = !buttonsSynced
@@ -520,9 +668,14 @@ export function mountBackgroundLayoutControls(
     position = layout.position;
     if (discreteControlsChanged) syncButtons();
     syncPrecisionValues();
+    syncTreatmentValues();
   }
 
   function previewPreset(preset: BackgroundLayoutPresetDefinition): void {
+    if (recordingActive) {
+      syncPresetUi();
+      return;
+    }
     const next = resolveBackgroundLayoutPreset(preset, committedLayout);
     previewedPresetId = preset.id;
     syncPresetUi();
@@ -544,6 +697,10 @@ export function mountBackgroundLayoutControls(
   }
 
   function reconcilePresetPreview(): void {
+    if (recordingActive) {
+      restorePresetPreview();
+      return;
+    }
     // CHANGED: hover and keyboard focus independently own the transient audition.
     // WHY: leaving the pointer must not cancel a still-focused card, and selection only arms Apply.
     const preset = presetForId(focusedPresetId ?? hoveredPresetId);
@@ -563,6 +720,71 @@ export function mountBackgroundLayoutControls(
     for (const guideLayer of root.querySelectorAll<HTMLElement>('[data-background-guide-layer]')) {
       guideLayer.hidden = !guidesEnabled;
     }
+  }
+
+  function syncRecordingState(next: boolean): void {
+    if (recordingActive === next) return;
+    recordingActive = next;
+    if (next) {
+      // BUG FIX: recording-time preset hover could create flash-heavy captured video
+      // Fix: restore the committed frame before capture starts, then disable every transient preset entry point.
+      // Sync: studio-recorder.ts; mount-clip-studio.ts; scripts/test-background-control-ui.mjs
+      hoveredPresetId = null;
+      focusedPresetId = null;
+      restorePresetPreview();
+      return;
+    }
+    syncPresetUi();
+  }
+
+  function finishColorSampling(message?: string): void {
+    samplingCanvas?.removeEventListener('pointerdown', onCanvasSample, true);
+    samplingCanvas = null;
+    samplingHost.classList.remove('studio__background-layout--sampling');
+    eyeDropperButton.setAttribute('aria-pressed', 'false');
+    if (message) sampleStatus.value = message;
+  }
+
+  function onCanvasSample(event: PointerEvent): void {
+    if (!samplingCanvas) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const hex = sampleCanvasColorAtClient(samplingCanvas, event.clientX, event.clientY);
+    if (!hex) {
+      finishColorSampling('That pixel could not be sampled. Choose another clear background area.');
+      return;
+    }
+    sampledColor.style.background = hex;
+    sampledColor.hidden = false;
+    finishColorSampling(`${hex} applied to the bar color.`);
+    options.onSampleColor?.(hex);
+  }
+
+  function beginColorSampling(): void {
+    if (samplingCanvas) {
+      finishColorSampling('Color sampling cancelled.');
+      return;
+    }
+    const canvas = options.getEyeDropperCanvas?.()
+      ?? root.querySelector<HTMLCanvasElement>(
+        '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
+      );
+    if (!canvas) {
+      sampleStatus.value = 'Open the main preview before sampling a color.';
+      return;
+    }
+    samplingCanvas = canvas;
+    samplingHost.classList.add('studio__background-layout--sampling');
+    eyeDropperButton.setAttribute('aria-pressed', 'true');
+    sampleStatus.value = 'Click a clear background pixel. Press Esc to cancel.';
+    canvas.addEventListener('pointerdown', onCanvasSample, true);
+  }
+
+  function onSamplerKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape' || !samplingCanvas) return;
+    event.preventDefault();
+    finishColorSampling('Color sampling cancelled.');
+    eyeDropperButton.focus();
   }
 
   for (const button of presetButtons) {
@@ -585,6 +807,7 @@ export function mountBackgroundLayoutControls(
       reconcilePresetPreview();
     });
     button.addEventListener('click', () => {
+      if (recordingActive) return;
       if (selectedPresetId === preset.id) {
         selectedPresetId = null;
         restorePresetPreview();
@@ -596,6 +819,7 @@ export function mountBackgroundLayoutControls(
   }
 
   presetApply.addEventListener('click', () => {
+    if (recordingActive) return;
     const preset = presetForId(selectedPresetId);
     if (!preset) return;
     const next = resolveBackgroundLayoutPreset(preset, committedLayout);
@@ -659,6 +883,8 @@ export function mountBackgroundLayoutControls(
   }
 
   const disposeSliders = wirePhysicalSliders(panel, {
+    isDisabled: (slider) =>
+      slider.dataset.backgroundBlurSlider === 'true' && !blurToggle.checked,
     onInteractionStart: () => options.onGestureStart?.(),
     onValueChange(slider, value) {
       const axis = slider.dataset.backgroundPositionSlider as BackgroundPositionAxis | undefined;
@@ -676,6 +902,13 @@ export function mountBackgroundLayoutControls(
             MAX_USER_BACKGROUND_MANUAL_SCALE,
           ),
         });
+      } else if (slider.dataset.backgroundDimSlider === 'true') {
+        layout = normalizeUserBackgroundLayout({ ...layout, dim: value / 100 });
+      } else if (slider.dataset.backgroundBlurSlider === 'true') {
+        lastNonZeroBlur = value;
+        layout = normalizeUserBackgroundLayout({ ...layout, blur: value });
+      } else if (slider.dataset.backgroundGifSpeedSlider === 'true') {
+        layout = normalizeUserBackgroundLayout({ ...layout, gifSpeed: value / 100 });
       } else {
         return;
       }
@@ -710,6 +943,35 @@ export function mountBackgroundLayoutControls(
     syncLayout(layout);
     emit();
   });
+  blurToggle.addEventListener('change', () => {
+    options.onGestureStart?.();
+    layout = normalizeUserBackgroundLayout({
+      ...layout,
+      blur: blurToggle.checked ? Math.max(1, lastNonZeroBlur) : 0,
+    });
+    syncLayout(layout);
+    emit();
+  });
+  blendSelect.addEventListener('change', () => {
+    options.onGestureStart?.();
+    layout = normalizeUserBackgroundLayout({
+      ...layout,
+      blendMode: blendSelect.value as GlobalCompositeOperation,
+    });
+    syncLayout(layout);
+    emit();
+  });
+  gifReactToggle.addEventListener('change', () => {
+    options.onGestureStart?.();
+    layout = normalizeUserBackgroundLayout({
+      ...layout,
+      gifReactToAudio: gifReactToggle.checked,
+    });
+    syncLayout(layout);
+    emit();
+  });
+  eyeDropperButton.addEventListener('click', beginColorSampling);
+  root.addEventListener('keydown', onSamplerKeydown);
   undoButton.addEventListener('click', () => options.onUndo?.());
   redoButton.addEventListener('click', () => options.onRedo?.());
 
@@ -726,12 +988,17 @@ export function mountBackgroundLayoutControls(
     syncLayout(next) {
       syncLayout(next, !emittingPresetPreview);
     },
+    syncRecordingState,
     syncHistory(canUndo, canRedo) {
       undoButton.disabled = !canUndo;
       redoButton.disabled = !canRedo;
     },
     isSnapEnabled: () => snapEnabled,
     isGuidesEnabled: () => guidesEnabled,
-    dispose: disposeSliders,
+    dispose() {
+      finishColorSampling();
+      root.removeEventListener('keydown', onSamplerKeydown);
+      disposeSliders();
+    },
   };
 }

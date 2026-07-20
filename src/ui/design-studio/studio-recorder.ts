@@ -65,6 +65,8 @@ export interface StudioRecorderDeps {
   onLiveCanvas: (canvas: HTMLCanvasElement | null) => void;
   /** Audition session opened/closed — caller toggles deck mode + preview loop. */
   onActiveChange: (active: boolean) => void;
+  /** True only while MediaRecorder is about to start or actively capturing frames. */
+  onRecordingChange: (recording: boolean) => void;
 }
 
 export interface StudioRecorderHandle {
@@ -92,6 +94,7 @@ export function mountStudioRecorder(
 
   let host: RecorderHostHandle | null = null;
   let active = false;
+  let recording = false;
   let currentState: RecorderState | null = null;
   let disposed = false;
 
@@ -111,7 +114,17 @@ export function mountStudioRecorder(
     deps.onActiveChange(next);
   }
 
+  function setRecording(next: boolean): void {
+    if (recording === next) return;
+    recording = next;
+    // BUG FIX: recording-time preset hover could create flash-heavy captured video
+    // Fix: publish the capture boundary before MediaRecorder starts so Background restores/locks transient presets first.
+    // Sync: background-layout-controls.ts; mount-clip-studio.ts; scripts/test-background-control-ui.mjs
+    deps.onRecordingChange(next);
+  }
+
   function closeAudition(): void {
+    setRecording(false);
     host?.close();
     host = null;
     currentState = null;
@@ -140,12 +153,14 @@ export function mountStudioRecorder(
 
   /** Hide transport + restore preview without tearing down the capture session. */
   function finishAuditionUi(): void {
+    setRecording(false);
     deps.onLiveCanvas(null);
     setActive(false);
   }
 
   function render(state: RecorderState): void {
     currentState = state;
+    setRecording(state.phase === 'recording');
 
     timerEl.textContent = formatTime(state.elapsedSeconds);
     timerEl.classList.toggle(
@@ -233,7 +248,9 @@ export function mountStudioRecorder(
         // Same 3-phase workflow signal the Reddit panel sends — cross-tab
         // banners stay coherent regardless of where capture happens.
         void setWorkflowPhase('capture');
-        void host.startRecording();
+        // Guard transient preset audition before the first encoded frame can be captured.
+        setRecording(true);
+        void host.startRecording().catch(() => setRecording(false));
         break;
       case 'recording':
         void host.stopRecording();
