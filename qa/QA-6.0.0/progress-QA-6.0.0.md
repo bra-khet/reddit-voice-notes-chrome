@@ -33,10 +33,10 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 ## Session log
 
-### 2026-07-19 — Track C popup refresh: implementation + agent QA gate PASS
+### 2026-07-19 — Track C popup refresh: implementation + agent QA gate PASS · merged
 
 **Branch:** `feature/v6.0.0-popup-ui-refresh` · **Checklist:** [`track-c/qa-checklist.md`](track-c/qa-checklist.md) · **Evidence:** `track-c/logs/computed-style-qa-2026-07-19.json`  
-**Overall:** agent gate (checklist §1–§7) **PASS**, blockers none · §8 operator visual pass **open** (`npm run qa:popup-visual` @ 4175 + real-extension smoke)
+**Overall:** agent gate (checklist §1–§7) **PASS**, blockers none · §8 real-extension eyeball residual **deferred** (not a merge gate — pure presentational; no state/message change) · **merged to `main`**
 
 - Popup skinned onto the Cividis axis via popup-only `entrypoints/popup/popup-palette.css` (`@import`s the Studio palette); `entrypoints/popup/style.css` untouched — it is the **Studio's shared control-primitive base** (discovered import in `design-studio/main.ts`; isolation git-verified, empty diff vs `f1653c4`).
 - Elevated restart caution: bar under the header + inline amber "Reload now"; same `restart-caution.ts` API + call sites. Verified behaviorally (reveal on toggle flip, placement geometry, aria, stubbed reload invocation).

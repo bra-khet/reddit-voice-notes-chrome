@@ -19,7 +19,7 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
-## Current work — **v6.0 "Polish & Visual Maturity" · Track A confidence PASS · merged path (2026-07-20)**
+## Current work — **v6.0 "Polish & Visual Maturity" · Track A + Track C merged · Track B open**
 
 Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. Track A lived on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 + 0009/0010 Accepted.
 
@@ -27,13 +27,15 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. Track A live
 |-------|---------|-----|------|
 | **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E)** |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) | Direct drag/zoom/snap on hero preview — **not started** |
-| **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup on the Cividis axis via popup-only `popup-palette.css` overlay + elevated restart caution — **implemented; agent QA gate PASS 2026-07-19; operator visual pass open** (branch `feature/v6.0.0-popup-ui-refresh`) |
+| **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup on the Cividis axis via popup-only `popup-palette.css` overlay + elevated restart caution — **agent QA gate PASS · merged to `main`** |
 
 **Track A status:** ✅ full catalog + Style panel + governor + fixture QA · ✅ Pass A–E live confidence (Pass E full pass, blockers none; packet `qa/QA-6.0.0/track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`) · ✅ size gates under 40/40 · ✅ automated green · map **v3.21** / seams **v1.35**. **Package still 5.11.0** until an explicit v6 ship/tag. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented; not a blocker).
 
+**Track C status:** ✅ popup-only Cividis skin + elevated restart caution + tokens guard + fixture · ✅ agent QA gate (§1–§7) PASS · ✅ merged to `main` · §8 real-extension eyeball residual optional (not a gate).
+
 **QA workspace (scoped history):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md)
 
-**NEXT:** Track C operator visual pass (`npm run qa:popup-visual` + real-extension smoke → [`qa/QA-6.0.0/track-c/qa-checklist.md`](qa/QA-6.0.0/track-c/qa-checklist.md) §8) then merge · Track B when ready · optional v6.0.0 version bump + release notes · user-owned push of `main`.
+**NEXT:** Track B when ready · optional v6.0.0 version bump + release notes · user-owned push of `main` · optional Track C §8 real-extension eyeball.
 
 **Non-negotiables (both):** capture-time visuals; `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0.
 

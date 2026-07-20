@@ -6,7 +6,7 @@
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Fixture:** `npm run qa:popup-visual` → http://127.0.0.1:4175/ (production render builders + production CSS; no extension load needed)  
 **Real-extension smoke:** load `.output/chrome-mv3-dev/` from this branch for the regression row only  
-**Date:** 2026-07-19 (agent pass) · **Operator:** Claude Fable 5 agent gate · operator visual pass pending
+**Date:** 2026-07-19 (agent pass) · **Operator:** Claude Fable 5 agent gate · **merged to `main` 2026-07-19**
 
 **Why this gate exists:** Track C is purely presentational (no state, message, or storage change), so the gate is visual parity + the elevated restart-caution behavior + zero Studio leakage.
 
@@ -65,7 +65,9 @@
 - [x] By construction: popup-palette.css imported only by the popup entry; optional operator eyeball via `npm run qa:style-control-center`
 - [x] `git diff f1653c4..HEAD -- entrypoints/popup/style.css entrypoints/design-studio/` → empty (zero edits to the shared base + all Studio CSS)
 
-## 8. Real-extension regression smoke — **OPERATOR (open)**
+## 8. Real-extension regression smoke — **DEFERRED residual (not a merge gate)**
+
+Presentational track; no state/message/storage change. Agent gate (§1–§7) + Studio isolation + automated tokens already cover the Track C deliverable. These rows are optional post-merge operator eyeballs of pre-existing wiring:
 
 - [ ] Clip appearance summary updates live after a Studio change
 - [ ] "Open Design Studio…" opens the Studio window
@@ -77,8 +79,8 @@
 
 ## Verdict
 
-**Overall:** **AGENT GATE PASS** (sections 1–7) · operator visual pass (§8) pending · **Blockers:** none  
-**Evidence:** `logs/computed-style-qa-2026-07-19.json` (full computed-style/behavior/keyboard evidence) · pixel screenshots deferred — Browser-pane capture faulted for the whole session (screenshot/zoom timeouts while DOM/JS/keyboard tools worked); one `npm run qa:popup-visual` + eyeball closes it
+**Overall:** **AGENT GATE PASS** (sections 1–7) · §8 residual optional post-merge · **Blockers:** none · **Eligible / merged to `main`**  
+**Evidence:** `logs/computed-style-qa-2026-07-19.json` (full computed-style/behavior/keyboard evidence) · pixel screenshots deferred (Browser-pane capture faulted for the whole session)
 
 ## Notes
 

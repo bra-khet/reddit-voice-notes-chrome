@@ -122,16 +122,17 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **TRACK A confidence PASS (Pass E 2026-07-19) · merge to main 2026-07-20**
+## v6.0 "Polish & Visual Maturity" — **Track A + Track C merged · Track B open**
 
-Two feature branches off `main@98c37ab` ancestry; roadmaps + ADRs from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. Track A implemented on `feature/v6.0.0-custom-styles-refactor` (ADR-0007/0009/0010).
+Feature branches off `main@98c37ab` ancestry; roadmaps + ADRs from `.ignore/prep-v6.0.0/` via `/architecture-hardening`.
 
-- **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E packet `qa/QA-6.0.0/track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`; blockers none).
+- **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
+- **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
 - **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 · **not started**.
 
-**QA workspace (history + evidence):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · closed ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
+**QA workspace (history + evidence):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
 
-**Pivotal resolution:** bars/background/effects paint at **record time** (`WaveformRenderer.drawFrame` → `captureStream`); bake only burns subtitles (I3). Caps at close: base/baked **40/40 MiB**. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented in `conway.ts`; not a merge blocker).
+**Pivotal (Track A):** bars/background/effects paint at **record time**; bake only burns subtitles (I3). Caps: base/baked **40/40 MiB**. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented in `conway.ts`; not a merge blocker).
 
 **Next:** Track B when ready · optional `6.0.0` tag + release notes · user-owned push.
 
@@ -326,17 +327,18 @@ Two feature branches off `main@98c37ab` ancestry; roadmaps + ADRs from `.ignore/
 
 **Track A confidence close (2026-07-19/20):** Pass E full PASS — see short verdict at top of this section and [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
 
-### Track C — popup UI refresh (**IMPLEMENTED 2026-07-19; agent QA gate PASS · operator visual pass open**)
+### Track C — popup UI refresh (**AGENT GATE PASS · MERGED to main 2026-07-19**)
 
-**Branch:** `feature/v6.0.0-popup-ui-refresh` (from post-Track-A `main` merge `f1653c4`) · **Roadmap:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) (redrafted 2026-07-19 against as-landed Track A) · **QA:** [`qa/QA-6.0.0/track-c/`](qa/QA-6.0.0/track-c/)
+**Branch:** `feature/v6.0.0-popup-ui-refresh` (from post-Track-A `main` merge `f1653c4`) → **`main`** · **Roadmap:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · **QA:** [`qa/QA-6.0.0/track-c/`](qa/QA-6.0.0/track-c/)
 
 - **Load-bearing discovery:** `design-studio/main.ts` imports `entrypoints/popup/style.css` as the Studio's shared control-primitive base → Track C ships a popup-only overlay (`entrypoints/popup/popup-palette.css`, `@import`s `studio-palette.css`, `.popup`-prefixed rules) with **zero edits** to the shared base; Studio isolation git-verified (empty diff vs `f1653c4` for style.css + all Studio CSS). Shared-primitives extraction deferred as a hardening candidate.
 - Popup now lives on the Cividis axis: deep-indigo shell/cards/hairlines, amber-action CTA (`#d4a020` + `#1a1000` text; amber=action, violet=confirm per Studio semantics), Studio-parity toggles (amber fill + dark knob), amber focus rings, quiet charcoal bottom Reload, inline currentColor `mic.svg` brand mark, first popup-side rules for the previously unstyled `popup__summary-line*` / `popup__button--studio`. Light mode remapped to a desaturated indigo/amber family.
 - **Elevated restart caution:** now a bar directly under the header (was text-only above the bottom button) with inline amber "Reload now" (`browser.runtime.reload()`); `role=status`/`aria-live=polite`; `mountRestartCaution`/`showRestartCaution` API + all four call sites unchanged.
-- **Guard:** `test-ui-tokens.mjs` extended — palette `@import` + popup adoption + 7-hex banned off-axis scan (it caught banned hexes quoted in the palette's own header comment during development). **Fixture:** `scripts/fixtures/popup-visual/` + `npm run qa:popup-visual` (port 4175) — production CSS + production row builders + production caution module, reload stubbed.
-- **Drive-by BUG FIX:** `APP_VERSION` was stale at `5.10.0` on a `5.11.0` package — popup header displayed the wrong release; bumped per the file's own contract.
-- **Automated:** tokens guard PASS · `compile` = same 2 pre-existing subtitle diagnostics · production build PASS. **Agent browser QA (fixture):** dark/light computed-style parity, caution behavior/placement, real keyboard Tab focus-ring pass — evidence `qa/QA-6.0.0/track-c/logs/computed-style-qa-2026-07-19.json`; pixel screenshots deferred (harness capture fault), one `npm run qa:popup-visual` operator eyeball + real-extension smoke closes §8.
-- **Architecture:** extension-points **v1.36** (no new seam; base-layer constraint documented). No ADR — presentational unification under ADR-0007's token contract. No IA/prefs/message/dependency change; package stays **5.11.0**.
+- **Guard:** `test-ui-tokens.mjs` extended — palette `@import` + popup adoption + 7-hex banned off-axis scan. **Fixture:** `scripts/fixtures/popup-visual/` + `npm run qa:popup-visual` (port 4175).
+- **Drive-by BUG FIX:** `APP_VERSION` was stale at `5.10.0` on a `5.11.0` package — bumped per the file's own contract.
+- **Automated (pre-merge recheck):** tokens guard PASS · `compile` = same 2 pre-existing subtitle diagnostics · production build PASS. **Agent browser QA (fixture):** dark/light computed-style parity, caution behavior/placement, real keyboard Tab focus-ring pass — evidence `qa/QA-6.0.0/track-c/logs/computed-style-qa-2026-07-19.json`.
+- **Merge gate:** checklist §1–§7 PASS · blockers none · clean ancestry off `main@f1653c4` · Studio isolation empty-diff. §8 real-extension eyeball residual **deferred** (optional post-merge; not a code/state risk). Package stays **5.11.0** until an explicit v6 ship.
+- **Architecture:** extension-points **v1.36** (no new seam; base-layer constraint documented). No ADR — presentational under ADR-0007 tokens.
 
 ### 2026-07-15 — Track A QA workspace scaffold
 
