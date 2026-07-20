@@ -6,13 +6,13 @@
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
-**Date:** 2026-07-20 (Phase 0–2 landed; Phase 1 operator QA; Phase 2 operator pending)<br>
+**Date:** 2026-07-20 (Phase 0–3 landed; Phase 1–2 operator QA PASS; Phase 3 operator pending)<br>
 **Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (as of Phase 0–2):** Phase 0 `test-background-layout.mjs` **10/10** · Phase 1 `test-background-direct-manipulation.mjs` **6/6** · Phase 2 `test-background-precision.mjs` **5/5** · prefs storage **12/12** · Phase 3 `test-interaction-utils.mjs` (not yet) · `npm run build` **PASS** · `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
+**Automated (as of Phase 3):** focused layout/interaction/UI set **54/54** — layout **10/10** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **6/6** · caption geometry **7/7** · prefs storage **12/12**. `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -74,12 +74,12 @@
 
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
-| 0 | Pre-flight | ▲ | Phase 1 operator path PASS · Phase 2 build reload pending |
-| 1 | Automated / Node (layout + interaction utils) | ▲ | layout 10/10 · direct-manip 6/6 · precision 5/5 · build PASS · interaction-utils Phase 3 |
+| 0 | Pre-flight | ▲ | Phase 1–2 operator path PASS · Phase 3 build reload pending |
+| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 54/54 · build PASS |
 | 2 | Phase 0 migration + zero visual change | ■ | Node + design intent; panel still legacy 9-grid |
 | 3 | Direct manipulation (drag / focal / reset) | ■ | Operator Phase 1 QA PASS — hero only |
-| 4 | Precision widget + bidirectional sync | ▲ | Phase 2 code + automated gate PASS · operator UI pending |
-| 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ☐ | Phase 3+ |
+| 4 | Precision widget + bidirectional sync | ▲ | Phase 2 behavior operator PASS · redesigned spatial console operator smoke pending |
+| 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ▲ | Phase 3 code + automated gate PASS · operator UI pending |
 | 6 | Properties / effects / GIF | ☐ | Phase 5+ |
 | 7 | Presets + eye-dropper hand-off | ☐ | Phase 4–5 |
 | 8 | Framing aids (crop guides / thirds) | ☐ | Phase 6 |
@@ -88,7 +88,7 @@
 | 11 | a11y (keyboard / ARIA / reduced-motion) | ☐ | Phase 7 |
 | 12 | Product smoke + Classic / default no-regression | ☐ | |
 
-**Overall:** ▲ partial (Phase 0–2 code complete; Phase 2 operator + full Track B merge gate open)
+**Overall:** ▲ partial (Phase 0–3 code complete; redesigned console/Phase 3 operator QA + full Track B merge gate open)
 
 **Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
 
@@ -99,10 +99,10 @@
 - [x] Branch is `feature/v6.0.0-background-panel-refactor` (or equivalent Track B build loaded)
 - [x] Extension reloaded from `.output/chrome-mv3-dev/` (or prod); no red errors on load (SW / offscreen)
 - [x] Design Studio opens; background panel still **hidden** until a personal background is selected
-- [ ] Selecting / uploading a custom background reveals the Phase 2 precision mini frame plus existing fit/grid controls *(re-check on new build)*
+- [ ] Selecting / uploading a custom background reveals the spatial precision console plus existing fit/grid controls *(re-check on Phase 3 build)*
 - [x] Evidence folders ready: `logs/` · `screenshot/` · `artifacts/`
 
-**Notes:** Operator Phase 1 path passed 2026-07-20. Reload and check the new Phase 2 precision frame before closing pre-flight.
+**Notes:** Operator Phase 1–2 paths passed 2026-07-20. Reload and check the redesigned Phase 3 positioning console before closing pre-flight.
 
 
 ---
@@ -112,14 +112,16 @@
 Fill as pure-math suites land; re-run only when related code changes.
 
 - [x] `node scripts/test-background-layout.mjs` PASS (normalize defaults/clamps, blend allow-list, `customPosition`↔discrete, offset math) — **Phase 0 · 10/10**
-- [x] `node scripts/test-background-direct-manipulation.mjs` PASS (pan/focal drag math) — **Phase 1 · 6/6**
+- [x] `node scripts/test-background-direct-manipulation.mjs` PASS (pan/focal drag + cursor-anchored zoom math) — **Phase 1+3 · 8/8**
 - [x] `node scripts/test-background-precision.mjs` PASS (±0.01/±0.05 axis nudges, clamps, field preservation) — **Phase 2 · 5/5**
-- [ ] `node scripts/test-interaction-utils.mjs` PASS (sliderToScale round-trip, sticky-snap hysteresis, `snapPosition`, `clamp01`) — **Phase 3**
-- [x] Focused Track B Node set green (layout 10 + direct-manip 6 + precision 5) — full 57-suite sweep deferred to later phase/merge
+- [x] `node scripts/test-interaction-utils.mjs` PASS (sliderToScale round-trip, sticky-snap hysteresis, per-axis `snapPosition`, caption-band constraint, `clamp01`) — **Phase 3 · 6/6**
+- [x] `node scripts/test-background-control-ui.mjs` PASS (embedded mini, spatial rails, single/double assets, slider orientation/pointer mapping, Phase 3 controls) — **Phase 3 · 6/6**
+- [x] `node scripts/test-cue-measurement.mjs` PASS (including shared normalized caption-safe band) — **7/7**
+- [x] Focused Track B layout/interaction/UI set green — **54/54** including prefs storage **12/12**
 - [x] `npm run build` PASS
 - [x] `npm run compile` — only the 2 pre-existing subtitle diagnostics
 
-**Notes:** Phase 2 agent gate 2026-07-20: focused **21/21**, prefs storage **12/12**, production build PASS.
+**Notes:** Phase 3 agent gate 2026-07-20: focused **54/54**, production build PASS, and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics.
 
 
 ---
@@ -153,17 +155,20 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 ## 4 · Precision widget (Phase 2)
 
-- [ ] Mini preview frame tracks hero layout
-- [ ] Drag on mini frame updates hero + prefs
-- [ ] Numeric nudges (±0.01 / ±0.05) work and stay in [0,1]
-- [ ] Bidirectional sync: hero drag → widget numbers; widget → hero
+- [x] Mini preview frame tracks hero layout
+- [x] Drag on mini frame updates hero + prefs
+- [x] Numeric nudges (±0.01 / ±0.05) work and stay in [0,1]
+- [x] Bidirectional sync: hero drag → widget numbers; widget → hero
+- [ ] X rail is below the mini preview; Y rail is immediately to its right and remains usable at narrow widths
+- [ ] Single chevrons communicate ±0.01; doubled chevrons communicate ±0.05 in all four directions
+- [ ] Horizontal and vertical physical sliders track their axes, support pointer/keyboard input, and commit once per gesture
 
-**Notes:** Implemented in `b129713`; automated nudge/clamp contract 5/5. Leave UI rows open until operator checks the built extension.
+**Notes:** Original Phase 2 behavior in `b129713` received user/operator PASS on 2026-07-20. Phase 3 `844a81f` preserves it while reorganizing the controls around the embedded mini-preview; the three new presentation/input rows remain open for operator confirmation.
 
 
 ---
 
-## 5 · Zoom, snap, undo/redo, lock-to-safe-text (Phase 3+)
+## 5 · Zoom, snap, undo/redo, lock-to-safe-text (Phase 3)
 
 - [ ] Ctrl/Cmd+wheel adjusts `manualScale` at cursor (clamped)
 - [ ] Center / thirds / edges sticky-snap with hysteresis (enter harder than exit)
@@ -172,6 +177,8 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [ ] Snap off / guides off still allows free position
 
 **Notes:**
+
+Automated math/UI contracts pass in `844a81f`; this section intentionally remains open for real-extension interaction and visual confirmation.
 
 
 ---

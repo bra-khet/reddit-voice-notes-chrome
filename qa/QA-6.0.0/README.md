@@ -7,7 +7,7 @@
 | [`TODO-6.0.0.md`](TODO-6.0.0.md) | Actionable QA task ledger for this workspace |
 | [`progress-QA-6.0.0.md`](progress-QA-6.0.0.md) | Living session notes / evidence pointers |
 | [`track-a/`](track-a/) | Track A — audio-reactive visuals (**confidence PASS · closed**) |
-| [`track-b/`](track-b/) | Track B — background layout (**open · Phase 0+1 DONE · Phase 1 QA PASS · Phase 2 next**) |
+| [`track-b/`](track-b/) | Track B — background layout (**open · Phase 0–3 DONE · Phase 1–2 operator PASS · Phase 3 operator QA pending · Phase 4 next**) |
 | [`track-c/`](track-c/) | Track C — popup UI refresh (**agent gate PASS · merged**) |
 
 **Globals (pointers only):** root [`TODO.md`](../../TODO.md) · [`claude-progress.md`](../../claude-progress.md)

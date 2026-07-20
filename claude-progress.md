@@ -128,7 +128,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–2 DONE · operator Phase 1 QA PASS · Phase 2 operator QA pending** · Phase 3 next.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–3 DONE · operator Phase 1–2 QA PASS · Phase 3 operator QA pending** · Phase 4 next.
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
@@ -147,7 +147,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 **Next:** superseded by the Phase 2 entry below.
 
-### Track B Phase 2 — precision widget + bidirectional sync (**IMPLEMENTED · operator QA pending 2026-07-20**)
+### Track B Phase 2 — precision widget + bidirectional sync (**DONE · operator behavior PASS 2026-07-20**)
 
 **Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `b129713`
 
@@ -157,7 +157,22 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 - Studio saves now flush both positioning surfaces before profile/style snapshots. No new context, message, store, signal, dependency, compositing layer, or `USER_PREFS_VERSION` bump; I1/I3 remain unchanged.
 - **Automated:** layout **10/10** · direct-manip **6/6** · precision **5/5** · prefs storage **12/12** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics.
 
-**Next:** operator-check Track B checklist §4, then Phase 3 `interaction-utils.ts` (zoom / sticky snap / bounded layout undo). Full Track B confidence gate remains open; package stays 5.11.0.
+**Operator:** user confirmed the Fine position UI and its behavior work correctly. Phase 3 subsequently reorganized those controls, so the new spatial console presentation remains an operator smoke item.
+
+**Next:** superseded by the Phase 3 entry below.
+
+### Track B Phase 3 — spatial positioning console + zoom/snap/safe/history (**IMPLEMENTED · operator QA pending 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `844a81f`
+
+- Reorganized Fine position around the embedded mini-preview: X below, Y at right, single directional chevrons for ±0.01, new doubled chevrons for ±0.05, and horizontal/vertical physical sliders using the existing track/tab design.
+- Added domain-neutral logarithmic scale, sticky hysteresis, per-axis snap, clamp, and caption-band constraint math in `interaction-utils.ts`; Ctrl/Cmd+wheel zoom remains cursor-anchored and uses the same mapping as the visible zoom slider.
+- Added DOM-only center/thirds/edge guides, active snap lines, Shift bypass, Snap/Guides toggles, and exact preview-caption safe-band avoidance. These overlays never enter record/capture pixels.
+- Added a host-owned bounded 20-snapshot background layout undo/redo stack, isolated from subtitle history and snapshotting gestures instead of RAF frames.
+- No new context, message, store, signal, dependency, compositing layer, preference version, or bake renderer. Existing ADR-0008 owns the seam; map/extension-point MINOR bumps remain deferred to Track B merge.
+- **Automated:** focused layout/interaction/UI set **54/54** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Next:** operator-check Track B checklist §4 additions + §5, then Phase 4 presets/live hover preview. Full Track B confidence gate remains open; package stays 5.11.0.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

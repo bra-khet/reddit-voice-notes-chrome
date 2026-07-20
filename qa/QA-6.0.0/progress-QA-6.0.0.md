@@ -12,7 +12,7 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` |
 | **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
 | **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
 | **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
@@ -26,13 +26,34 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–2 landed · operator Phase 1 QA **PASS** · Phase 2 precision-widget operator QA pending · full merge gate still open.
+**Track B in flight:** Phase 0–3 landed · operator Phase 1–2 QA **PASS** · redesigned positioning-console + Phase 3 operator QA pending · full merge gate still open.
 
-**Next:** Track B Phase 2 operator QA, then Phase 3 (zoom / snap / undo) · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
+**Next:** Track B Phase 3 operator QA, then Phase 4 presets/live hover preview · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 3 positioning console + interactions implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `844a81f`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §4 new console rows + §5 remain open for operator confirmation
+
+**Operator carry-forward:** user confirmed the Phase 2 fine-position behavior and bidirectional sync work correctly. That closes the original §4 behavior rows; Phase 3 changed their visual arrangement, so the new layout/slider rows remain open.
+
+**Product state:**
+
+- Fine position is now a camera-style console around the actual mini-preview: horizontal controls below, vertical controls at right, original directional chevrons for ±0.01, new doubled variants for ±0.05, and orientation-aware physical sliders on both axes.
+- `interaction-utils.ts` owns guarded clamp, logarithmic scale mapping, sticky-snap hysteresis, per-axis snapping, and caption-band constraint math. Ctrl/Cmd+wheel zoom preserves the image point under the cursor; the visible zoom slider uses the same scale mapping.
+- Center/thirds/edges guides and active snap lines are DOM-only preview overlays. Snap can be disabled, Shift temporarily bypasses it, Guides can be hidden, and Clear captions uses the exact preview caption measurement to keep the focal point outside the rendered subtitle band.
+- The Studio host owns a bounded 20-snapshot background-layout history. Gesture-start snapshots prevent RAF-frame spam; undo/redo is scoped away from subtitle history and flushes pending hero/mini writes before restore.
+- Existing nested prefs and `setUserBackgroundLayout` remain the only state/hot-swap seam. No new context, message, store, signal, dependency, compositing layer, `USER_PREFS_VERSION`, or post-capture renderer.
+
+**Automated:** layout **10/10** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **6/6** · caption geometry **7/7** · prefs storage **12/12** = focused **54/54**. Production build **PASS**; compile only the same 2 pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Architecture:** ADR-0008 already owns this exact Design-phase seam. Map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Next:** reload and operator-check checklist §4 additions + §5, then implement Phase 4 presets/live hover preview.
 
 ### 2026-07-20 — Track B Phase 2 precision widget implemented
 
