@@ -128,7 +128,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–4 DONE · operator Phase 1–3 QA PASS · Phase 4 operator QA pending** · Phase 5 next.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–5 DONE · operator Phase 1–4 QA PASS · Phase 5 operator QA pending** · Phase 6 next.
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
@@ -174,7 +174,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 **Operator:** user confirmed the redesigned console and Phase 3 behaviors pass; final upward Y-button order is `.01` then `.05` and is regression-tested. Superseded by Phase 4 below.
 
-### Track B Phase 4 — bundled presets + non-destructive live audition (**IMPLEMENTED · operator QA pending 2026-07-20**)
+### Track B Phase 4 — bundled presets + non-destructive live audition (**DONE · operator QA PASS 2026-07-20**)
 
 **Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `1166d51`
 
@@ -183,7 +183,19 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 - Existing ADR-0008 and the Design-phase preview→recorder→draw seam remain authoritative; no version/store/message/signal/dependency/compositing change. Map/seam bumps remain deferred to Track B merge.
 - **Automated:** focused Track B set **62/62** · production build PASS with both assets · compile only the same two pre-existing subtitle diagnostics.
 
-**Next:** operator-check Track B checklist §7, then Phase 5 properties/effects + eye-dropper. Full Track B confidence gate remains open; package stays 5.11.0.
+**Operator:** Phase 4 passed with one recording-time accessibility caveat; Phase 5 commit `16e3dd0` restores and locks transient preset auditions before actual capture.
+
+### Track B Phase 5 — properties/effects + eye-dropper (**IMPLEMENTED · operator QA pending 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `16e3dd0`
+
+- Added a compact dim/blur/blend treatment bay, collapsible 0.5–2× GIF speed + voice-energy response, and a permission-free preview-canvas eye-dropper that hands color to the existing Style bar/glow path.
+- GIF capture uses a continuous rate-modulated clock; default 1× retains legacy phase and reduced motion freezes frame zero.
+- Actual capture publishes a recording boundary before `MediaRecorder` starts. Any hover/focus recipe is restored, the preset contact sheet is disabled/marked `REC SAFE`, and audition returns only after recording ends.
+- **Automated:** focused Track B set **69/69** · UI tokens PASS · visual-size gate **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- No new preference version, dependency, store, signal, message, compositing layer, or architecture seam; ADR-0008 remains authoritative and map/seam bumps stay deferred to merge.
+
+**Next:** operator-check Phase 5 §6–§7 plus the real 120 s blur+GIF artifact gate, then Phase 6 framing aids. Full Track B confidence gate remains open; package stays 5.11.0.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

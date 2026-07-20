@@ -12,7 +12,7 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` |
 | **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
 | **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
 | **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
@@ -26,13 +26,32 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–4 landed · operator Phase 1–3 QA **PASS** · Phase 4 operator QA pending · full merge gate still open.
+**Track B in flight:** Phase 0–5 landed · operator Phase 1–4 QA **PASS** · Phase 5 operator QA and full merge gate still open.
 
-**Next:** Track B Phase 4 operator QA, then Phase 5 properties/effects + eye-dropper · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
+**Next:** operator-check Phase 5 treatments, GIF motion, eye-dropper, and recording-safe preset lockout; then Phase 6 framing aids · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 5 properties/effects + recording-safe preset audition implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `16e3dd0`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §6–§7 operator smoke remains open
+
+- Closed the Phase 4 operator caveat: immediately before `MediaRecorder` starts, any transient preset audition is restored to the committed image/layout; preset hover/focus/click/Apply stays disabled throughout actual capture and returns afterward. The contact sheet shows a restrained `REC SAFE` state and cannot introduce flash-heavy frames into the recorded canvas.
+- Added a compact image-treatment bay backed by the existing normalized layout: live/persisted dim, blur toggle + amount, exact allow-listed blend select, and the existing Fit/Fill + custom manual-scale control.
+- Added collapsible GIF controls. Speed drives a continuous playback clock from 0.5–2×; optional voice-energy modulation changes velocity without frame jumps; reduced motion still freezes frame zero. Default 1×/non-reactive timing retains the legacy frame phase.
+- Added a permission-free in-canvas eye-dropper. It maps CSS pointer coordinates to preview bitmap pixels, reads `getImageData`, fails closed for unavailable/transparent pixels, and hands the sampled hex to the existing Style bar/glow path without mutating layout.
+- Reused the ADR-0008 preference/preview/recorder/draw seam. No new store, signal, message, dependency, layer, `USER_PREFS_VERSION`, or package-version change.
+
+**Automated:** layout **11/11** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **10/10** · presets **5/5** · canvas sampler **5/5** · caption geometry **7/7** · prefs storage **12/12** = focused **69/69**. Shared UI tokens PASS; visual-size gate logic **5/5**; production build **PASS**; compile only the same 2 pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Residual operator gate:** exercise every treatment/blend, GIF speed/reactivity + reduced motion, eye-dropper hand-off, and start a recording while a preset is hovered to confirm the frame restores before capture. The real ~120 s blur+GIF base/baked artifacts and `qa:visual-size` report remain required.
+
+**Architecture:** ADR-0008 already owns this Design-phase property/effect seam. Architecture map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Next:** Phase 5 operator QA, then Phase 6 multi-aspect crop guides + compare.
 
 ### 2026-07-20 — Track B Phase 4 presets + live audition implemented
 
