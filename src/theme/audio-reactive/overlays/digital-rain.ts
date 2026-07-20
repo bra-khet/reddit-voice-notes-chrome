@@ -253,7 +253,9 @@ class DigitalRainVisual implements AudioVisual {
   ): void {
     for (let lane = 0; lane < lanes; lane += 1) {
       const drive = this.laneDrive(frame, params, lane, lanes, previewTide);
-      const gate = 0.14 + seededUnit(lane, 3) * 0.3;
+      // CHANGED: prime gate 0.14–0.44 → 0.09–0.31 (~35% lower threshold).
+      // WHY: Pass E operator feedback — rain still felt sparse after edge-respawn fixes.
+      const gate = 0.09 + seededUnit(lane, 3) * 0.22;
       if (drive >= gate) this.spawnStream(lane, depth, drive, true);
     }
   }
@@ -277,8 +279,10 @@ class DigitalRainVisual implements AudioVisual {
         //      cleared it after prime (prime gate is only 0.14–0.44). Soften to a
         //      range reachable under normal speech + laneDrive field pressure.
         // Sync: laneDrive spectral blend + energy field pressure
-        const gate = 0.16 + seededUnit(lane, sid) * 0.34;
-        if (frame.transient && seededUnit(lane, sid + 11) > 0.42) {
+        // CHANGED: respawn gate 0.16–0.50 → 0.10–0.34; transient accept 0.58 → ~0.78 of lanes.
+        // WHY: Pass E — ~35% higher spawn prevalence while keeping silence quiet.
+        const gate = 0.10 + seededUnit(lane, sid) * 0.24;
+        if (frame.transient && seededUnit(lane, sid + 11) > 0.22) {
           this.spawnStream(lane, depth, Math.max(0.72, drive), false, true);
         } else if (this.holdTimer[lane] === 0 && drive >= gate) {
           this.spawnStream(lane, depth, drive, false);
@@ -333,7 +337,9 @@ class DigitalRainVisual implements AudioVisual {
       if ((this.tail[lane] ?? 0) >= depth) {
         this.active[lane] = 0;
         this.streamId[lane] = sid + 1;
-        this.holdTimer[lane] = 0.15 + seededUnit(lane, sid + 5) * 1.15;
+        // CHANGED: post-stream cooldown 0.15–1.30 s → 0.10–0.85 s (~35% shorter gaps).
+        // WHY: denser re-rain between passes without stacking two streams on one lane.
+        this.holdTimer[lane] = 0.10 + seededUnit(lane, sid + 5) * 0.75;
       }
     }
   }
