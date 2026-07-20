@@ -30,7 +30,7 @@ async function bundle(entry, name) {
   return import(pathToFileURL(outfile).href);
 }
 
-const { renderBackgroundLayoutFields } = await bundle(
+const { mountBackgroundLayoutControls, renderBackgroundLayoutFields } = await bundle(
   'src/ui/design-studio/background-layout-controls.ts',
   'background-layout-controls',
 );
@@ -39,7 +39,10 @@ const { physicalSliderValueFromPointer } = await bundle(
   'physical-slider',
 );
 
-const { document } = parseHTML(`<main>${renderBackgroundLayoutFields()}</main>`);
+const { document, window } = parseHTML(`<main>${renderBackgroundLayoutFields()}</main>`);
+globalThis.window = window;
+globalThis.document = document;
+globalThis.HTMLElement = window.HTMLElement;
 let checks = 0;
 function check(name, fn) {
   fn();
@@ -66,6 +69,15 @@ check('fine and coarse buttons use single and doubled directional assets', () =>
   assert.ok(sources.includes('/assets/design-studio-v4/icons/navigation/chevron-enter-double-16.svg'));
   assert.ok(sources.includes('/assets/design-studio-v4/icons/navigation/chevron-up-16.svg'));
   assert.ok(sources.includes('/assets/design-studio-v4/icons/navigation/chevron-down-double-16.svg'));
+});
+
+check('Y up pair places fine 0.01 before coarse 0.05', () => {
+  // BUG FIX: Y-axis upward nudge order
+  // Fix: Lock the fine-before-coarse DOM order requested by operator QA.
+  // Sync: src/ui/design-studio/background-layout-controls.ts
+  const deltas = [...document.querySelectorAll('.studio__precision-nudge-pair--up [data-background-nudge-delta]')]
+    .map((button) => Number(button.getAttribute('data-background-nudge-delta')));
+  assert.deepEqual(deltas, [-0.01, -0.05]);
 });
 
 check('Y slider declares vertical semantics while X and zoom remain horizontal', () => {
@@ -99,6 +111,59 @@ check('Phase 3 mode and history controls are present', () => {
   assert.ok(document.querySelector('[data-background-safe-lock]'));
   assert.ok(document.querySelector('[data-background-undo][disabled]'));
   assert.ok(document.querySelector('[data-background-redo][disabled]'));
+});
+
+check('Phase 4 contact sheet renders four explicit image-layout recipes', () => {
+  const cards = [...document.querySelectorAll('[data-background-preset]')];
+  assert.equal(cards.length, 4);
+  assert.ok(cards.every((card) => card.querySelector('.studio__background-preset-thumb img')));
+  assert.ok(document.querySelector('[data-background-preset-apply][disabled]'));
+  assert.ok(document.querySelector('[data-background-preset-status][aria-live="polite"]'));
+});
+
+check('preset hover restores baseline while Apply emits one persistent recipe', () => {
+  const changes = [];
+  let gestures = 0;
+  const handle = mountBackgroundLayoutControls(
+    document.querySelector('main'),
+    (patch, options) => changes.push({ patch, options }),
+    { onGestureStart: () => { gestures += 1; } },
+  );
+  handle.sync({
+    appearance: {
+      customBackgroundId: 'bg-uploaded-fixture',
+      backgroundLayout: {
+        scaleMode: 'fill',
+        position: 'center',
+        customPosition: { x: 0.5, y: 0.5 },
+      },
+    },
+  });
+
+  const card = document.querySelector('[data-background-preset="aurora-thirds"]');
+  card.dispatchEvent(new window.Event('pointerenter'));
+  assert.equal(changes.at(-1).options.persist, false);
+  assert.equal(changes.at(-1).options.presetPreview, true);
+  assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
+  assert.deepEqual(changes.at(-1).patch.backgroundLayout.customPosition, { x: 0.33, y: 0.44 });
+
+  card.dispatchEvent(new window.Event('focus'));
+  const changesBeforePointerLeave = changes.length;
+  card.dispatchEvent(new window.Event('pointerleave'));
+  assert.equal(changes.length, changesBeforePointerLeave);
+
+  card.dispatchEvent(new window.Event('blur'));
+  assert.equal(changes.at(-1).options.persist, false);
+  assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-uploaded-fixture');
+  assert.deepEqual(changes.at(-1).patch.backgroundLayout.customPosition, { x: 0.5, y: 0.5 });
+
+  card.dispatchEvent(new window.Event('click'));
+  document.querySelector('[data-background-preset-apply]').dispatchEvent(new window.Event('click'));
+  assert.equal(changes.at(-1).options.persist, true);
+  assert.equal(changes.at(-1).options.presetPreview, false);
+  assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
+  assert.equal(gestures, 1);
+  handle.dispose();
 });
 
 rmSync(outdir, { recursive: true, force: true });

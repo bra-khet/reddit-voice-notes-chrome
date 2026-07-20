@@ -110,8 +110,8 @@ export interface AppearancePreferences {
   /** When true, simplify waveform motion if the OS requests reduced motion (pretty-4 draw). */
   respectReducedMotion?: boolean;
   /**
-   * ImageDB record id (`bg-…`) for a user-uploaded background (pretty-7).
-   * Blob lives in IndexedDB; prefs store only this reference.
+   * Stable `bg-…` reference for an uploaded ImageDB record or an included background.
+   * Uploaded blobs live in IndexedDB; prefs store only this lightweight reference.
    */
   customBackgroundId?: string | null;
   /** Personal background scale: fit (letterbox) or fill (crop). Default fill. */

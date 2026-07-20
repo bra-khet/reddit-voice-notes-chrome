@@ -183,6 +183,12 @@ export class VoiceRecorderSession {
     this.waveform?.setUserBackgroundLayout(normalizeUserBackgroundLayout(layout));
   }
 
+  // CHANGED: Studio preset audition may replace the image while this recorder session is open.
+  // WHY: hot-swapping the existing WaveformRenderer keeps the audition and next captured frame WYSIWYG.
+  setCustomBackgroundId(id: string | null): void {
+    this.waveform?.setCustomBackgroundId(id);
+  }
+
   /** Exposed for host teardown — pagehide must not abort mid-transcode dispose. */
   getPhase(): RecorderPhase {
     return this.phase;

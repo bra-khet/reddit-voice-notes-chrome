@@ -5,7 +5,14 @@ import {
   MIN_USER_BACKGROUND_MANUAL_SCALE,
   normalizeUserBackgroundLayout,
   userBackgroundLayoutFromAppearance,
+  userBackgroundLayoutsEqual,
 } from '@/src/theme/background-layout';
+import {
+  BACKGROUND_LAYOUT_PRESETS,
+  getBundledUserBackground,
+  resolveBackgroundLayoutPreset,
+  type BackgroundLayoutPresetDefinition,
+} from '@/src/theme/background-layout-presets';
 import type {
   BackgroundImagePosition,
   BackgroundScaleMode,
@@ -40,6 +47,7 @@ export interface BackgroundLayoutControlsHandle {
 }
 
 export interface BackgroundLayoutChange {
+  customBackgroundId?: string | null;
   backgroundScaleMode: BackgroundScaleMode;
   backgroundPosition: BackgroundImagePosition;
   backgroundLayout: NormalizedUserBackgroundLayout;
@@ -47,6 +55,7 @@ export interface BackgroundLayoutChange {
 
 export interface BackgroundLayoutEmitOptions {
   persist: boolean;
+  presetPreview?: boolean;
 }
 
 export interface BackgroundLayoutControlsOptions {
@@ -155,6 +164,52 @@ function renderNudgeButton(
   `;
 }
 
+function renderBackgroundPreset(preset: BackgroundLayoutPresetDefinition): string {
+  const background = getBundledUserBackground(preset.backgroundId)!;
+  return `
+    <button
+      type="button"
+      class="studio__background-preset"
+      data-background-preset="${preset.id}"
+      aria-pressed="false"
+      style="--preset-x:${preset.customPosition.x * 100}%;--preset-y:${preset.customPosition.y * 100}%;--preset-scale:${preset.manualScale};--preset-dim:${preset.dim}"
+    >
+      <span class="studio__background-preset-thumb" aria-hidden="true">
+        <img src="/${background.assetPath}" alt="">
+        <span class="studio__background-preset-dim"></span>
+        <span class="studio__background-preset-grid"></span>
+        <span class="studio__background-preset-focal"></span>
+      </span>
+      <span class="studio__background-preset-copy">
+        <strong>${preset.label}</strong>
+        <span>${preset.description}</span>
+      </span>
+      <span class="studio__background-preset-spec">${preset.scaleMode} · ${preset.manualScale.toFixed(2)}× · dim ${Math.round(preset.dim * 100)}</span>
+    </button>
+  `;
+}
+
+function renderBackgroundPresets(): string {
+  return `
+    <section class="studio__background-presets" aria-labelledby="background-presets-title">
+      <div class="studio__background-presets-heading">
+        <span>
+          <span class="studio__background-presets-eyebrow">Curated contact sheet</span>
+          <span class="popup__field-label" id="background-presets-title">Starting frames</span>
+        </span>
+        <span class="popup__micro">Hover previews · Apply saves</span>
+      </div>
+      <div class="studio__background-preset-row" role="group" aria-label="Background layout presets">
+        ${BACKGROUND_LAYOUT_PRESETS.map(renderBackgroundPreset).join('')}
+      </div>
+      <div class="studio__background-preset-footer">
+        <output class="studio__background-preset-status" data-background-preset-status aria-live="polite">Hover a frame to audition it live.</output>
+        <button type="button" class="studio__background-preset-apply" data-background-preset-apply disabled>Apply frame</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderPrecisionAxis(axis: BackgroundPositionAxis): string {
   const horizontal = axis === 'x';
   const negativeDirection = horizontal ? 'left' : 'up';
@@ -189,12 +244,15 @@ function renderPrecisionAxis(axis: BackgroundPositionAxis): string {
       </div>
     `;
   }
+  // BUG FIX: Y-axis upward nudge order
+  // Fix: Render the fine 0.01 step before the coarse 0.05 step to match the visual hierarchy.
+  // Sync: scripts/test-background-control-ui.mjs
   return `
     <div class="studio__precision-axis studio__precision-axis--vertical">
       ${heading}
       <div class="studio__precision-nudge-pair studio__precision-nudge-pair--up">
-        ${renderNudgeButton(axis, -BACKGROUND_POSITION_COARSE_STEP, negativeDirection)}
         ${renderNudgeButton(axis, -BACKGROUND_POSITION_FINE_STEP, negativeDirection)}
+        ${renderNudgeButton(axis, -BACKGROUND_POSITION_COARSE_STEP, negativeDirection)}
       </div>
       <div class="studio__precision-slider-shell studio__precision-slider-shell--vertical">${slider}</div>
       <div class="studio__precision-nudge-pair studio__precision-nudge-pair--down">
@@ -283,6 +341,7 @@ export function renderBackgroundLayoutFields(): string {
 
   return `
     <div class="studio__background-layout" data-background-layout hidden>
+      ${renderBackgroundPresets()}
       ${renderPrecisionInstrument()}
       <div class="studio__layout-row">
         <div class="studio__layout-group">
@@ -321,24 +380,78 @@ export function mountBackgroundLayoutControls(
   const safeLock = panel.querySelector<HTMLInputElement>('[data-background-safe-lock]')!;
   const undoButton = panel.querySelector<HTMLButtonElement>('[data-background-undo]')!;
   const redoButton = panel.querySelector<HTMLButtonElement>('[data-background-redo]')!;
+  const presetButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-preset]')];
+  const presetApply = panel.querySelector<HTMLButtonElement>('[data-background-preset-apply]')!;
+  const presetStatus = panel.querySelector<HTMLOutputElement>('[data-background-preset-status]')!;
 
   let syncing = false;
   let buttonsSynced = false;
   let snapEnabled = true;
   let guidesEnabled = true;
   let layout = userBackgroundLayoutFromAppearance({});
+  let committedLayout = normalizeUserBackgroundLayout(layout);
+  let committedBackgroundId: string | null = null;
+  let selectedPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
+  let previewedPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
+  let hoveredPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
+  let focusedPresetId: BackgroundLayoutPresetDefinition['id'] | null = null;
+  let emittingPresetPreview = false;
   let scaleMode: BackgroundScaleMode = layout.scaleMode;
   let position: BackgroundImagePosition = layout.position;
 
-  function emit(persist = true): void {
+  function cloneLayout(next: NormalizedUserBackgroundLayout): NormalizedUserBackgroundLayout {
+    return { ...next, customPosition: { ...next.customPosition } };
+  }
+
+  function presetForId(
+    id: string | null | undefined,
+  ): BackgroundLayoutPresetDefinition | undefined {
+    return BACKGROUND_LAYOUT_PRESETS.find((preset) => preset.id === id);
+  }
+
+  function syncPresetUi(message?: string): void {
+    for (const button of presetButtons) {
+      const id = button.dataset.backgroundPreset;
+      const selected = id === selectedPresetId;
+      const previewed = id === previewedPresetId;
+      button.classList.toggle('studio__background-preset--selected', selected);
+      button.classList.toggle('studio__background-preset--previewing', previewed);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    }
+    presetApply.disabled = !selectedPresetId;
+    if (message) {
+      presetStatus.value = message;
+      return;
+    }
+    const selected = presetForId(selectedPresetId);
+    const previewed = presetForId(previewedPresetId);
+    presetStatus.value = selected
+      ? `${selected.label} selected. Apply frame to save it.`
+      : previewed
+        ? `Previewing ${previewed.label}. Preferences are unchanged.`
+        : 'Hover a frame to audition it live.';
+  }
+
+  function emit(
+    persist = true,
+    backgroundId?: string | null,
+    presetPreview = false,
+  ): void {
     if (syncing) return;
     // CHANGED: discrete and continuous controls emit one nested/legacy-compatible layout patch.
     // WHY: live slider frames and committed prefs must use the same migration-safe payload.
-    onLayoutChange({
+    const patch: BackgroundLayoutChange = {
       backgroundScaleMode: scaleMode,
       backgroundPosition: position,
       backgroundLayout: layout,
-    }, { persist });
+    };
+    if (backgroundId !== undefined) patch.customBackgroundId = backgroundId;
+    emittingPresetPreview = presetPreview;
+    try {
+      onLayoutChange(patch, { persist, presetPreview });
+    } finally {
+      emittingPresetPreview = false;
+    }
   }
 
   function constrainForSafeText(next: NormalizedUserBackgroundLayout): NormalizedUserBackgroundLayout {
@@ -389,16 +502,56 @@ export function mountBackgroundLayoutControls(
     safeLock.checked = layout.lockToSafeText;
   }
 
-  function syncLayout(next: NormalizedUserBackgroundLayout): void {
+  function syncLayout(next: NormalizedUserBackgroundLayout, commit = true): void {
     const normalized = normalizeUserBackgroundLayout(next);
     const discreteControlsChanged = !buttonsSynced
       || normalized.scaleMode !== scaleMode
       || normalized.position !== position;
     layout = normalized;
+    if (commit) {
+      committedLayout = cloneLayout(normalized);
+      selectedPresetId = null;
+      previewedPresetId = null;
+      hoveredPresetId = null;
+      focusedPresetId = null;
+      syncPresetUi();
+    }
     scaleMode = layout.scaleMode;
     position = layout.position;
     if (discreteControlsChanged) syncButtons();
     syncPrecisionValues();
+  }
+
+  function previewPreset(preset: BackgroundLayoutPresetDefinition): void {
+    const next = resolveBackgroundLayoutPreset(preset, committedLayout);
+    previewedPresetId = preset.id;
+    syncPresetUi();
+    syncLayout(next, false);
+    // CHANGED: preset audition updates the same live layout callback but marks it non-persistent.
+    // WHY: hero, mini-preview, and active audition stay honest while hover/focus leaves prefs untouched.
+    emit(false, preset.backgroundId, true);
+  }
+
+  function restorePresetPreview(message?: string): void {
+    if (!previewedPresetId && userBackgroundLayoutsEqual(layout, committedLayout)) {
+      syncPresetUi(message);
+      return;
+    }
+    previewedPresetId = null;
+    syncLayout(committedLayout, false);
+    emit(false, committedBackgroundId, true);
+    syncPresetUi(message);
+  }
+
+  function reconcilePresetPreview(): void {
+    // CHANGED: hover and keyboard focus independently own the transient audition.
+    // WHY: leaving the pointer must not cancel a still-focused card, and selection only arms Apply.
+    const preset = presetForId(focusedPresetId ?? hoveredPresetId);
+    if (preset) {
+      if (previewedPresetId !== preset.id) previewPreset(preset);
+      return;
+    }
+    restorePresetPreview();
   }
 
   function syncModeButton(button: HTMLButtonElement, active: boolean): void {
@@ -411,6 +564,59 @@ export function mountBackgroundLayoutControls(
       guideLayer.hidden = !guidesEnabled;
     }
   }
+
+  for (const button of presetButtons) {
+    const preset = presetForId(button.dataset.backgroundPreset);
+    if (!preset) continue;
+    button.addEventListener('pointerenter', () => {
+      hoveredPresetId = preset.id;
+      reconcilePresetPreview();
+    });
+    button.addEventListener('pointerleave', () => {
+      hoveredPresetId = null;
+      reconcilePresetPreview();
+    });
+    button.addEventListener('focus', () => {
+      focusedPresetId = preset.id;
+      reconcilePresetPreview();
+    });
+    button.addEventListener('blur', () => {
+      focusedPresetId = null;
+      reconcilePresetPreview();
+    });
+    button.addEventListener('click', () => {
+      if (selectedPresetId === preset.id) {
+        selectedPresetId = null;
+        restorePresetPreview();
+        return;
+      }
+      selectedPresetId = preset.id;
+      previewPreset(preset);
+    });
+  }
+
+  presetApply.addEventListener('click', () => {
+    const preset = presetForId(selectedPresetId);
+    if (!preset) return;
+    const next = resolveBackgroundLayoutPreset(preset, committedLayout);
+
+    // Restore the real baseline before snapshotting so history never captures the hover audition.
+    restorePresetPreview();
+    if (
+      committedBackgroundId === preset.backgroundId
+      && userBackgroundLayoutsEqual(committedLayout, next)
+    ) {
+      selectedPresetId = null;
+      syncPresetUi(`${preset.label} is already applied.`);
+      return;
+    }
+
+    options.onGestureStart?.();
+    committedBackgroundId = preset.backgroundId;
+    syncLayout(next, true);
+    emit(true, preset.backgroundId);
+    syncPresetUi(`${preset.label} applied.`);
+  });
 
   for (const button of scaleButtons) {
     button.addEventListener('click', () => {
@@ -514,9 +720,12 @@ export function mountBackgroundLayoutControls(
       const hasBackground = Boolean(prefs.appearance.customBackgroundId);
       panel.hidden = !hasBackground;
       if (!hasBackground) return;
-      syncLayout(userBackgroundLayoutFromAppearance(prefs.appearance));
+      committedBackgroundId = prefs.appearance.customBackgroundId ?? null;
+      syncLayout(userBackgroundLayoutFromAppearance(prefs.appearance), true);
     },
-    syncLayout,
+    syncLayout(next) {
+      syncLayout(next, !emittingPresetPreview);
+    },
     syncHistory(canUndo, canRedo) {
       undoButton.disabled = !canUndo;
       redoButton.disabled = !canRedo;

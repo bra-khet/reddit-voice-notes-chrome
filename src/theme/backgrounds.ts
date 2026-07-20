@@ -90,7 +90,7 @@ export interface ResolvedClipBackgrounds {
   bundledBackgroundImage: HTMLImageElement | null;
 }
 
-/** Resolve personal ImageDB background and bundled theme assets (pretty-7b / pretty-8 fit mode). */
+/** Resolve an uploaded/included user background and bundled theme assets (pretty-7b / pretty-8). */
 export async function resolveClipBackgrounds(
   theme: WaveformTheme,
   customBackgroundId: string | null | undefined,

@@ -90,6 +90,210 @@
   letter-spacing: var(--studio-letter-meta);
 }
 
+/* CHANGED: Phase 4 presets read as a photographic contact sheet with a visible focal reticle.
+   WHY: the cards must communicate image + crop + focal placement before the real live audition begins. */
+.studio-v4 .studio__background-presets {
+  margin-bottom: 14px;
+  padding: 11px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--studio-surface-raised) 90%, var(--studio-bg-deep));
+}
+
+.studio-v4 .studio__background-presets-heading,
+.studio-v4 .studio__background-preset-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.studio-v4 .studio__background-presets-heading > span:first-child {
+  display: grid;
+  gap: 1px;
+}
+
+.studio-v4 .studio__background-presets-eyebrow {
+  color: var(--studio-accent-background);
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  letter-spacing: var(--studio-letter-meta);
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__background-preset-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(142px, 0.72fr);
+  gap: 8px;
+  margin-top: 9px;
+  padding: 1px 1px 6px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--studio-indigo-muted) transparent;
+}
+
+.studio-v4 .studio__background-preset {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 7px;
+  color: var(--studio-text-muted);
+  background: var(--studio-bg-deep);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.studio-v4 .studio__background-preset:hover,
+.studio-v4 .studio__background-preset--previewing {
+  border-color: var(--studio-accent-background);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--studio-accent-background) 13%, transparent);
+  transform: translateY(-1px);
+}
+
+.studio-v4 .studio__background-preset--selected {
+  border-color: var(--studio-amber);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--studio-amber) 45%, transparent),
+    0 0 10px color-mix(in srgb, var(--studio-amber) 15%, transparent);
+}
+
+.studio-v4 .studio__background-preset:focus-visible,
+.studio-v4 .studio__background-preset-apply:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__background-preset-thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border: 1px solid color-mix(in srgb, var(--studio-accent-background) 42%, var(--studio-hairline));
+  border-radius: 4px;
+  background: var(--studio-surface-raised);
+}
+
+.studio-v4 .studio__background-preset-thumb img,
+.studio-v4 .studio__background-preset-dim,
+.studio-v4 .studio__background-preset-grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-v4 .studio__background-preset-thumb img {
+  object-fit: cover;
+  object-position: var(--preset-x) var(--preset-y);
+  transform: scale(var(--preset-scale));
+  transform-origin: var(--preset-x) var(--preset-y);
+}
+
+.studio-v4 .studio__background-preset-dim {
+  background: rgb(0 0 0 / var(--preset-dim));
+}
+
+.studio-v4 .studio__background-preset-grid {
+  opacity: 0.56;
+  background:
+    linear-gradient(to right, transparent 33%, var(--studio-hairline-strong) 33.5%, transparent 34%, transparent 66%, var(--studio-hairline-strong) 66.5%, transparent 67%),
+    linear-gradient(to bottom, transparent 33%, var(--studio-hairline-strong) 33.5%, transparent 34%, transparent 66%, var(--studio-hairline-strong) 66.5%, transparent 67%);
+}
+
+.studio-v4 .studio__background-preset-focal {
+  position: absolute;
+  left: var(--preset-x);
+  top: var(--preset-y);
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--studio-amber);
+  border-radius: 50%;
+  box-shadow: 0 0 7px color-mix(in srgb, var(--studio-amber) 65%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.studio-v4 .studio__background-preset-focal::before,
+.studio-v4 .studio__background-preset-focal::after {
+  position: absolute;
+  content: '';
+  background: var(--studio-amber);
+}
+
+.studio-v4 .studio__background-preset-focal::before {
+  left: 50%;
+  top: -4px;
+  width: 1px;
+  height: 16px;
+}
+
+.studio-v4 .studio__background-preset-focal::after {
+  left: -4px;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+}
+
+.studio-v4 .studio__background-preset-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.studio-v4 .studio__background-preset-copy strong {
+  color: var(--studio-text);
+  font-size: var(--studio-font-body);
+}
+
+.studio-v4 .studio__background-preset-copy span {
+  min-height: 2.5em;
+  font-size: var(--studio-font-caption);
+  line-height: 1.25;
+}
+
+.studio-v4 .studio__background-preset-spec {
+  color: var(--studio-indigo-muted);
+  font-family: var(--studio-font-mono);
+  font-size: 0.52rem;
+  letter-spacing: var(--studio-letter-meta);
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__background-preset-footer {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__background-preset-status {
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-caption);
+  line-height: 1.3;
+}
+
+.studio-v4 .studio__background-preset-apply {
+  flex: none;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--studio-amber-edge);
+  border-radius: 6px;
+  color: var(--studio-bg-deep);
+  background: var(--studio-amber);
+  font-weight: var(--studio-font-weight-strong);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-preset-apply:disabled {
+  border-color: var(--studio-hairline);
+  color: var(--studio-text-faint);
+  background: var(--studio-surface-raised);
+  cursor: not-allowed;
+}
+
 /* CHANGED: Fine position is a camera-style jog console wrapped around its live frame.
    WHY: spatial placement, directional SVGs, and physical rails communicate axis + step without decoding +/- text. */
 .studio-v4 .studio__precision-controls {
@@ -339,6 +543,20 @@
 }
 
 @media (max-width: 420px) {
+  .studio-v4 .studio__background-presets-heading,
+  .studio-v4 .studio__background-preset-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studio-v4 .studio__background-preset-row {
+    grid-auto-columns: minmax(132px, 78%);
+  }
+
+  .studio-v4 .studio__background-preset-apply {
+    width: 100%;
+  }
+
   .studio-v4 .studio__precision-stage {
     grid-template-columns: minmax(0, 1fr) 60px;
   }

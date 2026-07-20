@@ -11,6 +11,10 @@ import {
   setActivePersonalBackground,
 } from '@/src/settings/personal-background';
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
+import {
+  BUNDLED_USER_BACKGROUNDS,
+  isBundledUserBackgroundId,
+} from '@/src/theme/background-layout-presets';
 
 const BACKGROUND_NONE = '' as const;
 const ACCEPTED_BACKGROUND_TYPES = 'image/jpeg,image/png,image/webp,image/gif';
@@ -87,6 +91,13 @@ export function mountPersonalBackgroundControls(
     noneOption.textContent = 'None (theme default)';
     backgroundSelect.append(noneOption);
 
+    for (const background of BUNDLED_USER_BACKGROUNDS) {
+      const option = document.createElement('option');
+      option.value = background.id;
+      option.textContent = `${background.label} (included)`;
+      backgroundSelect.append(option);
+    }
+
     for (const asset of assets) {
       const option = document.createElement('option');
       option.value = asset.id;
@@ -94,9 +105,10 @@ export function mountPersonalBackgroundControls(
       backgroundSelect.append(option);
     }
 
-    const hasActive = assets.some((asset) => asset.id === selected);
-    backgroundSelect.value = hasActive ? selected : BACKGROUND_NONE;
-    deleteBtn.hidden = !hasActive || selected === BACKGROUND_NONE;
+    const hasActivePersonal = assets.some((asset) => asset.id === selected);
+    const hasActiveBundled = isBundledUserBackgroundId(selected);
+    backgroundSelect.value = hasActivePersonal || hasActiveBundled ? selected : BACKGROUND_NONE;
+    deleteBtn.hidden = !hasActivePersonal;
   }
 
   async function refreshStorageHint(): Promise<void> {

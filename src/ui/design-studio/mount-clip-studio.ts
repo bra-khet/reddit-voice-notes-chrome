@@ -1,5 +1,6 @@
 import {
   backgroundIsBokeh,
+  getBundledUserBackground,
   listThemePresets,
   renderThemePreview,
   resolveAppearanceTheme,
@@ -869,23 +870,30 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     void refreshPreview();
   }
 
-  function applyLocalBackgroundLayout(layout: NormalizedUserBackgroundLayout): void {
+  function applyLocalBackgroundLayout(
+    layout: NormalizedUserBackgroundLayout,
+    customBackgroundId?: string | null,
+  ): void {
     if (!activePrefs) return;
+    const backgroundId = customBackgroundId === undefined
+      ? activePrefs.appearance.customBackgroundId ?? null
+      : customBackgroundId;
     // CHANGED: direct manipulation updates the local snapshot and only the RAF-critical consumers.
     // WHY: live capture and the hero must agree immediately without refreshing every subpanel/status widget.
     activePrefs = {
       ...activePrefs,
       appearance: {
         ...activePrefs.appearance,
+        customBackgroundId: backgroundId,
         backgroundScaleMode: layout.scaleMode,
         backgroundPosition: layout.position,
         backgroundLayout: layout,
       },
     };
     backgroundLayout.syncLayout(layout);
-    const backgroundId = activeCustomBackgroundId();
     backgroundDirect?.sync(backgroundId, layout);
     backgroundPrecisionDirect?.sync(backgroundId, layout);
+    studioRecorder.setCustomBackgroundId(backgroundId);
     studioRecorder.setUserBackgroundLayout(layout);
     syncProfileButton(activePrefs);
     refreshHeroPreview(layout);
@@ -1043,9 +1051,13 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   });
 
   const backgroundLayout = mountBackgroundLayoutControls(root, (patch, emitOptions) => {
-    invalidateInFlightSaves();
-    resetProfileUpdateConfirm();
-    applyLocalBackgroundLayout(patch.backgroundLayout);
+    // CHANGED: hover/focus preset auditions bypass persistence-generation invalidation.
+    // WHY: moving across the contact sheet must not cancel an unrelated preference save in flight.
+    if (!emitOptions.presetPreview) {
+      invalidateInFlightSaves();
+      resetProfileUpdateConfirm();
+    }
+    applyLocalBackgroundLayout(patch.backgroundLayout, patch.customBackgroundId);
     if (emitOptions.persist) void studioPersist(() => saveAppearancePreferences(patch));
   }, {
     onGestureStart: pushBackgroundLayoutUndo,
@@ -1117,10 +1129,13 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const backgroundDirectDeps = {
     async resolveImageSize(id) {
       if (backgroundSizeRequest?.id === id) return backgroundSizeRequest.promise;
-      const promise = getBackgroundAssetMeta(id).then((meta) => {
-        if (!meta?.width || !meta.height) return null;
-        return { width: meta.width, height: meta.height };
-      });
+      const bundled = getBundledUserBackground(id);
+      const promise = bundled
+        ? Promise.resolve({ width: bundled.width, height: bundled.height })
+        : getBackgroundAssetMeta(id).then((meta) => {
+          if (!meta?.width || !meta.height) return null;
+          return { width: meta.width, height: meta.height };
+          });
       backgroundSizeRequest = { id, promise };
       return promise;
     },

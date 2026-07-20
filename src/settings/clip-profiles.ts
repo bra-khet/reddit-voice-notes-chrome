@@ -44,7 +44,7 @@ export interface ClipProfile {
   name: string;
   themeId: string;
   barAlignment: BarAlignment;
-  /** ImageDB record id (`bg-…`) when this profile uses a personal background. */
+  /** Stable `bg-…` reference when this profile uses an uploaded or included background. */
   customBackgroundId?: string | null;
   backgroundScaleMode?: BackgroundScaleMode;
   backgroundPosition?: BackgroundImagePosition;

@@ -254,7 +254,7 @@ export class WaveformRenderer {
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }
 
-  /** ImageDB personal background id — hot-swaps during recording like theme (pretty-7b). */
+  /** Uploaded/included background reference — hot-swaps during recording like theme (pretty-7b). */
   setCustomBackgroundId(id: string | null | undefined): void {
     this.customBackgroundId = normalizeBackgroundAssetId(id);
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();

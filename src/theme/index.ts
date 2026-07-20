@@ -5,6 +5,7 @@ export * from './storage';
 export * from './color-utils';
 export * from './design-overrides';
 export * from './background-layout';
+export * from './background-layout-presets';
 export * from './audio-reactive';
 export * from './audio-reactive/overlays';
 export * from './audio-reactive/spectra';

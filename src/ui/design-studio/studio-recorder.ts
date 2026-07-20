@@ -71,6 +71,7 @@ export interface StudioRecorderHandle {
   /** Start an audition session (mic acquire → transport visible). */
   openAudition(): Promise<void>;
   isActive(): boolean;
+  setCustomBackgroundId(id: string | null): void;
   setUserBackgroundLayout(layout: UserBackgroundLayout): void;
   dispose(): void;
 }
@@ -319,6 +320,12 @@ export function mountStudioRecorder(
 
     isActive(): boolean {
       return active;
+    },
+
+    setCustomBackgroundId(id): void {
+      // CHANGED: a Phase 4 preset image hot-swaps into an already-open Studio audition.
+      // WHY: the audition canvas is captured live, so image and layout must preview as one recipe.
+      host?.session.setCustomBackgroundId(id);
     },
 
     setUserBackgroundLayout(layout): void {
