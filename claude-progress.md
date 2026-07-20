@@ -122,19 +122,26 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **Track A + Track C merged · Track B open**
+## v6.0 "Polish & Visual Maturity" — **Track B OPEN · A + C merged**
 
-Feature branches off `main@98c37ab` ancestry; roadmaps + ADRs from `.ignore/prep-v6.0.0/` via `/architecture-hardening`.
+Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `main@2b42db5`, 2026-07-20). Roadmaps + ADRs from `.ignore/prep-v6.0.0/` via `/architecture-hardening`.
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 · **not started**.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** (scaffold ready; Phase 0 next).
 
-**QA workspace (history + evidence):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
+**QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
-**Pivotal (Track A):** bars/background/effects paint at **record time**; bake only burns subtitles (I3). Caps: base/baked **40/40 MiB**. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented in `conway.ts`; not a merge blocker).
+**Pivotal:** bars/background/effects paint at **record time**; bake only burns subtitles (I3). Track B is Design-phase layout for the *next* recording (I1) — not post-capture re-composite. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual (A):** Conway long-horizon corner parking (documented in `conway.ts`; not a merge blocker).
 
-**Next:** Track B when ready · optional `6.0.0` tag + release notes · user-owned push.
+### Track B init — branch FF + QA scaffold (**DONE 2026-07-20**)
+
+- Fast-forwarded `feature/v6.0.0-background-panel-refactor` from stale `98c37ab` → `main@2b42db5` (no unique B commits lost).
+- Scaffolded [`qa/QA-6.0.0/track-b/`](qa/QA-6.0.0/track-b/) (README + checklist + evidence dirs) mirroring track-a / track-c process.
+- ADR-0008 Accepted; living docs flipped to Track B open.
+- **Next code:** Phase 0 `layout-core` — extend `UserBackgroundLayout`, promote `dim`, `customPosition` path, normalize guards, `test-background-layout.mjs` (zero visual change).
+
+**Next:** Phase 0 implementation · optional `6.0.0` tag + release notes after B · user-owned push.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

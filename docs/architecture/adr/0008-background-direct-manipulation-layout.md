@@ -1,9 +1,9 @@
 # ADR-0008: Background direct-manipulation layout (Design-phase)
 
-- **Status:** Proposed
-- **Date:** 2026-07-14
-- **Reflects branch/tag:** `feature/v6.0.0-background-panel-refactor` (from `main@98c37ab`, v5.11.0)
-- **Deciders:** v6 planning session (roadmap synthesis)
+- **Status:** Accepted
+- **Date:** 2026-07-14 (proposed) · **Accepted:** 2026-07-20 (Track B branch open / implementation track)
+- **Reflects branch/tag:** `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `main@2b42db5` post Track A + C; v5.11.0 package baseline)
+- **Deciders:** v6 planning session (roadmap synthesis) · Track B init (branch open)
 
 ## Context
 
@@ -33,7 +33,7 @@ Ship direct manipulation as a **Design-phase, pre-capture surface** on the Studi
 
 - **Positive:** tactile positioning with real hot-swap parity; dim/blur/blend/GIF controls with negligible per-frame cost and **no bake-size impact**; a reusable `interaction-utils.ts` seam for future editors; migration-safe (missing fields → legacy discrete + constant dim).
 - **Negative / accepted cost:** we deliberately do **not** build post-capture re-positioning or multi-format export; multi-aspect is a preview aid only. We accept re-implementing (not extracting) the ~30-line wheel/undo wiring rather than over-generalizing the timeline editor mid-v6.
-- **Follow-ups:** extension-points v1.16 (background layout v2 seam), design-studio.md background-layout section update, shared cividis tokens, 120 s blur+GIF size-QA case.
+- **Follow-ups:** extension-points bump (background layout v2 seam — map was **v3.21** / seams **v1.35** at Track A close), design-studio.md background-layout section update, 120 s blur+GIF size-QA case. Shared Cividis tokens already landed on Track A.
 
 ## References
 

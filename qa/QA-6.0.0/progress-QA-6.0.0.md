@@ -1,7 +1,7 @@
 # Progress — v6.0.0 QA
 
 **Living session file for this workspace only.**  
-**TODO ledger:** [`TODO-6.0.0.md`](TODO-6.0.0.md) · **Checklist:** [`track-a/qa-checklist.md`](track-a/qa-checklist.md)  
+**TODO ledger:** [`TODO-6.0.0.md`](TODO-6.0.0.md) · **Active checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md)  
 **Root pointers:** [`claude-progress.md`](../../claude-progress.md) · [`TODO.md`](../../TODO.md)
 
 Do not dump long QA narrative into the global progress file — update a short verdict + path there when a gate closes.
@@ -12,26 +12,40 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Branch** | `feature/v6.0.0-custom-styles-refactor` (stay on this branch for Track A QA) |
-| **Stable baseline** | v5.11.0 prefs IDB · tagged; push deferred |
-| **Track A roadmap** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) §9 QA matrix · §11 item 23 |
-| **Track B** | Not started · [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) |
-| **ADRs** | 0007 (core) · 0009 (registry Sparkle/Bubbles) · 0010 (Bubbles label / `bokeh` key) |
-| **Architecture** | map **v3.21** / I22 · seams **v1.35** · confidence **High** (Track A Pass E closed 2026-07-19/20) |
-| **Key product fact** | Bars + overlays paint at **record time** (`WaveformRenderer.drawFrame` → `captureStream`). Bake only burns subtitles (I3). Studio preview is **representative** (synthetic bands/energy); capture is **truly reactive**. |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` (FF to `main@2b42db5`) |
+| **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
+| **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
+| **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
+| **Track C** | Closed · agent gate PASS · merged |
+| **ADRs** | 0008 **Accepted** (Track B) · 0007 / 0009 / 0010 (Track A, landed) |
+| **Architecture** | map **v3.21** / I22 · seams **v1.35** · Track A confidence **High** |
+| **Key product fact** | Background + bars/overlays paint at **record time**. Bake only burns subtitles (I3). Track B is Design-phase layout for the *next* recording (I1). |
 
-**Proven at confidence close:**
+**Proven (closed tracks):**
 
-- Full curated catalog + Style Control Center + governor
-- Focused fixture browser QA (desktop + narrow; max-three; keyboard Detail; overflow fix)
-- Automated focused v6 set **226/226** (and full 57 Node suites through Conway land) · build PASS · tsc = 2 pre-existing subtitle diagnostics
-- Live capture / FPS / a11y matrix + 120 s size gates — **Pass E full PASS**
+- Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
+- Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Next outside this workspace:** Track B when ready · optional explicit **v6.0.0** package tag/release notes · push of `main` remains user-owned.
+**Next:** Track B Phase 0 (types + normalize + compute; zero visual change) · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B init: branch FF + QA scaffold
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **HEAD:** `2b42db5` (identical to `main` after FF)  
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) · **README:** [`track-b/README.md`](track-b/README.md)
+
+**Done:**
+
+- Fast-forwarded stale feature tip `98c37ab` → current `main` (`2b42db5`, post Track A merge + Track C merge). No unique Track B commits existed on the old tip.
+- Checked out the feature branch for development.
+- Scaffolded `track-b/` to match track-a / track-c process: committed `README.md` + `qa-checklist.md` (roadmap §8 matrix); created gitignored `logs/` · `screenshot/` · `artifacts/`.
+- Flipped workspace ledger / README / this progress file to **Track B open**; short root `TODO.md` / `claude-progress.md` pointers.
+- Roadmap header + §10 updated; ADR-0008 **Proposed → Accepted** (branch open / implementation track).
+
+**Not started:** any product code. Next code sprint = **Phase 0** (`layout-core`): extend `UserBackgroundLayout`, promote `dim`, `customPosition` path in `computeImageDrawOffset`, full normalize guards, `test-background-layout.mjs`. Acceptance bar = **zero visual change** for existing users.
 
 ### 2026-07-19 — Track C popup refresh: implementation + agent QA gate PASS · merged
 
