@@ -6,13 +6,13 @@
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
-**Date:** 2026-07-20 (Phase 0+1 land + Phase 1 operator QA)  
+**Date:** 2026-07-20 (Phase 0–2 landed; Phase 1 operator QA; Phase 2 operator pending)<br>
 **Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (as of Phase 0+1):** Phase 0 `test-background-layout.mjs` **10/10** · Phase 1 `test-background-direct-manipulation.mjs` **6/6** · Phase 3 `test-interaction-utils.mjs` (not yet) · `npm run build` **PASS** · `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
+**Automated (as of Phase 0–2):** Phase 0 `test-background-layout.mjs` **10/10** · Phase 1 `test-background-direct-manipulation.mjs` **6/6** · Phase 2 `test-background-precision.mjs` **5/5** · prefs storage **12/12** · Phase 3 `test-interaction-utils.mjs` (not yet) · `npm run build` **PASS** · `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -74,11 +74,11 @@
 
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
-| 0 | Pre-flight | ■ | Phase 1 operator path |
-| 1 | Automated / Node (layout + interaction utils) | ▲ | layout 10/10 · direct-manip 6/6 · build PASS · interaction-utils Phase 3 |
+| 0 | Pre-flight | ▲ | Phase 1 operator path PASS · Phase 2 build reload pending |
+| 1 | Automated / Node (layout + interaction utils) | ▲ | layout 10/10 · direct-manip 6/6 · precision 5/5 · build PASS · interaction-utils Phase 3 |
 | 2 | Phase 0 migration + zero visual change | ■ | Node + design intent; panel still legacy 9-grid |
 | 3 | Direct manipulation (drag / focal / reset) | ■ | Operator Phase 1 QA PASS — hero only |
-| 4 | Precision widget + bidirectional sync | ☐ | Phase 2+ |
+| 4 | Precision widget + bidirectional sync | ▲ | Phase 2 code + automated gate PASS · operator UI pending |
 | 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ☐ | Phase 3+ |
 | 6 | Properties / effects / GIF | ☐ | Phase 5+ |
 | 7 | Presets + eye-dropper hand-off | ☐ | Phase 4–5 |
@@ -88,7 +88,7 @@
 | 11 | a11y (keyboard / ARIA / reduced-motion) | ☐ | Phase 7 |
 | 12 | Product smoke + Classic / default no-regression | ☐ | |
 
-**Overall:** ▲ partial (Phase 0+1 closed; full Track B merge gate open)  
+**Overall:** ▲ partial (Phase 0–2 code complete; Phase 2 operator + full Track B merge gate open)
 
 **Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
 
@@ -99,10 +99,10 @@
 - [x] Branch is `feature/v6.0.0-background-panel-refactor` (or equivalent Track B build loaded)
 - [x] Extension reloaded from `.output/chrome-mv3-dev/` (or prod); no red errors on load (SW / offscreen)
 - [x] Design Studio opens; background panel still **hidden** until a personal background is selected
-- [x] Selecting / uploading a custom background reveals the layout panel (existing grid baseline; Phase 1 does **not** remodel this submenu)
+- [ ] Selecting / uploading a custom background reveals the Phase 2 precision mini frame plus existing fit/grid controls *(re-check on new build)*
 - [x] Evidence folders ready: `logs/` · `screenshot/` · `artifacts/`
 
-**Notes:** Operator Phase 1 path 2026-07-20. Side panel intentionally still 9-grid until Phase 2+.
+**Notes:** Operator Phase 1 path passed 2026-07-20. Reload and check the new Phase 2 precision frame before closing pre-flight.
 
 
 ---
@@ -113,12 +113,13 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 - [x] `node scripts/test-background-layout.mjs` PASS (normalize defaults/clamps, blend allow-list, `customPosition`↔discrete, offset math) — **Phase 0 · 10/10**
 - [x] `node scripts/test-background-direct-manipulation.mjs` PASS (pan/focal drag math) — **Phase 1 · 6/6**
+- [x] `node scripts/test-background-precision.mjs` PASS (±0.01/±0.05 axis nudges, clamps, field preservation) — **Phase 2 · 5/5**
 - [ ] `node scripts/test-interaction-utils.mjs` PASS (sliderToScale round-trip, sticky-snap hysteresis, `snapPosition`, `clamp01`) — **Phase 3**
-- [x] Focused Track B Node set green (layout 10 + direct-manip 6) — full 57-suite sweep deferred to later phase/merge
+- [x] Focused Track B Node set green (layout 10 + direct-manip 6 + precision 5) — full 57-suite sweep deferred to later phase/merge
 - [x] `npm run build` PASS
-- [ ] `npm run compile` — only the 2 pre-existing subtitle diagnostics *(re-confirm at merge; not re-run this docs sprint)*
+- [x] `npm run compile` — only the 2 pre-existing subtitle diagnostics
 
-**Notes:** Re-checked layout + direct-manip + build during living-docs catch-up (2026-07-20).
+**Notes:** Phase 2 agent gate 2026-07-20: focused **21/21**, prefs storage **12/12**, production build PASS.
 
 
 ---
@@ -150,14 +151,14 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 ---
 
-## 4 · Precision widget (Phase 2+)
+## 4 · Precision widget (Phase 2)
 
 - [ ] Mini preview frame tracks hero layout
 - [ ] Drag on mini frame updates hero + prefs
 - [ ] Numeric nudges (±0.01 / ±0.05) work and stay in [0,1]
 - [ ] Bidirectional sync: hero drag → widget numbers; widget → hero
 
-**Notes:**
+**Notes:** Implemented in `b129713`; automated nudge/clamp contract 5/5. Leave UI rows open until operator checks the built extension.
 
 
 ---

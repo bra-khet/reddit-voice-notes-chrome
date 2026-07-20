@@ -1,7 +1,7 @@
 # TODO — v6.0.0 QA workspace
 
-**Workspace:** [`qa/QA-6.0.0/`](./) · **Progress:** [`progress-QA-6.0.0.md`](progress-QA-6.0.0.md)  
-**Active branch:** `feature/v6.0.0-background-panel-refactor` (Phase 0 `08a2de5` · Phase 1 `1e3118f`)  
+**Workspace:** [`qa/QA-6.0.0/`](./) · **Progress:** [`progress-QA-6.0.0.md`](progress-QA-6.0.0.md)<br>
+**Active branch:** `feature/v6.0.0-background-panel-refactor` (Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713`)<br>
 **Baseline stable:** v5.11.0 package · Track A + Track C merged  
 **Globals (pointers only):** root [`TODO.md`](../../TODO.md) · [`claude-progress.md`](../../claude-progress.md)
 
@@ -12,10 +12,10 @@
 | Track | Status | Roadmap | ADR |
 |-------|--------|---------|-----|
 | **A — audio-reactive visuals** | **Confidence PASS (Pass E) · merged** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
-| **B — background layout** | **OPEN · Phase 0+1 DONE · operator Phase 1 QA PASS · Phase 2 next** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
+| **B — background layout** | **OPEN · Phase 0–2 DONE · Phase 1 operator PASS · Phase 2 operator QA pending · Phase 3 next** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
 | **C — popup UI refresh** | **Agent QA gate PASS · merged to `main`** · §8 residual optional ([`track-c/qa-checklist.md`](track-c/qa-checklist.md)) | [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md) | none — presentational under 0007 tokens |
 
-**Automated (Track B Phase 0+1 re-check):** `test-background-layout.mjs` **10/10** · `test-background-direct-manipulation.mjs` **6/6** · `npm run build` **PASS**. Full 57-suite re-run not required for this docs closeout.
+**Automated (Track B Phase 0–2):** layout **10/10** · direct-manipulation **6/6** · precision **5/5** · prefs storage **12/12** · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics.
 
 **Architecture at Track A confidence close:** map **v3.21** / I22 · extension-points **v1.35** · package version remains **5.11.0** until an explicit v6 ship/tag. Track B architecture MINOR bumps deferred to merge closeout (§9).
 
@@ -38,14 +38,14 @@
 
 - [x] **Phase 0** — types + `normalizeUserBackgroundLayout` + `customPosition` offset path + field `dim` + Node `test-background-layout.mjs` (zero visual change) · commit `08a2de5`
 - [x] **Phase 1** — direct canvas drag + focal affordances on hero preview · commit `1e3118f` · **operator QA PASS** (2026-07-20)
-- [ ] **Phase 2** — precision widget + bidirectional sync
+- [x] **Phase 2** — precision mini-preview + shared drag controller + X/Y ±0.01/±0.05 nudges + bidirectional hero/widget sync · commit `b129713` · operator §4 QA pending
 - [ ] **Phase 3** — `interaction-utils.ts` (zoom / sticky snap / undo)
 - [ ] **Phase 4** — presets row + live hover preview
 - [ ] **Phase 5** — properties/effects + eye-dropper
 - [ ] **Phase 6** — multi-aspect crop guides + compare
 - [ ] **Phase 7** — keyboard / ARIA / variants + confidence QA
 
-**Immediate next:** Phase 2 `precision-widget` (side panel still legacy until then — expected).
+**Immediate next:** operator-check Phase 2 checklist §4, then Phase 3 `interaction-utils` (zoom / sticky snap / undo).
 
 ### Phase gates (partial)
 
@@ -54,6 +54,8 @@
 | Phase 0 automated (layout math) | **PASS** 10/10 |
 | Phase 1 automated (drag math) | **PASS** 6/6 |
 | Phase 1 operator UI (hero drag) | **PASS** (user) |
+| Phase 2 automated (precision nudge math) | **PASS** 5/5 |
+| Phase 2 operator UI (mini frame + bidirectional sync) | **open** |
 | Full Track B checklist merge gate | **open** (Phase 2–7 + parity/size still ahead) |
 
 ### Non-negotiables (Track B)
@@ -89,4 +91,4 @@ Full section checklist remains in git history / prior ledger revisions; verdict 
 - ✅ Track A Phase 0–4 full catalog + Style panel + governor + fixture QA + Pass A–E live confidence
 - ✅ Track C popup-only Cividis skin + elevated restart caution + tokens guard + fixture + agent gate
 - ✅ Track B branch FF + QA scaffold
-- ✅ Track B Phase 0 layout core + Phase 1 hero direct drag (operator Phase 1 QA PASS)
+- ✅ Track B Phase 0 layout core + Phase 1 hero direct drag (operator Phase 1 QA PASS) + Phase 2 precision widget (operator QA pending)

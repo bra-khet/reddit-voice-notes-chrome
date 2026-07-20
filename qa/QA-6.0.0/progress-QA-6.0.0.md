@@ -12,7 +12,7 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` |
 | **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
 | **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
 | **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
@@ -26,13 +26,31 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0+1 landed · operator Phase 1 QA **PASS** · side panel still legacy until Phase 2+ · full merge gate still open.
+**Track B in flight:** Phase 0–2 landed · operator Phase 1 QA **PASS** · Phase 2 precision-widget operator QA pending · full merge gate still open.
 
-**Next:** Track B Phase 2 (precision widget + bidirectional sync) · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
+**Next:** Track B Phase 2 operator QA, then Phase 3 (zoom / snap / undo) · optional explicit **v6.0.0** package tag after B · push of `main` remains user-owned.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 2 precision widget implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `b129713`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §4 remains open for operator UI confirmation
+
+**Product state:**
+
+- Background subpanel's existing `renderThemePreview` frame is now the interactive precision mini-preview; no parallel renderer or capture layer.
+- Hero and mini frame share `background-direct-manipulation.ts` pointer math, RAF coalescing, ImageDB dimensions, and debounced persistence.
+- X/Y readouts update bidirectionally; explicit ±0.01 / ±0.05 buttons clamp through `normalizeUserBackgroundLayout` and immediately update hero + active audition.
+- Other Studio saves flush both positioning surfaces before profile/style snapshots, preventing stale layout capture.
+
+**Automated:** layout **10/10** · direct-manip **6/6** · precision **5/5** · prefs storage **12/12** · production build **PASS** · compile only the same 2 pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Architecture:** existing Design-phase Background Layout seam only; no context/message/store/signal/dependency/layer/version change. Map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Next:** operator §4 mini-frame/bidirectional smoke, then Phase 3 `interaction-utils.ts` (zoom / sticky snap / undo).
 
 ### 2026-07-20 — Track B living-docs catch-up (Phase 0+1 + operator Phase 1 QA PASS)
 
