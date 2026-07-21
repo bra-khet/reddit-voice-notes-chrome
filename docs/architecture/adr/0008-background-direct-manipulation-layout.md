@@ -1,8 +1,8 @@
 # ADR-0008: Background direct-manipulation layout (Design-phase)
 
 - **Status:** Accepted
-- **Date:** 2026-07-14 (proposed) · **Accepted:** 2026-07-20 (Track B branch open / implementation track) · **Amended:** 2026-07-20 (Phase 5 blend plate; Phase 6 framing/live compare; Phase 7 transient variants/a11y)
-- **Reflects branch/tag:** `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `main@2b42db5` post Track A + C; v5.11.0 package baseline)
+- **Date:** 2026-07-14 (proposed) · **Accepted:** 2026-07-20 (Track B branch open / implementation track) · **Finalized:** 2026-07-20 (full operator QA PASS; merged to `main@7d1c649`)
+- **Reflects branch/tag:** `main@7d1c649` after `feature/v6.0.0-background-panel-refactor` merge; package remains v5.11.0 pending explicit v6 release
 - **Deciders:** v6 planning session (roadmap synthesis) · Track B init (branch open)
 
 ## Context
@@ -33,7 +33,7 @@ Ship direct manipulation as a **Design-phase, pre-capture surface** on the Studi
 
 - **Positive:** tactile positioning with real hot-swap parity; dim/blur/blend/plate/Holo/GIF controls with bounded Canvas 2D cost and **no bake-size pipeline impact**; responsive focusable framing with numeric announcements and a cheap next-take A/B workflow; a reusable `interaction-utils.ts` seam for future editors; migration-safe (missing fields → legacy discrete + constant dim + legacy plate).
 - **Negative / accepted cost:** we deliberately do **not** build post-capture re-positioning or multi-format export; multi-aspect is a preview aid only. We accept re-implementing (not extracting) the ~30-line wheel/undo wiring rather than over-generalizing the timeline editor mid-v6.
-- **Follow-ups:** extension-points bump (background layout v2 seam — map was **v3.21** / seams **v1.35** at Track A close) and design-studio.md background-layout section update at Track B merge. The required 120 s blur+GIF size case passed at 23 MiB base / 29 MiB baked. Shared Cividis tokens already landed on Track A.
+- **Closeout:** Background Layout v2 is registered in architecture map **v3.22**, extension points **v1.37**, and `docs/design-studio.md` §5. The full operator checklist passed; focused automation is 89/89; the required 120 s blur+GIF case passed at 23 MiB base / 29 MiB baked. The final UI retires the redundant Fit/Fill + 3×3 groups while preserving their normalized migration fields.
 
 ## References
 

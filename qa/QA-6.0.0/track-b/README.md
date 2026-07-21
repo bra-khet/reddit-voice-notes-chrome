@@ -1,8 +1,8 @@
-# Track B — background layout QA (**open · Phase 0–7 DONE**)
+# Track B — background layout QA (**closed · full PASS · merged**)
 
-**Status:** **OPEN** — Phase 0–7 landed; **operator Phase 1–6 + size/parity/a11y baseline PASS**; Phase 7 presentation and remaining product smoke closeout remain<br>
-**Branch:** `feature/v6.0.0-background-panel-refactor`  
-**Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` · Phase 6 `e7346ca` (baseline was `main@2b42db5`)<br>
+**Status:** **CLOSED — full operator checklist PASS; merged to `main` at `7d1c649`**<br>
+**Branch:** `feature/v6.0.0-background-panel-refactor` (merged; final implementation `bdae9ab`)
+**Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` · Phase 6 `e7346ca` · Phase 7 `3c18b42` · final presentation `7095452` / `bdae9ab`<br>
 **Baseline package:** v5.11.0 · Track A confidence PASS · Track C agent gate PASS  
 **Roadmap:** [`docs/v6.0.0-background-panel-refactor.md`](../../../docs/v6.0.0-background-panel-refactor.md)  
 **ADR:** [0008 — background direct-manipulation layout](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
@@ -11,7 +11,7 @@
 ```
 track-b/
   README.md           # this file
-  qa-checklist.md     # committed gate (Phase 0–7 partial; final product closeout open)
+  qa-checklist.md     # committed full PASS gate
   logs/               # gitignored evidence
   screenshot/         # gitignored evidence
   artifacts/          # gitignored evidence (size/parity packets when needed)
@@ -25,16 +25,16 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 
 | Phase | Status | What you should see |
 |-------|--------|---------------------|
-| **0** layout-core | **DONE** | Under the hood only — nested layout, normalize, draw path. Old 9-grid still the side panel. |
+| **0** layout-core | **DONE** | Under the hood only — nested layout, normalize, draw path. The old 9-grid remained during Phase 0; final closeout retired its redundant UI while preserving migration fields. |
 | **1** direct-drag | **DONE · operator QA PASS** | Click/drag personal background on the **main live preview**. |
 | **2** precision-widget | **DONE · operator behavior PASS** | Background subpanel mini frame, X/Y readouts, and ±0.01/±0.05 nudges sync with hero. |
 | **3** interaction-utils | **DONE · operator QA PASS** | Spatial X/Y console, single/double chevrons, physical sliders, cursor-anchored zoom, sticky guides, caption-safe lock, and isolated undo/redo. |
 | **4** presets | **DONE · operator QA PASS** | Four Aurora/Warm Glow image-layout recipes; hover/focus auditions without saving; selection + Apply persists. Capture now restores and locks auditions before recording. |
 | **5** properties/effects | **DONE · operator PASS** | Darkroom effects/GIF, recorder no-flash authority, added blends/Holo, six-source solid blend plate, and hero+precision canvas sampling. |
 | **6** framing aids | **DONE · operator PASS** | Native/1:1/9:16 crop lab, independent thirds, live current-look-minus-media compare, hard preset exclusion, and decode-safe recording restore. |
-| **7** polish/QA | **DONE · presentation recheck** | Responsive Position Preview; focused-frame coarse/fine arrows, +/- zoom and Esc; numeric ARIA/live status; session-only next-take A/B framing. |
+| **7** polish/QA | **DONE · operator PASS** | Responsive Position Preview; focused-frame coarse/fine arrows, +/- zoom and Esc/icon Center; numeric ARIA/live status; session-only next-take A/B framing. Redundant legacy sizing/position groups retired. |
 
-**Automated (through Phase 7):** focused layout/interaction/UI set **88/88** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate: **23 MiB base / 29 MiB baked — PASS**.
+**Automated (final):** focused layout/interaction/UI set **89/89** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate: **23 MiB base / 29 MiB baked — PASS**.
 
 ## Scope reminder
 
@@ -59,8 +59,8 @@ Background is painted at **record time** (`drawImageBackground` → `captureStre
 | **4** | Presets row + live hover preview | **DONE** `1166d51` · operator QA PASS; recording guard in `16e3dd0` |
 | **5** | Properties/effects + eye-dropper | **DONE** `16e3dd0` + follow-ups · operator PASS |
 | **6** | Multi-aspect crop guides + compare | **DONE** `e7346ca` + live-compare follow-up · operator PASS |
-| **7** | Keyboard, ARIA, variants, confidence QA | **DONE** this sprint · presentation recheck |
+| **7** | Keyboard, ARIA, variants, confidence QA | **DONE · operator PASS** `3c18b42` + final presentation follow-ups |
 
-**Immediate next:** visually recheck responsive Position Preview + A/B + live announcement, then finish saved-profile/identity/Classic/popup product smoke and merge closeout.
+**Closeout:** every checklist row passed, including saved-profile load, identity hot-swap, Classic/default, popup coherence, parity, accessibility, and the final Center/precision presentation. Next work is the explicit v6.0.0 release/version/tag sprint; package remains 5.11.0 here.
 
 Workspace ledger: [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · session log: [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md).

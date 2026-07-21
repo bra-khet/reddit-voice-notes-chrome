@@ -1,7 +1,7 @@
 # Progress — v6.0.0 QA
 
 **Living session file for this workspace only.**  
-**TODO ledger:** [`TODO-6.0.0.md`](TODO-6.0.0.md) · **Active checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md)  
+**TODO ledger:** [`TODO-6.0.0.md`](TODO-6.0.0.md) · **Closed Track B checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md)
 **Root pointers:** [`claude-progress.md`](../../claude-progress.md) · [`TODO.md`](../../TODO.md)
 
 Do not dump long QA narrative into the global progress file — update a short verdict + path there when a gate closes.
@@ -12,13 +12,13 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` · Phase 6 `e7346ca` |
-| **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
+| **Current branch** | `main`; Track B merge `7d1c649` · final implementation `bdae9ab` |
+| **Stable baseline** | v5.11.0 package · Tracks A/B/C merged · push deferred |
 | **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
 | **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
 | **Track C** | Closed · agent gate PASS · merged |
 | **ADRs** | 0008 **Accepted** (Track B) · 0007 / 0009 / 0010 (Track A, landed) |
-| **Architecture** | map **v3.21** / I22 · seams **v1.35** · Track A confidence **High** (B map bumps at merge) |
+| **Architecture** | map **v3.22** / I22 · seams **v1.37** · Track B registered as Background Layout v2 |
 | **Key product fact** | Background + bars/overlays paint at **record time**. Bake only burns subtitles (I3). Track B is Design-phase layout for the *next* recording (I1). |
 
 **Proven (closed tracks):**
@@ -26,13 +26,28 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–7 landed · operator Phase 1–6 + real blur/GIF size, preview→record→bake parity, and a11y baseline **PASS** · final Phase 7 presentation/product closeout open.
+**Track B closed:** Phase 0–7 + final presentation landed · **all operator checklist items PASS** · merged to `main`.
 
-**Next:** (1) visually check the resized Position Preview + next-take A/B flow · (2) optionally listen to the polite X/Y/zoom announcement · (3) close saved-profile/identity/Classic/popup product smoke · package stays 5.11.0.
+**Next:** explicit v6.0.0 package/version, release notes, final release build, and tag decision. Package stays 5.11.0 until that sprint.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B full operator PASS · final control refinement · merged
+
+**Feature tip:** `bdae9ab` · **Merge:** `main@7d1c649` · **Verdict:** ■ PASS, blockers none<br>
+**Trigger:** operator reported every remaining checklist item PASS and requested the last precision-control presentation cleanup.
+
+- Moved the position-only Center reset out of Next-take A/B and into the precision stage’s lower-right axis corner. The new path-only `center-frame-32.svg` uses four inward arrows plus a focal target; the icon button has one explicit accessible name and tooltip while retaining the existing undo/normalize/safe-text behavior.
+- Removed the redundant legacy **Image sizing** Fit/Fill and **Image position** 3×3 control groups, their listeners, and dead CSS. Existing `scaleMode` / discrete `position` fields remain normalized and mirrored in emitted preferences, so saved profiles and migration fallback are unchanged.
+- Operator closed the resized preview, A/B flow, saved-profile load, identity hot-swap, Classic/default no-background, popup coherence, keyboard/scaling/reset, contrast/reduced-motion, preview→record→bake parity, and all prior Phase 1–6 rows.
+- Architecture hardening registers the additive **Background Layout v2** seam under Accepted ADR-0008. No new context, message, store, signal, dependency, layer, preference version, or post-capture renderer. Map **v3.22** / extension points **v1.37**.
+- Docs-archiving Refresh #4 preserved the complete root progress log at `archive/progress/claude-progress-through-v6.0.0-tracks.md`, slimmed the living root progress file, and updated the living history index.
+
+**Automated:** layout 13 · direct manipulation 10 · precision 5 · interaction utils 6 · control UI **15** · presets 5 · sampler 5 · cue measurement 7 · prefs 12 · Holo 4 · recorder state 3 · blend plate 4 = focused **89/89**. UI tokens PASS · visual-size logic **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Release posture:** Track B is merged; package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** pending a separate explicit v6.0.0 release/tag sprint. Push remains user-owned.
 
 ### 2026-07-20 — Track B Phase 7 keyboard/ARIA/variants + responsive precision frame implemented
 

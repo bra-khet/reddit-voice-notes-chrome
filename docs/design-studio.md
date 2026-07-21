@@ -1,9 +1,9 @@
 # Design Studio — semantic framework & architecture reference
 
-**Status:** Canonical source of truth for Design Studio behavior, refreshed through the **v6.0 Track A Phase 4 Style Control Center integration** (focused responsive browser QA PASS; real-capture FPS/heavy-artifact matrix remains open). The v3.7 shell history remains below; current capture/edit/bake/trim + post-trim voice semantics win.
+**Status:** Canonical source of truth for Design Studio behavior, refreshed through the **merged v6.0 Tracks A/B/C** (Track B full operator QA PASS; explicit v6 package/tag pending). The v3.7 shell history remains below; current capture/edit/bake/trim/background + post-trim voice semantics win.
 **Audience:** UI refresh, new features within existing sections, and onboarding.  
-**Stable tag:** `v5.10.0` · **Restore:** `git checkout v5.10.0 && npm install && npm run dev`
-**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.21, seams v1.35, backlog v2.13.
+**Stable tag:** `v5.11.0` · **Restore:** `git checkout v5.11.0 && npm install && npm run dev`
+**Architecture:** [`docs/architecture/README.md`](architecture/README.md) — map v3.22, seams v1.37, backlog v2.13.
 
 ---
 
@@ -292,14 +292,28 @@ Style changes call `applyLocalDesignOverrides` → immediate preview refresh. Id
 | Control | Data field | Persist path |
 |---------|------------|--------------|
 | Upload / pick / delete personal image | `appearance.customBackgroundId` (`bg-…`) | `saveAppearancePreferences` + ImageDB |
-| Scale mode | `backgroundScaleMode` (`fit` / `fill`) | `saveAppearancePreferences` |
-| Position grid (3×3) | `backgroundPosition` | `saveAppearancePreferences` |
+| Hero + precision-frame drag; axis sliders/nudges; icon Center | `backgroundLayout.customPosition {x,y}` | normalized layout → immediate preview/recorder hot-swap → debounced appearance save |
+| Custom zoom / Ctrl-or-Cmd wheel | `backgroundLayout.manualScale` | same normalized layout path |
+| Snap, guides, Clear captions, layout undo/redo | snap/guides/undo page-local; `lockToSafeText` persisted | Studio controller; layout history stays separate from subtitle undo |
+| Four included framing recipes | bundled background ID + normalized layout recipe | non-destructive hover/focus audition; explicit Apply persists |
+| Dim, blur, blend, solid plate, Holo | `dim`, `blur`, `blendMode`, `blendPlateSource`, `blendPlateColor`, `holo` | existing personal-image draw slot |
+| GIF speed / audio response | `gifSpeed`, `gifReactToAudio` | existing animated-background clock; reduced motion freezes |
+| Eye-dropper | custom solid plate color | hero or precision canvas sample → shared color picker/layout save |
+| 16:9 / 1:1 / 9:16 framing + thirds | page-local DOM guide state | never persisted or captured |
+| Theme only compare | transient `customBackgroundId:null` preview | never persisted; exact committed media restored before capture |
+| Next-take A/B | one background-identity-scoped layout snapshot | Studio page memory only; Swap applies through the normal saved-layout path |
+
+Legacy flat `backgroundScaleMode` / `backgroundPosition` and nested `scaleMode` / `position` remain normalized and emitted for existing profiles and preset compatibility, but their redundant Fit/Fill and 3×3 control groups are retired.
 
 ### 5.2 Semantic model
 
 - **Theme background** — from active clip style; no `customBackgroundId`.
 - **Personal background** — blob in `rvnImageDb`; prefs hold id only. Images (JPEG/PNG/WebP) and **animated GIFs** share the same id/storage/relay; an animated GIF loops on the canvas (decoded to frames via WebCodecs `ImageDecoder`).
 - **Animated GIF = canvas-native, no fidelity gap** — frames advance in the same RAF that feeds `captureStream`, so preview = recorder = exported MP4. No FFmpeg/bake path. Reduced motion freezes to the first frame everywhere. See `docs/gif-animation-design-implementation.md`.
+- **Design-phase only** — direct manipulation arranges the next recording. The background is painted into the record-time canvas; subtitle bake never re-renders or repositions it (I1/I3/I22).
+- **Normalized layout** — `normalizeUserBackgroundLayout` guards every field. `customPosition` drives `computeImageDrawOffset`; absent nested values fall back to migration-safe discrete anchors and the historical dim constant.
+- **Personal-image slot order** — optional solid plate → blended/blurred image (+ opt-in Holo passes) → dim. Preview and recorder call the same Canvas 2D draw code; no fourth compositing layer exists.
+- **Transient aids** — crop/thirds remain DOM-only. Theme-only keeps the current animated theme/style while hiding personal media and is mutually exclusive with preset audition. Next-take A/B retains one layout in page memory only.
 - **Reconcile** — `reconcileBackgroundPreferences` strips missing ids on boot.
 
 ### 5.3 WYSIWYG relay (recorder)
@@ -313,15 +327,24 @@ Recorder (reddit.com) ──MSG_GET_BACKGROUND_BLOB_*──► background ──
 
 Missing blob → theme fallback; never blocks recording.
 
+During an open Studio recording session, synchronous local media/layout remains authoritative so an unchanged-ID async preference reload cannot paint one stale frame. Any Theme-only/preset audition is restored and decode-gated before `MediaRecorder.start()`.
+
 ### 5.4 Module map
 
 | File | Role |
 |------|------|
-| `background-layout-controls.ts` | Fit/fill + position grid |
+| `background-layout.ts` | additive layout type defaults/normalization, migration, offset/size math, GIF rate, blend plate resolution |
+| `backgrounds.ts` | shared preview/record personal-image slot (plate → treatments/image → dim) |
+| `background-layout-controls.ts` | precision instrument, presets/treatments/framing/compare/A-B, ARIA/live status |
+| `background-direct-manipulation.ts` | shared hero + precision drag/wheel/keyboard controller |
+| `background-precision.ts` / `interaction-utils.ts` | nudge/announcement and domain-neutral zoom/snap/safe-band math |
+| `background-layout-presets.ts` | four bundled image/layout recipes and stable bundled IDs |
+| `background-color-sampler.ts` | rendered-canvas color sample geometry |
 | `src/ui/popup/personal-background.ts` | Shared upload UI (mounted in Studio) |
 | `src/storage/image-db.ts` | Blob CRUD |
 | `src/storage/animated-background.ts` | GIF frame decode + `frameAt` loop timing |
 | `src/storage/background-refs.ts` | Reconcile + prune |
+| `recorder-background-state.ts` / `voice-recorder.ts` | recording-session layout/media authority and capture-start restore gate |
 
 ---
 
@@ -887,7 +910,7 @@ reddit.com).
 | ~~Trim raw capture WebM~~ | Voice / Timeline | **Done v5.10.0** (QA PASS 2026-07-12): [`v5.10.0-raw-trim-apply-roadmap.md`](v5.10.0-raw-trim-apply-roadmap.md) — audio-only WebM cut + re-stamp; post-trim voice re-apply restored; raw-leg failure → honest v5.9 lock |
 | Artifact persistence acknowledgment | Bake / State | Architecture H13: store save must return persisted meta or throw before stamp/signal |
 | ~~Recovery voice provenance~~ | Capture / Recovery | **Done H8 (code + browser QA PASS):** `captureVoiceIntent` is durable before transcode; recovery reuses it and promotes `TakeVoiceStamp`. Only legacy drafts use current prefs, with a visible ready-deck note. User confirmed A→B hard-reload + mutate/nuke prefs still recovers capture-time voice. |
-| v6 visual maturity | Style / Background | **In progress:** Track A Phase 4 Style Control Center + shared performance governor are integrated over the complete 6-spectrum / 7-overlay / 7-stackable catalog. Focused responsive browser QA and 226/226 registry/render/control checks pass; the real-capture FPS and per-heavy-preset 120-second artifact matrix remains open. Track B background direct manipulation remains planned. |
+| ~~v6 visual maturity~~ | Style / Background | **Done 2026-07-20:** Tracks A/B/C merged. Track B full operator checklist PASS; focused 89/89; blur+GIF 23/29 MiB; ADR-0008 + Background Layout v2 seam. Explicit v6 package/tag remains a separate release sprint. |
 | Font picker | Subtitles | Deferred |
 | Slider drops pointer on vertical drag-off | Shell / Sliders | `physical-slider.ts` loses tracking when the cursor is pulled below the row (mouse + touch); thumb stops following. Confirmed polish-v5, deferred. Likely a `setPointerCapture` / `pointermove` host-scope issue |
 | Card icons fixed-amber (not accent-tinted) | Shell | Cividis ramp rides title/divider/chip/halo; full icon tint needs `<img>`→CSS-mask in `studio-v4-shell.ts`. Deferred (polish-v5) |
@@ -918,8 +941,8 @@ reddit.com).
 | `docs/v5.9.0-trim-apply-roadmap.md` | Atomic trim apply as-built + QA |
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | Raw WebM trim + post-trim voice re-apply as-built + QA |
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
-| `docs/v6.0.0-custom-styles-refactor.md` | **v6 (in progress)** audio-reactive visuals; Phase 4 Style panel/governor integration is complete over six spectra, seven overlay families, and seven stackable IDs; live-capture FPS/heavy-artifact QA follows (ADR-0007/0009/0010 Accepted) |
-| `docs/v6.0.0-background-panel-refactor.md` | **v6 (planned)** direct-manipulation background layout — Design-phase; `dim`→field, `customPosition` (ADR-0008) |
+| `docs/v6.0.0-custom-styles-refactor.md` | **v6 merged** audio-reactive visuals: six spectra, seven overlay families, seven stackables, Style Control Center/governor (ADR-0007/0009/0010) |
+| `docs/v6.0.0-background-panel-refactor.md` | **v6 merged · full QA PASS** direct-manipulation Background Layout v2 — Design-phase; normalized positioning/treatments/framing (ADR-0008) |
 | `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
 | `docs/bug-archive.md` | Full bug write-ups |
 | `archive/docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
@@ -1012,7 +1035,7 @@ src/workflow/
 ## Resume in a new chat (carry-forward)
 
 ```
-Design Studio canonical semantics refreshed through v5.11.0 prefs-IDB implementation (browser QA pending).
+Design Studio canonical semantics refreshed through merged v6 Tracks A/B/C (package remains 5.11.0 pending explicit release).
 Primary surface: native capture + live canvas, voice audition/re-apply, List/Timeline cues,
 browser-composite subtitle bake with verified partial splice, atomic trim + raw WebM cut, take deck/download.
 Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18; rawAudio tri-state.
@@ -1021,6 +1044,7 @@ rvnUserPrefs.v2 is signal-only; Reddit content scripts relay prefs DB access thr
 Messages: capture transcode/STT and FFmpeg fallbacks use existing pipelines; Studio progress is direct runtime broadcast.
 H13 + H14/BUG-038 merged (2026-07-12, browser QA PASS): artifacts stamp only after acknowledged persist; background owns terminal transcript delivery after tab close.
 H8 resolved + browser QA PASS: captureVoiceIntent survives an interrupted first transcode; recovery reuses it and stamps the result even if resume-time prefs were mutated/nuked. Legacy drafts disclose current-prefs fallback. No H8 re-run for v5.11.
-Open: v5.11 fresh/upgrade/large-profile/Export-Import browser matrix only.
-Read docs/architecture/architecture-map.md v3.21 before changing cross-context behavior. Track A next: complete the Phase 4 live-recording FPS, accessibility, and 120-second heavy-artifact matrix.
+Background Layout v2: normalized prefs → hero/precision controls → recorder hot-swap → record-time Canvas 2D slot; post-base bake never repositions it. Track B full operator checklist + 89/89 + build PASS.
+Read docs/architecture/architecture-map.md v3.22 and extension-points.md v1.37 before changing cross-context or background behavior.
+Next: explicit v6.0.0 version/release-notes/tag sprint; push remains user-owned.
 ```

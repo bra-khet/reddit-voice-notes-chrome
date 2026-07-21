@@ -1,18 +1,18 @@
 # Track B — Background panel refactor QA checklist
 
 **Sprint:** v6.0.0 Track B — Design-phase direct-manipulation background layout  
-**Branch:** `feature/v6.0.0-background-panel-refactor`  
+**Branch:** merged from `feature/v6.0.0-background-panel-refactor` to `main` (`7d1c649`)
 **Roadmap:** [`docs/v6.0.0-background-panel-refactor.md`](../../../docs/v6.0.0-background-panel-refactor.md) §8  
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
-**Date:** 2026-07-20 (Phase 0–7 landed; operator Phase 1–6 + real size/parity/a11y baseline PASS; Phase 7 presentation + product closeout pending)<br>
-**Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
+**Date:** 2026-07-20 (**full operator checklist PASS; merged**)<br>
+**Build:** verified production build from the final Track B tip
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (through Phase 7):** focused layout/interaction/UI set **88/88** — keyboard coarse/fine/zoom math, responsive preview contract, ARIA structure, and next-take A/B behavior included. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
+**Automated (final):** focused layout/interaction/UI set **89/89** — keyboard coarse/fine/zoom math, responsive preview contract, ARIA structure, next-take A/B, icon Center placement, and legacy-control retirement included. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -75,7 +75,7 @@
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
 | 0 | Pre-flight | ■ | Phase 1–3 operator path PASS |
-| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 88/88 · build PASS |
+| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 89/89 · build PASS |
 | 2 | Phase 0 migration + zero visual change | ■ | Normalization/default migration contract remains green |
 | 3 | Direct manipulation (drag / focal / reset) | ■ | Core + record-time no-flash operator PASS |
 | 4 | Precision widget + bidirectional sync | ■ | Phase 2 behavior + Phase 3 redesigned console operator PASS |
@@ -86,9 +86,9 @@
 | 9 | Preview ↔ record ↔ bake parity (I1/I3) | ■ | Operator reports preview, base, and baked pixels match under manipulation |
 | 10 | 120 s size — blur + GIF stress | ■ | Operator PASS: blur stress 23 MiB base / 29 MiB baked |
 | 11 | a11y (keyboard / ARIA / reduced-motion) | ■ | Operator keyboard/contrast/motion PASS + Phase 7 ARIA/shortcut automation |
-| 12 | Product smoke + Classic / default no-regression | ▲ | record/process/bake PASS; saved-profile/identity/Classic/popup closeout remains |
+| 12 | Product smoke + Classic / default no-regression | ■ | saved profile, identity swap, Classic/default, and popup all operator PASS |
 
-**Overall:** ▲ partial (Phase 0–7 code complete; size/parity/a11y PASS; Phase 7 presentation and remaining product-smoke rows open)
+**Overall:** ■ PASS — Track B implementation, presentation, parity, size, accessibility, and product smoke complete
 
 **Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
 
@@ -99,7 +99,7 @@
 - [x] Branch is `feature/v6.0.0-background-panel-refactor` (or equivalent Track B build loaded)
 - [x] Extension reloaded from `.output/chrome-mv3-dev/` (or prod); no red errors on load (SW / offscreen)
 - [x] Design Studio opens; background panel still **hidden** until a personal background is selected
-- [x] Selecting / uploading a custom background reveals the spatial precision console plus existing fit/grid controls
+- [x] Selecting / uploading a custom background reveals the spatial precision console; redundant legacy Fit/Fill + 3×3 controls are absent
 - [x] Evidence folders ready: `logs/` · `screenshot/` · `artifacts/`
 
 **Notes:** Operator Phase 1–3 paths passed 2026-07-20. Phase 4 adds included Aurora/Warm Glow choices without changing the no-background hidden state.
@@ -122,12 +122,12 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [x] `node scripts/test-background-blend-plate.mjs` PASS (legacy equivalence, plate-before-image, Fit rect, Holo/dim ordering) — **Phase 5 residual · 4/4**
 - [x] `node scripts/test-recorder-background-state.mjs` PASS (persisted initial state, session override precedence, normalization/null-ID guards) — **Phase 5 follow-up · 3/3**
 - [x] `node scripts/test-cue-measurement.mjs` PASS (including shared normalized caption-safe band) — **7/7**
-- [x] Focused Track B layout/interaction/UI set green — **88/88** including prefs storage **12/12**
+- [x] Focused Track B layout/interaction/UI set green — **89/89** including prefs storage **12/12**
 - [x] `node scripts/test-ui-tokens.mjs` PASS; `node scripts/test-visual-size-qa.mjs` **5/5**
 - [x] `npm run build` PASS
 - [x] `npm run compile` — only the 2 pre-existing subtitle diagnostics
 
-**Notes:** Phase 7 2026-07-20: focused **88/88**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and compile retains only the same two pre-existing subtitle diagnostics. The user supplied the live compare/parity/a11y verdict; no production-browser automation was used.
+**Notes:** Final 2026-07-20: focused **89/89**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and compile retains only the same two pre-existing subtitle diagnostics. The user supplied the full browser verdict; no production-browser automation was used.
 
 
 ---
@@ -136,7 +136,7 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 - [x] Existing profiles/styles with flat `backgroundScaleMode` / `backgroundPosition` load unchanged *(normalize migration + Node coverage)*
 - [x] Default dim still matches pre-v6 constant (`USER_BACKGROUND_DIM_OVERLAY`) when `dim` omitted
-- [x] Discrete 9-grid still works; nested layout mirrors discrete position when grid used
+- [x] Existing discrete 9-grid values still migrate to equivalent normalized anchors; the retired UI is not required for profile compatibility
 - [x] Panel still hides with no `customBackgroundId`
 - [x] No intentional panel redesign vs v5.11 / Track A baseline (Phase 0 acceptance)
 
@@ -190,7 +190,7 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 ## 6 · Properties / effects / GIF (Phase 5+)
 
-- [x] Scale segmented Fit / Fill / Custom+slider
+- [x] Custom zoom slider covers live scaling; existing Fit/Fill profile/preset values remain normalized and migration-safe without duplicate controls
 - [x] **Dim** slider is a real field (default = old constant; movable)
 - [x] Blur toggle + amount (cheap `ctx.filter`; reset after draw)
 - [x] Original allow-listed blend modes (`source-over`, `multiply`, `overlay`, `screen`, `soft-light`)
@@ -274,7 +274,7 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [x] Guide contrast legible; focus management consistent with Studio sliders/knobs
 - [x] High Contrast / reduced-motion: no broken panel; GIF frozen under reduced-motion
 
-**Notes:** Operator passed keyboard positioning, scaling/resets, High Contrast, and reduced motion. Phase 7 gives both focusable frames coarse .05 / Shift-fine .01 arrows, bounded +/- zoom, Esc center, native Space on the GIF checkbox, numeric `aria-valuetext`, and one polite X/Y/zoom live region. Final optional assistive-tech listen remains part of the presentation recheck, not a code blocker.
+**Notes:** Operator passed keyboard positioning, scaling/resets, High Contrast, reduced motion, and the final precision presentation. Phase 7 gives both focusable frames coarse .05 / Shift-fine .01 arrows, bounded +/- zoom, Esc/icon Center, native Space on the GIF checkbox, numeric `aria-valuetext`, and one polite X/Y/zoom live region.
 
 
 ---
@@ -282,19 +282,19 @@ Fill as pure-math suites land; re-run only when related code changes.
 ## 12 · Product smoke + Classic / default no-regression
 
 - [x] Short record → process → bake → download with custom bg + non-default layout
-- [ ] Saved profile / style carrying layout fields loads correctly
-- [ ] Identity hot-swap does not leave stale layout state
-- [ ] Classic / default no-background path unchanged vs v5.11 / Track A close
-- [ ] Clip appearance summary / popup still coherent (Track C skin intact)
+- [x] Saved profile / style carrying layout fields loads correctly
+- [x] Identity hot-swap does not leave stale layout state
+- [x] Classic / default no-background path unchanged vs v5.11 / Track A close
+- [x] Clip appearance summary / popup still coherent (Track C skin intact)
 
-**Notes:**
+**Notes:** Operator reports every remaining product-smoke row PASS. The final Center relocation and legacy-control retirement preserve normalized legacy profile fields and do not alter no-background behavior.
 
 
 ---
 
 ## Verdict
 
-**Overall:** ▲ partial — implementation complete; final presentation/product closeout remains
+**Overall:** ■ PASS — full Track B merge gate closed 2026-07-20
 **Blockers:** none observed
 **Evidence:** `logs/` · `screenshot/` · `artifacts/`
 

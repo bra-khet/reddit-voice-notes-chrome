@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.36 · **Updated:** 2026-07-19 · **Reflects:** `feature/v6.0.0-popup-ui-refresh` @ package `5.11.0` · **v6 Track C popup chrome token-driven**
+**Version:** v1.37 · **Updated:** 2026-07-20 · **Reflects:** `main@7d1c649` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track B full QA PASS**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.36 — **Track C popup Cividis unification** (2026-07-19): the browser-action popup chrome is now token-driven from the shared Cividis/Studio set via a popup-only overlay (`entrypoints/popup/popup-palette.css` `@import`s `studio-palette.css`; guarded by extended `test-ui-tokens.mjs` adoption + banned-hex assertions). **No new seam** — but one discovered constraint is now load-bearing: `entrypoints/popup/style.css` doubles as the Design Studio's shared control-primitive base (`design-studio/main.ts` imports it), so popup-only restyling must go through the overlay, never the base. Deferred hardening candidate: extract a real `control-primitives.css` shared layer. Elevated restart caution stays inside the existing `restart-caution.ts` contract (same API/call sites). v1.35 — **Style Control Center + shared performance policy** (2026-07-14): renamed the panel contract to `style`; production registries now drive six-spectrum/seven-atmosphere/seven-accent pickers and the summary. Shared normalized controls persist through the existing `DesignOverrides` pathway. `performance-governor.ts` maps registry ceilings + Detail to Comfortable/Elevated/Guarded and returns an active accent list that both UI and capture consume; one expensive accent pauses without changing saved order. Identity swaps reset per-canvas state; `subtitleSafeDim` paints below captions. Focused total 226/226; build and responsive fixture QA PASS. No new context/message/store/signal/dependency/layer/version/ADR. v1.34 — Particle Burst / complete stackable catalog. Earlier history remains in git.
+**Changelog:** v1.37 — **Background Layout v2 / Track B merge** (2026-07-20): registered the normalized preference → Studio direct-manipulation/preset/treatment → recorder hot-swap/relay → record-time personal-image draw seam. Continuous position/scale, field dim, blur/blend/solid plate/Holo/GIF/safe-text controls extend `UserBackgroundLayout` additively; transient crop/compare/A-B remains page-local; post-base bake never repositions. Full operator checklist PASS, focused 89/89, build PASS, blur+GIF 23/29 MiB; no new context/message/store/signal/dependency/layer/version. v1.36 — **Track C popup Cividis unification** (2026-07-19): popup chrome became token-driven through its overlay because `entrypoints/popup/style.css` remains shared control-primitive CSS. v1.35 — **Style Control Center + shared performance policy** (2026-07-14): complete registries + governor. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -86,6 +86,19 @@ was removed in Branch 4. A voice is a `StylizedGraph` of fragments; the only con
 - **Preview=bake?** YES by construction — canvas capture becomes the video track; theme changes appear in every recorded frame.
 - **Gotcha:** Profile at 24 fps before merge — expensive per-frame work can drop below `WAVEFORM_TARGET_FPS` and cause dup-storm on slow machines (BUG-007 trigger class).
 - **Layout constants:** keep waveform bar counts/spacing fixed in v4 scope — changing them breaks the preview WYSIWYG guarantee for clips already recorded.
+
+## Background Layout — v2 (Track B direct manipulation)
+
+- **Add or change a durable layout field:** extend `UserBackgroundLayout` / `NormalizedUserBackgroundLayout` in `src/theme/types.ts`, then guard/default it in `normalizeUserBackgroundLayout` (`background-layout.ts`). Missing nested fields must preserve the legacy flat/discrete appearance. Do not bump `USER_PREFS_VERSION` for additive guarded fields.
+- **Preference/state path:** `AppearancePreferences.backgroundLayout` and profile snapshots persist through the existing `saveAppearancePreferences` / serialized user-preference API. Image bytes stay in `rvnImageDb`; prefs contain only the background ID + JSON-safe layout. No new store or signal.
+- **Studio path:** controls in `background-layout-controls.ts` and pointer/wheel/keyboard adapters in `background-direct-manipulation.ts` must update one normalized layout, redraw immediately, and debounce the existing appearance save. Reuse `background-precision.ts` and domain-neutral `interaction-utils.ts`; do not create another layout owner.
+- **Recorder path:** Studio-native capture receives local media/layout directly; Reddit-origin capture uses the existing background-blob relay. `recorder-background-state.ts` keeps synchronous session layout authoritative over delayed same-ID preference snapshots. `voice-recorder.ts` restores/decode-gates transient compare/audition before the first frame.
+- **Draw path/order:** `computeImageDrawOffset` / shared image-size math consume `customPosition` + `manualScale`, with discrete `position` fallback. `drawUserBackgroundLayer` / `drawImageBackground` own the only personal-image slot: optional solid plate → blur/blend image (+ optional Holo passes) → dim. Always reset Canvas state (`filter`, `globalCompositeOperation`, alpha, clipping) after the slot.
+- **Transient UI:** snap/guides/undo, crop/thirds, Theme-only compare, and the one next-take A/B snapshot are Studio page state. They never become profile/take fields. Theme-only hides only personal media, keeps the current theme/style clock running, blocks preset audition, and restores the exact committed media before capture.
+- **Presets/assets:** bundled recipes live in `background-layout-presets.ts`, resolve stable `bg-…` asset IDs, and apply through the same normalizer. Hover/focus audition is non-persistent and recording/compare guarded; explicit Apply is the sole save action.
+- **Preview↔bake:** preview = recorder by shared Canvas 2D draw. The capture stream owns the background pixels in the base MP4; subtitle bake consumes that base and must not re-render/reposition the background (I23). A post-capture reposition feature would be a new pipeline/layer decision and requires a new ADR.
+- **Sync points:** `types.ts` ↔ `background-layout.ts` ↔ `backgrounds.ts` ↔ Studio controls/direct controller ↔ recorder state/loader ↔ profile/prefs normalization ↔ Track B tests. Summary labels may retain legacy Fit/Fill/discrete vocabulary, but they must read the normalized layout and never become state truth.
+- **Verification:** focused Track B matrix (`test-background-{layout,direct-manipulation,precision,control-ui,presets,color-sampler,holo,blend-plate}.mjs`, interaction, recorder state, cue measurement, prefs), shared tokens, production build, and real preview→record→bake + size/a11y/product smoke. Canonical decision: ADR-0008; as-built roadmap/checklist: `docs/v6.0.0-background-panel-refactor.md`, `qa/QA-6.0.0/track-b/qa-checklist.md`.
 
 ## Audio-reactive visual system — v20 (v6 Phase 4 Style/governor integration)
 
@@ -468,12 +481,12 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.35 (2026-07-14), feature/v6.0.0-custom-styles-refactor @ package 5.11.0.
-Map v3.21 · v6 Phase 4 Style Control Center + governor integrated; focused desktop/mobile production-fixture QA PASS.
+Extension points v1.37 (2026-07-20), main@7d1c649 @ package 5.11.0; explicit v6 release/tag pending.
+Map v3.22 · v6 Tracks A/B/C merged; Track B full operator checklist PASS.
 Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
 Audio-reactive visual system v20; no new context/message/store/signal/compositing layer.
 AudioVizFrame: normalized energy + 32 bands + registry-gated optional waveform + shared clock (I22).
-AudioVisual registry uses a WeakMap per-canvas runtime; two slots only: overlay below spectrum; both record-time capture.
+AudioVisual registry uses a WeakMap per-canvas runtime; fixed record-time order is primary overlay → ≤3 stackables → spectrum.
 Classic owns default/fallback; Minimal is the a11y meter; Phosphor is a ≤240-cell CRT; Radial is a capped 24–64 segment mirrored polar ring; Central is a capped 36–72 point centered organic orb with ≤3 envelope echoes.
 Sparkle/Bubbles/Forest/Digital Rain/Inferno/Aurora/Glitch overlays active. Ordered stackables: Rising Ember 16–44 cinders / ≤132, Electric Arc 6–18 corona streamers / ≤300, Lightning sustained 14–30-point channel + ≤5 branches / ≤158, Conway Life dead-edge 48×16 B3/S23 / ≤769, Layered Smoke 4–10 plumes × 9 ring nodes / ≤280, Neon Glow 3–7 tubes × 18 points + two knots / ≤49, Particle Burst 14–28 onset shards × ≤3 blooms / ≤261. Registry order is primary overlay → ≤3 stackables → spectrum. `bokeh` remains the serialized stability key (ADR-0009/0010).
 Shared Cividis contract: tokens.ts ↔ studio-palette.css, sync-tested; pair color with text/icon.
@@ -481,5 +494,6 @@ Novel effects remain Canvas 2D and must pass the real-artifact 120 s base≤25 M
 Prefs remain rvnUserPrefs IDB + enqueuePrefsOp; new visual fields must normalize, no version bump.
 H6/H8/H13/H14 and browser-composite fallback contracts remain unchanged.
 Style uses the complete registries + existing DesignOverrides/save path; the shared governor returns active vs saved accents; caption-safe dim stays below captions.
-Read ADR-0007/0009/0010 + v6 custom-styles roadmap. Next: live capture/FPS/a11y matrix + heavy 120-second artifact reports.
+Background Layout v2 uses normalized prefs → Studio direct manipulation/presets/treatments → recorder hot-swap/relay → one record-time personal-image slot; crop/compare/A-B transient; no post-capture reposition (I23).
+Read ADR-0007/0008/0009/0010 + v6 roadmaps. Next: explicit v6.0.0 version/release-notes/tag sprint; push remains user-owned.
 ```
