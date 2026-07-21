@@ -1,6 +1,5 @@
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 import {
-  backgroundPositionToCustomPosition,
   MAX_USER_BACKGROUND_BLUR,
   MAX_USER_BACKGROUND_GIF_SPEED,
   MAX_USER_BACKGROUND_MANUAL_SCALE,
@@ -93,37 +92,8 @@ export interface BackgroundColorSampleTarget {
 
 // V4 NOTE: Background layout controls may move into a dedicated Background panel when Studio sections are segmented.
 
-const SCALE_OPTIONS: { value: BackgroundScaleMode; label: string; hint: string }[] = [
-  {
-    value: 'fit',
-    label: 'Fit inside',
-    hint: 'Show the whole image; theme fills empty space',
-  },
-  {
-    value: 'fill',
-    label: 'Fill frame',
-    hint: 'Zoom to cover; edges may crop',
-  },
-];
-
-const POSITION_OPTIONS: {
-  value: BackgroundImagePosition;
-  label: string;
-  gridColumn: number;
-  gridRow: number;
-}[] = [
-  { value: 'top-left', label: 'Top left', gridColumn: 1, gridRow: 1 },
-  { value: 'top', label: 'Top', gridColumn: 2, gridRow: 1 },
-  { value: 'top-right', label: 'Top right', gridColumn: 3, gridRow: 1 },
-  { value: 'left', label: 'Left', gridColumn: 1, gridRow: 2 },
-  { value: 'center', label: 'Center', gridColumn: 2, gridRow: 2 },
-  { value: 'right', label: 'Right', gridColumn: 3, gridRow: 2 },
-  { value: 'bottom-left', label: 'Bottom left', gridColumn: 1, gridRow: 3 },
-  { value: 'bottom', label: 'Bottom', gridColumn: 2, gridRow: 3 },
-  { value: 'bottom-right', label: 'Bottom right', gridColumn: 3, gridRow: 3 },
-];
-
 const NAV_ICON_ROOT = '/assets/design-studio-v4/icons/navigation';
+const CENTER_ICON_PATH = '/assets/design-studio-v4/icons/center-frame-32.svg';
 
 type BackgroundFramingAspect = 'native' | 'square' | 'vertical';
 
@@ -137,44 +107,6 @@ const BACKGROUND_FRAMING_ASPECTS: readonly {
   { id: 'square', label: 'Square 1:1', shortLabel: '1:1', description: 'Centered square crop guide' },
   { id: 'vertical', label: 'Vertical 9:16', shortLabel: '9:16', description: 'Centered vertical crop guide' },
 ];
-
-function scaleModeIcon(mode: BackgroundScaleMode): string {
-  if (mode === 'fit') {
-    return `
-      <svg class="studio__layout-icon" viewBox="0 0 32 20" aria-hidden="true">
-        <rect x="1" y="1" width="30" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <rect x="8" y="4" width="16" height="12" rx="1" fill="currentColor" opacity="0.85"/>
-      </svg>
-    `;
-  }
-  return `
-    <svg class="studio__layout-icon" viewBox="0 0 32 20" aria-hidden="true">
-      <rect x="1" y="1" width="30" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-      <rect x="4" y="2" width="24" height="16" rx="1" fill="currentColor" opacity="0.85"/>
-      <rect x="1" y="1" width="30" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2.5"/>
-    </svg>
-  `;
-}
-
-function positionIcon(position: BackgroundImagePosition): string {
-  const photoRects: Record<BackgroundImagePosition, string> = {
-    'top-left': '<rect x="4" y="3" width="10" height="7" rx="1" fill="currentColor"/>',
-    top: '<rect x="10" y="3" width="12" height="8" rx="1" fill="currentColor"/>',
-    'top-right': '<rect x="18" y="3" width="10" height="7" rx="1" fill="currentColor"/>',
-    left: '<rect x="4" y="8" width="12" height="8" rx="1" fill="currentColor"/>',
-    center: '<rect x="10" y="8" width="12" height="8" rx="1" fill="currentColor"/>',
-    right: '<rect x="16" y="8" width="12" height="8" rx="1" fill="currentColor"/>',
-    'bottom-left': '<rect x="4" y="14" width="10" height="7" rx="1" fill="currentColor"/>',
-    bottom: '<rect x="10" y="13" width="12" height="8" rx="1" fill="currentColor"/>',
-    'bottom-right': '<rect x="18" y="14" width="10" height="7" rx="1" fill="currentColor"/>',
-  };
-  return `
-    <svg class="studio__layout-icon studio__layout-icon--small" viewBox="0 0 32 24" aria-hidden="true">
-      <rect x="1" y="1" width="30" height="22" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.45"/>
-      ${photoRects[position]}
-    </svg>
-  `;
-}
 
 function nudgeIconName(axis: BackgroundPositionAxis, delta: number): string {
   const coarse = Math.abs(delta) === BACKGROUND_POSITION_COARSE_STEP ? '-double' : '';
@@ -546,6 +478,17 @@ function renderPrecisionInstrument(): string {
         <div class="studio__precision-preview-cell">${renderPreviewBlock('background-precision')}</div>
         ${renderPrecisionAxis('y')}
         ${renderPrecisionAxis('x')}
+        <div class="studio__precision-center-cell">
+          <button
+            type="button"
+            class="studio__precision-center"
+            data-background-center
+            aria-label="Center background position"
+            title="Center background position (Esc)"
+          >
+            <img src="${CENTER_ICON_PATH}" alt="" aria-hidden="true">
+          </button>
+        </div>
       </div>
       <div class="studio__precision-zoom-row">
         <span class="studio__precision-tool-label">Custom zoom</span>
@@ -569,7 +512,6 @@ function renderPrecisionInstrument(): string {
         <span class="studio__precision-tool-label">Next-take A/B</span>
         <span class="popup__micro">Keep one alternate framing in this Studio session.</span>
         <span class="studio__precision-variant-actions">
-          <button type="button" class="studio__precision-history-btn" data-background-center>Center</button>
           <button type="button" class="studio__precision-history-btn" data-background-variant-save disabled>Save variant</button>
           <button type="button" class="studio__precision-history-btn" data-background-variant-swap disabled>Swap A/B</button>
         </span>
@@ -588,56 +530,15 @@ function renderPrecisionInstrument(): string {
 }
 
 export function renderBackgroundLayoutFields(): string {
-  const scaleButtons = SCALE_OPTIONS.map(
-    (option) => `
-      <button
-        type="button"
-        class="studio__layout-choice"
-        data-scale-mode="${option.value}"
-        aria-label="${option.label}"
-        title="${option.hint}"
-      >
-        ${scaleModeIcon(option.value)}
-        <span class="studio__layout-choice-label">${option.label}</span>
-      </button>
-    `,
-  ).join('');
-
-  const positionButtons = POSITION_OPTIONS.map(
-    (option) => `
-      <button
-        type="button"
-        class="studio__layout-choice studio__layout-choice--position"
-        data-background-position="${option.value}"
-        style="grid-column:${option.gridColumn};grid-row:${option.gridRow}"
-        aria-label="${option.label}"
-        title="${option.label}"
-      >
-        ${positionIcon(option.value)}
-      </button>
-    `,
-  ).join('');
-
+  // BUG FIX: redundant legacy background controls
+  // Fix: Retire the old Fit/Fill and 3x3 button groups now that the precision instrument owns sizing and position.
+  // Sync: entrypoints/design-studio/style.css; scripts/test-background-control-ui.mjs
   return `
     <div class="studio__background-layout" data-background-layout hidden>
       ${renderBackgroundPresets()}
       ${renderPrecisionInstrument()}
       ${renderBackgroundTreatment()}
       ${renderBackgroundFraming()}
-      <div class="studio__layout-row">
-        <div class="studio__layout-group">
-          <span class="popup__field-label">Image sizing</span>
-          <div class="studio__layout-scale-row" role="radiogroup" aria-label="Background image sizing">
-            ${scaleButtons}
-          </div>
-        </div>
-        <div class="studio__layout-group">
-          <span class="popup__field-label">Image position</span>
-          <div class="studio__layout-position-grid" role="radiogroup" aria-label="Background image position">
-            ${positionButtons}
-          </div>
-        </div>
-      </div>
     </div>
   `;
 }
@@ -648,8 +549,6 @@ export function mountBackgroundLayoutControls(
   options: BackgroundLayoutControlsOptions = {},
 ): BackgroundLayoutControlsHandle {
   const panel = root.querySelector<HTMLElement>('[data-background-layout]')!;
-  const scaleButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-scale-mode]')];
-  const positionButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-position]')];
   const nudgeButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-nudge-axis]')];
   const positionSliders = [...panel.querySelectorAll<HTMLElement>('[data-background-position-slider]')];
   const scaleSlider = panel.querySelector<HTMLElement>('[data-background-scale-slider]')!;
@@ -698,7 +597,6 @@ export function mountBackgroundLayoutControls(
   const samplingHost = root.querySelector<HTMLElement>('.studio-v4') ?? root;
 
   let syncing = false;
-  let buttonsSynced = false;
   let snapEnabled = true;
   let guidesEnabled = true;
   let layout = userBackgroundLayoutFromAppearance({});
@@ -839,22 +737,6 @@ export function mountBackgroundLayoutControls(
     });
   }
 
-  function syncButtons(): void {
-    syncing = true;
-    for (const button of scaleButtons) {
-      const active = button.dataset.scaleMode === scaleMode;
-      button.classList.toggle('studio__layout-choice--active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    }
-    for (const button of positionButtons) {
-      const active = button.dataset.backgroundPosition === position;
-      button.classList.toggle('studio__layout-choice--active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    }
-    syncing = false;
-    buttonsSynced = true;
-  }
-
   function syncPrecisionValues(): void {
     xValue.value = layout.customPosition.x.toFixed(2);
     yValue.value = layout.customPosition.y.toFixed(2);
@@ -923,9 +805,6 @@ export function mountBackgroundLayoutControls(
 
   function syncLayout(next: NormalizedUserBackgroundLayout, commit = true): void {
     const normalized = normalizeUserBackgroundLayout(next);
-    const discreteControlsChanged = !buttonsSynced
-      || normalized.scaleMode !== scaleMode
-      || normalized.position !== position;
     layout = normalized;
     if (commit) {
       committedLayout = cloneLayout(normalized);
@@ -937,7 +816,6 @@ export function mountBackgroundLayoutControls(
     }
     scaleMode = layout.scaleMode;
     position = layout.position;
-    if (discreteControlsChanged) syncButtons();
     syncPrecisionValues();
     syncTreatmentValues();
   }
@@ -1250,36 +1128,6 @@ export function mountBackgroundLayoutControls(
     emit(true, preset.backgroundId);
     syncPresetUi(`${preset.label} applied.`);
   });
-
-  for (const button of scaleButtons) {
-    button.addEventListener('click', () => {
-      const next = button.dataset.scaleMode as BackgroundScaleMode | undefined;
-      if (!next || next === scaleMode) return;
-      options.onGestureStart?.();
-      scaleMode = next;
-      layout = constrainForSafeText(normalizeUserBackgroundLayout({ ...layout, scaleMode }));
-      syncLayout(layout);
-      emit();
-      announceLayout(layout, `${button.getAttribute('aria-label') ?? 'Position'} selected`);
-    });
-  }
-
-  for (const button of positionButtons) {
-    button.addEventListener('click', () => {
-      const next = button.dataset.backgroundPosition as BackgroundImagePosition | undefined;
-      if (!next || next === position) return;
-      options.onGestureStart?.();
-      position = next;
-      layout = constrainForSafeText(normalizeUserBackgroundLayout({
-        ...layout,
-        position,
-        customPosition: backgroundPositionToCustomPosition(position),
-      }));
-      syncLayout(layout);
-      emit();
-      announceLayout(layout, button.title);
-    });
-  }
 
   for (const button of nudgeButtons) {
     button.addEventListener('click', () => {

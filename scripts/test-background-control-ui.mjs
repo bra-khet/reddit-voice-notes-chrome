@@ -139,6 +139,30 @@ check('Phase 7 exposes keyboard help, live values, and one next-take A/B slot', 
   assert.equal(document.querySelector('[data-background-gif-react]').getAttribute('aria-keyshortcuts'), 'Space');
 });
 
+check('closeout seats an accessible icon reset beside the axes and retires legacy controls', () => {
+  // BUG FIX: Center action and obsolete background controls were semantically separated from Fine position
+  // Fix: Pin the icon reset inside the stage and the absence of the retired Fit/Fill and 3x3 UI.
+  // Sync: src/ui/design-studio/background-layout-controls.ts; studio-v4-controls.css; style.css
+  const center = document.querySelector('.studio__precision-center-cell [data-background-center]');
+  assert.equal(center.getAttribute('aria-label'), 'Center background position');
+  assert.match(center.getAttribute('title'), /Center background position \(Esc\)/);
+  assert.equal(
+    center.querySelector('img').getAttribute('src'),
+    '/assets/design-studio-v4/icons/center-frame-32.svg',
+  );
+  assert.equal(document.querySelectorAll('[data-background-center]').length, 1);
+  assert.equal(document.querySelector('[data-scale-mode]'), null);
+  assert.equal(document.querySelector('[data-background-position]'), null);
+  assert.doesNotMatch(document.querySelector('[data-background-layout]').textContent, /Image sizing|Image position/);
+
+  const centerAsset = readFileSync(
+    resolve(root, 'public/assets/design-studio-v4/icons/center-frame-32.svg'),
+    'utf8',
+  );
+  assert.match(centerAsset, /id="inward-arrows"/);
+  assert.doesNotMatch(centerAsset, /<(?:rect|circle|polygon|polyline|line)\b/);
+});
+
 check('Position Preview uses bounded viewport-aware sizing instead of the 280px thumbnail cap', () => {
   // BUG FIX: Position Preview stayed thumbnail-sized at ordinary desktop zoom
   // Fix: pin the container/viewport sizing contract and the dedicated max-width override.

@@ -876,6 +876,42 @@
   gap: 4px;
 }
 
+/* BUG FIX: Center action was detached from the alignment controls
+   Fix: seat the icon-only reset in the precision stage's open lower-right cell so its spatial meaning is immediate.
+   Sync: background-layout-controls.ts; center-frame-32.svg; test-background-control-ui.mjs */
+.studio-v4 .studio__precision-center-cell {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.studio-v4 .studio__precision-center {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 44px;
+  padding: 5px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 7px;
+  color: var(--studio-amber);
+  background: var(--studio-surface-raised);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__precision-center img {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+
+.studio-v4 .studio__precision-center:hover {
+  border-color: var(--studio-amber-edge);
+  background: color-mix(in srgb, var(--studio-amber) 9%, var(--studio-surface-raised));
+  box-shadow: inset 0 0 9px color-mix(in srgb, var(--studio-amber) 12%, transparent);
+}
+
 .studio-v4 .studio__precision-axis-heading {
   justify-content: center;
   gap: 5px;
@@ -953,6 +989,7 @@
 }
 
 .studio-v4 .studio__precision-nudge:focus-visible,
+.studio-v4 .studio__precision-center:focus-visible,
 .studio-v4 .studio__precision-mode:focus-visible,
 .studio-v4 .studio__precision-history-btn:focus-visible,
 .studio-v4 .studio__precision-safe-lock:has(input:focus-visible) {
