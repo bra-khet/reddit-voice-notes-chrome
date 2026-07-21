@@ -26,10 +26,10 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Active bra
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
 | **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E) · merged** |
-| **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper + framing — **OPEN · Phase 0–6 DONE · Phase 1–5 + size + crop/thirds PASS · Theme-only recheck · Phase 7 next** |
+| **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper + framing — **OPEN · Phase 0–7 DONE · operator Phase 1–6 + size/parity/a11y baseline PASS · final presentation/product closeout** |
 | **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup Cividis skin + elevated restart caution — **agent QA gate PASS · merged** |
 
-**Track B status:** ✅ branch FF · ✅ QA scaffold · ✅ ADR-0008 Accepted · ✅ **Phase 0–5** through effects/GIF, recorder no-flash, blends/Holo/plate, and dual-surface sampling (**operator PASS**) · ✅ real blur/GIF size **23/29 MiB PASS** · ✅ **Phase 6** DOM-only 16:9/1:1/9:16 framing + thirds + live current-look-minus-media compare (focused **84/84**, build PASS; crop/thirds PASS, compare follow-up recheck pending). **Next code:** Phase 7 after Theme-only recheck. Full Track B merge gate still open.
+**Track B status:** ✅ branch FF · ✅ QA scaffold · ✅ ADR-0008 Accepted · ✅ **Phase 0–6** through direct layout, treatments, sampling, framing, and live Theme-only compare (**operator PASS**) · ✅ real blur/GIF size **23/29 MiB PASS** · ✅ preview→record→bake parity + keyboard/contrast/motion baseline PASS · ✅ **Phase 7** responsive precision frame + focus keyboard/ARIA + session-only next-take A/B (focused **88/88**, build PASS). **Next:** final presentation + saved-profile/identity/Classic/popup product closeout. Full Track B merge gate still open.
 
 **Performance observation (deferred):** browser subtitle composite/burn-in is reportedly ~5–6× faster while the Studio window is minimized. Non-blocking; investigate focused-window RAF/render/GPU scheduling after Track B rather than changing the bake pipeline in Phase 6.
 
@@ -39,7 +39,7 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Active bra
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklist [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md)
 
-**NEXT:** Track B Theme-only motion/preset-mutex/record-restore recheck, then Phase 7 + parity/product smoke · optional v6.0.0 version bump after B · user-owned push of `main` · optional Track C §8 eyeball.
+**NEXT:** Track B Phase 7 resized-frame/A-B/announcer recheck + remaining product smoke, then merge docs/version decision · optional v6.0.0 version bump after B · user-owned push of `main` · optional Track C §8 eyeball.
 
 **Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0.
 

@@ -128,7 +128,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–6 DONE · operator Phase 1–5 + real size + crop/thirds PASS · Theme-only recheck pending** · Phase 7 next.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–7 DONE · operator Phase 1–6 + real size/parity/a11y baseline PASS** · final presentation/product closeout.
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
@@ -202,7 +202,7 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 
 **Next:** superseded by the Phase 6 entry below. Package stays 5.11.0.
 
-### Track B Phase 6 — multi-aspect framing aids + compare (**IMPLEMENTED · crop/thirds PASS · Theme-only recheck pending 2026-07-20**)
+### Track B Phase 6 — multi-aspect framing aids + compare (**DONE · operator PASS 2026-07-20**)
 
 - Final Phase 5 operator residuals passed: visible plate makes all blends useful; custom plate/Holo/dim and precision-mini eye-dropper behavior work. Required blur/GIF size case is **23 MiB base / 29 MiB baked — PASS**; upper-end non-blur 28/35 MiB retained as informational.
 - Added a distinctive but compact Framing aids crop lab: Native 16:9, centered 1:1, centered 9:16, independent thirds, and explicit export-stays-16:9 language. All guide/mask pixels are DOM-only over the hero canvas hole.
@@ -213,7 +213,15 @@ Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `ma
 - **Architecture:** Accepted ADR-0008 amended; no new context/message/store/signal/preference field or version/dependency/compositing layer. Map/seam MINOR bumps remain deferred to Track B merge.
 - **Deferred observation:** subtitle browser-composite/burn-in reportedly runs ~5–6× faster while Studio is minimized; non-breaking, investigate focused-window render/scheduling contention later.
 
-**Operator:** crop geometry and thirds PASS. **Next:** check Theme-only live motion, preset mutex, and recording-safe restore; then Phase 7.
+**Operator:** crop geometry, thirds, Theme-only live motion/preset mutex/exact restore, and recording-safe entry PASS.
+
+### Track B Phase 7 — responsive precision frame + keyboard/ARIA/A-B (**IMPLEMENTED · presentation recheck 2026-07-20**)
+
+- The Fine position frame now escapes the generic 280 px thumbnail cap and resolves a bounded 16:9 width from both panel space and viewport height (820 px ceiling), with a container-aware narrow layout and modest responsive padding.
+- Both focusable preview frames expose .05 arrows, Shift+.01 arrows, bounded +/- zoom, and Esc center; the focused GIF checkbox keeps native Space. Position/zoom sliders publish `aria-valuetext`, and a polite atomic status announces X/Y/zoom after committed interactions.
+- One page-local **Next-take A/B** slot saves/swaps exact normalized layouts for the current personal background, clears on identity change, and pauses during recording/compare/preset audition. It adds no preference/profile/take field; captured pixels remain per-take truth under I1/I3.
+- Operator carry-forward closes Theme-only, preview→record→bake parity, keyboard/scaling/reset, High Contrast, and reduced motion. **Automated:** focused Track B **88/88** · UI tokens PASS · visual-size harness 5/5 · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Next:** operator-check resized frame + Save/change/Swap + optional screen-reader listen, then checklist §12 saved-profile/identity/Classic/popup closeout. Package remains 5.11.0; map/seam bumps remain deferred to Track B merge.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

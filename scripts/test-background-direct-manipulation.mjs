@@ -28,6 +28,7 @@ await build({
 
 const {
   computeDraggedBackgroundPosition,
+  computeKeyboardAdjustedBackgroundLayout,
   computeZoomedBackgroundLayout,
 } = await import(pathToFileURL(outfile).href);
 
@@ -144,6 +145,25 @@ check('zoom scale remains canonical when image metadata is unavailable', () => {
   });
   assert.equal(next.manualScale, 3);
   assert.deepEqual(next.customPosition, baseLayout.customPosition);
+});
+
+check('focused preview arrows use coarse movement and Shift uses fine movement', () => {
+  // CHANGED: Phase 7 keyboard math is locked independently from DOM focus plumbing.
+  // WHY: hero and precision frames must share exact spatial direction and step semantics.
+  const left = computeKeyboardAdjustedBackgroundLayout(baseLayout, 'ArrowLeft', false);
+  const upFine = computeKeyboardAdjustedBackgroundLayout(baseLayout, 'ArrowUp', true);
+  assert.equal(left.layout.customPosition.x, 0.45);
+  assert.equal(left.layout.customPosition.y, 0.5);
+  assert.equal(upFine.layout.customPosition.x, 0.5);
+  assert.equal(upFine.layout.customPosition.y, 0.49);
+});
+
+check('focused preview plus and minus adjust normalized zoom within bounds', () => {
+  const zoomIn = computeKeyboardAdjustedBackgroundLayout(baseLayout, '+', false);
+  const zoomOut = computeKeyboardAdjustedBackgroundLayout(zoomIn.layout, '-', false);
+  assert.equal(zoomIn.layout.manualScale, 1.1);
+  assert.ok(Math.abs(zoomOut.layout.manualScale - 1) < 1e-9);
+  assert.equal(computeKeyboardAdjustedBackgroundLayout(baseLayout, 'Enter', false), null);
 });
 
 rmSync(outdir, { recursive: true, force: true });

@@ -805,8 +805,9 @@
 /* CHANGED: Fine position is a camera-style jog console wrapped around its live frame.
    WHY: spatial placement, directional SVGs, and physical rails communicate axis + step without decoding +/- text. */
 .studio-v4 .studio__precision-controls {
+  container: background-precision / inline-size;
   margin-bottom: 14px;
-  padding: 11px;
+  padding: clamp(11px, 1.2vw, 18px);
   border: 1px solid var(--studio-hairline-strong);
   border-radius: 9px;
   background: color-mix(in srgb, var(--studio-surface-raised) 88%, var(--studio-panel-edge));
@@ -831,8 +832,14 @@
 }
 
 .studio-v4 .studio__precision-stage {
+  /* BUG FIX: Position Preview stayed thumbnail-sized at ordinary desktop zoom
+     Fix: size from both available panel width and viewport height, then cap it as an instrument rather than scaling without bounds.
+     Sync: studio-v4-layout.css; scripts/test-background-control-ui.mjs */
   display: grid;
-  grid-template-columns: minmax(0, 280px) 66px;
+  grid-template-columns: minmax(320px, 640px) 68px;
+  grid-template-columns:
+    minmax(360px, min(70cqi, calc(180dvh - 306px), 820px))
+    68px;
   grid-template-rows: auto auto;
   justify-content: center;
   align-items: stretch;
@@ -847,6 +854,7 @@
 
 .studio-v4 .studio__precision-preview-cell .studio__preview-wrap--background-precision {
   width: 100%;
+  max-width: none;
   margin: 0;
 }
 
@@ -1050,6 +1058,46 @@
   cursor: not-allowed;
 }
 
+.studio-v4 .studio__precision-variant-row {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__precision-variant-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.studio-v4 .studio__precision-variant-status {
+  grid-column: 1 / -1;
+  color: var(--studio-indigo-muted);
+}
+
+@container background-precision (max-width: 720px) {
+  .studio-v4 .studio__precision-stage {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+
+  .studio-v4 .studio__precision-variant-row {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-v4 .studio__precision-variant-actions {
+    justify-content: flex-start;
+  }
+
+  .studio-v4 .studio__precision-variant-status {
+    grid-column: 1;
+  }
+}
+
 @media (max-width: 420px) {
   .studio-v4 .studio__background-presets-heading,
   .studio-v4 .studio__background-preset-footer {
@@ -1120,4 +1168,5 @@
     width: 100%;
     margin-left: 0;
   }
+
 }

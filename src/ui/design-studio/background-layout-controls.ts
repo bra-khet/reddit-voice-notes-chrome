@@ -31,6 +31,7 @@ import {
 import {
   BACKGROUND_POSITION_COARSE_STEP,
   BACKGROUND_POSITION_FINE_STEP,
+  formatBackgroundLayoutAnnouncement,
   nudgeBackgroundPosition,
   type BackgroundPositionAxis,
 } from '@/src/ui/design-studio/background-precision';
@@ -51,6 +52,7 @@ import { sampleCanvasColorAtClient } from '@/src/ui/design-studio/background-col
 export interface BackgroundLayoutControlsHandle {
   sync(prefs: UserPreferencesV1): void;
   syncLayout(layout: NormalizedUserBackgroundLayout): void;
+  announceLayout(layout: NormalizedUserBackgroundLayout, action: string): void;
   syncHistory(canUndo: boolean, canRedo: boolean): void;
   syncRecordingState(recording: boolean): void;
   isSnapEnabled(): boolean;
@@ -453,7 +455,7 @@ function renderBackgroundTreatment(): string {
             <output class="studio__background-treatment-value" data-background-gif-speed-value>1.00×</output>
           </div>
           <label class="studio__background-motion-toggle">
-            <input type="checkbox" data-background-gif-react>
+            <input type="checkbox" data-background-gif-react aria-keyshortcuts="Space">
             <span>Let voice energy gently drive GIF speed</span>
           </label>
           <p class="popup__field-desc">Static images ignore these controls. Reduced motion always freezes GIFs at frame zero.</p>
@@ -537,8 +539,8 @@ function renderPrecisionInstrument(): string {
         <span class="popup__field-label" id="background-precision-title">Fine position</span>
         <span class="popup__micro">Single .01 · double .05</span>
       </div>
-      <p class="popup__field-desc studio__precision-help">
-        Drag the frame, steer with arrows, or slide each axis.
+      <p class="popup__field-desc studio__precision-help" id="background-position-keyboard-help">
+        Drag the frame, or focus it: arrows move .05, Shift + arrows move .01, +/− zoom, Esc centers.
       </p>
       <div class="studio__precision-stage">
         <div class="studio__precision-preview-cell">${renderPreviewBlock('background-precision')}</div>
@@ -563,6 +565,24 @@ function renderPrecisionInstrument(): string {
           <button type="button" class="studio__precision-history-btn" data-background-redo disabled><span aria-hidden="true">↷</span> Redo</button>
         </span>
       </div>
+      <div class="studio__precision-variant-row" aria-label="Next-take framing variant">
+        <span class="studio__precision-tool-label">Next-take A/B</span>
+        <span class="popup__micro">Keep one alternate framing in this Studio session.</span>
+        <span class="studio__precision-variant-actions">
+          <button type="button" class="studio__precision-history-btn" data-background-center>Center</button>
+          <button type="button" class="studio__precision-history-btn" data-background-variant-save disabled>Save variant</button>
+          <button type="button" class="studio__precision-history-btn" data-background-variant-swap disabled>Swap A/B</button>
+        </span>
+        <output class="popup__micro studio__precision-variant-status" data-background-variant-status>
+          No alternate framing saved.
+        </output>
+      </div>
+      <output
+        class="studio__sr-only"
+        data-background-position-status
+        aria-live="polite"
+        aria-atomic="true"
+      ></output>
     </section>
   `;
 }
@@ -641,6 +661,11 @@ export function mountBackgroundLayoutControls(
   const safeLock = panel.querySelector<HTMLInputElement>('[data-background-safe-lock]')!;
   const undoButton = panel.querySelector<HTMLButtonElement>('[data-background-undo]')!;
   const redoButton = panel.querySelector<HTMLButtonElement>('[data-background-redo]')!;
+  const centerButton = panel.querySelector<HTMLButtonElement>('[data-background-center]')!;
+  const variantSaveButton = panel.querySelector<HTMLButtonElement>('[data-background-variant-save]')!;
+  const variantSwapButton = panel.querySelector<HTMLButtonElement>('[data-background-variant-swap]')!;
+  const variantStatus = panel.querySelector<HTMLOutputElement>('[data-background-variant-status]')!;
+  const positionStatus = panel.querySelector<HTMLOutputElement>('[data-background-position-status]')!;
   const presetButtons = [...panel.querySelectorAll<HTMLButtonElement>('[data-background-preset]')];
   const presetSection = panel.querySelector<HTMLElement>('.studio__background-presets')!;
   const presetApply = panel.querySelector<HTMLButtonElement>('[data-background-preset-apply]')!;
@@ -690,6 +715,10 @@ export function mountBackgroundLayoutControls(
   let framingAspect: BackgroundFramingAspect = 'native';
   let framingThirds = false;
   let compareActive = false;
+  let layoutVariant: {
+    backgroundId: string;
+    layout: NormalizedUserBackgroundLayout;
+  } | null = null;
   let lastNonZeroBlur = 6;
   let samplingTargets: BackgroundColorSampleTarget[] = [];
   let sampleMissCount = 0;
@@ -701,6 +730,34 @@ export function mountBackgroundLayoutControls(
 
   function cloneLayout(next: NormalizedUserBackgroundLayout): NormalizedUserBackgroundLayout {
     return { ...next, customPosition: { ...next.customPosition } };
+  }
+
+  function announceLayout(next: NormalizedUserBackgroundLayout, action: string): void {
+    const message = formatBackgroundLayoutAnnouncement(next, action);
+    // Re-arm an identical polite announcement without adding visible status churn.
+    positionStatus.value = positionStatus.value === message ? `${message}\u00a0` : message;
+  }
+
+  function syncVariantUi(message?: string): void {
+    const blocked = recordingActive || compareActive || Boolean(previewedPresetId);
+    const available = Boolean(
+      layoutVariant
+      && committedBackgroundId
+      && layoutVariant.backgroundId === committedBackgroundId,
+    );
+    variantSaveButton.textContent = available ? 'Replace variant' : 'Save variant';
+    variantSaveButton.disabled = blocked || !committedBackgroundId;
+    variantSwapButton.disabled = blocked || !available;
+    variantStatus.value = message ?? (blocked
+      ? 'Next-take A/B is paused during recording, compare, or preset audition.'
+      : available
+        ? 'Alternate ready; Swap A/B exchanges it with the current framing.'
+        : 'No alternate framing saved.');
+  }
+
+  function clearLayoutVariant(message?: string): void {
+    layoutVariant = null;
+    syncVariantUi(message);
   }
 
   function presetForId(
@@ -722,6 +779,7 @@ export function mountBackgroundLayoutControls(
       button.disabled = recordingActive || compareActive;
     }
     presetApply.disabled = recordingActive || compareActive || !selectedPresetId;
+    syncVariantUi();
     if (recordingActive) {
       presetStatus.value = 'Preset audition is paused while recording to prevent flashes in the captured video.';
       return;
@@ -802,7 +860,13 @@ export function mountBackgroundLayoutControls(
     yValue.value = layout.customPosition.y.toFixed(2);
     for (const slider of positionSliders) {
       const axis = slider.dataset.backgroundPositionSlider as BackgroundPositionAxis | undefined;
-      if (axis) setPhysicalSliderValue(slider, layout.customPosition[axis]);
+      if (axis) {
+        setPhysicalSliderValue(slider, layout.customPosition[axis]);
+        slider.setAttribute(
+          'aria-valuetext',
+          `${axis === 'x' ? 'Horizontal' : 'Vertical'} position ${layout.customPosition[axis].toFixed(2)}`,
+        );
+      }
     }
     setPhysicalSliderValue(
       scaleSlider,
@@ -812,6 +876,7 @@ export function mountBackgroundLayoutControls(
         MAX_USER_BACKGROUND_MANUAL_SCALE,
       ),
     );
+    scaleSlider.setAttribute('aria-valuetext', `Background zoom ${layout.manualScale.toFixed(2)} times`);
     scaleValue.value = `${layout.manualScale.toFixed(2)}×`;
     safeLock.checked = layout.lockToSafeText;
   }
@@ -1177,6 +1242,9 @@ export function mountBackgroundLayoutControls(
     }
 
     options.onGestureStart?.();
+    if (committedBackgroundId && committedBackgroundId !== preset.backgroundId) {
+      clearLayoutVariant('Alternate cleared because the personal background changed.');
+    }
     committedBackgroundId = preset.backgroundId;
     syncLayout(next, true);
     emit(true, preset.backgroundId);
@@ -1192,6 +1260,7 @@ export function mountBackgroundLayoutControls(
       layout = constrainForSafeText(normalizeUserBackgroundLayout({ ...layout, scaleMode }));
       syncLayout(layout);
       emit();
+      announceLayout(layout, `${button.getAttribute('aria-label') ?? 'Position'} selected`);
     });
   }
 
@@ -1208,6 +1277,7 @@ export function mountBackgroundLayoutControls(
       }));
       syncLayout(layout);
       emit();
+      announceLayout(layout, button.title);
     });
   }
 
@@ -1220,6 +1290,7 @@ export function mountBackgroundLayoutControls(
       layout = constrainForSafeText(nudgeBackgroundPosition(layout, axis, delta));
       syncLayout(layout);
       emit();
+      announceLayout(layout, button.title);
     });
   }
 
@@ -1256,8 +1327,11 @@ export function mountBackgroundLayoutControls(
       syncLayout(layout);
       emit(false);
     },
-    onInteractionEnd() {
+    onInteractionEnd(slider) {
       emit(true);
+      const axis = slider.dataset.backgroundPositionSlider as BackgroundPositionAxis | undefined;
+      if (axis) announceLayout(layout, `${axis.toUpperCase()} position changed`);
+      else if (slider.dataset.backgroundScaleSlider === 'true') announceLayout(layout, 'Zoom changed');
     },
   });
 
@@ -1349,6 +1423,39 @@ export function mountBackgroundLayoutControls(
   root.addEventListener('keydown', onSamplerKeydown, true);
   undoButton.addEventListener('click', () => options.onUndo?.());
   redoButton.addEventListener('click', () => options.onRedo?.());
+  centerButton.addEventListener('click', () => {
+    options.onGestureStart?.();
+    layout = constrainForSafeText(normalizeUserBackgroundLayout({
+      ...layout,
+      position: 'center',
+      customPosition: { x: 0.5, y: 0.5 },
+    }));
+    syncLayout(layout);
+    emit();
+    announceLayout(layout, 'Centered');
+  });
+  variantSaveButton.addEventListener('click', () => {
+    if (!committedBackgroundId) return;
+    // CHANGED: Phase 7 keeps one session-only framing snapshot for rapid next-take A/B choices.
+    // WHY: captured pixels already own per-take truth, so an alternate layout needs no new preference or take schema.
+    layoutVariant = {
+      backgroundId: committedBackgroundId,
+      layout: cloneLayout(layout),
+    };
+    syncVariantUi('Alternate framing saved for this background.');
+    announceLayout(layout, 'Alternate framing saved');
+  });
+  variantSwapButton.addEventListener('click', () => {
+    if (!layoutVariant || layoutVariant.backgroundId !== committedBackgroundId) return;
+    options.onGestureStart?.();
+    const previous = cloneLayout(layout);
+    const next = cloneLayout(layoutVariant.layout);
+    layoutVariant = { backgroundId: layoutVariant.backgroundId, layout: previous };
+    syncLayout(next);
+    emit();
+    syncVariantUi('Framing swapped; the previous view is now the alternate.');
+    announceLayout(layout, 'Framing variant selected');
+  });
 
   blendPlatePicker = mountColorPickerControls(blendPlatePickerRoot, (overrides) => {
     if (syncing) return;
@@ -1372,6 +1479,7 @@ export function mountBackgroundLayoutControls(
 
   syncGuideVisibility();
   syncFramingUi();
+  syncVariantUi();
 
   return {
     sync(prefs) {
@@ -1383,16 +1491,23 @@ export function mountBackgroundLayoutControls(
       panel.hidden = !hasBackground;
       if (!hasBackground) {
         finishColorSampling();
+        committedBackgroundId = null;
+        clearLayoutVariant();
         syncFramingUi();
         return;
       }
-      committedBackgroundId = prefs.appearance.customBackgroundId ?? null;
+      const nextBackgroundId = prefs.appearance.customBackgroundId ?? null;
+      if (committedBackgroundId && committedBackgroundId !== nextBackgroundId) {
+        clearLayoutVariant('Alternate cleared because the personal background changed.');
+      }
+      committedBackgroundId = nextBackgroundId;
       syncLayout(userBackgroundLayoutFromAppearance(prefs.appearance), true);
       syncFramingUi();
     },
     syncLayout(next) {
       syncLayout(next, !emittingPresetPreview && !emittingComparePreview);
     },
+    announceLayout,
     syncRecordingState,
     syncHistory(canUndo, canRedo) {
       undoButton.disabled = !canUndo;

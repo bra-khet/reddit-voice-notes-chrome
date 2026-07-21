@@ -1232,6 +1232,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     },
     isSnapEnabled: () => backgroundLayout.isSnapEnabled(),
     getCaptionSafeBand: activeCaptionSafeBand,
+    onLayoutAnnounce(layout, action) {
+      backgroundLayout.announceLayout(layout, action);
+    },
   } satisfies BackgroundDirectManipulationDeps;
 
   backgroundDirect = mountBackgroundDirectManipulation(root, backgroundDirectDeps);

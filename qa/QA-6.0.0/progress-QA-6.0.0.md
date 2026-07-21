@@ -26,13 +26,32 @@ Do not dump long QA narrative into the global progress file — update a short v
 - Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
 - Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Track B in flight:** Phase 0–6 landed · operator Phase 1–5 + real blur/GIF size gate **PASS** · Phase 6 crop/thirds PASS; Theme-only follow-up recheck and full merge gate still open.
+**Track B in flight:** Phase 0–7 landed · operator Phase 1–6 + real blur/GIF size, preview→record→bake parity, and a11y baseline **PASS** · final Phase 7 presentation/product closeout open.
 
-**Next:** (1) operator-recheck live Theme-only A/B + preset exclusion + recording restore · (2) Phase 7 keyboard/ARIA/variants · (3) preview→record→bake parity + product smoke · package stays 5.11.0.
+**Next:** (1) visually check the resized Position Preview + next-take A/B flow · (2) optionally listen to the polite X/Y/zoom announcement · (3) close saved-profile/identity/Classic/popup product smoke · package stays 5.11.0.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 7 keyboard/ARIA/variants + responsive precision frame implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Base:** Theme-only follow-up `1d8571c` · **Commit:** this sprint<br>
+**Trigger:** operator passed the Phase 6 fixes and preview→record→bake parity, confirmed keyboard positioning/scaling/reset plus High Contrast/reduced motion, and reported the 280 px Position Preview was too small at ordinary 100% landscape zoom.
+
+- Removed the generic subpanel thumbnail cap only for the Fine position preview. Its 16:9 instrument width now resolves from the Background panel container and viewport height, caps at 820 px, and switches to a container-aware narrow layout; padding also grows modestly without linearly inflating the controls.
+- Both focusable preview frames now share coarse `.05` arrows, Shift-fine `.01` arrows, bounded `+`/`-` zoom, and Esc-center. The existing GIF checkbox retains native Space semantics. Slider values expose descriptive `aria-valuetext`, and a polite atomic live region announces X/Y/zoom after keyboard, pointer, wheel, slider, nudge, reset, and variant commits.
+- Added one session-only **Next-take A/B** layout snapshot. Save/Replace retains an exact normalized alternate for the current personal background; Swap A/B applies it through the existing layout/prefs path and keeps the prior view as the new alternate. The slot clears on image identity change and pauses during recording, compare, or preset audition.
+- Architecture-hardening result: no new preference/profile/take field, store, signal, message, dependency, context, renderer, or compositing layer. Captured pixels remain the only per-take visual truth (I1/I3); the A/B snapshot is page-local framing convenience under Accepted ADR-0008. Map/extension-point bumps remain deferred to Track B merge.
+- Frontend-design result: the existing camera-console frame becomes the visual focal instrument while Cividis palette, physical sliders, axis placement, and narrow-screen hierarchy stay intact. No new decorative system was introduced.
+
+**Operator carry-forward closed:** Theme-only motion/preset exclusion/exact restore/record entry · preview→base→baked fidelity under manipulation · keyboard positioning/scaling/reset · High Contrast · reduced motion. Mid-record performance hiccups are noted as expected and did not break parity.
+
+**Automated:** background layout 13 · direct manipulation **10** · precision 5 · interaction utils 6 · control UI **14** · presets 5 · sampler 5 · cue measurement 7 · prefs 12 · Holo 4 · recorder state 3 · blend plate 4 = focused **88/88**. UI tokens PASS · visual-size harness **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Remaining operator closeout:** check the new frame at normal landscape and narrow widths; Save variant → change framing → Swap A/B; optionally listen to one screen-reader announcement. Then complete checklist §12 saved profile, identity hot-swap, Classic/default, and popup coherence rows.
+
+**Next:** Phase 7 presentation/product closeout, then Track B merge documentation/version decision.
 
 ### 2026-07-20 — Phase 6 Theme-only live A/B follow-up implemented
 

@@ -6,13 +6,13 @@
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
-**Date:** 2026-07-20 (Phase 0–6 landed; Phase 1–5 operator QA + real size gate PASS; Phase 6 crop/thirds PASS; Theme-only recheck pending)<br>
+**Date:** 2026-07-20 (Phase 0–7 landed; operator Phase 1–6 + real size/parity/a11y baseline PASS; Phase 7 presentation + product closeout pending)<br>
 **Build:** load `.output/chrome-mv3-dev/` (or prod) from this branch  
 
 **Why this gate exists:** Track B elevates the 9-direction grid into drag/zoom/snap layout on the Studio hero. Background pixels are **capture-time only** (I1/I3); layout must hot-swap into the *next* recording with no post-capture re-composite, no prefs version bump, and no bake-size/perf regression vs v5.11.0.
 
 **Merge / release when:** required sections PASS (or FAIL with notes + no ship).  
-**Automated (through Phase 6 follow-up):** focused layout/interaction/UI set **84/84** — prior **83/83** plus null-image preview-loop and hard preset-mutex coverage. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
+**Automated (through Phase 7):** focused layout/interaction/UI set **88/88** — keyboard coarse/fine/zoom math, responsive preview contract, ARIA structure, and next-take A/B behavior included. UI tokens PASS · visual-size gate logic **5/5** · `npm run build` **PASS**; `npm run compile` = 2 pre-existing subtitle diagnostics only (expected).
 
 ### Non-negotiables (any FAIL here fails the gate)
 
@@ -75,20 +75,20 @@
 | # | Section | Status | Notes |
 |---|---------|--------|-------|
 | 0 | Pre-flight | ■ | Phase 1–3 operator path PASS |
-| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 84/84 · build PASS |
+| 1 | Automated / Node (layout + interaction utils) | ■ | focused Track B layout/interaction/UI set 88/88 · build PASS |
 | 2 | Phase 0 migration + zero visual change | ■ | Normalization/default migration contract remains green |
 | 3 | Direct manipulation (drag / focal / reset) | ■ | Core + record-time no-flash operator PASS |
 | 4 | Precision widget + bidirectional sync | ■ | Phase 2 behavior + Phase 3 redesigned console operator PASS |
 | 5 | Zoom, sticky snap, undo/redo, lock-to-safe-text | ■ | Phase 3 operator QA PASS |
 | 6 | Properties / effects / GIF | ■ | Blend plate/custom color/Holo operator recheck PASS |
 | 7 | Presets + eye-dropper hand-off | ■ | Hero + precision sampling/cancellation operator PASS |
-| 8 | Framing aids (crop guides / thirds / compare) | ▲ | crop/thirds PASS; Theme-only motion/mutex/record recheck open |
-| 9 | Preview ↔ record ↔ bake parity (I1/I3) | ☐ | |
+| 8 | Framing aids (crop guides / thirds / compare) | ■ | crop/thirds + Theme-only motion/mutex/record restore operator PASS |
+| 9 | Preview ↔ record ↔ bake parity (I1/I3) | ■ | Operator reports preview, base, and baked pixels match under manipulation |
 | 10 | 120 s size — blur + GIF stress | ■ | Operator PASS: blur stress 23 MiB base / 29 MiB baked |
-| 11 | a11y (keyboard / ARIA / reduced-motion) | ☐ | Phase 7 |
-| 12 | Product smoke + Classic / default no-regression | ☐ | |
+| 11 | a11y (keyboard / ARIA / reduced-motion) | ■ | Operator keyboard/contrast/motion PASS + Phase 7 ARIA/shortcut automation |
+| 12 | Product smoke + Classic / default no-regression | ▲ | record/process/bake PASS; saved-profile/identity/Classic/popup closeout remains |
 
-**Overall:** ▲ partial (Phase 0–6 code complete; operator Phase 1–5 + size gate PASS; Phase 6–7 and full parity/product gate open)
+**Overall:** ▲ partial (Phase 0–7 code complete; size/parity/a11y PASS; Phase 7 presentation and remaining product-smoke rows open)
 
 **Key:** ■ PASS · □ FAIL · ▲ PARTIAL · ☐ open  
 
@@ -112,22 +112,22 @@
 Fill as pure-math suites land; re-run only when related code changes.
 
 - [x] `node scripts/test-background-layout.mjs` PASS (normalize defaults/clamps, blend + plate allow-lists/resolution, `customPosition`↔discrete, offset math, GIF rate) — **Phase 0+5 · 13/13**
-- [x] `node scripts/test-background-direct-manipulation.mjs` PASS (pan/focal drag + cursor-anchored zoom math) — **Phase 1+3 · 8/8**
+- [x] `node scripts/test-background-direct-manipulation.mjs` PASS (pan/focal drag + cursor-anchored zoom + Phase 7 keyboard math) — **Phase 1+3+7 · 10/10**
 - [x] `node scripts/test-background-precision.mjs` PASS (±0.01/±0.05 axis nudges, clamps, field preservation) — **Phase 2 · 5/5**
 - [x] `node scripts/test-interaction-utils.mjs` PASS (sliderToScale round-trip, sticky-snap hysteresis, per-axis `snapPosition`, caption-band constraint, `clamp01`) — **Phase 3 · 6/6**
-- [x] `node scripts/test-background-control-ui.mjs` PASS (embedded mini, spatial rails, presets/treatment/sampler, Phase 6 framing/compare, recording lockout) — **Phase 3–6 · 11/11**
+- [x] `node scripts/test-background-control-ui.mjs` PASS (embedded responsive mini, spatial rails, presets/treatment/sampler, framing/compare, ARIA + A/B, recording lockout) — **Phase 3–7 · 14/14**
 - [x] `node scripts/test-background-presets.mjs` PASS (stable bundled references/assets, catalog guards, normalized recipes, effect-field preservation) — **Phase 4 · 5/5**
 - [x] `node scripts/test-background-color-sampler.mjs` PASS (CSS→bitmap coordinate mapping, clamp, hex read, transparent/error guards) — **Phase 5 · 5/5**
 - [x] `node scripts/test-background-holo.mjs` PASS (default pass count, chromatic/sheens, bounded time/energy modulation, dim ordering) — **Phase 5 experiment · 4/4**
 - [x] `node scripts/test-background-blend-plate.mjs` PASS (legacy equivalence, plate-before-image, Fit rect, Holo/dim ordering) — **Phase 5 residual · 4/4**
 - [x] `node scripts/test-recorder-background-state.mjs` PASS (persisted initial state, session override precedence, normalization/null-ID guards) — **Phase 5 follow-up · 3/3**
 - [x] `node scripts/test-cue-measurement.mjs` PASS (including shared normalized caption-safe band) — **7/7**
-- [x] Focused Track B layout/interaction/UI set green — **84/84** including prefs storage **12/12**
+- [x] Focused Track B layout/interaction/UI set green — **88/88** including prefs storage **12/12**
 - [x] `node scripts/test-ui-tokens.mjs` PASS; `node scripts/test-visual-size-qa.mjs` **5/5**
 - [x] `npm run build` PASS
 - [x] `npm run compile` — only the 2 pre-existing subtitle diagnostics
 
-**Notes:** Phase 6 follow-up 2026-07-20: focused **84/84**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and `git diff --check` PASS. Compile retains only the same two pre-existing subtitle diagnostics. No live-record claim was made from the connected production browser; use the dev browser for the remaining compare/record recheck.
+**Notes:** Phase 7 2026-07-20: focused **88/88**, shared tokens PASS, visual-size harness **5/5**, production build PASS, and compile retains only the same two pre-existing subtitle diagnostics. The user supplied the live compare/parity/a11y verdict; no production-browser automation was used.
 
 
 ---
@@ -232,21 +232,21 @@ Fill as pure-math suites land; re-run only when related code changes.
 - [x] 9:16 and 1:1 crop-guide overlays on the single 16:9 canvas
 - [x] Rule-of-thirds overlay
 - [x] Guides are preview-only (no multi-format export, no second render pipeline) *(structural: DOM sibling above hero canvas)*
-- [ ] Optional before/after compare (current vs no-background) if shipped
+- [x] Optional before/after compare (current vs no-background) if shipped
 
-**Notes:** Crop lab and thirds received operator PASS. Theme-only follow-up keeps the current theme/style RAF alive with personal media hidden, hard-blocks preset pointer/focus/click/Apply paths, re-asserts null-image state on defensive restore, and exits only through exact committed restore. It never persists; recording still restores and decode-gates before `MediaRecorder.start()`. Recheck compare motion/mutex/record start, then mark the optional compare row.
+**Notes:** Crop lab, thirds, Theme-only live motion, preset mutex, exact toggle restore, and record-start restore received operator PASS. Compare remains transient and export-neutral.
 
 
 ---
 
 ## 9 · Preview ↔ record ↔ bake parity (I1 / I3)
 
-- [ ] Arrange bg on hero → short record → process → bake
-- [ ] Preview arrangement matches recorded base pixels (position / scale / dim / blur)
-- [ ] Baked output keeps the same background arrangement (bake only burns subtitles)
-- [ ] No post-capture path offers “re-position this take’s background”
+- [x] Arrange bg on hero → short record → process → bake
+- [x] Preview arrangement matches recorded base pixels (position / scale / dim / blur)
+- [x] Baked output keeps the same background arrangement (bake only burns subtitles)
+- [x] No post-capture path offers “re-position this take’s background”
 
-**Notes:**
+**Notes:** Operator reports exact preview→base→subtitle-baked fidelity, including live manipulation. Preview-only guides/compare remain absent as intended. Occasional mid-record adjustment performance hiccups were observed but did not alter parity.
 
 
 ---
@@ -268,20 +268,20 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 ## 11 · a11y (Phase 7)
 
-- [ ] Keyboard-only positioning (arrow nudges; Shift = fine step)
-- [ ] +/- scale; Esc reset; Space GIF toggle (if shipped)
-- [ ] ARIA live position announcements (or documented equivalent)
-- [ ] Guide contrast legible; focus management consistent with Studio sliders/knobs
-- [ ] High Contrast / reduced-motion: no broken panel; GIF frozen under reduced-motion
+- [x] Keyboard-only positioning (arrow nudges; Shift = fine step)
+- [x] +/- scale; Esc reset; Space GIF toggle (if shipped)
+- [x] ARIA live position announcements (or documented equivalent)
+- [x] Guide contrast legible; focus management consistent with Studio sliders/knobs
+- [x] High Contrast / reduced-motion: no broken panel; GIF frozen under reduced-motion
 
-**Notes:**
+**Notes:** Operator passed keyboard positioning, scaling/resets, High Contrast, and reduced motion. Phase 7 gives both focusable frames coarse .05 / Shift-fine .01 arrows, bounded +/- zoom, Esc center, native Space on the GIF checkbox, numeric `aria-valuetext`, and one polite X/Y/zoom live region. Final optional assistive-tech listen remains part of the presentation recheck, not a code blocker.
 
 
 ---
 
 ## 12 · Product smoke + Classic / default no-regression
 
-- [ ] Short record → process → bake → download with custom bg + non-default layout
+- [x] Short record → process → bake → download with custom bg + non-default layout
 - [ ] Saved profile / style carrying layout fields loads correctly
 - [ ] Identity hot-swap does not leave stale layout state
 - [ ] Classic / default no-background path unchanged vs v5.11 / Track A close
@@ -294,8 +294,8 @@ Fill as pure-math suites land; re-run only when related code changes.
 
 ## Verdict
 
-**Overall:** ☐ open  
-**Blockers:** _(_none / list_)_  
+**Overall:** ▲ partial — implementation complete; final presentation/product closeout remains
+**Blockers:** none observed
 **Evidence:** `logs/` · `screenshot/` · `artifacts/`
 
 ## Notes

@@ -12,10 +12,10 @@
 | Track | Status | Roadmap | ADR |
 |-------|--------|---------|-----|
 | **A — audio-reactive visuals** | **Confidence PASS (Pass E) · merged** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
-| **B — background layout** | **OPEN · Phase 0–6 DONE · Phase 1–5 + size operator PASS · crop/thirds PASS · Theme-only recheck · Phase 7 next** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
+| **B — background layout** | **OPEN · Phase 0–7 DONE · operator Phase 1–6 + size/parity/a11y baseline PASS · final presentation/product closeout** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
 | **C — popup UI refresh** | **Agent QA gate PASS · merged to `main`** · §8 residual optional ([`track-c/qa-checklist.md`](track-c/qa-checklist.md)) | [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md) | none — presentational under 0007 tokens |
 
-**Automated (Track B through Phase 6 follow-up):** focused layout/interaction/UI set **84/84** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate **23/29 MiB PASS**.
+**Automated (Track B through Phase 7):** focused layout/interaction/UI set **88/88** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate **23/29 MiB PASS**.
 
 **Architecture at Track A confidence close:** map **v3.21** / I22 · extension-points **v1.35** · package version remains **5.11.0** until an explicit v6 ship/tag. Track B architecture MINOR bumps deferred to merge closeout (§9).
 
@@ -47,10 +47,10 @@
 - [x] **Phase 5 follow-up (eye-dropper gap)** — hero + precision surface/canvas pairs, mini crosshair chrome, shared miss/cancel exits · operator PASS
 - [x] **Phase 5 size gate** — required blur/GIF stress **23 MiB base / 29 MiB baked — PASS**; upper-end non-blur observation 28/35 MiB recorded as informational
 - [x] **Phase 6** — native/1:1/9:16 hero crop lab + independent thirds + transient Theme-only compare + restore/decode guard · commit `e7346ca` · crop/thirds operator PASS
-- [x] **Phase 6 Theme-only follow-up** — null-image preview clock, hard preset mutex, single `finishCompare` restore owner, explicit current-look copy · operator recheck pending
-- [ ] **Phase 7** — keyboard / ARIA / variants + confidence QA
+- [x] **Phase 6 Theme-only follow-up** — null-image preview clock, hard preset mutex, single `finishCompare` restore owner, explicit current-look copy · operator recheck PASS
+- [x] **Phase 7** — coarse/fine preview keyboard + +/- zoom/Esc; `aria-valuetext` + polite X/Y/zoom status; session-only next-take A/B framing; responsive Position Preview (panel + viewport bounded) · focused 88/88
 
-**Immediate next:** operator-recheck live Theme-only motion, preset exclusion, and record-start restore, then Phase 7.
+**Immediate next:** operator-check the resized Position Preview and Save variant → change → Swap A/B flow, optionally listen to the live announcement, then close saved-profile/identity/Classic/popup product smoke.
 
 **Non-blocking performance note:** subtitle browser-composite/burn-in reportedly runs roughly **5–6× faster while the Studio window is minimized**. Not breaking and out of Track B Phase 6 scope; investigate later for focused-window RAF/render contention, scheduling, or GPU-throttling interaction before treating it as an optimization.
 
@@ -59,7 +59,7 @@
 | Gate | Status |
 |------|--------|
 | Phase 0 automated (layout math) | **PASS** 10/10 |
-| Phase 1+3 automated (drag/zoom math) | **PASS** 8/8 |
+| Phase 1+3+7 automated (drag/zoom/keyboard math) | **PASS** 10/10 |
 | Phase 1 operator UI (hero drag) | **PASS** (user) |
 | Phase 2 automated (precision nudge math) | **PASS** 5/5 |
 | Phase 2 operator behavior (mini frame + bidirectional sync) | **PASS** (user) |
@@ -69,9 +69,12 @@
 | Phase 4 operator UI (hover/focus restore + Apply + live audition) | **PASS** (user; recording caveat guarded in `16e3dd0`) |
 | Phase 5 automated (effects/GIF/sampler/recording guard + residual) | **PASS** · included in focused total 83/83 |
 | Phase 5 operator UI + recording-safety smoke | **PASS** · blend plate + precision sampler + size gate closed |
-| Phase 6 automated | **PASS** · framing/compare/loop policy + preset mutex + recording restore contract; focused total 84/84 |
-| Phase 6 operator UI | **PARTIAL PASS** · crop/thirds pass; Theme-only follow-up recheck open |
-| Full Track B checklist merge gate | **open** (Phase 6–7 + parity/product smoke still ahead) |
+| Phase 6 automated | **PASS** · framing/compare/loop policy + preset mutex + recording restore contract |
+| Phase 6 operator UI | **PASS** · crop/thirds + Theme-only motion/mutex/record restore |
+| Phase 7 automated | **PASS** · focused total 88/88 + build; responsive/ARIA/A-B contracts covered |
+| Phase 7 operator baseline | **PASS** · keyboard/scaling/reset/high-contrast/reduced-motion; new presentation recheck open |
+| Preview→record→bake parity | **PASS** (user/operator) |
+| Full Track B checklist merge gate | **open** (Phase 7 presentation + remaining product-smoke rows) |
 
 ### Non-negotiables (Track B)
 

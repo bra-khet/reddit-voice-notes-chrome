@@ -1301,6 +1301,13 @@ body:has(.studio-v4) {
   overflow: hidden;
 }
 
+/* BUG FIX: Position Preview stayed thumbnail-sized at ordinary desktop zoom
+   Fix: the dedicated precision console, not the generic subpanel thumbnail, owns its responsive maximum.
+   Sync: studio-v4-controls.css; scripts/test-background-control-ui.mjs */
+.studio-v4 .studio__subpanel-content .studio__precision-preview-cell .studio__preview-wrap--background-precision {
+  max-width: none;
+}
+
 .studio-v4 .studio__subpanel-content .studio__preview-wrap--subpanel::after {
   content: '';
   position: absolute;

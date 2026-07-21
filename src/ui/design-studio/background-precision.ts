@@ -6,6 +6,13 @@ export type BackgroundPositionAxis = 'x' | 'y';
 export const BACKGROUND_POSITION_FINE_STEP = 0.01;
 export const BACKGROUND_POSITION_COARSE_STEP = 0.05;
 
+export function formatBackgroundLayoutAnnouncement(
+  layout: NormalizedUserBackgroundLayout,
+  action = 'Background framing',
+): string {
+  return `${action}. X ${layout.customPosition.x.toFixed(2)}, Y ${layout.customPosition.y.toFixed(2)}, zoom ${layout.manualScale.toFixed(2)} times.`;
+}
+
 export function nudgeBackgroundPosition(
   layout: NormalizedUserBackgroundLayout,
   axis: BackgroundPositionAxis,

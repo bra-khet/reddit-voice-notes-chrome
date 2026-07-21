@@ -8,7 +8,7 @@
 import { build } from 'esbuild';
 import { parseHTML } from 'linkedom';
 import { pathToFileURL } from 'node:url';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
@@ -128,6 +128,29 @@ check('Phase 3 mode and history controls are present', () => {
   assert.ok(document.querySelector('[data-background-redo][disabled]'));
 });
 
+check('Phase 7 exposes keyboard help, live values, and one next-take A/B slot', () => {
+  const precisionFrame = document.querySelector('[data-background-precision-manipulator]');
+  assert.match(precisionFrame.getAttribute('aria-keyshortcuts'), /ArrowUp/);
+  assert.equal(precisionFrame.getAttribute('aria-describedby'), 'background-position-keyboard-help');
+  assert.ok(document.querySelector('[data-background-position-status][aria-live="polite"]'));
+  assert.ok(document.querySelector('[data-background-center]'));
+  assert.ok(document.querySelector('[data-background-variant-save][disabled]'));
+  assert.ok(document.querySelector('[data-background-variant-swap][disabled]'));
+  assert.equal(document.querySelector('[data-background-gif-react]').getAttribute('aria-keyshortcuts'), 'Space');
+});
+
+check('Position Preview uses bounded viewport-aware sizing instead of the 280px thumbnail cap', () => {
+  // BUG FIX: Position Preview stayed thumbnail-sized at ordinary desktop zoom
+  // Fix: pin the container/viewport sizing contract and the dedicated max-width override.
+  // Sync: entrypoints/design-studio/studio-v4-controls.css; studio-v4-layout.css
+  const controlsCss = readFileSync(resolve(root, 'entrypoints/design-studio/studio-v4-controls.css'), 'utf8');
+  const layoutCss = readFileSync(resolve(root, 'entrypoints/design-studio/studio-v4-layout.css'), 'utf8');
+  assert.match(controlsCss, /container:\s*background-precision\s*\/\s*inline-size/);
+  assert.match(controlsCss, /min\(70cqi, calc\(180dvh - 306px\), 820px\)/);
+  assert.match(controlsCss, /preview-wrap--background-precision[^{]*\{[^}]*max-width:\s*none/s);
+  assert.match(layoutCss, /precision-preview-cell[^}]*preview-wrap--background-precision[^{]*\{[^}]*max-width:\s*none/s);
+});
+
 check('Phase 4 contact sheet renders four explicit image-layout recipes', () => {
   const cards = [...document.querySelectorAll('[data-background-preset]')];
   assert.equal(cards.length, 4);
@@ -242,9 +265,11 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
       },
     },
   });
+  assert.equal(document.querySelector('[data-background-variant-save]').disabled, false);
 
   const card = document.querySelector('[data-background-preset="aurora-thirds"]');
   card.dispatchEvent(new window.Event('pointerenter'));
+  assert.equal(document.querySelector('[data-background-variant-save]').disabled, true);
   assert.equal(changes.at(-1).options.persist, false);
   assert.equal(changes.at(-1).options.presetPreview, true);
   assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-bundled-aurora');
@@ -256,6 +281,7 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   assert.equal(changes.length, changesBeforePointerLeave);
 
   card.dispatchEvent(new window.Event('blur'));
+  assert.equal(document.querySelector('[data-background-variant-save]').disabled, false);
   assert.equal(changes.at(-1).options.persist, false);
   assert.equal(changes.at(-1).patch.customBackgroundId, 'bg-uploaded-fixture');
   assert.deepEqual(changes.at(-1).patch.backgroundLayout.customPosition, { x: 0.5, y: 0.5 });
@@ -348,6 +374,19 @@ check('preset safety, Apply, treatment controls, and sampler emit guarded change
   Object.defineProperty(arrowDown, 'key', { value: 'ArrowDown' });
   ySlider.dispatchEvent(arrowDown);
   assert.equal(changes.at(-1).patch.backgroundLayout.customPosition.y, yBefore);
+  assert.match(ySlider.getAttribute('aria-valuetext'), /Vertical position/);
+  assert.match(document.querySelector('[data-background-position-status]').value, /Y position changed.*X .*Y .*zoom/i);
+
+  const variantSave = document.querySelector('[data-background-variant-save]');
+  const variantSwap = document.querySelector('[data-background-variant-swap]');
+  variantSave.dispatchEvent(new window.Event('click'));
+  assert.equal(variantSave.textContent.trim(), 'Replace variant');
+  assert.equal(variantSwap.disabled, false);
+  document.querySelector('[data-background-center]').dispatchEvent(new window.Event('click'));
+  assert.deepEqual(changes.at(-1).patch.backgroundLayout.customPosition, { x: 0.5, y: 0.5 });
+  variantSwap.dispatchEvent(new window.Event('click'));
+  assert.deepEqual(changes.at(-1).patch.backgroundLayout.customPosition, { x: 0.33, y: 0.44 });
+  assert.match(document.querySelector('[data-background-variant-status]').value, /previous view is now the alternate/i);
 
   const blurToggle = document.querySelector('[data-background-blur-toggle]');
   blurToggle.checked = true;

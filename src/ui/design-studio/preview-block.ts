@@ -71,7 +71,9 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
         data-background-manipulator
         tabindex="0"
         role="group"
-        aria-label="Position personal background. Drag the image to pan, drag the focal point, or press Escape to center."
+        aria-label="Position personal background. Drag to pan; arrows move, Shift plus arrows move finely, plus and minus zoom, Escape centers."
+        aria-describedby="background-position-keyboard-help"
+        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Shift+ArrowLeft Shift+ArrowRight Shift+ArrowUp Shift+ArrowDown = - Escape"
         hidden
       >
         ${renderBackgroundGuideLayer()}
@@ -87,7 +89,9 @@ export function renderPreviewBlock(kind: PreviewBlockKind): string {
         data-background-precision-manipulator
         tabindex="0"
         role="group"
-        aria-label="Fine background position. Drag the image or focal point."
+        aria-label="Fine background position. Drag to pan; arrows move, Shift plus arrows move finely, plus and minus zoom, Escape centers."
+        aria-describedby="background-position-keyboard-help"
+        aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Shift+ArrowLeft Shift+ArrowRight Shift+ArrowUp Shift+ArrowDown = - Escape"
         hidden
       >
         ${renderBackgroundGuideLayer()}

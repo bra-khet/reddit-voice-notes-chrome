@@ -9,11 +9,17 @@ import {
   type NormalizedBand,
   type PositionSnapState,
 } from '@/src/ui/design-studio/interaction-utils';
+import {
+  BACKGROUND_POSITION_COARSE_STEP,
+  BACKGROUND_POSITION_FINE_STEP,
+  nudgeBackgroundPosition,
+} from '@/src/ui/design-studio/background-precision';
 
 const POSITION_SAVE_DEBOUNCE_MS = 200;
 const ZERO_SPAN_EPSILON = 0.0001;
 const BACKGROUND_SNAP_STRENGTH_PX = 8;
 const BACKGROUND_GUIDES = [0, 1 / 3, 0.5, 2 / 3, 1] as const;
+const BACKGROUND_KEYBOARD_SCALE_FACTOR = 1.1;
 
 export interface BackgroundImageSize {
   width: number;
@@ -195,6 +201,52 @@ export function computeZoomedBackgroundLayout({
   });
 }
 
+export interface BackgroundKeyboardAdjustment {
+  layout: NormalizedUserBackgroundLayout;
+  action: string;
+}
+
+// CHANGED: Phase 7 gives both focusable preview frames one deterministic keyboard contract.
+// WHY: coarse/fine arrows and bounded zoom must resolve identically before DOM persistence wiring.
+export function computeKeyboardAdjustedBackgroundLayout(
+  current: NormalizedUserBackgroundLayout,
+  key: string,
+  fine: boolean,
+): BackgroundKeyboardAdjustment | null {
+  const step = fine ? BACKGROUND_POSITION_FINE_STEP : BACKGROUND_POSITION_COARSE_STEP;
+  if (key === 'ArrowLeft') {
+    return { layout: nudgeBackgroundPosition(current, 'x', -step), action: 'Moved left' };
+  }
+  if (key === 'ArrowRight') {
+    return { layout: nudgeBackgroundPosition(current, 'x', step), action: 'Moved right' };
+  }
+  if (key === 'ArrowUp') {
+    return { layout: nudgeBackgroundPosition(current, 'y', -step), action: 'Moved up' };
+  }
+  if (key === 'ArrowDown') {
+    return { layout: nudgeBackgroundPosition(current, 'y', step), action: 'Moved down' };
+  }
+  if (key === '+' || key === '=') {
+    return {
+      layout: normalizeUserBackgroundLayout({
+        ...current,
+        manualScale: current.manualScale * BACKGROUND_KEYBOARD_SCALE_FACTOR,
+      }),
+      action: 'Zoomed in',
+    };
+  }
+  if (key === '-' || key === '_') {
+    return {
+      layout: normalizeUserBackgroundLayout({
+        ...current,
+        manualScale: current.manualScale / BACKGROUND_KEYBOARD_SCALE_FACTOR,
+      }),
+      action: 'Zoomed out',
+    };
+  }
+  return null;
+}
+
 export interface BackgroundDirectManipulationDeps {
   resolveImageSize(id: string): Promise<BackgroundImageSize | null>;
   onInteractionStart(): void;
@@ -203,6 +255,7 @@ export interface BackgroundDirectManipulationDeps {
   onPersistError(error: unknown): void;
   isSnapEnabled?(): boolean;
   getCaptionSafeBand?(): NormalizedBand | null;
+  onLayoutAnnounce?(layout: NormalizedUserBackgroundLayout, action: string): void;
 }
 
 export interface BackgroundDirectManipulationHandle {
@@ -427,6 +480,7 @@ export function mountBackgroundDirectManipulation(
     activePointerId = null;
     overlay.classList.remove(draggingClass);
     if (pendingPersistLayout) schedulePersistTimer();
+    deps.onLayoutAnnounce?.(layout, 'Position changed');
   }
 
   function resetPosition(): void {
@@ -442,6 +496,7 @@ export function mountBackgroundDirectManipulation(
     deps.onLayoutPreview(layout);
     pendingPersistLayout = layout;
     void flushPersist();
+    deps.onLayoutAnnounce?.(layout, 'Centered');
   }
 
   const pointerDownHandler = (event: PointerEvent): void => {
@@ -491,6 +546,7 @@ export function mountBackgroundDirectManipulation(
     else window.clearTimeout(wheelGestureTimer);
     wheelGestureTimer = window.setTimeout(() => {
       wheelGestureTimer = 0;
+      deps.onLayoutAnnounce?.(layout, 'Zoom changed');
     }, POSITION_SAVE_DEBOUNCE_MS + 80);
 
     let next = computeZoomedBackgroundLayout({
@@ -535,7 +591,30 @@ export function mountBackgroundDirectManipulation(
   };
 
   const keyDownHandler = (event: KeyboardEvent): void => {
-    if (interactionBlocked || event.key !== 'Escape') return;
+    if (interactionBlocked || !backgroundId) return;
+    const adjustment = computeKeyboardAdjustedBackgroundLayout(layout, event.key, event.shiftKey);
+    if (adjustment) {
+      event.preventDefault();
+      deps.onInteractionStart();
+      const band = adjustment.layout.lockToSafeText ? captionSafeBand() : null;
+      layout = band
+        ? normalizeUserBackgroundLayout({
+            ...adjustment.layout,
+            customPosition: {
+              ...adjustment.layout.customPosition,
+              y: constrainPointOutsideBand(adjustment.layout.customPosition.y, band),
+            },
+          })
+        : adjustment.layout;
+      snapState = { x: { snappedTo: null }, y: { snappedTo: null } };
+      updateFocalDot();
+      deps.onLayoutPreview(layout);
+      pendingPersistLayout = layout;
+      void flushPersist();
+      deps.onLayoutAnnounce?.(layout, adjustment.action);
+      return;
+    }
+    if (event.key !== 'Escape') return;
     event.preventDefault();
     if (activePointerId !== null && overlay.hasPointerCapture(activePointerId)) {
       overlay.releasePointerCapture(activePointerId);
@@ -553,9 +632,11 @@ export function mountBackgroundDirectManipulation(
   overlay.addEventListener('pointerup', finishGesture);
   overlay.addEventListener('pointercancel', finishGesture);
   overlay.addEventListener('wheel', wheelHandler, { passive: false });
+  // CHANGED: both hero and precision frames expose the Phase 7 keyboard surface.
+  // WHY: focus must provide the same coarse/fine positioning, zoom, and reset controls as pointer input.
+  overlay.addEventListener('keydown', keyDownHandler);
   if (resetEnabled) {
     overlay.addEventListener('dblclick', doubleClickHandler);
-    overlay.addEventListener('keydown', keyDownHandler);
   }
 
   return {
@@ -618,9 +699,9 @@ export function mountBackgroundDirectManipulation(
       overlay.removeEventListener('pointerup', finishGesture);
       overlay.removeEventListener('pointercancel', finishGesture);
       overlay.removeEventListener('wheel', wheelHandler);
+      overlay.removeEventListener('keydown', keyDownHandler);
       if (resetEnabled) {
         overlay.removeEventListener('dblclick', doubleClickHandler);
-        overlay.removeEventListener('keydown', keyDownHandler);
       }
     },
   };

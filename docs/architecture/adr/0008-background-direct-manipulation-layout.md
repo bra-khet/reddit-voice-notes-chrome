@@ -1,7 +1,7 @@
 # ADR-0008: Background direct-manipulation layout (Design-phase)
 
 - **Status:** Accepted
-- **Date:** 2026-07-14 (proposed) · **Accepted:** 2026-07-20 (Track B branch open / implementation track) · **Amended:** 2026-07-20 (Phase 5 blend plate; Phase 6 framing/live compare)
+- **Date:** 2026-07-14 (proposed) · **Accepted:** 2026-07-20 (Track B branch open / implementation track) · **Amended:** 2026-07-20 (Phase 5 blend plate; Phase 6 framing/live compare; Phase 7 transient variants/a11y)
 - **Reflects branch/tag:** `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `main@2b42db5` post Track A + C; v5.11.0 package baseline)
 - **Deciders:** v6 planning session (roadmap synthesis) · Track B init (branch open)
 
@@ -13,14 +13,14 @@ The load-bearing constraint the source doc glosses: the background is **captured
 
 ## Decision
 
-Ship direct manipulation as a **Design-phase, pre-capture surface** on the Studio `renderThemePreview` hero canvas: dragging writes a normalized `customPosition {x,y}` that hot-swaps via `setUserBackgroundLayout` and is captured by the *next* recording (WYSIWYG per I1). Extend `UserBackgroundLayout` with `customPosition / manualScale / dim / blur / blendMode / blendPlateSource / blendPlateColor / holo / gifSpeed / gifReactToAudio / lockToSafeText`, all `normalize`-guarded, persisted additively (no version bump). The blend plate is one solid draw-time fill beneath the personal image—not a second image or layer—and defaults to the exact legacy theme underlay. Reuse `timeline-geometry` **math patterns** via a new domain-neutral `src/ui/design-studio/interaction-utils.ts` (Roadmap B owns it); re-implement the ~30-line wheel/undo wiring for 2-D. Multi-aspect ships as **DOM-only crop-guide overlays** on the 16:9 canvas, not multi-format export. Theme-only comparison is transient, keeps the resolved theme/style preview clock alive with only personal media removed, is mutually exclusive with preset audition, never persists, and restores the exact committed layout/media plus decode-gates before capture.
+Ship direct manipulation as a **Design-phase, pre-capture surface** on the Studio `renderThemePreview` hero canvas: dragging writes a normalized `customPosition {x,y}` that hot-swaps via `setUserBackgroundLayout` and is captured by the *next* recording (WYSIWYG per I1). Extend `UserBackgroundLayout` with `customPosition / manualScale / dim / blur / blendMode / blendPlateSource / blendPlateColor / holo / gifSpeed / gifReactToAudio / lockToSafeText`, all `normalize`-guarded, persisted additively (no version bump). The blend plate is one solid draw-time fill beneath the personal image—not a second image or layer—and defaults to the exact legacy theme underlay. Reuse `timeline-geometry` **math patterns** via a new domain-neutral `src/ui/design-studio/interaction-utils.ts` (Roadmap B owns it); re-implement the ~30-line wheel/undo wiring for 2-D. Multi-aspect ships as **DOM-only crop-guide overlays** on the 16:9 canvas, not multi-format export. Theme-only comparison is transient, keeps the resolved theme/style preview clock alive with only personal media removed, is mutually exclusive with preset audition, never persists, and restores the exact committed layout/media plus decode-gates before capture. Phase 7 keeps one optional layout A/B snapshot in Studio page memory only; swapping applies the existing normalized/persisted layout for the next take, while the captured canvas remains the sole per-take visual record. Keyboard and ARIA are adapters over the same layout path, not another state owner.
 
 ## First-class concern impact
 
 - **Preview ↔ bake:** Direct manipulation edits the *preview*, which is the pre-capture design of the next recording (I1). Crop/thirds overlays remain outside the canvas bitmap; Theme-only compare continues the current theme/style motion while personal media is absent, then restores and waits for background readiness before `MediaRecorder.start()`. No post-capture re-position (would require a bake-time waveform re-render — explicitly out of scope). Subtitles composite live in the preview (`drawSubtitlePreview`), so "position against captions" holds.
 - **Effect composition:** No layer reorder. Personal-image order is optional solid blend plate → blended/blurred image (+ opt-in Holo passes) → dim, all within the existing background slot. The legacy source keeps the prior theme underlay exactly.
 - **Message contracts:** None. Client-side layout + prefs only.
-- **State ownership:** Extends `UserBackgroundLayout` (`types.ts`) + `AppearancePreferences` (recommend a nested `backgroundLayout?`) + `ClipProfile` snapshot; existing IDB prefs (ADR-0006), `normalizeUserBackgroundLayout` guards all; no new store/signal.
+- **State ownership:** Extends `UserBackgroundLayout` (`types.ts`) + `AppearancePreferences` (recommend a nested `backgroundLayout?`) + `ClipProfile` snapshot; existing IDB prefs (ADR-0006), `normalizeUserBackgroundLayout` guards all. The next-take A/B alternate is page-local and background-identity-scoped; no new store/signal/profile/take field.
 
 ## Options considered
 
@@ -31,7 +31,7 @@ Ship direct manipulation as a **Design-phase, pre-capture surface** on the Studi
 
 ## Consequences
 
-- **Positive:** tactile positioning with real hot-swap parity; dim/blur/blend/plate/Holo/GIF controls with bounded Canvas 2D cost and **no bake-size pipeline impact**; a reusable `interaction-utils.ts` seam for future editors; migration-safe (missing fields → legacy discrete + constant dim + legacy plate).
+- **Positive:** tactile positioning with real hot-swap parity; dim/blur/blend/plate/Holo/GIF controls with bounded Canvas 2D cost and **no bake-size pipeline impact**; responsive focusable framing with numeric announcements and a cheap next-take A/B workflow; a reusable `interaction-utils.ts` seam for future editors; migration-safe (missing fields → legacy discrete + constant dim + legacy plate).
 - **Negative / accepted cost:** we deliberately do **not** build post-capture re-positioning or multi-format export; multi-aspect is a preview aid only. We accept re-implementing (not extracting) the ~30-line wheel/undo wiring rather than over-generalizing the timeline editor mid-v6.
 - **Follow-ups:** extension-points bump (background layout v2 seam — map was **v3.21** / seams **v1.35** at Track A close) and design-studio.md background-layout section update at Track B merge. The required 120 s blur+GIF size case passed at 23 MiB base / 29 MiB baked. Shared Cividis tokens already landed on Track A.
 
