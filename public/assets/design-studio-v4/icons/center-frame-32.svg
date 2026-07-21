@@ -6,6 +6,6 @@
   WHY: the precision reset should communicate centering before its tooltip is read.
 -->
   <path id="frame" d="M7 4 L25 4 C26.7 4 28 5.3 28 7 L28 25 C28 26.7 26.7 28 25 28 L7 28 C5.3 28 4 26.7 4 25 L4 7 C4 5.3 5.3 4 7 4" fill="none" stroke="#ffd54f" stroke-width="1.7" stroke-linejoin="round"/>
-  <path id="inward-arrows" d="M7 16 L13 16 M11 14 L13 16 L11 18 M25 16 L19 16 M21 14 L19 16 L21 18 M16 7 L16 13 M14 11 L16 13 L18 11 M16 25 L16 19 M14 21 L16 19 L18 21" fill="none" stroke="#ffd54f" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path id="inward-arrows" d="M7 16 L13 16 M11 14 L13 16 L11 18 M25 16 L19 16 M21 14 L19 16 L21 18 M16 7 L16 13 M14 11 L16 13 L18 11 M16 25 L16 19 M14 21 L16 19 L18 21" fill="none" stroke="#ffd54f" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
   <path id="focal-target" d="M14.5 14.5 L17.5 14.5 L17.5 17.5 L14.5 17.5 L14.5 14.5" fill="#ffd54f"/>
 </svg>
