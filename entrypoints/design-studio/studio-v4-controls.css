@@ -967,6 +967,7 @@
 
 .studio-v4 .studio__precision-slider-shell--vertical {
   justify-self: center;
+  align-self: stretch;
   width: 30px;
   height: 100%;
   min-height: 48px;
@@ -976,13 +977,19 @@
   flex: none;
   width: 30px;
   height: 100%;
+  /* BUG FIX: Y-axis track stayed fixed 48px after Position Preview grew
+     Fix: size-container the vertical slider so the rotated track can length to 100cqh
+     and span the full thumb travel instead of a leftover thumbnail length.
+     Sync: none — CSS-only */
+  container-type: size;
 }
 
 .studio-v4 .studio__precision-slider-shell--vertical .studio__physical-slider-track {
   left: 50%;
   right: auto;
   top: 50%;
-  width: 48px;
+  /* Rotated horizontal asset: width becomes visual track length after 90°. */
+  width: 100cqh;
   height: 16px;
   transform: translate(-50%, -50%) rotate(90deg);
 }
