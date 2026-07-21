@@ -21,6 +21,10 @@ import {
   decodeAnimatedBackground,
   isAnimatableMime,
 } from './animated-background';
+import {
+  getBundledUserBackground,
+  isBundledUserBackgroundId,
+} from '@/src/theme/background-layout-presets';
 
 /** Canvas-drawable personal/bundled decode result — ImageBitmap bypasses page img-src CSP. */
 export type DrawableBackgroundImage = HTMLImageElement | ImageBitmap;
@@ -333,10 +337,23 @@ async function loadBackgroundImageElementViaRelay(id: string): Promise<DrawableB
   return image;
 }
 
-/** Decode ImageDB record for canvas draw — works in popup and content script. */
+/** Decode an included or ImageDB background for canvas draw in extension and content contexts. */
 export async function loadBackgroundImageElement(id: string): Promise<DrawableBackgroundImage | null> {
   const normalized = normalizeBackgroundAssetId(id);
   if (!normalized) return null;
+
+  const bundled = getBundledUserBackground(normalized);
+  if (bundled) {
+    const cached = decodedImageCache.get(normalized);
+    if (cached && isDrawableBackgroundReady(cached)) return cached;
+    try {
+      // CHANGED: bundled Phase 4 preset images load directly in every extension/content context.
+      // WHY: these web-accessible assets need neither ImageDB duplication nor the personal-blob relay.
+      return loadImageFromUrl(browser.runtime.getURL(bundled.assetPath as never), normalized);
+    } catch {
+      return null;
+    }
+  }
 
   if (isExtensionPageContext()) {
     return loadBackgroundImageElementLocal(normalized);
@@ -429,6 +446,7 @@ export function loadAnimatedBackground(
 ): Promise<AnimatedBackground | null> {
   const normalized = normalizeBackgroundAssetId(id);
   if (!normalized) return Promise.resolve(null);
+  if (isBundledUserBackgroundId(normalized)) return Promise.resolve(null);
   if (animatedEntry?.id === normalized) return animatedEntry.promise;
 
   const previous = animatedEntry;

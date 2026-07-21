@@ -12,6 +12,7 @@ import {
   deriveGlowColor,
   effectiveBarGlow,
   resolveClipBackgrounds,
+  userBackgroundGifPlaybackRate,
   userBackgroundLayoutFromAppearance,
   type UserBackgroundLayout,
   type WaveformTheme,
@@ -178,6 +179,7 @@ export class WaveformRenderer {
   private readonly timeDomainData: Uint8Array;
   private theme: WaveformTheme;
   private customBackgroundId: string | null = null;
+  private customBackgroundIdInitialized = false;
   private userBackgroundLayout: UserBackgroundLayout = userBackgroundLayoutFromAppearance({});
   private bundledBackgroundImage: HTMLImageElement | null = null;
   private userBackgroundImage: DrawableBackgroundImage | null = null;
@@ -189,6 +191,8 @@ export class WaveformRenderer {
   private rafId = 0;
   private backgroundPumpId = 0;
   private lastFrameAt = 0;
+  private userBackgroundAnimationTimeMs = 0;
+  private userBackgroundAnimationLastAt = 0;
   private running = false;
   private readonly onVisibilityChange = (): void => {
     this.syncFramePump();
@@ -254,9 +258,17 @@ export class WaveformRenderer {
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }
 
-  /** ImageDB personal background id — hot-swaps during recording like theme (pretty-7b). */
+  /** Uploaded/included background reference — hot-swaps during recording like theme (pretty-7b). */
   setCustomBackgroundId(id: string | null | undefined): void {
-    this.customBackgroundId = normalizeBackgroundAssetId(id);
+    const nextId = normalizeBackgroundAssetId(id);
+    // BUG FIX: live background adjustments repeatedly restarted an unchanged image load
+    // Fix: retain the decoded image when only layout changes; this also removes avoidable async paint churn.
+    // Sync: voice-recorder.ts; recorder-background-state.ts
+    if (this.customBackgroundIdInitialized && nextId === this.customBackgroundId) return;
+    this.customBackgroundIdInitialized = true;
+    this.userBackgroundAnimationTimeMs = 0;
+    this.userBackgroundAnimationLastAt = 0;
+    this.customBackgroundId = nextId;
     this.backgroundLoadPromise = this.loadBackgroundIfNeeded();
   }
 
@@ -376,6 +388,27 @@ export class WaveformRenderer {
     this.rafId = requestAnimationFrame(this.tick);
   };
 
+  private nextUserBackgroundAnimationTime(nowMs: number): number {
+    if (this.reduceMotion) {
+      this.userBackgroundAnimationTimeMs = 0;
+      this.userBackgroundAnimationLastAt = 0;
+      return 0;
+    }
+    if (this.userBackgroundAnimationLastAt <= 0) {
+      this.userBackgroundAnimationLastAt = nowMs;
+      // Keep the default 1×/non-reactive frame phase identical to the legacy absolute clock.
+      this.userBackgroundAnimationTimeMs = nowMs;
+      return this.userBackgroundAnimationTimeMs;
+    }
+    const deltaMs = Math.min(250, Math.max(0, nowMs - this.userBackgroundAnimationLastAt));
+    this.userBackgroundAnimationLastAt = nowMs;
+    this.userBackgroundAnimationTimeMs += deltaMs * userBackgroundGifPlaybackRate(
+      this.userBackgroundLayout,
+      this.smoothedAudioEnergy,
+    );
+    return this.userBackgroundAnimationTimeMs;
+  }
+
   private drawFrame(): void {
     const { ctx, canvas, theme } = this;
     this.analyser.getByteFrequencyData(this.frequencyData as Uint8Array<ArrayBuffer>);
@@ -395,12 +428,14 @@ export class WaveformRenderer {
     this.smoothedAudioEnergy =
       this.smoothedAudioEnergy * energySmoothing + instantEnergy * energyBlend;
 
-    // CHANGED: pick the animated GIF frame for this instant (reduce-motion freezes to frame 0).
-    // WHY: animated branch Phase 2 — the captured canvas is the exported MP4, so looping here
-    //      animates the live recorder, the preview, and the export in lockstep (WYSIWYG).
-    const animationTimeMs = this.reduceMotion ? 0 : performance.now();
+    // CHANGED: pick the GIF frame from a continuously rate-modulated clock.
+    // WHY: Phase 5 speed/audio reactivity must remain WYSIWYG while reduced motion freezes frame zero.
+    const nowMs = performance.now();
+    const animationTimeMs = this.reduceMotion ? 0 : nowMs;
     const backgroundFrame = this.userAnimatedBackground
-      ? this.userAnimatedBackground.frameAt(animationTimeMs)
+      ? this.userAnimatedBackground.frameAt(
+        this.nextUserBackgroundAnimationTime(nowMs),
+      )
       : this.userBackgroundImage;
 
     const requestedSpectrumId = theme.designEffects?.spectrumPreset ?? CLASSIC_NEON_SPECTRUM_ID;
@@ -480,17 +515,22 @@ export async function renderThemePreview(
   const { userBackgroundImage, userAnimatedBackground, bundledBackgroundImage } =
     await resolveClipBackgrounds(theme, customBackgroundId);
 
-  // Animated GIF: pick the frame for `timeMs` (callers pass 0 to freeze for reduced motion).
-  const backgroundFrame = userAnimatedBackground
-    ? userAnimatedBackground.frameAt(timeMs)
-    : userBackgroundImage;
-
   const requestedSpectrumId = theme.designEffects?.spectrumPreset ?? CLASSIC_NEON_SPECTRUM_ID;
   // CHANGED: preview consults the same registry capability metadata as live capture.
   // WHY: representative waveform motion should exist for Oscilloscope and nowhere else.
   const audioFrame = buildSyntheticAudioVizFrame(PREVIEW_BAND_LEVELS, timeMs, 0.32, {
     waveform: getAudioVisualWants('spectrum', requestedSpectrumId).waveform === true,
   });
+
+  // CHANGED: GIF speed/audio-reactivity uses the same guarded layout fields in preview and capture.
+  // WHY: the Studio must demonstrate the selected motion rate while reduced motion remains frame zero.
+  const backgroundFrame = userAnimatedBackground
+    ? userAnimatedBackground.frameAt(
+      timeMs === 0
+        ? 0
+        : timeMs * userBackgroundGifPlaybackRate(userBackgroundLayout, audioFrame.energy),
+    )
+    : userBackgroundImage;
 
   drawThemeBackground(
     ctx,

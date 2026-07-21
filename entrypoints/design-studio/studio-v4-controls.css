@@ -89,3 +89,1128 @@
   color: var(--studio-amber-dim);
   letter-spacing: var(--studio-letter-meta);
 }
+
+/* CHANGED: Phase 4 presets read as a photographic contact sheet with a visible focal reticle.
+   WHY: the cards must communicate image + crop + focal placement before the real live audition begins. */
+.studio-v4 .studio__background-presets {
+  margin-bottom: 14px;
+  padding: 11px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--studio-surface-raised) 90%, var(--studio-bg-deep));
+}
+
+.studio-v4 .studio__background-presets-heading,
+.studio-v4 .studio__background-preset-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.studio-v4 .studio__background-presets-heading > span:first-child {
+  display: grid;
+  gap: 1px;
+}
+
+.studio-v4 .studio__background-presets-eyebrow {
+  color: var(--studio-accent-background);
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  letter-spacing: var(--studio-letter-meta);
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__background-preset-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(142px, 0.72fr);
+  gap: 8px;
+  margin-top: 9px;
+  padding: 1px 1px 6px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--studio-indigo-muted) transparent;
+}
+
+.studio-v4 .studio__background-preset {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 7px;
+  color: var(--studio-text-muted);
+  background: var(--studio-bg-deep);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.studio-v4 .studio__background-preset:hover,
+.studio-v4 .studio__background-preset--previewing {
+  border-color: var(--studio-accent-background);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--studio-accent-background) 13%, transparent);
+  transform: translateY(-1px);
+}
+
+.studio-v4 .studio__background-preset--selected {
+  border-color: var(--studio-amber);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--studio-amber) 45%, transparent),
+    0 0 10px color-mix(in srgb, var(--studio-amber) 15%, transparent);
+}
+
+.studio-v4 .studio__background-preset:focus-visible,
+.studio-v4 .studio__background-preset-apply:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__background-preset-thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border: 1px solid color-mix(in srgb, var(--studio-accent-background) 42%, var(--studio-hairline));
+  border-radius: 4px;
+  background: var(--studio-surface-raised);
+}
+
+.studio-v4 .studio__background-preset-thumb img,
+.studio-v4 .studio__background-preset-dim,
+.studio-v4 .studio__background-preset-grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.studio-v4 .studio__background-preset-thumb img {
+  object-fit: cover;
+  object-position: var(--preset-x) var(--preset-y);
+  transform: scale(var(--preset-scale));
+  transform-origin: var(--preset-x) var(--preset-y);
+}
+
+.studio-v4 .studio__background-preset-dim {
+  background: rgb(0 0 0 / var(--preset-dim));
+}
+
+.studio-v4 .studio__background-preset-grid {
+  opacity: 0.56;
+  background:
+    linear-gradient(to right, transparent 33%, var(--studio-hairline-strong) 33.5%, transparent 34%, transparent 66%, var(--studio-hairline-strong) 66.5%, transparent 67%),
+    linear-gradient(to bottom, transparent 33%, var(--studio-hairline-strong) 33.5%, transparent 34%, transparent 66%, var(--studio-hairline-strong) 66.5%, transparent 67%);
+}
+
+.studio-v4 .studio__background-preset-focal {
+  position: absolute;
+  left: var(--preset-x);
+  top: var(--preset-y);
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--studio-amber);
+  border-radius: 50%;
+  box-shadow: 0 0 7px color-mix(in srgb, var(--studio-amber) 65%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.studio-v4 .studio__background-preset-focal::before,
+.studio-v4 .studio__background-preset-focal::after {
+  position: absolute;
+  content: '';
+  background: var(--studio-amber);
+}
+
+.studio-v4 .studio__background-preset-focal::before {
+  left: 50%;
+  top: -4px;
+  width: 1px;
+  height: 16px;
+}
+
+.studio-v4 .studio__background-preset-focal::after {
+  left: -4px;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+}
+
+.studio-v4 .studio__background-preset-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.studio-v4 .studio__background-preset-copy strong {
+  color: var(--studio-text);
+  font-size: var(--studio-font-body);
+}
+
+.studio-v4 .studio__background-preset-copy span {
+  min-height: 2.5em;
+  font-size: var(--studio-font-caption);
+  line-height: 1.25;
+}
+
+.studio-v4 .studio__background-preset-spec {
+  color: var(--studio-indigo-muted);
+  font-family: var(--studio-font-mono);
+  font-size: 0.52rem;
+  letter-spacing: var(--studio-letter-meta);
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__background-preset-footer {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__background-preset-status {
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-caption);
+  line-height: 1.3;
+}
+
+.studio-v4 .studio__background-preset-apply {
+  flex: none;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--studio-amber-edge);
+  border-radius: 6px;
+  color: var(--studio-bg-deep);
+  background: var(--studio-amber);
+  font-weight: var(--studio-font-weight-strong);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-preset-apply:disabled {
+  border-color: var(--studio-hairline);
+  color: var(--studio-text-faint);
+  background: var(--studio-surface-raised);
+  cursor: not-allowed;
+}
+
+/* BUG FIX: recording-time preset hover could create flash-heavy captured video
+   Fix: The capture guard removes hover motion/color emphasis and marks the contact sheet unavailable.
+   Sync: background-layout-controls.ts; studio-recorder.ts; scripts/test-background-control-ui.mjs */
+.studio-v4 .studio__background-presets--recording .studio__background-preset,
+.studio-v4 .studio__background-presets--recording .studio__background-preset:hover {
+  border-color: var(--studio-hairline);
+  box-shadow: none;
+  filter: saturate(0.55);
+  opacity: 0.62;
+  transform: none;
+  cursor: not-allowed;
+}
+
+.studio-v4 .studio__background-presets--recording .studio__background-preset-thumb::after {
+  position: absolute;
+  inset: auto 4px 4px auto;
+  padding: 2px 4px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 3px;
+  content: 'REC SAFE';
+  color: var(--studio-text);
+  background: color-mix(in srgb, var(--studio-bg-deep) 88%, transparent);
+  font-family: var(--studio-font-mono);
+  font-size: 0.48rem;
+  letter-spacing: var(--studio-letter-meta);
+}
+
+/* CHANGED: Phase 5 treatments form a restrained darkroom bay beneath the spatial instrument.
+   WHY: dim, blur, blend, motion, and sampling need calibrated readouts without competing with the contact sheet. */
+.studio-v4 .studio__background-treatment {
+  margin-bottom: 14px;
+  padding: 11px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 9px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--studio-accent-background) 7%, transparent), transparent 48%),
+    color-mix(in srgb, var(--studio-surface-raised) 88%, var(--studio-bg-deep));
+}
+
+.studio-v4 .studio__background-treatment-heading,
+.studio-v4 .studio__background-treatment-heading > span:first-child,
+.studio-v4 .studio__background-treatment-rail,
+.studio-v4 .studio__background-color-sampler,
+.studio-v4 .studio__background-motion summary,
+.studio-v4 .studio__background-motion-toggle,
+.studio-v4 .studio__background-treatment-toggle {
+  display: flex;
+  align-items: center;
+}
+
+.studio-v4 .studio__background-treatment-heading {
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.studio-v4 .studio__background-treatment-heading > span:first-child {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.studio-v4 .studio__background-treatment-eyebrow {
+  color: var(--studio-accent-background);
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  letter-spacing: var(--studio-letter-meta);
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__background-treatment-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(110px, 0.66fr);
+  gap: 8px;
+}
+
+.studio-v4 .studio__background-treatment-rail,
+.studio-v4 .studio__background-blend-field {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--studio-bg-deep) 72%, var(--studio-surface-raised));
+}
+
+.studio-v4 .studio__background-treatment-rail {
+  display: grid;
+  grid-template-columns: auto minmax(70px, 1fr) 44px;
+  gap: 7px;
+}
+
+.studio-v4 .studio__background-treatment-label,
+.studio-v4 .studio__background-treatment-toggle,
+.studio-v4 .studio__background-motion-toggle {
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-label);
+}
+
+.studio-v4 .studio__background-treatment-toggle,
+.studio-v4 .studio__background-motion-toggle {
+  gap: 5px;
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-treatment-toggle input,
+.studio-v4 .studio__background-motion-toggle input {
+  accent-color: var(--studio-amber);
+}
+
+.studio-v4 .studio__background-treatment-value {
+  min-width: 44px;
+  color: var(--studio-amber);
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.studio-v4 .studio__background-treatment [data-background-blur-slider][aria-disabled='true'] {
+  opacity: 0.38;
+}
+
+.studio-v4 .studio__background-holo-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--studio-accent-background) 34%, var(--studio-hairline));
+  border-radius: 6px;
+  color: var(--studio-text-muted);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--studio-accent-background) 14%, transparent),
+    color-mix(in srgb, var(--studio-accent-background) 7%, transparent)
+  );
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-holo-toggle input {
+  accent-color: var(--studio-accent-background);
+}
+
+.studio-v4 .studio__background-holo-toggle span {
+  display: grid;
+  gap: 1px;
+}
+
+.studio-v4 .studio__background-holo-toggle strong {
+  color: var(--studio-text);
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-holo-toggle small {
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-holo-toggle:has(input:focus-visible) {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__background-blend-field {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+
+.studio-v4 .studio__background-blend-field .popup__select {
+  width: 100%;
+  min-height: 32px;
+  font-size: var(--studio-font-caption);
+}
+
+/* CHANGED: blend destination uses the existing select + HSV instrument as progressive disclosure.
+   WHY: presets stay one-line compact while Custom solid retains full hue/saturation/value/HEX control. */
+.studio-v4 .studio__background-blend-plate {
+  display: grid;
+  grid-template-columns: minmax(122px, 0.58fr) 28px minmax(150px, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--studio-accent-background) 30%, var(--studio-hairline));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--studio-bg-deep) 72%, var(--studio-surface-raised));
+}
+
+.studio-v4 .studio__background-blend-plate-field,
+.studio-v4 .studio__background-blend-plate-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.studio-v4 .studio__background-blend-plate-field .popup__select {
+  width: 100%;
+  min-height: 32px;
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-blend-plate-swatch {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--studio-text-muted);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--studio-bg-deep);
+}
+
+.studio-v4 .studio__background-blend-plate-copy strong {
+  overflow: hidden;
+  color: var(--studio-text);
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-v4 .studio__background-blend-plate-copy small {
+  color: var(--studio-indigo-muted);
+  font-size: var(--studio-font-caption);
+  line-height: 1.25;
+}
+
+.studio-v4 .studio__background-blend-plate-custom {
+  grid-column: 1 / -1;
+  padding-top: 7px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__background-blend-plate-custom summary {
+  color: var(--studio-amber);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-blend-plate-picker .studio__color-panel {
+  margin-bottom: 0;
+  padding: 9px;
+  border-color: var(--studio-hairline-strong);
+  background: rgb(0 0 0 / 0.18);
+}
+
+.studio-v4 .studio__background-color-sampler {
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__background-eyedropper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 31px;
+  padding: 4px 9px;
+  border: 1px solid var(--studio-amber-edge);
+  border-radius: 6px;
+  color: var(--studio-amber);
+  background: var(--studio-bg-deep);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  cursor: crosshair;
+}
+
+.studio-v4 .studio__background-eyedropper[aria-pressed='true'] {
+  color: var(--studio-bg-deep);
+  background: var(--studio-amber);
+}
+
+.studio-v4 .studio__background-eyedropper svg {
+  width: 17px;
+  height: 17px;
+}
+
+.studio-v4 .studio__background-eyedropper:focus-visible,
+.studio-v4 .studio__background-motion summary:focus-visible,
+.studio-v4 .studio__background-treatment-toggle:has(input:focus-visible),
+.studio-v4 .studio__background-motion-toggle:has(input:focus-visible) {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__background-sampled-color {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--studio-text-muted);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--studio-bg-deep);
+}
+
+.studio-v4 .studio__background-sample-status {
+  color: var(--studio-text-muted);
+  font-size: var(--studio-font-caption);
+  line-height: 1.3;
+}
+
+/* BUG FIX: precision mini was locked by sampling but could not produce a sample
+   Fix: surface sampling state on both registered interaction layers and hide their drag chrome.
+   Sync: background-layout-controls.ts; background-direct-manipulation.ts; mount-clip-studio.ts */
+.studio-v4.studio__background-layout--sampling .studio__hero .studio__preview-canvas,
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-manipulator],
+.studio-v4.studio__background-layout--sampling [data-preview-kind='background-precision'],
+.studio-v4.studio__background-layout--sampling [data-background-precision-manipulator] {
+  outline: 2px solid var(--studio-amber);
+  outline-offset: -3px;
+  cursor: crosshair;
+}
+
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-focal-dot],
+.studio-v4.studio__background-layout--sampling .studio__hero [data-background-guide-layer],
+.studio-v4.studio__background-layout--sampling [data-background-precision-manipulator] [data-background-focal-dot],
+.studio-v4.studio__background-layout--sampling [data-background-precision-manipulator] [data-background-guide-layer] {
+  visibility: hidden;
+}
+
+.studio-v4 .studio__background-motion {
+  margin-top: 9px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__background-motion summary {
+  justify-content: space-between;
+  min-height: 34px;
+  color: var(--studio-text);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-motion-body {
+  display: grid;
+  gap: 8px;
+  padding: 2px 0 3px;
+}
+
+.studio-v4 .studio__background-motion-body .popup__field-desc {
+  margin: 0;
+  font-size: var(--studio-font-caption);
+}
+
+/* CHANGED: Phase 6 framing is a compact optical bench: aspect silhouettes, thirds, and transient compare.
+   WHY: the controls must explain preview-only center crops without implying new export formats. */
+.studio-v4 .studio__background-framing {
+  margin-bottom: 14px;
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--studio-amber-edge) 56%, var(--studio-hairline));
+  border-radius: 9px;
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--studio-amber) 7%, transparent), transparent 46%),
+    color-mix(in srgb, var(--studio-surface-raised) 88%, var(--studio-bg-deep));
+}
+
+.studio-v4 .studio__background-framing-heading,
+.studio-v4 .studio__background-framing-heading > span:first-child,
+.studio-v4 .studio__background-framing-tools,
+.studio-v4 .studio__background-framing-aspects,
+.studio-v4 .studio__background-framing-aspect,
+.studio-v4 .studio__background-framing-toggle,
+.studio-v4 .studio__background-compare {
+  display: flex;
+  align-items: center;
+}
+
+.studio-v4 .studio__background-framing-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.studio-v4 .studio__background-framing-heading > span:first-child {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.studio-v4 .studio__background-framing-eyebrow,
+.studio-v4 .studio__background-framing-badge {
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-strong);
+  letter-spacing: var(--studio-letter-meta);
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__background-framing-eyebrow {
+  color: var(--studio-amber-dim);
+}
+
+.studio-v4 .studio__background-framing-badge {
+  padding: 3px 6px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 999px;
+  color: var(--studio-indigo-muted);
+  background: var(--studio-bg-deep);
+  white-space: nowrap;
+}
+
+.studio-v4 .studio__background-framing-help {
+  margin: 4px 0 9px;
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__background-framing-tools {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.studio-v4 .studio__background-framing-aspects {
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--studio-hairline);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--studio-bg-deep) 82%, transparent);
+}
+
+.studio-v4 .studio__background-framing-aspect,
+.studio-v4 .studio__background-framing-toggle,
+.studio-v4 .studio__background-compare {
+  justify-content: center;
+  gap: 5px;
+  min-height: 33px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--studio-text-muted);
+  background: transparent;
+  font-family: var(--studio-font-mono);
+  font-size: var(--studio-font-caption);
+  font-weight: var(--studio-font-weight-label);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__background-framing-aspect svg,
+.studio-v4 .studio__background-framing-toggle svg,
+.studio-v4 .studio__background-compare svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.studio-v4 .studio__background-framing-aspect svg rect:first-child {
+  fill: currentColor;
+  stroke: none;
+}
+
+.studio-v4 .studio__background-framing-aspect svg rect:last-child {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.studio-v4 .studio__background-framing-aspect--active,
+.studio-v4 .studio__background-framing-toggle--active {
+  border-color: var(--studio-amber-edge);
+  color: var(--studio-amber);
+  background: color-mix(in srgb, var(--studio-amber) 10%, var(--studio-surface-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--studio-amber) 9%, transparent);
+}
+
+.studio-v4 .studio__background-framing-toggle,
+.studio-v4 .studio__background-compare {
+  border-color: var(--studio-hairline-strong);
+  background: color-mix(in srgb, var(--studio-bg-deep) 70%, var(--studio-surface-raised));
+}
+
+.studio-v4 .studio__background-compare {
+  margin-left: auto;
+}
+
+.studio-v4 .studio__background-compare--active {
+  border-color: var(--studio-violet-confirm-edge);
+  color: var(--studio-text);
+  background: color-mix(in srgb, var(--studio-violet-confirm) 24%, var(--studio-bg-deep));
+}
+
+.studio-v4 .studio__background-compare:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.studio-v4 .studio__background-framing-aspect:focus-visible,
+.studio-v4 .studio__background-framing-toggle:focus-visible,
+.studio-v4 .studio__background-compare:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__background-framing-status {
+  display: block;
+  margin-top: 8px;
+  color: var(--studio-indigo-muted);
+  font-size: var(--studio-font-caption);
+  line-height: 1.3;
+}
+
+.studio-v4 .studio__background-presets--comparing .studio__background-preset {
+  filter: saturate(0.62);
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+/* CHANGED: Fine position is a camera-style jog console wrapped around its live frame.
+   WHY: spatial placement, directional SVGs, and physical rails communicate axis + step without decoding +/- text. */
+.studio-v4 .studio__precision-controls {
+  container: background-precision / inline-size;
+  margin-bottom: 14px;
+  padding: clamp(11px, 1.2vw, 18px);
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--studio-surface-raised) 88%, var(--studio-panel-edge));
+}
+
+.studio-v4 .studio__precision-heading,
+.studio-v4 .studio__precision-axis-heading,
+.studio-v4 .studio__precision-mode-row,
+.studio-v4 .studio__precision-zoom-row {
+  display: flex;
+  align-items: center;
+}
+
+.studio-v4 .studio__precision-heading {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.studio-v4 .studio__precision-help {
+  margin: 4px 0 9px;
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__precision-stage {
+  /* BUG FIX: Position Preview stayed thumbnail-sized at ordinary desktop zoom
+     Fix: size from both available panel width and viewport height, then cap it as an instrument rather than scaling without bounds.
+     Sync: studio-v4-layout.css; scripts/test-background-control-ui.mjs */
+  display: grid;
+  grid-template-columns: minmax(320px, 640px) 68px;
+  grid-template-columns:
+    minmax(360px, min(70cqi, calc(180dvh - 306px), 820px))
+    68px;
+  grid-template-rows: auto auto;
+  justify-content: center;
+  align-items: stretch;
+  gap: 7px 8px;
+}
+
+.studio-v4 .studio__precision-preview-cell {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.studio-v4 .studio__precision-preview-cell .studio__preview-wrap--background-precision {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.studio-v4 .studio__precision-axis {
+  min-width: 0;
+}
+
+.studio-v4 .studio__precision-axis--horizontal {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.studio-v4 .studio__precision-axis--vertical {
+  grid-column: 2;
+  grid-row: 1;
+  display: grid;
+  grid-template-rows: auto auto minmax(48px, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+}
+
+/* BUG FIX: Center action was detached from the alignment controls
+   Fix: seat the icon-only reset in the precision stage's open lower-right cell so its spatial meaning is immediate.
+   Sync: background-layout-controls.ts; center-frame-32.svg; test-background-control-ui.mjs */
+.studio-v4 .studio__precision-center-cell {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.studio-v4 .studio__precision-center {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 44px;
+  padding: 5px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 7px;
+  color: var(--studio-amber);
+  background: var(--studio-surface-raised);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__precision-center img {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
+
+.studio-v4 .studio__precision-center:hover {
+  border-color: var(--studio-amber-edge);
+  background: color-mix(in srgb, var(--studio-amber) 9%, var(--studio-surface-raised));
+  box-shadow: inset 0 0 9px color-mix(in srgb, var(--studio-amber) 12%, transparent);
+}
+
+.studio-v4 .studio__precision-axis-heading {
+  justify-content: center;
+  gap: 5px;
+  min-height: 18px;
+}
+
+.studio-v4 .studio__precision-axis--horizontal .studio__precision-axis-heading {
+  justify-content: flex-start;
+  margin-bottom: 3px;
+}
+
+.studio-v4 .studio__precision-axis-rail {
+  display: grid;
+  grid-template-columns: 29px 29px minmax(66px, 1fr) 29px 29px;
+  align-items: center;
+  gap: 4px;
+}
+
+.studio-v4 .studio__precision-nudge-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+.studio-v4 .studio__precision-axis-label,
+.studio-v4 .studio__precision-value,
+.studio-v4 .studio__precision-nudge,
+.studio-v4 .studio__precision-tool-label {
+  font-family: var(--studio-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-v4 .studio__precision-axis-label,
+.studio-v4 .studio__precision-tool-label {
+  color: var(--studio-accent-background);
+  font-weight: var(--studio-font-weight-strong);
+}
+
+.studio-v4 .studio__precision-value {
+  color: var(--studio-amber);
+  font-size: var(--studio-font-body);
+  font-weight: var(--studio-font-weight-value);
+  text-align: center;
+}
+
+.studio-v4 .studio__precision-nudge {
+  display: grid;
+  place-items: center;
+  gap: 0;
+  min-width: 0;
+  min-height: 31px;
+  padding: 2px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 6px;
+  color: var(--studio-indigo-muted);
+  background: var(--studio-surface-raised);
+  cursor: pointer;
+}
+
+.studio-v4 .studio__precision-nudge img {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.studio-v4 .studio__precision-nudge span {
+  font-size: 0.5rem;
+  line-height: 1;
+}
+
+.studio-v4 .studio__precision-nudge:hover {
+  border-color: var(--studio-amber-edge);
+  color: var(--studio-amber);
+  box-shadow: inset 0 0 8px color-mix(in srgb, var(--studio-amber) 10%, transparent);
+}
+
+.studio-v4 .studio__precision-nudge:focus-visible,
+.studio-v4 .studio__precision-center:focus-visible,
+.studio-v4 .studio__precision-mode:focus-visible,
+.studio-v4 .studio__precision-history-btn:focus-visible,
+.studio-v4 .studio__precision-safe-lock:has(input:focus-visible) {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 1px;
+}
+
+.studio-v4 .studio__precision-slider-shell {
+  display: flex;
+  min-width: 0;
+}
+
+.studio-v4 .studio__precision-slider-shell--vertical {
+  justify-self: center;
+  align-self: stretch;
+  width: 30px;
+  height: 100%;
+  min-height: 48px;
+}
+
+.studio-v4 .studio__precision-slider-shell--vertical .studio__physical-slider {
+  flex: none;
+  width: 30px;
+  height: 100%;
+  /* BUG FIX: Y-axis track stayed fixed 48px after Position Preview grew
+     Fix: size-container the vertical slider so the rotated track can length to 100cqh
+     and span the full thumb travel instead of a leftover thumbnail length.
+     Sync: none — CSS-only */
+  container-type: size;
+}
+
+.studio-v4 .studio__precision-slider-shell--vertical .studio__physical-slider-track {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  /* Rotated horizontal asset: width becomes visual track length after 90°. */
+  width: 100cqh;
+  height: 16px;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.studio-v4 .studio__precision-slider-shell--vertical .studio__physical-slider-thumb {
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.studio-v4 .studio__precision-zoom-row {
+  display: grid;
+  grid-template-columns: auto minmax(96px, 1fr) 50px auto;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__precision-value--zoom {
+  min-width: 50px;
+}
+
+.studio-v4 .studio__precision-mode-row {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.studio-v4 .studio__precision-mode,
+.studio-v4 .studio__precision-history-btn,
+.studio-v4 .studio__precision-safe-lock {
+  min-height: 28px;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 6px;
+  color: var(--studio-text-muted);
+  background: var(--studio-surface-raised);
+  font-size: var(--studio-font-caption);
+}
+
+.studio-v4 .studio__precision-mode,
+.studio-v4 .studio__precision-history-btn {
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.studio-v4 .studio__precision-mode--active,
+.studio-v4 .studio__precision-safe-lock:has(input:checked) {
+  border-color: var(--studio-amber-edge);
+  color: var(--studio-amber);
+  background: color-mix(in srgb, var(--studio-amber) 9%, var(--studio-surface-raised));
+}
+
+.studio-v4 .studio__precision-safe-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.studio-v4 .studio__precision-safe-lock input {
+  accent-color: var(--studio-amber);
+}
+
+.studio-v4 .studio__precision-history {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.studio-v4 .studio__precision-history-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.studio-v4 .studio__precision-variant-row {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--studio-hairline);
+}
+
+.studio-v4 .studio__precision-variant-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.studio-v4 .studio__precision-variant-status {
+  grid-column: 1 / -1;
+  color: var(--studio-indigo-muted);
+}
+
+@container background-precision (max-width: 720px) {
+  .studio-v4 .studio__precision-stage {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+
+  .studio-v4 .studio__precision-variant-row {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-v4 .studio__precision-variant-actions {
+    justify-content: flex-start;
+  }
+
+  .studio-v4 .studio__precision-variant-status {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 420px) {
+  .studio-v4 .studio__background-presets-heading,
+  .studio-v4 .studio__background-preset-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studio-v4 .studio__background-preset-row {
+    grid-auto-columns: minmax(132px, 78%);
+  }
+
+  .studio-v4 .studio__background-preset-apply {
+    width: 100%;
+  }
+
+  .studio-v4 .studio__background-treatment-heading,
+  .studio-v4 .studio__background-color-sampler {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studio-v4 .studio__background-treatment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-v4 .studio__background-blend-plate {
+    grid-template-columns: minmax(118px, 0.72fr) 28px minmax(0, 1fr);
+  }
+
+  .studio-v4 .studio__background-framing-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .studio-v4 .studio__background-framing-aspects {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .studio-v4 .studio__background-framing-aspect {
+    min-width: 0;
+    padding-inline: 5px;
+  }
+
+  .studio-v4 .studio__background-compare {
+    margin-left: 0;
+  }
+
+  .studio-v4 .studio__precision-stage {
+    grid-template-columns: minmax(0, 1fr) 60px;
+  }
+
+  .studio-v4 .studio__precision-axis-rail {
+    grid-template-columns: 27px 27px minmax(52px, 1fr) 27px 27px;
+    gap: 3px;
+  }
+
+  .studio-v4 .studio__precision-zoom-row {
+    grid-template-columns: auto minmax(80px, 1fr) 46px;
+  }
+
+  .studio-v4 .studio__precision-zoom-row .popup__micro {
+    display: none;
+  }
+
+  .studio-v4 .studio__precision-history {
+    width: 100%;
+    margin-left: 0;
+  }
+
+}

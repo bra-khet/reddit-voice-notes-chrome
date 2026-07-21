@@ -19,25 +19,29 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
-## Current work — **v6.0 "Polish & Visual Maturity" · Track A + Track C merged · Track B open**
+## Current work — **v6.0 "Polish & Visual Maturity" · Track B OPEN · A + C merged**
 
-Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. Track A lived on `feature/v6.0.0-custom-styles-refactor`; ADR-0007 + 0009/0010 Accepted.
+Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Active branch:** `feature/v6.0.0-background-panel-refactor` (FF to `main@2b42db5`).
 
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
-| **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E)** |
-| **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) | Direct drag/zoom/snap on hero preview — **not started** |
-| **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup on the Cividis axis via popup-only `popup-palette.css` overlay + elevated restart caution — **agent QA gate PASS · merged to `main`** |
+| **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E) · merged** |
+| **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper + framing — **OPEN · Phase 0–7 DONE · operator Phase 1–6 + size/parity/a11y baseline PASS · final presentation/product closeout** |
+| **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup Cividis skin + elevated restart caution — **agent QA gate PASS · merged** |
 
-**Track A status:** ✅ full catalog + Style panel + governor + fixture QA · ✅ Pass A–E live confidence (Pass E full pass, blockers none; packet `qa/QA-6.0.0/track-a/artifacts/qa-session-track-a-pass-e-2026-07-17.json`) · ✅ size gates under 40/40 · ✅ automated green · map **v3.21** / seams **v1.35**. **Package still 5.11.0** until an explicit v6 ship/tag. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented; not a blocker).
+**Track B status:** ✅ branch FF · ✅ QA scaffold · ✅ ADR-0008 Accepted · ✅ **Phase 0–6** through direct layout, treatments, sampling, framing, and live Theme-only compare (**operator PASS**) · ✅ real blur/GIF size **23/29 MiB PASS** · ✅ preview→record→bake parity + keyboard/contrast/motion baseline PASS · ✅ **Phase 7** responsive precision frame + focus keyboard/ARIA + session-only next-take A/B (focused **88/88**, build PASS). **Next:** final presentation + saved-profile/identity/Classic/popup product closeout. Full Track B merge gate still open.
 
-**Track C status:** ✅ popup-only Cividis skin + elevated restart caution + tokens guard + fixture · ✅ agent QA gate (§1–§7) PASS · ✅ merged to `main` · §8 real-extension eyeball residual optional (not a gate).
+**Performance observation (deferred):** browser subtitle composite/burn-in is reportedly ~5–6× faster while the Studio window is minimized. Non-blocking; investigate focused-window RAF/render/GPU scheduling after Track B rather than changing the bake pipeline in Phase 6.
 
-**QA workspace (scoped history):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md)
+**Track A status:** ✅ full catalog + Style panel + governor · ✅ Pass E confidence · ✅ merged · map **v3.21** / seams **v1.35**. **Package still 5.11.0** until explicit v6 ship/tag. **Accepted residual:** Conway long-horizon corner parking (documented; not a blocker).
 
-**NEXT:** Track B when ready · optional v6.0.0 version bump + release notes · user-owned push of `main` · optional Track C §8 real-extension eyeball.
+**Track C status:** ✅ popup-only Cividis skin + elevated restart caution · ✅ agent gate PASS · ✅ merged · §8 real-extension eyeball residual optional.
 
-**Non-negotiables (both):** capture-time visuals; `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0.
+**QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklist [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md)
+
+**NEXT:** Track B Phase 7 resized-frame/A-B/announcer recheck + remaining product smoke, then merge docs/version decision · optional v6.0.0 version bump after B · user-owned push of `main` · optional Track C §8 eyeball.
+
+**Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0.
 
 Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 

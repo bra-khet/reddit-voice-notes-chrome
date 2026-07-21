@@ -1,5 +1,6 @@
 import { evictBackgroundImageElementCache } from '@/src/storage/background-loader';
 import { deleteBackgroundAsset, normalizeBackgroundAssetId } from '@/src/storage/image-db';
+import { isBundledUserBackgroundId } from '@/src/theme/background-layout-presets';
 import {
   loadUserPreferences,
   saveAppearancePreferences,
@@ -13,6 +14,9 @@ export async function deletePersonalBackgroundAsset(assetId: string): Promise<Us
   const normalized = normalizeBackgroundAssetId(assetId);
   if (!normalized) {
     throw new Error('Invalid background id.');
+  }
+  if (isBundledUserBackgroundId(normalized)) {
+    throw new Error('Included backgrounds cannot be deleted.');
   }
 
   const current = await loadUserPreferences();

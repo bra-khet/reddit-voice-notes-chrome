@@ -24,6 +24,7 @@ import {
 } from '@/src/session/take-manager';
 import { reconcileStudioTakeAfterTabReturn } from '@/src/ui/design-studio/studio-take-recovery';
 import { setWorkflowPhase } from '@/src/workflow/workflow-state';
+import type { UserBackgroundLayout } from '@/src/theme';
 
 function formatTime(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -64,12 +65,16 @@ export interface StudioRecorderDeps {
   onLiveCanvas: (canvas: HTMLCanvasElement | null) => void;
   /** Audition session opened/closed — caller toggles deck mode + preview loop. */
   onActiveChange: (active: boolean) => void;
+  /** True only while MediaRecorder is about to start or actively capturing frames. */
+  onRecordingChange: (recording: boolean) => void;
 }
 
 export interface StudioRecorderHandle {
   /** Start an audition session (mic acquire → transport visible). */
   openAudition(): Promise<void>;
   isActive(): boolean;
+  setCustomBackgroundId(id: string | null): void;
+  setUserBackgroundLayout(layout: UserBackgroundLayout): void;
   dispose(): void;
 }
 
@@ -89,6 +94,7 @@ export function mountStudioRecorder(
 
   let host: RecorderHostHandle | null = null;
   let active = false;
+  let recording = false;
   let currentState: RecorderState | null = null;
   let disposed = false;
 
@@ -108,7 +114,17 @@ export function mountStudioRecorder(
     deps.onActiveChange(next);
   }
 
+  function setRecording(next: boolean): void {
+    if (recording === next) return;
+    recording = next;
+    // BUG FIX: recording-time preset hover could create flash-heavy captured video
+    // Fix: publish the capture boundary before MediaRecorder starts so Background restores/locks transient presets first.
+    // Sync: background-layout-controls.ts; mount-clip-studio.ts; scripts/test-background-control-ui.mjs
+    deps.onRecordingChange(next);
+  }
+
   function closeAudition(): void {
+    setRecording(false);
     host?.close();
     host = null;
     currentState = null;
@@ -137,12 +153,14 @@ export function mountStudioRecorder(
 
   /** Hide transport + restore preview without tearing down the capture session. */
   function finishAuditionUi(): void {
+    setRecording(false);
     deps.onLiveCanvas(null);
     setActive(false);
   }
 
   function render(state: RecorderState): void {
     currentState = state;
+    setRecording(state.phase === 'recording');
 
     timerEl.textContent = formatTime(state.elapsedSeconds);
     timerEl.classList.toggle(
@@ -230,7 +248,17 @@ export function mountStudioRecorder(
         // Same 3-phase workflow signal the Reddit panel sends — cross-tab
         // banners stay coherent regardless of where capture happens.
         void setWorkflowPhase('capture');
-        void host.startRecording();
+        // BUG FIX: transient background restore could race the first captured frame
+        // Fix: publish the capture boundary, then wait for the restored image/GIF decode before MediaRecorder starts.
+        // Sync: voice-recorder.ts; background-layout-controls.ts
+        const recordingHost = host;
+        setRecording(true);
+        void recordingHost.session.whenBackgroundReady()
+          .then(() => {
+            if (!recording || host !== recordingHost) return;
+            return recordingHost.startRecording();
+          })
+          .catch(() => setRecording(false));
         break;
       case 'recording':
         void host.stopRecording();
@@ -317,6 +345,16 @@ export function mountStudioRecorder(
 
     isActive(): boolean {
       return active;
+    },
+
+    setCustomBackgroundId(id): void {
+      // CHANGED: a Phase 4 preset image hot-swaps into an already-open Studio audition.
+      // WHY: the audition canvas is captured live, so image and layout must preview as one recipe.
+      host?.session.setCustomBackgroundId(id);
+    },
+
+    setUserBackgroundLayout(layout): void {
+      host?.session.setUserBackgroundLayout(layout);
     },
 
     dispose(): void {

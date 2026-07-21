@@ -25,6 +25,7 @@ See `panels/9-slice-usage.md` for CSS recipes.
 |------|------|------|
 | `icons/waveform-bars-32.svg` | 32 | Style card (signal/spectrum) |
 | `icons/frame-icon-32.svg` | 32 | Background card |
+| `icons/center-frame-32.svg` | 32 | Center personal background in the precision instrument |
 | `icons/mic-wave-32.svg` | 32 | Voice card |
 | `icons/caption-lines-32.svg` | 32 | Subtitles card |
 | `icons/section-16/*` | 16 | Narrow stack variants |
@@ -32,6 +33,7 @@ See `panels/9-slice-usage.md` for CSS recipes.
 | `icons/navigation/chevron-enter-16.svg` | 16 | Open (narrow) |
 | `icons/navigation/chevron-back-32.svg` | 32 | Sub-panel back |
 | `icons/navigation/chevron-back-16.svg` | 16 | Back (narrow) |
+| `icons/navigation/chevron-{enter,back,up,down}-double-16.svg` | 16 | Coarse 0.05 background-position jog |
 | `icons/navigation/profile-silhouette-32.svg` | 32 | Profile cluster |
 | `icons/navigation/profile-silhouette-16.svg` | 16 | Profile (narrow) |
 

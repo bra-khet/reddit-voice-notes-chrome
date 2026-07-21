@@ -36,6 +36,9 @@ export function getPresetClipProfile(themeId: string): ClipProfile | undefined {
     customBackgroundId: null,
     backgroundScaleMode: DEFAULT_USER_BACKGROUND_LAYOUT.scaleMode,
     backgroundPosition: DEFAULT_USER_BACKGROUND_LAYOUT.position,
+    // CHANGED: virtual profiles participate in the same normalized v6 layout snapshot as saved profiles.
+    // WHY: selecting a built-in must reset every additive layout property, not retain stale custom effects.
+    backgroundLayout: DEFAULT_USER_BACKGROUND_LAYOUT,
     customStyleId: null,
     designOverrides: null,
   };

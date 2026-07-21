@@ -122,19 +122,106 @@ No Retry UI, multi-take history, rendered-audio blob, new store/key/message/cont
 
 Use [`TODO.md`](TODO.md) as the compact task ledger. H8 fully closed; v5.11 prefs shipped (tagged `v5.11.0`, push deferred) — next, scope v6.0.
 
-## v6.0 "Polish & Visual Maturity" — **Track A + Track C merged · Track B open**
+## v6.0 "Polish & Visual Maturity" — **Track B OPEN · A + C merged**
 
-Feature branches off `main@98c37ab` ancestry; roadmaps + ADRs from `.ignore/prep-v6.0.0/` via `/architecture-hardening`.
+Active branch: `feature/v6.0.0-background-panel-refactor` (fast-forwarded to `main@2b42db5`, 2026-07-20). Roadmaps + ADRs from `.ignore/prep-v6.0.0/` via `/architecture-hardening`.
 
 - **Roadmap A — audio-reactive visuals:** [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor · **live confidence QA PASS** (Pass E) · **merged**.
 - **Roadmap C — popup UI refresh:** [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) · Cividis popup skin + elevated restart caution · **agent QA gate PASS · merged**.
-- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 · **not started**.
+- **Roadmap B — background layout:** [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · ADR-0008 **Accepted** · **OPEN** · **Phase 0–7 DONE · operator Phase 1–6 + real size/parity/a11y baseline PASS** · final presentation/product closeout.
 
-**QA workspace (history + evidence):** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
+**QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · ledger [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · Track B [`track-b/`](qa/QA-6.0.0/track-b/).
 
-**Pivotal (Track A):** bars/background/effects paint at **record time**; bake only burns subtitles (I3). Caps: base/baked **40/40 MiB**. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual:** Conway long-horizon corner parking under multi-entity motion (documented in `conway.ts`; not a merge blocker).
+**Pivotal:** bars/background/effects paint at **record time**; bake only burns subtitles (I3). Track B is Design-phase layout for the *next* recording (I1) — not post-capture re-composite. Package remains **5.11.0** until an explicit v6 ship. **Accepted residual (A):** Conway long-horizon corner parking (documented in `conway.ts`; not a merge blocker).
 
-**Next:** Track B when ready · optional `6.0.0` tag + release notes · user-owned push.
+### Track B Phase 0 + Phase 1 — layout core + hero direct drag (**DONE · operator Phase 1 QA PASS 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **HEAD commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f`
+
+- **Phase 0 (`layout-core`):** extended `UserBackgroundLayout` (`customPosition`, `manualScale`, field `dim`, blur/blend/GIF hooks); full `normalizeUserBackgroundLayout` guards; nested prefs + discrete migration; `computeImageDrawOffset` custom path; draw path uses layout fields; `test-background-layout.mjs` **10/10**. Acceptance: zero intentional panel redesign.
+- **Phase 1 (`direct-drag`):** hero live-preview pan/focal drag via `background-direct-manipulation.ts`; RAF + debounced persist; overlay affordances; `test-background-direct-manipulation.mjs` **6/6**. **Side background submenu still legacy 9-grid** — by design until Phase 2+.
+- **Operator QA:** Phase 1 confirmed — drag works on the Design Studio main live preview only; panel not remodeled yet.
+- **Automated re-check (docs sprint):** layout **10/10** · direct-manip **6/6** · `npm run build` **PASS**.
+
+**Prior init (same day):** branch FF `98c37ab` → `main@2b42db5`; track-b QA scaffold; ADR-0008 Accepted.
+
+**Next:** superseded by the Phase 2 entry below.
+
+### Track B Phase 2 — precision widget + bidirectional sync (**DONE · operator behavior PASS 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `b129713`
+
+- Reused the Background subpanel's existing compact `renderThemePreview` frame as the precision widget, adding a DOM-only focal overlay that never enters captured/exported pixels.
+- Generalized the Phase 1 direct-manipulation controller by selector/options so hero and mini frame share crop-aware drag math, RAF coalescing, ImageDB dimensions, and debounced persistence.
+- Added live X/Y readouts and explicit ±0.01 / ±0.05 controls. Nudges clamp through `normalizeUserBackgroundLayout`; hero drag updates widget values, while mini drag/nudges update hero, active audition, and prefs.
+- Studio saves now flush both positioning surfaces before profile/style snapshots. No new context, message, store, signal, dependency, compositing layer, or `USER_PREFS_VERSION` bump; I1/I3 remain unchanged.
+- **Automated:** layout **10/10** · direct-manip **6/6** · precision **5/5** · prefs storage **12/12** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics.
+
+**Operator:** user confirmed the Fine position UI and its behavior work correctly. Phase 3 subsequently reorganized those controls, so the new spatial console presentation remains an operator smoke item.
+
+**Next:** superseded by the Phase 3 entry below.
+
+### Track B Phase 3 — spatial positioning console + zoom/snap/safe/history (**DONE · operator QA PASS 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `844a81f`
+
+- Reorganized Fine position around the embedded mini-preview: X below, Y at right, single directional chevrons for ±0.01, new doubled chevrons for ±0.05, and horizontal/vertical physical sliders using the existing track/tab design.
+- Added domain-neutral logarithmic scale, sticky hysteresis, per-axis snap, clamp, and caption-band constraint math in `interaction-utils.ts`; Ctrl/Cmd+wheel zoom remains cursor-anchored and uses the same mapping as the visible zoom slider.
+- Added DOM-only center/thirds/edge guides, active snap lines, Shift bypass, Snap/Guides toggles, and exact preview-caption safe-band avoidance. These overlays never enter record/capture pixels.
+- Added a host-owned bounded 20-snapshot background layout undo/redo stack, isolated from subtitle history and snapshotting gestures instead of RAF frames.
+- No new context, message, store, signal, dependency, compositing layer, preference version, or bake renderer. Existing ADR-0008 owns the seam; map/extension-point MINOR bumps remain deferred to Track B merge.
+- **Automated:** focused layout/interaction/UI set **54/54** · production build **PASS** · compile only the same two pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Operator:** user confirmed the redesigned console and Phase 3 behaviors pass; final upward Y-button order is `.01` then `.05` and is regression-tested. Superseded by Phase 4 below.
+
+### Track B Phase 4 — bundled presets + non-destructive live audition (**DONE · operator QA PASS 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `1166d51`
+
+- Four Aurora/Warm Glow image-layout recipes render as a Cividis contact sheet. Hover/focus auditions the real hero, mini frame, and open recorder without saving; leaving restores the committed image/layout; explicit Apply persists once.
+- Included `bg-…` references resolve directly from packaged SVGs, appear in the existing background selector, and are protected from ImageDB deletion/quota reconciliation. Presets preserve blur/blend/GIF/safe-text fields for Phase 5.
+- Existing ADR-0008 and the Design-phase preview→recorder→draw seam remain authoritative; no version/store/message/signal/dependency/compositing change. Map/seam bumps remain deferred to Track B merge.
+- **Automated:** focused Track B set **62/62** · production build PASS with both assets · compile only the same two pre-existing subtitle diagnostics.
+
+**Operator:** Phase 4 passed with one recording-time accessibility caveat; Phase 5 commit `16e3dd0` restores and locks transient preset auditions before actual capture.
+
+### Track B Phase 5 — properties/effects + eye-dropper (**IMPLEMENTED · original §6 operator PASS; follow-up recheck 2026-07-20**)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `16e3dd0`
+
+- Added a compact dim/blur/blend treatment bay, collapsible 0.5–2× GIF speed + voice-energy response, and a permission-free preview-canvas eye-dropper that hands color to the existing Style bar/glow path.
+- GIF capture uses a continuous rate-modulated clock; default 1× retains legacy phase and reduced motion freezes frame zero.
+- Actual capture publishes a recording boundary before `MediaRecorder` starts. Any hover/focus recipe is restored, the preset contact sheet is disabled/marked `REC SAFE`, and audition returns only after recording ends.
+- Follow-up: spatial Y keys now match their arrows; the recorder pins Studio's synchronous image/layout over delayed prefs to prevent one-frame position snap-back; the eye-dropper owns the hero surface and announces repeated unavailable samples; burn/dodge/difference and opt-in Canvas 2D Holo drift were added inside the same personal-image slot.
+- **Automated:** focused Track B set **76/76** (prior 69 + holo 4 + recorder authority 3) · UI tokens PASS · visual-size gate **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- No new preference version, dependency, store, signal, message, compositing layer, or architecture seam; ADR-0008 remains authoritative and map/seam bumps stay deferred to merge.
+
+**Eye-dropper recheck (2026-07-20):** operator passed hero + precision-mini sampling/cancellation, paired-canvas ownership, miss guidance, and drag lockout. Full write-up: [`qa/QA-6.0.0/progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md).
+
+**Blend plate (2026-07-20, operator PASS):** operator proved the old `theme.colors.bg` destination (~0–8% value) made blend math vision-dead. Additive normalized `blendPlateSource`/`blendPlateColor` now offer legacy void, theme tint, bar-linked, mid-gray, soft white, and full-range custom HSV/HEX. One solid paints beneath the personal image; Fit retains theme letterbox; dim stays after image/Holo. Legacy is default, so old profiles stay pixel-stable. Final visual/reload recheck passed.
+
+**Next:** superseded by the Phase 6 entry below. Package stays 5.11.0.
+
+### Track B Phase 6 — multi-aspect framing aids + compare (**DONE · operator PASS 2026-07-20**)
+
+- Final Phase 5 operator residuals passed: visible plate makes all blends useful; custom plate/Holo/dim and precision-mini eye-dropper behavior work. Required blur/GIF size case is **23 MiB base / 29 MiB baked — PASS**; upper-end non-blur 28/35 MiB retained as informational.
+- Added a distinctive but compact Framing aids crop lab: Native 16:9, centered 1:1, centered 9:16, independent thirds, and explicit export-stays-16:9 language. All guide/mask pixels are DOM-only over the hero canvas hole.
+- Added transient Theme-only comparison through the existing image hot-swap. It does not persist or create another renderer, pauses preset audition, and restores on toggle/profile sync/recording entry.
+- Recording entry now awaits the restored image/GIF decode before `MediaRecorder.start()`, closing a potential first-frame theme-only/unloaded flash.
+- Follow-up: null-image comparison keeps the current resolved theme/style RAF alive; preset pointer/focus/click/Apply are hard-mutually-exclusive; defensive restore re-asserts no image; every exit uses `finishCompare` to restore exact committed media/layout. Copy now names the current look explicitly.
+- **Automated:** focused Track B **84/84** · UI tokens PASS · visual-size harness **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Architecture:** Accepted ADR-0008 amended; no new context/message/store/signal/preference field or version/dependency/compositing layer. Map/seam MINOR bumps remain deferred to Track B merge.
+- **Deferred observation:** subtitle browser-composite/burn-in reportedly runs ~5–6× faster while Studio is minimized; non-breaking, investigate focused-window render/scheduling contention later.
+
+**Operator:** crop geometry, thirds, Theme-only live motion/preset mutex/exact restore, and recording-safe entry PASS.
+
+### Track B Phase 7 — responsive precision frame + keyboard/ARIA/A-B (**IMPLEMENTED · presentation recheck 2026-07-20**)
+
+- The Fine position frame now escapes the generic 280 px thumbnail cap and resolves a bounded 16:9 width from both panel space and viewport height (820 px ceiling), with a container-aware narrow layout and modest responsive padding.
+- Both focusable preview frames expose .05 arrows, Shift+.01 arrows, bounded +/- zoom, and Esc center; the focused GIF checkbox keeps native Space. Position/zoom sliders publish `aria-valuetext`, and a polite atomic status announces X/Y/zoom after committed interactions.
+- One page-local **Next-take A/B** slot saves/swaps exact normalized layouts for the current personal background, clears on identity change, and pauses during recording/compare/preset audition. It adds no preference/profile/take field; captured pixels remain per-take truth under I1/I3.
+- Operator carry-forward closes Theme-only, preview→record→bake parity, keyboard/scaling/reset, High Contrast, and reduced motion. **Automated:** focused Track B **88/88** · UI tokens PASS · visual-size harness 5/5 · production build PASS · compile only the same two pre-existing subtitle diagnostics.
+- **Next:** operator-check resized frame + Save/change/Swap + optional screen-reader listen, then checklist §12 saved-profile/identity/Classic/popup closeout. Package remains 5.11.0; map/seam bumps remain deferred to Track B merge.
 
 ### Track A Phase 0 — shared visual tokens + audio-reactive carrier (**DONE 2026-07-14; automated gate**)
 

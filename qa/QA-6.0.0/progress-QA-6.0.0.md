@@ -1,7 +1,7 @@
 # Progress — v6.0.0 QA
 
 **Living session file for this workspace only.**  
-**TODO ledger:** [`TODO-6.0.0.md`](TODO-6.0.0.md) · **Checklist:** [`track-a/qa-checklist.md`](track-a/qa-checklist.md)  
+**TODO ledger:** [`TODO-6.0.0.md`](TODO-6.0.0.md) · **Active checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md)  
 **Root pointers:** [`claude-progress.md`](../../claude-progress.md) · [`TODO.md`](../../TODO.md)
 
 Do not dump long QA narrative into the global progress file — update a short verdict + path there when a gate closes.
@@ -12,26 +12,281 @@ Do not dump long QA narrative into the global progress file — update a short v
 
 | | |
 |--|--|
-| **Branch** | `feature/v6.0.0-custom-styles-refactor` (stay on this branch for Track A QA) |
-| **Stable baseline** | v5.11.0 prefs IDB · tagged; push deferred |
-| **Track A roadmap** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) §9 QA matrix · §11 item 23 |
-| **Track B** | Not started · [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) |
-| **ADRs** | 0007 (core) · 0009 (registry Sparkle/Bubbles) · 0010 (Bubbles label / `bokeh` key) |
-| **Architecture** | map **v3.21** / I22 · seams **v1.35** · confidence **High** (Track A Pass E closed 2026-07-19/20) |
-| **Key product fact** | Bars + overlays paint at **record time** (`WaveformRenderer.drawFrame` → `captureStream`). Bake only burns subtitles (I3). Studio preview is **representative** (synthetic bands/energy); capture is **truly reactive**. |
+| **Active branch** | `feature/v6.0.0-background-panel-refactor` · Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` · Phase 6 `e7346ca` |
+| **Stable baseline** | v5.11.0 package · Track A + Track C merged · push deferred |
+| **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
+| **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
+| **Track C** | Closed · agent gate PASS · merged |
+| **ADRs** | 0008 **Accepted** (Track B) · 0007 / 0009 / 0010 (Track A, landed) |
+| **Architecture** | map **v3.21** / I22 · seams **v1.35** · Track A confidence **High** (B map bumps at merge) |
+| **Key product fact** | Background + bars/overlays paint at **record time**. Bake only burns subtitles (I3). Track B is Design-phase layout for the *next* recording (I1). |
 
-**Proven at confidence close:**
+**Proven (closed tracks):**
 
-- Full curated catalog + Style Control Center + governor
-- Focused fixture browser QA (desktop + narrow; max-three; keyboard Detail; overflow fix)
-- Automated focused v6 set **226/226** (and full 57 Node suites through Conway land) · build PASS · tsc = 2 pre-existing subtitle diagnostics
-- Live capture / FPS / a11y matrix + 120 s size gates — **Pass E full PASS**
+- Track A: full catalog + Style Control Center + governor · Pass E live confidence · 226 focused Node / 57 full suites · build PASS
+- Track C: popup-only Cividis skin + elevated restart caution · agent gate §1–§7 PASS · merged
 
-**Next outside this workspace:** Track B when ready · optional explicit **v6.0.0** package tag/release notes · push of `main` remains user-owned.
+**Track B in flight:** Phase 0–7 landed · operator Phase 1–6 + real blur/GIF size, preview→record→bake parity, and a11y baseline **PASS** · final Phase 7 presentation/product closeout open.
+
+**Next:** (1) visually check the resized Position Preview + next-take A/B flow · (2) optionally listen to the polite X/Y/zoom announcement · (3) close saved-profile/identity/Classic/popup product smoke · package stays 5.11.0.
 
 ---
 
 ## Session log
+
+### 2026-07-20 — Track B Phase 7 keyboard/ARIA/variants + responsive precision frame implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Base:** Theme-only follow-up `1d8571c` · **Commit:** this sprint<br>
+**Trigger:** operator passed the Phase 6 fixes and preview→record→bake parity, confirmed keyboard positioning/scaling/reset plus High Contrast/reduced motion, and reported the 280 px Position Preview was too small at ordinary 100% landscape zoom.
+
+- Removed the generic subpanel thumbnail cap only for the Fine position preview. Its 16:9 instrument width now resolves from the Background panel container and viewport height, caps at 820 px, and switches to a container-aware narrow layout; padding also grows modestly without linearly inflating the controls.
+- Both focusable preview frames now share coarse `.05` arrows, Shift-fine `.01` arrows, bounded `+`/`-` zoom, and Esc-center. The existing GIF checkbox retains native Space semantics. Slider values expose descriptive `aria-valuetext`, and a polite atomic live region announces X/Y/zoom after keyboard, pointer, wheel, slider, nudge, reset, and variant commits.
+- Added one session-only **Next-take A/B** layout snapshot. Save/Replace retains an exact normalized alternate for the current personal background; Swap A/B applies it through the existing layout/prefs path and keeps the prior view as the new alternate. The slot clears on image identity change and pauses during recording, compare, or preset audition.
+- Architecture-hardening result: no new preference/profile/take field, store, signal, message, dependency, context, renderer, or compositing layer. Captured pixels remain the only per-take visual truth (I1/I3); the A/B snapshot is page-local framing convenience under Accepted ADR-0008. Map/extension-point bumps remain deferred to Track B merge.
+- Frontend-design result: the existing camera-console frame becomes the visual focal instrument while Cividis palette, physical sliders, axis placement, and narrow-screen hierarchy stay intact. No new decorative system was introduced.
+
+**Operator carry-forward closed:** Theme-only motion/preset exclusion/exact restore/record entry · preview→base→baked fidelity under manipulation · keyboard positioning/scaling/reset · High Contrast · reduced motion. Mid-record performance hiccups are noted as expected and did not break parity.
+
+**Automated:** background layout 13 · direct manipulation **10** · precision 5 · interaction utils 6 · control UI **14** · presets 5 · sampler 5 · cue measurement 7 · prefs 12 · Holo 4 · recorder state 3 · blend plate 4 = focused **88/88**. UI tokens PASS · visual-size harness **5/5** · production build PASS · compile only the same two pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Remaining operator closeout:** check the new frame at normal landscape and narrow widths; Save variant → change framing → Swap A/B; optionally listen to one screen-reader announcement. Then complete checklist §12 saved profile, identity hot-swap, Classic/default, and popup coherence rows.
+
+**Next:** Phase 7 presentation/product closeout, then Track B merge documentation/version decision.
+
+### 2026-07-20 — Phase 6 Theme-only live A/B follow-up implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Base:** Phase 6 `e7346ca` · **Commit:** this sprint<br>
+**Trigger:** operator passed crop lab/thirds but found Theme-only could freeze after hiding a personal GIF and preset hover/focus could desynchronize the pressed state from the canvas.
+
+- Null-image previews now keep the normal 12 FPS Studio theme/style clock alive after preferences hydrate. Spectrum/registry motion continues with the same resolved theme, style, atmosphere, bars, and colors; reduced motion still freezes at time zero.
+- Theme-only is now the sole transient background-identity owner while active. Preset pointer, keyboard-focus, click, and Apply paths are hard-blocked; defensive preset restore re-asserts `customBackgroundId: null`; every exit routes through `finishCompare`, which restores the exact committed image and layout.
+- Starting compare retires a preset layout without an intermediate committed-image paint. Active copy now states: “Current theme & style only — personal image hidden. Preview without image; export unchanged.”
+- Architecture-hardening result: a surgical Studio-page policy/state fix under Accepted ADR-0008. No preference/store/message/signal/renderer/export/compositing change; I1/I3 and the decode-gated record boundary remain unchanged. Map/extension-point versions stay deferred to Track B merge.
+
+**Automated:** focused Track B set **84/84** (prior 83 + null-image loop/mutual-exclusion regression) · compile only the same 2 pre-existing subtitle diagnostics · production build PASS · `git diff --check` PASS.
+
+**Browser smoke:** not claimed from this coding session. The connected Chrome session was the production browser, so no interaction or recording was started there; the short live-record check remains part of the dev-browser operator recheck below.
+
+**Operator recheck:** use an animated personal GIF and a visibly moving spectrum/atmosphere; toggle Theme only and confirm everything except the personal media keeps idling. Sweep pointer and keyboard focus across presets while compare stays on; the canvas must remain image-free. Toggle off, then toggle on and press Record; committed media must restore before the first frame with no guide/compare state persisted.
+
+**Next:** close the Phase 6 Theme-only recheck, then Phase 7.
+
+### 2026-07-20 — Track B Phase 6 framing aids + compare implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** this sprint<br>
+**Trigger:** final Phase 5 operator recheck and required real size gate passed; continue roadmap §7 Phase 6.
+
+- Closed Phase 5 browser residuals: all blend modes visibly useful against the exposed plate; custom plate/Holo/dim behavior works; precision-mini sampling/cancellation/miss guidance works. Required blur/GIF case is **23 MiB base / 29 MiB baked — PASS**. An upper-end non-blur combination reached 28/35 MiB and is logged informationally.
+- Added a compact **Framing aids** optical bench: Native 16:9, centered Square 1:1, centered Vertical 9:16, and an independent rule-of-thirds switch. The crop mask, grid, and labels are DOM siblings above the hero canvas hole, never pixels in preview/capture/export.
+- Added transient **Theme only** comparison using the existing image/layout hot-swap. It never persists, disables preset audition while active, restores the exact committed image, and retires on authoritative profile/prefs sync.
+- Hardened capture entry: compare/preset transient state restores before the boundary, then Studio awaits the current image/GIF decode before `MediaRecorder.start()`. This prevents theme-only or unloaded first-frame flashes.
+- Architecture-hardening result: additive implementation of Accepted ADR-0008; no new context, message, store, signal, preference field/version, renderer, or compositing layer. ADR amended; map/extension-point MINOR bumps remain deferred to Track B merge.
+- Deferred note: subtitle browser-composite/burn-in reportedly runs **~5–6× faster while Studio is minimized**. Non-breaking; later investigation should separate focused-window RAF/render contention from browser/GPU scheduling.
+
+**Automated:** focused Track B set **83/83** · UI tokens PASS · visual-size gate logic **5/5** · production build PASS · compile only the same 2 pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Operator recheck:** select 1:1 and 9:16 and confirm centered crop geometry/mask; toggle Thirds in native and cropped frames; confirm all guide chrome is absent from a short recording; toggle Theme only on/off and start recording while it is active to confirm exact restore/no first-frame flash.
+
+**Next:** Phase 6 operator recheck, then Phase 7.
+
+### 2026-07-20 — Phase 5 blend plate + precision-mini sampler implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** this sprint<br>
+**Trigger:** operator passed Y-key direction, sustained pre-record/record positioning, main-hero eye-dropper sampling/cancellation, added blend mechanics, and Holo; remaining visual defect was near-black blend destination.
+
+- Added normalized `blendPlateSource` / `blendPlateColor` fields to `UserBackgroundLayout`. Missing/invalid values default to `legacy` + `#808080`; `legacy` takes the exact prior theme underlay, so existing profiles remain pixel-stable with no prefs-version bump.
+- Treatment now offers Legacy void, a visible theme tint, bar-linked color, mid-gray, soft white, and Custom solid. Custom progressively reveals the existing HSV wheel/saturation/brightness/HEX chrome; exact HEX commits no longer drift through integer HSV conversion.
+- `drawImageBackground` paints one solid plate immediately before the blended personal image. Fill plates the frame; Fit plates only the image rect and retains the theme letterbox. Blur/blend/Holo remain image-slot work and dim remains final. No second image, layer, store, message, dependency, WebGL path, or bake renderer.
+- Eye-dropper ownership now registers both hero and precision manipulator surfaces, pairs each with its own rendered canvas, samples whichever surface receives the click, and extends crosshair/drag-lock chrome to the mini. Existing miss guidance and Esc/toggle-off/valid-sample exits are reused.
+- Architecture-hardening feature check: this is an additive extension of Accepted ADR-0008. The ADR/roadmap were amended; architecture map/extension-point MINOR bumps remain deferred to Track B merge.
+
+**Automated:** focused Track B set **82/82** (prior 76 + layout plate 2 + compositor plate 4) · UI tokens PASS · visual-size gate logic **5/5** · production build PASS · compile only the same 2 pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Operator recheck:** with dim 0, compare Normal vs multiply/overlay/difference on Theme tint, Mid gray, Soft white, and Custom; confirm exact custom black/white/HEX reload; confirm Holo reads against a plate; activate Sample for bars and click the precision mini (crosshair, no drag, correct Style color), including unavailable-pixel guidance and Esc.
+
+**Next:** finish those two browser checks, run the real 120 s blur+GIF artifact gate, then Phase 6 framing aids.
+
+### 2026-07-20 — Blend modes “do nothing” (operator visual verdict · plan only)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Code unchanged**  
+**Operator:** bra-khet — human perception check, not Node math.
+
+**Verdict (accepted as product gap, not “user error”):**
+
+- Fill-mode plate under the personal image is `theme.colors.bg` (or custom-style `deriveBackgroundColor` ≈ **4–8% value** of the bar hue). Preset solids sit in the `#000`–`#1a…` band. On a normal display these are **indistinguishable from pure black** without zooming; a ~3% delta vs pure black is not a usable design surface.
+- Operator difference test: **difference ≈ slightly dimmer source-over** ⇒ destination is near zero. That matches Canvas math (`|src − ~0| ≈ src`) and proves the blend allow-list is **mathematically live but visually inert** for human aesthetics.
+- Historical intent (dark visualizer stage + legible bars) does **not** make this OK for photo×blend UX. Phase 5 shipped blend UI without a human-visible plate; result: blend “doesn’t do anything.”
+- Dim→0 does not invent a midtone plate. Fit can use full `theme.background`, but many themes’ backdrops are still near-black solids; Fill never uses pretty art under the photo.
+
+**How we make it “do something” (agreed direction — simple, no second image):**
+
+Plate is already a **draw-time fill** (`letterboxColor` / fillRect before `drawImage` with `globalCompositeOperation`). Expose that as layout-owned prefs, same seam as dim/blur/blend:
+
+1. **User-visible plate color** (hex or Style-linked default) — mid/light values allowed; default for *new* creative use should not be void-black.
+2. Optional modes later: `theme-solid` (legacy) | `custom` | `full-theme` (draw `theme.background` under image).
+3. Wire: `UserBackgroundLayout` + `normalize…` + `drawUserBackgroundLayer` / `drawImageBackground` only; preview = capture; no new layer pipeline, ImageDB asset, or prefs version bump if additive.
+4. UI: treatment bay next to blend — color control + short copy: *“Blend multiplies your image onto this plate; dim darkens after.”*
+5. Acceptance: difference / multiply / overlay produce **obvious** change vs source-over on a mid-gray or theme-tint plate with dim at 0; operator can make modes “read” without DevTools zoom.
+
+**Out of scope for first pass:** dual-image FG/BG, Photoshop layer stack, changing global Classic-with-no-photo bar stage (keep legacy dark when no personal image / source-over Fill if needed for byte stability).
+
+**Priority:** Phase 5 residual — **before** treating blend QA as closed. Track with eye-dropper mini fix as treatment-bay follow-ups.
+
+### 2026-07-20 — Eye-dropper incomplete fix investigation (docs only)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Code unchanged this sprint**  
+**Trigger:** operator recheck — main live preview samples correctly after follow-up; Background subpanel precision mini still cannot pick a color (drag correctly locked out).
+
+**Root cause (incomplete ownership surface):**
+
+| Path | What the follow-up did | Effect |
+|------|------------------------|--------|
+| `onColorSamplingChange` → `setInteractionBlocked` | Suspends **both** hero + precision direct-manipulation controllers | Drag/pan/zoom correctly disabled on main hero **and** small position preview |
+| `getEyeDropperSurface` / `getEyeDropperCanvas` | Only the **main** `.studio__hero` manipulator + live canvas | Capture-phase `pointerdown` sample listener attaches **only** there |
+| CSS `.studio__background-layout--sampling` | Crosshair + amber outline only on `.studio__hero …` | Mini frame shows no sampling chrome |
+
+So the fix solved “drag eats the sample click” on the **hero**, but never registered the precision surface (`[data-background-precision-manipulator]` + canvas `data-preview-kind="background-precision"`). Clicks on the mini do nothing useful: no sample, no status update (unless the click somehow hit the hero listener, which it does not).
+
+**Mirror fix (next product sprint, not done here):** attach sampling to **both** surfaces; on each `pointerdown`, resolve the canvas under the click (hero live vs precision) and run `sampleCanvasColorAtClient` against **that** bitmap (client→pixel mapping is per-canvas `getBoundingClientRect`). Extend sampling CSS to the precision manipulator. Reuse existing miss/Esc/toggle-off exit. No new prefs/store.
+
+**What the sampled color is for (product purpose):**
+
+- **Not** a preview-only contrast swatch and **not** a background recolor.
+- Hand-off: `onSampleColor(hex)` → `DesignOverrides.barColor` + derived `glowColor` (+ string `visualizerParams.color` when that mode is active) via the same Style color path as the HSV picker.
+- **Record-time impact:** audio-reactive **bars/glow** are painted into the canvas at capture (I3). The next recording therefore carries that bar color into the **base video**. Bake still only burns subtitles — the color is not a post-bake overlay.
+- Layout / personal image / dim-blur-blend are **untouched** by sampling.
+- UI already labels the control “Sample for bars” and status “Pick a clear background pixel to color the bars.” Optional later polish: one line that the color applies to **recorded** bars, not just the live preview (progress note only for now).
+
+**Files of record:** `background-layout-controls.ts` (`beginColorSampling` / `onCanvasSample`), `mount-clip-studio.ts` (`getEyeDropper*` + `onSampleColor`), `background-color-sampler.ts`, `background-direct-manipulation.ts` (`setInteractionBlocked`), `studio-v4-controls.css` (sampling chrome).
+
+**Next:** product sprint to mirror sample ownership onto the precision mini; then finish remaining Phase 5 operator recheck.
+
+### 2026-07-20 — Track B Phase 5 operator pass + accessibility/state follow-up
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** this sprint<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §3, §6–§7, §11
+
+**Operator evidence:** original checklist §6 passed; double-click/Escape center reset passed. The pass exposed reversed keyboard semantics on the spatial Y slider, a one-frame stale position repaint only after live audition opened, and hero drag intercepting eye-dropper sampling.
+
+- Y slider keyboard handling is now inverted only for the spatial vertical control: ArrowUp lowers normalized Y and ArrowDown raises it. Pointer travel remains top→bottom, and other physical sliders retain their existing arrow behavior.
+- The open recorder session now treats Studio's synchronous image/layout as authoritative over delayed preference notifications. Every accepted Studio prefs/profile snapshot advances that override, and unchanged personal-image IDs no longer trigger redundant decode/load work during layout-only changes.
+- Eye-dropper sampling listens on the top hero manipulator surface and blocks hero/mini direct manipulation until valid sample, toggle-off, Esc, background removal, or disposal. Transparent/unavailable pixels keep sampling active and announce stronger guidance after three misses.
+- Added standards-native `color-burn`, `color-dodge`, and `difference` blend choices. Canvas 2D has no portable `divide`/`subtract`; `difference` is the useful subtract-like option.
+- Added opt-in **Holo drift** as a normalized boolean (default false): two low-alpha chromatic `screen` image passes plus one clipped slow `soft-light` sheen, mildly energy-modulated. It lives wholly inside the personal-image draw slot, uses the shared preview/capture clock, and freezes at time zero under reduced motion.
+- No new store, preference version, message, layer, dependency, WebGL path, or bake renderer. ADR-0008 remains authoritative; architecture map/extension-point MINOR bumps stay deferred to Track B merge.
+
+**Automated:** prior focused **69/69** + holo compositor **4/4** + recorder authority **3/3** = **76/76**. Shared UI tokens PASS; visual-size gate logic **5/5**; production build **PASS**; compile only the same two pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Operator recheck:** confirm no one-frame snap in pre-record/record output; eye-dropper selects and exits cleanly without panning; added blends and Holo are aesthetically useful; Y ArrowUp/ArrowDown follow spatial direction. The real ~120 s blur+GIF size artifacts remain open before the Track B merge gate.
+
+**Next:** perform that focused recheck, then begin Phase 6 framing aids.
+
+### 2026-07-20 — Track B Phase 5 properties/effects + recording-safe preset audition implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `16e3dd0`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §6–§7 operator smoke remains open
+
+- Closed the Phase 4 operator caveat: immediately before `MediaRecorder` starts, any transient preset audition is restored to the committed image/layout; preset hover/focus/click/Apply stays disabled throughout actual capture and returns afterward. The contact sheet shows a restrained `REC SAFE` state and cannot introduce flash-heavy frames into the recorded canvas.
+- Added a compact image-treatment bay backed by the existing normalized layout: live/persisted dim, blur toggle + amount, exact allow-listed blend select, and the existing Fit/Fill + custom manual-scale control.
+- Added collapsible GIF controls. Speed drives a continuous playback clock from 0.5–2×; optional voice-energy modulation changes velocity without frame jumps; reduced motion still freezes frame zero. Default 1×/non-reactive timing retains the legacy frame phase.
+- Added a permission-free in-canvas eye-dropper. It maps CSS pointer coordinates to preview bitmap pixels, reads `getImageData`, fails closed for unavailable/transparent pixels, and hands the sampled hex to the existing Style bar/glow path without mutating layout.
+- Reused the ADR-0008 preference/preview/recorder/draw seam. No new store, signal, message, dependency, layer, `USER_PREFS_VERSION`, or package-version change.
+
+**Automated:** layout **11/11** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **10/10** · presets **5/5** · canvas sampler **5/5** · caption geometry **7/7** · prefs storage **12/12** = focused **69/69**. Shared UI tokens PASS; visual-size gate logic **5/5**; production build **PASS**; compile only the same 2 pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Residual operator gate:** exercise every treatment/blend, GIF speed/reactivity + reduced motion, eye-dropper hand-off, and start a recording while a preset is hovered to confirm the frame restores before capture. The real ~120 s blur+GIF base/baked artifacts and `qa:visual-size` report remain required.
+
+**Architecture:** ADR-0008 already owns this Design-phase property/effect seam. Architecture map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Next:** Phase 5 operator QA, then Phase 6 multi-aspect crop guides + compare.
+
+### 2026-07-20 — Track B Phase 4 presets + live audition implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `1166d51`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §7 operator smoke remains open
+
+- Applied the final Phase 3 operator tweak: upward Y-axis controls now place fine `.01` before coarse `.05`; the control UI suite locks that DOM order. The user confirmed all other Phase 3 behavior/UI passed QA, so checklist §4 additions and §5 are closed.
+- Added four normalized Aurora/Warm Glow image-layout recipes (`image + scaleMode + customPosition + manualScale + dim`) in a Cividis contact-sheet row using the actual packaged SVGs.
+- Hover or keyboard focus auditions a complete recipe on the hero, mini frame, and any open recorder session without saving. Leaving both hover/focus states restores the exact committed image/layout; selection only arms explicit Apply, which snapshots history and persists once.
+- Included backgrounds use stable `bg-…` references but resolve directly from extension assets. They appear in the existing background selector, cannot be deleted, and are excluded from ImageDB quota/reference pruning. No prefs version/store/message/signal/dependency/layer change.
+- Preset resolution deliberately preserves Phase 5 effect intent (`blur`, `blendMode`, GIF controls, safe-text lock) while applying only Phase 4-owned recipe fields.
+
+**Automated:** layout **10/10** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **9/9** · presets **5/5** · caption geometry **7/7** · prefs storage **12/12** = focused **62/62**. Production build **PASS** and contains both SVG assets; compile only the same 2 pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Architecture:** ADR-0008 already owns the Design-phase preset/layout seam; the recipes reuse the existing preference, preview, recorder, and draw path. Architecture map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Next:** operator-check checklist §7 hover/focus restore, Apply/reload, included choices, and open-audition hot-swap; then Phase 5 properties/effects + eye-dropper.
+
+### 2026-07-20 — Track B Phase 3 positioning console + interactions implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `844a81f`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §4 new console rows + §5 remain open for operator confirmation
+
+**Operator carry-forward:** user confirmed the Phase 2 fine-position behavior and bidirectional sync work correctly. That closes the original §4 behavior rows; Phase 3 changed their visual arrangement, so the new layout/slider rows remain open.
+
+**Product state:**
+
+- Fine position is now a camera-style console around the actual mini-preview: horizontal controls below, vertical controls at right, original directional chevrons for ±0.01, new doubled variants for ±0.05, and orientation-aware physical sliders on both axes.
+- `interaction-utils.ts` owns guarded clamp, logarithmic scale mapping, sticky-snap hysteresis, per-axis snapping, and caption-band constraint math. Ctrl/Cmd+wheel zoom preserves the image point under the cursor; the visible zoom slider uses the same scale mapping.
+- Center/thirds/edges guides and active snap lines are DOM-only preview overlays. Snap can be disabled, Shift temporarily bypasses it, Guides can be hidden, and Clear captions uses the exact preview caption measurement to keep the focal point outside the rendered subtitle band.
+- The Studio host owns a bounded 20-snapshot background-layout history. Gesture-start snapshots prevent RAF-frame spam; undo/redo is scoped away from subtitle history and flushes pending hero/mini writes before restore.
+- Existing nested prefs and `setUserBackgroundLayout` remain the only state/hot-swap seam. No new context, message, store, signal, dependency, compositing layer, `USER_PREFS_VERSION`, or post-capture renderer.
+
+**Automated:** layout **10/10** · direct-manipulation/zoom **8/8** · precision **5/5** · interaction utils **6/6** · control UI **6/6** · caption geometry **7/7** · prefs storage **12/12** = focused **54/54**. Production build **PASS**; compile only the same 2 pre-existing subtitle diagnostics; `git diff --check` PASS.
+
+**Architecture:** ADR-0008 already owns this exact Design-phase seam. Map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Operator follow-up:** user reported the Phase 3 UI/behavior passes QA on 2026-07-20; the only requested adjustment was the upward Y-button order recorded in the Phase 4 entry above.
+
+### 2026-07-20 — Track B Phase 2 precision widget implemented
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commit:** `b129713`<br>
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) §4 remains open for operator UI confirmation
+
+**Product state:**
+
+- Background subpanel's existing `renderThemePreview` frame is now the interactive precision mini-preview; no parallel renderer or capture layer.
+- Hero and mini frame share `background-direct-manipulation.ts` pointer math, RAF coalescing, ImageDB dimensions, and debounced persistence.
+- X/Y readouts update bidirectionally; explicit ±0.01 / ±0.05 buttons clamp through `normalizeUserBackgroundLayout` and immediately update hero + active audition.
+- Other Studio saves flush both positioning surfaces before profile/style snapshots, preventing stale layout capture.
+
+**Automated:** layout **10/10** · direct-manip **6/6** · precision **5/5** · prefs storage **12/12** · production build **PASS** · compile only the same 2 pre-existing subtitle diagnostics · `git diff --check` PASS.
+
+**Architecture:** existing Design-phase Background Layout seam only; no context/message/store/signal/dependency/layer/version change. Map/extension-point MINOR bumps remain deferred to Track B merge per roadmap §9.
+
+**Next:** operator §4 mini-frame/bidirectional smoke, then Phase 3 `interaction-utils.ts` (zoom / sticky snap / undo).
+
+### 2026-07-20 — Track B living-docs catch-up (Phase 0+1 + operator Phase 1 QA PASS)
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f`  
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) — sections **0–3** marked for Phase 0/1; full merge gate remains open
+
+**Product state (already on branch; docs had lagged):**
+
+- **Phase 0:** nested `UserBackgroundLayout` + normalize/clamps/migration; custom offset + field dim/manualScale/blur/blend in draw path; old panel wires nested layout; Node **10/10**.
+- **Phase 1:** hero-only direct pan/focal (`background-direct-manipulation.ts`); debounced persist; overlay CSS; Node **6/6**.
+- **Operator:** confirmed drag works on the Design Studio **live preview** only; background **submenu unchanged** — correct for Phase 1.
+
+**Automated re-check this sprint:** layout 10/10 · direct-manip 6/6 · `npm run build` PASS.
+
+**Docs updated:** root `TODO.md` / `claude-progress.md` · this file · `TODO-6.0.0.md` · workspace README · `track-b/README.md` + checklist · roadmap header/§10/carry-forward.
+
+**Next code:** Phase 2 precision widget. Standing by for further operator QA.
+
+### 2026-07-20 — Track B init: branch FF + QA scaffold
+
+**Branch:** `feature/v6.0.0-background-panel-refactor` · **was HEAD:** `2b42db5` (identical to `main` after FF)  
+**Checklist:** [`track-b/qa-checklist.md`](track-b/qa-checklist.md) · **README:** [`track-b/README.md`](track-b/README.md)
+
+**Done:**
+
+- Fast-forwarded stale feature tip `98c37ab` → current `main` (`2b42db5`, post Track A merge + Track C merge). No unique Track B commits existed on the old tip.
+- Checked out the feature branch for development.
+- Scaffolded `track-b/` to match track-a / track-c process: committed `README.md` + `qa-checklist.md` (roadmap §8 matrix); created gitignored `logs/` · `screenshot/` · `artifacts/`.
+- Flipped workspace ledger / README / this progress file to **Track B open**; short root `TODO.md` / `claude-progress.md` pointers.
+- Roadmap header + §10 updated; ADR-0008 **Proposed → Accepted** (branch open / implementation track).
+
+**Follow-on (same day):** Phase 0 + Phase 1 product commits landed; see session entry above.
 
 ### 2026-07-19 — Track C popup refresh: implementation + agent QA gate PASS · merged
 

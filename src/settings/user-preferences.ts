@@ -1,9 +1,10 @@
 import type { BarAlignment } from '@/src/recorder/waveform';
-import {
-  normalizeBackgroundPosition,
-  normalizeBackgroundScaleMode,
-} from '@/src/theme/background-layout';
-import type { BackgroundImagePosition, BackgroundScaleMode } from '@/src/theme/types';
+import { userBackgroundLayoutFromAppearance } from '@/src/theme/background-layout';
+import type {
+  BackgroundImagePosition,
+  BackgroundScaleMode,
+  UserBackgroundLayout,
+} from '@/src/theme/types';
 import {
   createClipProfileId,
   getClipProfileById,
@@ -109,14 +110,16 @@ export interface AppearancePreferences {
   /** When true, simplify waveform motion if the OS requests reduced motion (pretty-4 draw). */
   respectReducedMotion?: boolean;
   /**
-   * ImageDB record id (`bg-…`) for a user-uploaded background (pretty-7).
-   * Blob lives in IndexedDB; prefs store only this reference.
+   * Stable `bg-…` reference for an uploaded ImageDB record or an included background.
+   * Uploaded blobs live in IndexedDB; prefs store only this lightweight reference.
    */
   customBackgroundId?: string | null;
   /** Personal background scale: fit (letterbox) or fill (crop). Default fill. */
   backgroundScaleMode?: BackgroundScaleMode;
   /** Personal background anchor when letterboxing or cropping. Default center. */
   backgroundPosition?: BackgroundImagePosition;
+  /** v6 additive layout object; legacy flat scale/position remain migration fallbacks. */
+  backgroundLayout?: Partial<UserBackgroundLayout>;
   /** User-saved theme + alignment combos (pretty-6). */
   savedProfiles?: ClipProfile[];
   /** Active saved profile id, or null when using manual theme/alignment picks. */
@@ -357,7 +360,10 @@ function mergeAppearancePreferences(
     savedCustomStyles,
   );
   const designOverrides = normalizeDesignOverrides(raw?.designOverrides);
+  const backgroundLayout = userBackgroundLayoutFromAppearance(raw ?? {});
 
+  // CHANGED: normalize one nested background layout while mirroring the legacy flat pair.
+  // WHY: v6 fields need a migration-safe persistence seam without a public prefs-version bump.
   return {
     ...DEFAULT_USER_PREFERENCES.appearance,
     ...raw,
@@ -366,8 +372,9 @@ function mergeAppearancePreferences(
     savedProfiles,
     activeProfileId: normalizeActiveProfileId(raw?.activeProfileId, savedProfiles),
     customBackgroundId: normalizeBackgroundAssetId(raw?.customBackgroundId),
-    backgroundScaleMode: normalizeBackgroundScaleMode(raw?.backgroundScaleMode),
-    backgroundPosition: normalizeBackgroundPosition(raw?.backgroundPosition),
+    backgroundScaleMode: backgroundLayout.scaleMode,
+    backgroundPosition: backgroundLayout.position,
+    backgroundLayout,
     savedCustomStyles,
     activeCustomStyleId,
     designOverrides,
@@ -849,6 +856,7 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
         customBackgroundId: profile.customBackgroundId ?? null,
         backgroundScaleMode: profile.backgroundScaleMode,
         backgroundPosition: profile.backgroundPosition,
+        backgroundLayout: profile.backgroundLayout,
         activeCustomStyleId: styleState.activeCustomStyleId,
         designOverrides: styleState.designOverrides,
         activeProfileId: profile.id,
@@ -897,6 +905,7 @@ export async function saveCurrentAsClipProfile(
   const designOverrides = customStyleId
     ? null
     : (normalizeDesignOverrides(current.appearance.designOverrides) ?? null);
+  const backgroundLayout = userBackgroundLayoutFromAppearance(current.appearance);
 
   const profile: ClipProfile = {
     id: createClipProfileId(),
@@ -904,8 +913,9 @@ export async function saveCurrentAsClipProfile(
     themeId: current.appearance.activeThemeId,
     barAlignment: current.appearance.barAlignment ?? 'center',
     customBackgroundId: current.appearance.customBackgroundId ?? null,
-    backgroundScaleMode: current.appearance.backgroundScaleMode,
-    backgroundPosition: current.appearance.backgroundPosition,
+    backgroundScaleMode: backgroundLayout.scaleMode,
+    backgroundPosition: backgroundLayout.position,
+    backgroundLayout,
     customStyleId,
     designOverrides,
     voiceEffectConfig: normalizeVoiceEffectConfig(current.voiceEffect),
@@ -928,6 +938,7 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
     throw new Error('Built-in clip styles cannot be updated. Save as a new profile instead.');
   }
 
+  const backgroundLayout = userBackgroundLayoutFromAppearance(current.appearance);
   const profiles = (current.appearance.savedProfiles ?? []).map((profile) => {
     if (profile.id !== profileId) return profile;
     return {
@@ -935,8 +946,9 @@ export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
       themeId: current.appearance.activeThemeId,
       barAlignment: current.appearance.barAlignment ?? 'center',
       customBackgroundId: current.appearance.customBackgroundId ?? null,
-      backgroundScaleMode: current.appearance.backgroundScaleMode,
-      backgroundPosition: current.appearance.backgroundPosition,
+      backgroundScaleMode: backgroundLayout.scaleMode,
+      backgroundPosition: backgroundLayout.position,
+      backgroundLayout,
       customStyleId: current.appearance.activeCustomStyleId ?? null,
       designOverrides: current.appearance.activeCustomStyleId
         ? null

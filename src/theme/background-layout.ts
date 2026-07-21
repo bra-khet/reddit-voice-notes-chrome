@@ -1,12 +1,56 @@
 import type {
+  BackgroundBlendPlateSource,
   BackgroundImagePosition,
   BackgroundScaleMode,
+  NormalizedUserBackgroundLayout,
   UserBackgroundLayout,
 } from './types';
+import { USER_BACKGROUND_DIM_OVERLAY } from '../storage/image-db-types';
+import { hexToHsv, hsvToHex, normalizeHexColor } from './color-utils';
 
-export const DEFAULT_USER_BACKGROUND_LAYOUT: UserBackgroundLayout = {
+export const MIN_USER_BACKGROUND_MANUAL_SCALE = 0.5;
+export const MAX_USER_BACKGROUND_MANUAL_SCALE = 3;
+export const MAX_USER_BACKGROUND_BLUR = 12;
+export const MIN_USER_BACKGROUND_GIF_SPEED = 0.5;
+export const MAX_USER_BACKGROUND_GIF_SPEED = 2;
+export const DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR = '#808080';
+
+export const USER_BACKGROUND_BLEND_PLATE_SOURCES = [
+  'legacy',
+  'theme-tint',
+  'bar-color',
+  'mid-gray',
+  'soft-white',
+  'custom',
+] as const satisfies readonly BackgroundBlendPlateSource[];
+
+export const USER_BACKGROUND_BLEND_MODES = [
+  'source-over',
+  'multiply',
+  'overlay',
+  'screen',
+  'soft-light',
+  'color-burn',
+  'color-dodge',
+  'difference',
+] as const satisfies readonly GlobalCompositeOperation[];
+
+type UserBackgroundBlendMode = (typeof USER_BACKGROUND_BLEND_MODES)[number];
+
+export const DEFAULT_USER_BACKGROUND_LAYOUT: NormalizedUserBackgroundLayout = {
   scaleMode: 'fill',
   position: 'center',
+  customPosition: { x: 0.5, y: 0.5 },
+  manualScale: 1,
+  dim: USER_BACKGROUND_DIM_OVERLAY,
+  blur: 0,
+  blendMode: 'source-over',
+  blendPlateSource: 'legacy',
+  blendPlateColor: DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR,
+  holo: false,
+  gifSpeed: 1,
+  gifReactToAudio: false,
+  lockToSafeText: false,
 };
 
 const VALID_SCALE_MODES: readonly BackgroundScaleMode[] = ['fit', 'fill'];
@@ -36,23 +80,197 @@ export function normalizeBackgroundPosition(
   return DEFAULT_USER_BACKGROUND_LAYOUT.position;
 }
 
+function clampFinite(raw: unknown, min: number, max: number, fallback: number): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return fallback;
+  return Math.min(max, Math.max(min, raw));
+}
+
+function normalizeBoolean(raw: unknown, fallback: boolean): boolean {
+  return typeof raw === 'boolean' ? raw : fallback;
+}
+
+function normalizeBackgroundBlendMode(raw: unknown): UserBackgroundBlendMode {
+  if (
+    typeof raw === 'string'
+    && USER_BACKGROUND_BLEND_MODES.includes(raw as UserBackgroundBlendMode)
+  ) {
+    return raw as UserBackgroundBlendMode;
+  }
+  return 'source-over';
+}
+
+function normalizeBlendPlateSource(raw: unknown): BackgroundBlendPlateSource {
+  if (
+    typeof raw === 'string'
+    && USER_BACKGROUND_BLEND_PLATE_SOURCES.includes(raw as BackgroundBlendPlateSource)
+  ) {
+    return raw as BackgroundBlendPlateSource;
+  }
+  return DEFAULT_USER_BACKGROUND_LAYOUT.blendPlateSource;
+}
+
+function normalizeBlendPlateColor(raw: unknown): string {
+  return typeof raw === 'string'
+    ? normalizeHexColor(raw) ?? DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR
+    : DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR;
+}
+
+export function backgroundPositionToCustomPosition(
+  position: BackgroundImagePosition,
+): { x: number; y: number } {
+  const x = position.endsWith('left') || position === 'left'
+    ? 0
+    : position.endsWith('right') || position === 'right'
+      ? 1
+      : 0.5;
+  const y = position.startsWith('top') || position === 'top'
+    ? 0
+    : position.startsWith('bottom') || position === 'bottom'
+      ? 1
+      : 0.5;
+  return { x, y };
+}
+
+function normalizeCustomPosition(
+  raw: UserBackgroundLayout['customPosition'] | undefined,
+  fallback: { x: number; y: number },
+): { x: number; y: number } {
+  if (!raw || typeof raw !== 'object') return fallback;
+  return {
+    x: clampFinite(raw.x, 0, 1, fallback.x),
+    y: clampFinite(raw.y, 0, 1, fallback.y),
+  };
+}
+
 export function normalizeUserBackgroundLayout(
   raw: Partial<UserBackgroundLayout> | null | undefined,
-): UserBackgroundLayout {
+): NormalizedUserBackgroundLayout {
+  const position = normalizeBackgroundPosition(raw?.position);
+  const discretePosition = backgroundPositionToCustomPosition(position);
+
+  // CHANGED: every additive layout field is normalized at the shared prefs/draw seam.
+  // WHY: old profiles must reproduce their discrete layout while malformed imports cannot leak into Canvas state.
   return {
     scaleMode: normalizeBackgroundScaleMode(raw?.scaleMode),
-    position: normalizeBackgroundPosition(raw?.position),
+    position,
+    customPosition: normalizeCustomPosition(raw?.customPosition, discretePosition),
+    manualScale: clampFinite(
+      raw?.manualScale,
+      MIN_USER_BACKGROUND_MANUAL_SCALE,
+      MAX_USER_BACKGROUND_MANUAL_SCALE,
+      DEFAULT_USER_BACKGROUND_LAYOUT.manualScale,
+    ),
+    dim: clampFinite(raw?.dim, 0, 1, USER_BACKGROUND_DIM_OVERLAY),
+    blur: clampFinite(raw?.blur, 0, MAX_USER_BACKGROUND_BLUR, DEFAULT_USER_BACKGROUND_LAYOUT.blur),
+    blendMode: normalizeBackgroundBlendMode(raw?.blendMode),
+    // CHANGED: blend math gets an additive, solid draw-time destination with a legacy default.
+    // WHY: creative modes must be human-visible without changing a single existing profile pixel.
+    blendPlateSource: normalizeBlendPlateSource(raw?.blendPlateSource),
+    blendPlateColor: normalizeBlendPlateColor(raw?.blendPlateColor),
+    // CHANGED: holo is an additive guarded treatment flag, not a synthetic composite mode.
+    // WHY: static Canvas blend modes retain their exact allow-list semantics and old profiles stay pixel-identical.
+    holo: normalizeBoolean(raw?.holo, DEFAULT_USER_BACKGROUND_LAYOUT.holo),
+    gifSpeed: clampFinite(
+      raw?.gifSpeed,
+      MIN_USER_BACKGROUND_GIF_SPEED,
+      MAX_USER_BACKGROUND_GIF_SPEED,
+      DEFAULT_USER_BACKGROUND_LAYOUT.gifSpeed,
+    ),
+    gifReactToAudio: normalizeBoolean(
+      raw?.gifReactToAudio,
+      DEFAULT_USER_BACKGROUND_LAYOUT.gifReactToAudio,
+    ),
+    lockToSafeText: normalizeBoolean(
+      raw?.lockToSafeText,
+      DEFAULT_USER_BACKGROUND_LAYOUT.lockToSafeText,
+    ),
   };
 }
 
 export function userBackgroundLayoutFromAppearance(appearance: {
   backgroundScaleMode?: BackgroundScaleMode;
   backgroundPosition?: BackgroundImagePosition;
-}): UserBackgroundLayout {
+  backgroundLayout?: Partial<UserBackgroundLayout>;
+}): NormalizedUserBackgroundLayout {
+  const nested = appearance.backgroundLayout;
   return normalizeUserBackgroundLayout({
-    scaleMode: appearance.backgroundScaleMode,
-    position: appearance.backgroundPosition,
+    scaleMode: nested?.scaleMode ?? appearance.backgroundScaleMode,
+    position: nested?.position ?? appearance.backgroundPosition,
+    customPosition: nested?.customPosition,
+    manualScale: nested?.manualScale,
+    dim: nested?.dim,
+    blur: nested?.blur,
+    blendMode: nested?.blendMode,
+    blendPlateSource: nested?.blendPlateSource,
+    blendPlateColor: nested?.blendPlateColor,
+    holo: nested?.holo,
+    gifSpeed: nested?.gifSpeed,
+    gifReactToAudio: nested?.gifReactToAudio,
+    lockToSafeText: nested?.lockToSafeText,
   });
+}
+
+export function userBackgroundLayoutsEqual(
+  left: NormalizedUserBackgroundLayout,
+  right: NormalizedUserBackgroundLayout,
+): boolean {
+  return left.scaleMode === right.scaleMode
+    && left.position === right.position
+    && left.customPosition.x === right.customPosition.x
+    && left.customPosition.y === right.customPosition.y
+    && left.manualScale === right.manualScale
+    && left.dim === right.dim
+    && left.blur === right.blur
+    && left.blendMode === right.blendMode
+    && left.blendPlateSource === right.blendPlateSource
+    && left.blendPlateColor === right.blendPlateColor
+    && left.holo === right.holo
+    && left.gifSpeed === right.gifSpeed
+    && left.gifReactToAudio === right.gifReactToAudio
+    && left.lockToSafeText === right.lockToSafeText;
+}
+
+function sixDigitThemeColor(raw: string, fallback: string): string {
+  const withoutAlpha = /^#[0-9a-f]{8}$/i.test(raw) ? raw.slice(0, 7) : raw;
+  return normalizeHexColor(withoutAlpha) ?? fallback;
+}
+
+/** Resolve the selected plate against current theme colors at draw time. */
+export function resolveUserBackgroundBlendPlateColor(
+  layout: NormalizedUserBackgroundLayout,
+  colors: { bg: string; bar: string },
+): string {
+  switch (layout.blendPlateSource) {
+    case 'theme-tint': {
+      const bar = sixDigitThemeColor(colors.bar, DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR);
+      const hsv = hexToHsv(bar);
+      if (!hsv) return DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR;
+      return hsvToHex(hsv.h, Math.min(52, Math.max(20, hsv.s * 0.58)), 48);
+    }
+    case 'bar-color':
+      return sixDigitThemeColor(colors.bar, DEFAULT_USER_BACKGROUND_BLEND_PLATE_COLOR);
+    case 'mid-gray':
+      return '#808080';
+    case 'soft-white':
+      return '#e8edf2';
+    case 'custom':
+      return layout.blendPlateColor;
+    case 'legacy':
+    default:
+      return colors.bg;
+  }
+}
+
+export function userBackgroundGifPlaybackRate(
+  userLayout: Partial<UserBackgroundLayout> | null | undefined,
+  audioEnergy = 0,
+): number {
+  const layout = normalizeUserBackgroundLayout(userLayout);
+  const energy = clampFinite(audioEnergy, 0, 1, 0);
+  // CHANGED: audio-reactive GIF timing changes playback velocity, never the absolute clock.
+  // WHY: continuous rate modulation avoids discontinuous frame jumps while still making speech audible in motion.
+  const reactiveRate = layout.gifReactToAudio ? 0.65 + energy * 0.7 : 1;
+  return layout.gifSpeed * reactiveRate;
 }
 
 export function computeImageDrawOffset(
@@ -61,7 +279,19 @@ export function computeImageDrawOffset(
   drawWidth: number,
   drawHeight: number,
   position: BackgroundImagePosition,
+  customPosition?: UserBackgroundLayout['customPosition'],
 ): { dx: number; dy: number } {
+  // CHANGED: normalized focal coordinates are primary; the 9-way anchor remains the migration fallback.
+  // WHY: direct manipulation needs continuous placement without changing existing discrete-layout pixels.
+  if (customPosition) {
+    const dx = (canvasWidth - drawWidth) * customPosition.x;
+    const dy = (canvasHeight - drawHeight) * customPosition.y;
+    return {
+      dx: dx === 0 ? 0 : dx,
+      dy: dy === 0 ? 0 : dy,
+    };
+  }
+
   switch (position) {
     case 'top-left':
       return { dx: 0, dy: 0 };
@@ -86,4 +316,24 @@ export function computeImageDrawOffset(
         dy: (canvasHeight - drawHeight) / 2,
       };
   }
+}
+
+export function computeImageDrawSize(
+  canvasWidth: number,
+  canvasHeight: number,
+  imageWidth: number,
+  imageHeight: number,
+  scaleMode: BackgroundScaleMode,
+  manualScale = DEFAULT_USER_BACKGROUND_LAYOUT.manualScale,
+): { width: number; height: number } {
+  // CHANGED: expose the painter's fit/fill geometry as shared pure layout math.
+  // WHY: direct manipulation must invert the exact crop/letterbox span used by preview and capture.
+  const baseScale = scaleMode === 'fill'
+    ? Math.max(canvasWidth / imageWidth, canvasHeight / imageHeight)
+    : Math.min(canvasWidth / imageWidth, canvasHeight / imageHeight);
+  const scale = baseScale * manualScale;
+  return {
+    width: imageWidth * scale,
+    height: imageHeight * scale,
+  };
 }

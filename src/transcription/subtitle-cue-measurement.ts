@@ -6,6 +6,7 @@
 
 import type { HeuristicMeasureTier } from '@/src/utils/text-metrics';
 import { CANVAS_WIDTH } from '@/src/utils/constants';
+import type { SubtitleStyleConfig } from '@/src/transcription/types';
 
 export type CueFitStatus = 'comfortable' | 'marginal' | 'overflow';
 
@@ -17,6 +18,11 @@ export const BAKE_FRAME_SAFE_PADDING_PX = 4;
 
 /** Min margin from frame edge for "comfortable" (still readable, not "needs fix"). */
 export const BAKE_COMFORT_MARGIN_PX = 12;
+
+/** Sync: subtitle-preview.ts drawSubtitlePreview block geometry. */
+export const SUBTITLE_PREVIEW_MARGIN_FRACTION = 0.08;
+export const SUBTITLE_PREVIEW_LINE_HEIGHT_FACTOR = 1.25;
+export const SUBTITLE_PREVIEW_PADDING_Y = 10;
 
 export interface BackdropFrameFit {
   backdropLeft: number;
@@ -115,4 +121,36 @@ export function buildCueRenderedSizeResult(
 /** Map heuristic tier to whether real-canvas measurement is required. */
 export function heuristicTierNeedsRealCanvas(tier: HeuristicMeasureTier): boolean {
   return tier === 'marginal' || tier === 'overflow';
+}
+
+export function subtitlePreviewBlockTopY(
+  position: SubtitleStyleConfig['position'],
+  canvasHeight: number,
+  blockHeight: number,
+): number {
+  const margin = Math.round(canvasHeight * SUBTITLE_PREVIEW_MARGIN_FRACTION);
+  if (position === 'top') return margin;
+  if (position === 'center') return Math.round((canvasHeight - blockHeight) / 2);
+  return canvasHeight - blockHeight - margin;
+}
+
+export function subtitlePreviewSafeBandNormalized(
+  position: SubtitleStyleConfig['position'],
+  fontSize = 22,
+  canvasHeight = 360,
+  lineCount = 2,
+): { start: number; end: number } {
+  // CHANGED: expose the preview caption's vertical footprint as normalized layout guidance.
+  // WHY: Background safe-text locking and the rendered caption must share one placement equation.
+  const height = Math.max(1, canvasHeight);
+  const lineHeight = Math.round(Math.max(1, fontSize) * SUBTITLE_PREVIEW_LINE_HEIGHT_FACTOR);
+  const blockHeight = Math.min(
+    height,
+    Math.max(1, Math.round(lineCount)) * lineHeight + SUBTITLE_PREVIEW_PADDING_Y * 2,
+  );
+  const top = subtitlePreviewBlockTopY(position, height, blockHeight);
+  return {
+    start: Math.max(0, top / height),
+    end: Math.min(1, (top + blockHeight) / height),
+  };
 }

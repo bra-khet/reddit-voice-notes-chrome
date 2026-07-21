@@ -21,14 +21,16 @@ import {
 } from '@/src/storage/background-loader';
 import type { AnimatedBackground } from '@/src/storage/animated-background';
 import { normalizeBackgroundAssetId } from '@/src/storage/image-db';
-import { USER_BACKGROUND_DIM_OVERLAY } from '@/src/storage/image-db-types';
 import {
+  computeImageDrawSize,
   computeImageDrawOffset,
   DEFAULT_USER_BACKGROUND_LAYOUT,
   normalizeUserBackgroundLayout,
+  resolveUserBackgroundBlendPlateColor,
 } from './background-layout';
 import type {
   BackgroundScaleMode,
+  NormalizedUserBackgroundLayout,
   ThemeBackground,
   UserBackgroundLayout,
   WaveformTheme,
@@ -89,7 +91,7 @@ export interface ResolvedClipBackgrounds {
   bundledBackgroundImage: HTMLImageElement | null;
 }
 
-/** Resolve personal ImageDB background and bundled theme assets (pretty-7b / pretty-8 fit mode). */
+/** Resolve an uploaded/included user background and bundled theme assets (pretty-7b / pretty-8). */
 export async function resolveClipBackgrounds(
   theme: WaveformTheme,
   customBackgroundId: string | null | undefined,
@@ -143,9 +145,72 @@ interface DrawImageBackgroundOptions {
   image: DrawableBackgroundImage;
   letterboxColor: string;
   scaleMode: BackgroundScaleMode;
-  layout: UserBackgroundLayout;
+  layout: NormalizedUserBackgroundLayout;
+  /** Null preserves the exact pre-plate theme underlay path. */
+  blendPlateColor?: string | null;
+  audioFrame?: AudioVizFrame;
   /** When true, theme backdrop is already drawn — only place the image (fit mode). */
   skipLetterboxFill?: boolean;
+}
+
+function applyBackgroundImageEffects(
+  ctx: CanvasRenderingContext2D,
+  layout: NormalizedUserBackgroundLayout,
+): void {
+  ctx.globalCompositeOperation = layout.blendMode;
+  ctx.filter = layout.blur > 0 ? `blur(${layout.blur}px)` : 'none';
+}
+
+function drawHoloBackgroundImage(
+  ctx: CanvasRenderingContext2D,
+  image: DrawableBackgroundImage,
+  dx: number,
+  dy: number,
+  drawWidth: number,
+  drawHeight: number,
+  layout: NormalizedUserBackgroundLayout,
+  audioFrame: AudioVizFrame,
+): void {
+  const seconds = Math.max(0, audioFrame.timeMs) / 1000;
+  const energy = Math.max(0, Math.min(1, audioFrame.energy));
+  const drift = Math.sin(seconds * 1.15);
+  const offset = 1.25 + energy * 0.75 + (drift + 1) * 0.25;
+  const blur = layout.blur > 0 ? `blur(${layout.blur}px) ` : '';
+
+  ctx.save();
+  try {
+    // CHANGED: holo is two translucent chromatic image passes plus one clipped slow sheen.
+    // WHY: it stays cheap Canvas 2D work inside the personal-image slot and shares capture time/energy.
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.085 + energy * 0.035;
+    ctx.filter = `${blur}saturate(1.35) hue-rotate(${52 + drift * 14}deg)`;
+    ctx.drawImage(image, dx + offset, dy, drawWidth, drawHeight);
+    ctx.filter = `${blur}saturate(1.3) hue-rotate(${228 - drift * 18}deg)`;
+    ctx.drawImage(image, dx - offset, dy, drawWidth, drawHeight);
+
+    const sweep = (seconds % 12) / 12;
+    const sheenCenter = dx - drawWidth * 0.25 + sweep * drawWidth * 1.5;
+    const sheen = ctx.createLinearGradient(
+      sheenCenter - drawWidth * 0.18,
+      dy,
+      sheenCenter + drawWidth * 0.18,
+      dy + drawHeight,
+    );
+    sheen.addColorStop(0, 'rgba(103, 232, 249, 0)');
+    sheen.addColorStop(0.42, 'rgba(103, 232, 249, 0.34)');
+    sheen.addColorStop(0.58, 'rgba(253, 231, 37, 0.28)');
+    sheen.addColorStop(1, 'rgba(192, 132, 252, 0)');
+    ctx.beginPath();
+    ctx.rect(dx, dy, drawWidth, drawHeight);
+    ctx.clip();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.globalAlpha = 0.08 + energy * 0.025;
+    ctx.filter = 'none';
+    ctx.fillStyle = sheen;
+    ctx.fillRect(dx, dy, drawWidth, drawHeight);
+  } finally {
+    ctx.restore();
+  }
 }
 
 function drawImageBackground({
@@ -155,31 +220,70 @@ function drawImageBackground({
   letterboxColor,
   scaleMode,
   layout,
+  blendPlateColor = null,
+  audioFrame = EMPTY_AUDIO_VIZ_FRAME,
   skipLetterboxFill = false,
 }: DrawImageBackgroundOptions): void {
   const { width, height } = canvas;
-  if (!skipLetterboxFill) {
-    ctx.fillStyle = letterboxColor;
-    ctx.fillRect(0, 0, width, height);
-  }
-
   const { width: imageWidth, height: imageHeight } = getDrawableBackgroundSize(image);
-  const scale =
-    scaleMode === 'fill'
-      ? Math.max(width / imageWidth, height / imageHeight)
-      : Math.min(width / imageWidth, height / imageHeight);
-
-  const drawWidth = imageWidth * scale;
-  const drawHeight = imageHeight * scale;
+  const { width: drawWidth, height: drawHeight } = computeImageDrawSize(
+    width,
+    height,
+    imageWidth,
+    imageHeight,
+    scaleMode,
+    layout.manualScale,
+  );
   const { dx, dy } = computeImageDrawOffset(
     width,
     height,
     drawWidth,
     drawHeight,
     layout.position,
+    layout.customPosition,
   );
 
-  ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+  if (!skipLetterboxFill && !blendPlateColor) {
+    // Legacy branch intentionally retains the exact pre-plate fill path.
+    ctx.fillStyle = letterboxColor;
+    ctx.fillRect(0, 0, width, height);
+  } else if (blendPlateColor) {
+    // CHANGED: a selected plate is one solid fill immediately beneath the blended image.
+    // WHY: this makes Canvas blend math legible while staying inside the existing personal-image slot.
+    ctx.save();
+    try {
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.filter = 'none';
+      ctx.fillStyle = blendPlateColor ?? letterboxColor;
+      if (skipLetterboxFill) ctx.fillRect(dx, dy, drawWidth, drawHeight);
+      else ctx.fillRect(0, 0, width, height);
+    } finally {
+      ctx.restore();
+    }
+  }
+
+  // CHANGED: personal-image scale and effects are isolated to the existing image draw slot.
+  // WHY: preview/capture parity requires layout effects without leaking filter/composite state to dim, overlays, or bars.
+  ctx.save();
+  try {
+    applyBackgroundImageEffects(ctx, layout);
+    ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+    if (layout.holo) {
+      drawHoloBackgroundImage(
+        ctx,
+        image,
+        dx,
+        dy,
+        drawWidth,
+        drawHeight,
+        layout,
+        audioFrame,
+      );
+    }
+  } finally {
+    ctx.restore();
+  }
 }
 
 function drawThemeFallbackBackground(
@@ -201,13 +305,17 @@ function drawUserBackgroundLayer(
   image: DrawableBackgroundImage,
   bundledBackgroundImage: HTMLImageElement | null,
   audioFrame: AudioVizFrame,
-  layout: UserBackgroundLayout,
+  layout: NormalizedUserBackgroundLayout,
   visualEnvironment?: AudioVisualRenderEnvironment,
 ): void {
   if (!isDrawableBackgroundReady(image)) {
     drawThemeFallbackBackground(ctx, canvas, theme.colors);
     return;
   }
+
+  const blendPlateColor = layout.blendPlateSource === 'legacy'
+    ? null
+    : resolveUserBackgroundBlendPlateColor(layout, theme.colors);
 
   if (layout.scaleMode === 'fit') {
     drawBundledThemeBackground(
@@ -225,6 +333,8 @@ function drawUserBackgroundLayer(
       letterboxColor: theme.colors.bg,
       scaleMode: 'fit',
       layout,
+      blendPlateColor,
+      audioFrame,
       skipLetterboxFill: true,
     });
   } else {
@@ -235,10 +345,14 @@ function drawUserBackgroundLayer(
       letterboxColor: theme.colors.bg,
       scaleMode: 'fill',
       layout,
+      blendPlateColor,
+      audioFrame,
     });
   }
 
-  const dim = USER_BACKGROUND_DIM_OVERLAY;
+  // CHANGED: dim is layout-owned while its normalized default remains the legacy overlay constant.
+  // WHY: existing users keep identical pixels and future controls can vary dim per background/profile.
+  const dim = layout.dim;
   if (dim > 0) {
     ctx.fillStyle = `rgba(0, 0, 0, ${dim})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);

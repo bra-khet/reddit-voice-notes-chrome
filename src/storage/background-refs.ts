@@ -6,17 +6,18 @@ import {
 } from './image-db';
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
 import { saveAppearancePreferences } from '@/src/settings/user-preferences';
+import { isBundledUserBackgroundId } from '@/src/theme/background-layout-presets';
 
 /** Collect every ImageDB id referenced by prefs (active appearance + saved profiles). */
 export function collectReferencedBackgroundIds(prefs: UserPreferencesV1): Set<string> {
   const refs = new Set<string>();
 
   const activeId = normalizeBackgroundAssetId(prefs.appearance.customBackgroundId);
-  if (activeId) refs.add(activeId);
+  if (activeId && !isBundledUserBackgroundId(activeId)) refs.add(activeId);
 
   for (const profile of prefs.appearance.savedProfiles ?? []) {
     const profileId = normalizeBackgroundAssetId(profile.customBackgroundId);
-    if (profileId) refs.add(profileId);
+    if (profileId && !isBundledUserBackgroundId(profileId)) refs.add(profileId);
   }
 
   return refs;

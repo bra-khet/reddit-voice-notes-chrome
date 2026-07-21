@@ -1,13 +1,19 @@
 import {
   backgroundIsBokeh,
+  deriveGlowColor,
+  getBundledUserBackground,
   listThemePresets,
   renderThemePreview,
+  resolveUserBackgroundBlendPlateColor,
   resolveAppearanceTheme,
   themeHasAnimatedOverlay,
   userBackgroundLayoutFromAppearance,
+  userBackgroundLayoutsEqual,
   type BarAlignment,
+  type NormalizedUserBackgroundLayout,
 } from '@/src/theme';
 import { isAnimatedBackgroundCached } from '@/src/storage/background-loader';
+import { getBackgroundAssetMeta } from '@/src/storage/image-db';
 import {
   clipProfileMatchesLiveState,
   getClipProfileById,
@@ -60,7 +66,11 @@ import {
   mountBackgroundLayoutControls,
   renderBackgroundLayoutFields,
 } from '@/src/ui/design-studio/background-layout-controls';
-import { drawSubtitleTextOnlyPreview } from '@/src/transcription/subtitle-preview';
+import { shouldAnimateStudioPreview } from '@/src/ui/design-studio/preview-loop-policy';
+import {
+  drawSubtitleTextOnlyPreview,
+  measureSubtitlePreviewSafeBand,
+} from '@/src/transcription/subtitle-preview';
 import { loadDejaVuPreviewFonts } from '@/src/ui/design-studio/preview-font-loader';
 import {
   mountSubtitleControls,
@@ -117,6 +127,12 @@ import {
   type CurrentTakeDeckHandle,
 } from '@/src/ui/design-studio/current-take-status';
 import { mountStudioRecorder } from '@/src/ui/design-studio/studio-recorder';
+import {
+  mountBackgroundDirectManipulation,
+  type BackgroundDirectManipulationDeps,
+  type BackgroundDirectManipulationHandle,
+  type BackgroundImageSize,
+} from '@/src/ui/design-studio/background-direct-manipulation';
 import type { AppearancePreferences } from '@/src/settings/user-preferences';
 
 const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
@@ -126,6 +142,7 @@ const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
 ];
 
 const COLOR_SAVE_DEBOUNCE_MS = 200;
+const BACKGROUND_LAYOUT_HISTORY_LIMIT = 20;
 
 export type MountClipStudioOptions = {
   /** Reconciled prefs from boot — avoids racing storage listeners before first paint (BUG-023). */
@@ -259,7 +276,6 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
         ${renderStudioV4PanelCard('Background', 'data-summary-background', 'background')}
         <div class="studio__panel-body" hidden>
-          ${renderPreviewBlock('subpanel')}
           ${renderPersonalBackgroundFields()}
           ${renderBackgroundLayoutFields()}
         </div>
@@ -383,6 +399,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
   let styleControls: StyleControlsHandle | null = null;
+  let backgroundDirect: BackgroundDirectManipulationHandle | null = null;
+  let backgroundPrecisionDirect: BackgroundDirectManipulationHandle | null = null;
+  let backgroundUndoStack: NormalizedUserBackgroundLayout[] = [];
+  let backgroundRedoStack: NormalizedUserBackgroundLayout[] = [];
+  let backgroundHistoryId: string | null = null;
+  let backgroundHistoryRestoring = false;
   let subpanelShell!: StudioSubpanelShellHandle;
   let workflowBanner!: WorkflowBannerHandle;
   const PREVIEW_ANIM_FPS = 12;
@@ -410,9 +432,22 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     });
   }
 
+  async function flushPendingBackgroundManipulation(): Promise<void> {
+    await Promise.all([
+      backgroundDirect?.flushPersist() ?? Promise.resolve(),
+      backgroundPrecisionDirect?.flushPersist() ?? Promise.resolve(),
+    ]);
+  }
+
   async function studioPersist(
     saveFn: () => Promise<UserPreferencesV1>,
+    options?: { skipBackgroundFlush?: boolean },
   ): Promise<UserPreferencesV1 | undefined> {
+    // CHANGED: every unrelated Studio save observes both debounced positioning surfaces first.
+    // WHY: profile snapshots and control changes must not read a stale hero or precision-widget position.
+    if (!options?.skipBackgroundFlush) {
+      await flushPendingBackgroundManipulation();
+    }
     const generation = ++studioSaveGeneration;
     ignoreStoragePrefs = true;
     try {
@@ -463,6 +498,82 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
   function activeBackgroundLayout() {
     return userBackgroundLayoutFromAppearance(activePrefs?.appearance ?? {});
+  }
+
+  function activeCaptionSafeBand() {
+    const canvas = root.querySelector<HTMLCanvasElement>(
+      '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
+    );
+    if (!canvas) return null;
+    return measureSubtitlePreviewSafeBand(canvas, subtitleControls?.getPreviewOptions());
+  }
+
+  function cloneBackgroundLayout(
+    layout: NormalizedUserBackgroundLayout,
+  ): NormalizedUserBackgroundLayout {
+    return { ...layout, customPosition: { ...layout.customPosition } };
+  }
+
+  function syncBackgroundHistoryControls(): void {
+    backgroundLayout.syncHistory(backgroundUndoStack.length > 0, backgroundRedoStack.length > 0);
+  }
+
+  function syncBackgroundHistoryScope(backgroundId: string | null): void {
+    if (backgroundId === backgroundHistoryId) return;
+    backgroundHistoryId = backgroundId;
+    backgroundUndoStack = [];
+    backgroundRedoStack = [];
+    syncBackgroundHistoryControls();
+  }
+
+  function pushBackgroundLayoutUndo(): void {
+    if (backgroundHistoryRestoring || !activePrefs?.appearance.customBackgroundId) return;
+    const current = activeBackgroundLayout();
+    const top = backgroundUndoStack[backgroundUndoStack.length - 1];
+    if (top && userBackgroundLayoutsEqual(top, current)) return;
+    // CHANGED: layout history snapshots at gesture boundaries, never on RAF/slider frames.
+    // WHY: one undo should reverse one perceived positioning action and stay isolated from subtitle history.
+    backgroundUndoStack.push(cloneBackgroundLayout(current));
+    if (backgroundUndoStack.length > BACKGROUND_LAYOUT_HISTORY_LIMIT) backgroundUndoStack.shift();
+    backgroundRedoStack = [];
+    syncBackgroundHistoryControls();
+  }
+
+  async function restoreBackgroundLayout(
+    source: NormalizedUserBackgroundLayout[],
+    destination: NormalizedUserBackgroundLayout[],
+  ): Promise<void> {
+    if (source.length === 0) return;
+    await flushPendingBackgroundManipulation();
+    const next = source.pop();
+    if (!next) return;
+    destination.push(cloneBackgroundLayout(activeBackgroundLayout()));
+    if (destination.length > BACKGROUND_LAYOUT_HISTORY_LIMIT) destination.shift();
+    backgroundHistoryRestoring = true;
+    invalidateInFlightSaves();
+    resetProfileUpdateConfirm();
+    applyLocalBackgroundLayout(next);
+    syncBackgroundHistoryControls();
+    try {
+      await studioPersist(() => saveAppearancePreferences({
+        backgroundScaleMode: next.scaleMode,
+        backgroundPosition: next.position,
+        backgroundLayout: next,
+      }), { skipBackgroundFlush: true });
+    } catch (error) {
+      console.error('[Reddit Voice Notes] Could not restore background layout history', error);
+      window.alert(error instanceof Error ? error.message : 'Could not restore background layout.');
+    } finally {
+      backgroundHistoryRestoring = false;
+    }
+  }
+
+  function undoBackgroundLayout(): void {
+    void restoreBackgroundLayout(backgroundUndoStack, backgroundRedoStack);
+  }
+
+  function redoBackgroundLayout(): void {
+    void restoreBackgroundLayout(backgroundRedoStack, backgroundUndoStack);
   }
 
   function resolvedTheme() {
@@ -586,7 +697,17 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     // WHY: animated branch Phase 2 — otherwise the Studio preview would freeze while the
     //      recorder/export loop, breaking the WYSIWYG promise.
     const animatedBackground = isAnimatedBackgroundCached(activeCustomBackgroundId());
-    const shouldAnimate = presetBokeh || animatedOverlay || animatedBackground;
+    // CHANGED: opt-in holo uses the same bounded preview clock as GIF and registry motion.
+    // WHY: its slow sheen must animate in Studio and share the recorder's time-zero reduced-motion freeze.
+    const animatedHolo = activeBackgroundLayout().holo;
+    // BUG FIX: Theme-only compare froze after removing an animated personal GIF
+    // Fix: a hydrated null-image preview keeps the same theme/style RAF; reduced motion still freezes at time zero.
+    // Sync: preview-loop-policy.ts; background-layout-controls.ts; scripts/test-background-control-ui.mjs
+    const shouldAnimate = shouldAnimateStudioPreview({
+      hasActivePreferences: Boolean(activePrefs),
+      hasAnimatedSurface: presetBokeh || animatedOverlay || animatedBackground || animatedHolo,
+      customBackgroundId: activeCustomBackgroundId(),
+    });
     if (activePrefs && shouldReduceMotion(activePrefs)) {
       stopPreviewLoop();
       // BUG FIX: Reduced-motion overlays retained an animated frame
@@ -638,6 +759,39 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     refreshSubtitleTextPreview(timeMs);
     if (generation !== renderGeneration) return;
     syncPreviewLoop();
+  }
+
+  function refreshHeroPreview(layout: NormalizedUserBackgroundLayout): void {
+    if (auditionActive) return;
+    const canvas = root.querySelector<HTMLCanvasElement>(
+      '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
+    );
+    if (!canvas) return;
+    void renderThemePreview(
+      canvas,
+      resolvedTheme(),
+      activeAlignment,
+      performance.now(),
+      activeCustomBackgroundId(),
+      layout,
+      subtitleControls?.getPreviewOptions(),
+    );
+  }
+
+  function refreshPrecisionPreview(layout: NormalizedUserBackgroundLayout): void {
+    const canvas = root.querySelector<HTMLCanvasElement>(
+      '[data-preview-canvas][data-preview-kind="background-precision"]',
+    );
+    if (!canvas) return;
+    void renderThemePreview(
+      canvas,
+      resolvedTheme(),
+      activeAlignment,
+      performance.now(),
+      activeCustomBackgroundId(),
+      layout,
+      subtitleControls?.getPreviewOptions(),
+    );
   }
 
   function syncProfileActions(prefs: UserPreferencesV1): void {
@@ -729,6 +883,39 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     void refreshPreview();
   }
 
+  function applyLocalBackgroundLayout(
+    layout: NormalizedUserBackgroundLayout,
+    customBackgroundId?: string | null,
+  ): void {
+    if (!activePrefs) return;
+    const backgroundId = customBackgroundId === undefined
+      ? activePrefs.appearance.customBackgroundId ?? null
+      : customBackgroundId;
+    // CHANGED: direct manipulation updates the local snapshot and only the RAF-critical consumers.
+    // WHY: live capture and the hero must agree immediately without refreshing every subpanel/status widget.
+    activePrefs = {
+      ...activePrefs,
+      appearance: {
+        ...activePrefs.appearance,
+        customBackgroundId: backgroundId,
+        backgroundScaleMode: layout.scaleMode,
+        backgroundPosition: layout.position,
+        backgroundLayout: layout,
+      },
+    };
+    backgroundLayout.syncLayout(layout);
+    backgroundDirect?.sync(backgroundId, layout);
+    backgroundPrecisionDirect?.sync(backgroundId, layout);
+    studioRecorder.setCustomBackgroundId(backgroundId);
+    studioRecorder.setUserBackgroundLayout(layout);
+    syncProfileButton(activePrefs);
+    refreshHeroPreview(layout);
+    refreshPrecisionPreview(layout);
+    // CHANGED: layout toggles can start or stop the holo animation without a full preference refresh.
+    // WHY: both enabling and disabling the treatment must reconcile the preview RAF immediately.
+    syncPreviewLoop();
+  }
+
   function scheduleDesignPersist(overrides: DesignOverrides): void {
     cancelPendingColorSave();
     colorSaveTimer = window.setTimeout(() => {
@@ -757,6 +944,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   }
 
   async function flushPendingDesignPersist(): Promise<void> {
+    await flushPendingBackgroundManipulation();
     if (!colorSaveTimer || !activePrefs?.appearance.designOverrides) return;
     cancelPendingColorSave();
     const overrides = activePrefs.appearance.designOverrides;
@@ -824,7 +1012,21 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     syncSelectControls(prefs);
 
     void personalBackground.sync(prefs);
+    syncBackgroundHistoryScope(prefs.appearance.customBackgroundId ?? null);
     backgroundLayout.sync(prefs);
+    backgroundDirect?.sync(
+      prefs.appearance.customBackgroundId ?? null,
+      userBackgroundLayoutFromAppearance(prefs.appearance),
+    );
+    backgroundPrecisionDirect?.sync(
+      prefs.appearance.customBackgroundId ?? null,
+      userBackgroundLayoutFromAppearance(prefs.appearance),
+    );
+    // BUG FIX: a recorder-session override could outlive a subsequent Studio profile/prefs change
+    // Fix: every accepted Studio snapshot advances the session's authoritative image and layout together.
+    // Sync: voice-recorder.ts; recorder-background-state.ts; scripts/test-recorder-background-state.mjs
+    studioRecorder.setCustomBackgroundId(prefs.appearance.customBackgroundId ?? null);
+    studioRecorder.setUserBackgroundLayout(userBackgroundLayoutFromAppearance(prefs.appearance));
     voiceControls.syncFromPreferences(prefs);
     subtitleControls.syncFromPreferences(prefs);
 
@@ -838,7 +1040,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     void refreshPreview();
   }
 
-  const colorPicker = mountColorPickerControls(root, (overrides) => {
+  function applyColorOverrides(overrides: DesignOverrides): void {
     const currentParams = activePrefs?.appearance.designOverrides?.visualizerParams;
     // CHANGED: the Clip color palette mode follows fine HSV edits as one coherent control.
     // WHY: otherwise the legacy bar swatch would change while a string visual color stayed stale.
@@ -850,7 +1052,9 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     applyLocalDesignOverrides(merged);
     syncSectionSummaries();
     scheduleDesignPersist(merged);
-  });
+  }
+
+  const colorPicker = mountColorPickerControls(root, applyColorOverrides);
 
   styleControls = mountStyleControlCenter(root, (patch) => {
     const merged = mergeDesignOverrides(patch);
@@ -869,10 +1073,62 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     });
   });
 
-  const backgroundLayout = mountBackgroundLayoutControls(root, (patch) => {
-    invalidateInFlightSaves();
-    resetProfileUpdateConfirm();
-    void studioPersist(() => saveAppearancePreferences(patch));
+  const backgroundLayout = mountBackgroundLayoutControls(root, (patch, emitOptions) => {
+    // CHANGED: preset auditions and Theme-only compare bypass persistence-generation invalidation.
+    // WHY: transient preview state must not cancel an unrelated preference save in flight.
+    if (!emitOptions.presetPreview && !emitOptions.comparePreview) {
+      invalidateInFlightSaves();
+      resetProfileUpdateConfirm();
+    }
+    applyLocalBackgroundLayout(patch.backgroundLayout, patch.customBackgroundId);
+    if (emitOptions.persist) void studioPersist(() => saveAppearancePreferences(patch));
+  }, {
+    onGestureStart: pushBackgroundLayoutUndo,
+    onUndo: undoBackgroundLayout,
+    onRedo: redoBackgroundLayout,
+    getCaptionSafeBand: activeCaptionSafeBand,
+    getBlendPlateColor: (layout) =>
+      resolveUserBackgroundBlendPlateColor(layout, resolvedTheme().colors),
+    getEyeDropperTargets: () => {
+      const heroCanvas = root.querySelector<HTMLCanvasElement>(
+        '.studio__hero .studio__preview-canvas--live',
+      ) ?? root.querySelector<HTMLCanvasElement>(
+        '.studio__hero [data-preview-canvas][data-preview-kind="primary"]',
+      );
+      const heroSurface = root.querySelector<HTMLElement>(
+        '.studio__hero [data-background-manipulator]',
+      );
+      const precisionCanvas = root.querySelector<HTMLCanvasElement>(
+        '[data-preview-canvas][data-preview-kind="background-precision"]',
+      );
+      const precisionSurface = root.querySelector<HTMLElement>(
+        '[data-background-precision-manipulator]',
+      );
+      // BUG FIX: precision mini was locked by sampling but could not produce a sample
+      // Fix: hand the sampler both preview surfaces with their own rendered bitmap.
+      // Sync: background-layout-controls.ts; studio-v4-controls.css; scripts/test-background-control-ui.mjs
+      return [
+        ...(heroCanvas && heroSurface ? [{ canvas: heroCanvas, surface: heroSurface }] : []),
+        ...(precisionCanvas && precisionSurface
+          ? [{ canvas: precisionCanvas, surface: precisionSurface }]
+          : []),
+      ];
+    },
+    onColorSamplingChange: (sampling) => {
+      // BUG FIX: precision mini was locked by sampling but could not produce a sample
+      // Fix: both controllers stay suspended while either registered preview owns sampling.
+      // Sync: background-layout-controls.ts; background-direct-manipulation.ts; studio-v4-controls.css
+      backgroundDirect?.setInteractionBlocked(sampling);
+      backgroundPrecisionDirect?.setInteractionBlocked(sampling);
+    },
+    onSampleColor: (hex) => {
+      const overrides: DesignOverrides = {
+        barColor: hex,
+        glowColor: deriveGlowColor(hex),
+      };
+      applyColorOverrides(overrides);
+      colorPicker.sync(activePrefs?.appearance.designOverrides);
+    },
   });
 
   voiceControls = mountVoiceControls(root, () => {
@@ -889,6 +1145,12 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     onPreviewChange: () => {
       stopPreviewLoop();
       void refreshPreview();
+      // CHANGED: caption edits remeasure the guide band on both positioning surfaces.
+      // WHY: Clear captions must follow the wrapped text currently rendered in the preview.
+      const layout = activeBackgroundLayout();
+      const backgroundId = activeCustomBackgroundId();
+      backgroundDirect?.sync(backgroundId, layout);
+      backgroundPrecisionDirect?.sync(backgroundId, layout);
       // CHANGED: transcript text edits refresh preview only — not profile dirty state.
       // WHY: session transcript is IDB-scoped; profile tracks style/toggle fields only.
       if (activePrefs) {
@@ -923,7 +1185,82 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         void refreshPreview();
       }
     },
+    onRecordingChange: (recording) => {
+      // BUG FIX: recording-time preset hover could create flash-heavy captured video
+      // Fix: drive the Background safety guard from the recorder's real capture phase, not audition visibility.
+      // Sync: studio-recorder.ts; background-layout-controls.ts; scripts/test-background-control-ui.mjs
+      backgroundLayout.syncRecordingState(recording);
+    },
   });
+
+  let backgroundSizeRequest: {
+    id: string;
+    promise: Promise<BackgroundImageSize | null>;
+  } | null = null;
+  const backgroundDirectDeps = {
+    async resolveImageSize(id) {
+      if (backgroundSizeRequest?.id === id) return backgroundSizeRequest.promise;
+      const bundled = getBundledUserBackground(id);
+      const promise = bundled
+        ? Promise.resolve({ width: bundled.width, height: bundled.height })
+        : getBackgroundAssetMeta(id).then((meta) => {
+          if (!meta?.width || !meta.height) return null;
+          return { width: meta.width, height: meta.height };
+          });
+      backgroundSizeRequest = { id, promise };
+      return promise;
+    },
+    onInteractionStart() {
+      invalidateInFlightSaves();
+      resetProfileUpdateConfirm();
+      pushBackgroundLayoutUndo();
+    },
+    onLayoutPreview(layout) {
+      applyLocalBackgroundLayout(layout);
+    },
+    async persistLayout(layout) {
+      await studioPersist(() => saveAppearancePreferences({
+        backgroundScaleMode: layout.scaleMode,
+        backgroundPosition: layout.position,
+        backgroundLayout: layout,
+      }), { skipBackgroundFlush: true });
+    },
+    onPersistError(error) {
+      console.error('[Reddit Voice Notes] Could not save background position', error);
+      const message = error instanceof Error ? error.message : 'Could not save background position.';
+      window.alert(message);
+    },
+    isSnapEnabled: () => backgroundLayout.isSnapEnabled(),
+    getCaptionSafeBand: activeCaptionSafeBand,
+    onLayoutAnnounce(layout, action) {
+      backgroundLayout.announceLayout(layout, action);
+    },
+  } satisfies BackgroundDirectManipulationDeps;
+
+  backgroundDirect = mountBackgroundDirectManipulation(root, backgroundDirectDeps);
+  backgroundPrecisionDirect = mountBackgroundDirectManipulation(root, backgroundDirectDeps, {
+    overlaySelector: '[data-background-precision-manipulator]',
+    canvasSelector: '[data-preview-canvas][data-preview-kind="background-precision"]',
+    draggingClass: 'studio__background-precision-manipulator--dragging',
+    resetEnabled: false,
+  });
+
+  const backgroundHistoryKeydown = (event: KeyboardEvent): void => {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const target = event.target as Element | null;
+    if (!target?.closest(
+      '[data-background-layout], [data-background-manipulator], [data-background-precision-manipulator]',
+    )) return;
+    const key = event.key.toLowerCase();
+    if (key === 'z' && !event.shiftKey) {
+      event.preventDefault();
+      undoBackgroundLayout();
+    } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+      event.preventDefault();
+      redoBackgroundLayout();
+    }
+  };
+  root.addEventListener('keydown', backgroundHistoryKeydown);
 
   takeDeck = mountCurrentTakeDeck(root, {
     onRecordRequest: () => {
@@ -1275,6 +1612,10 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     cancelPendingColorSave();
     stopPreviewLoop();
     takeUnsub();
+    void flushPendingBackgroundManipulation();
+    backgroundDirect?.dispose();
+    backgroundPrecisionDirect?.dispose();
+    backgroundLayout.dispose();
     studioRecorder.dispose();
     takeDeck?.dispose();
     workflowBanner.dispose();
@@ -1285,6 +1626,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     window.removeEventListener('beforeunload', beforeUnloadHandler);
     window.removeEventListener('pagehide', pageHideHandler);
     document.removeEventListener('visibilitychange', onStudioVisibility);
+    root.removeEventListener('keydown', backgroundHistoryKeydown);
     unsubscribe();
   };
 }

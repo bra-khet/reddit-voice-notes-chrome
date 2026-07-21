@@ -34,6 +34,7 @@ export const STUDIO_V4_ASSETS = {
   icons: {
     barStyle32: `${BASE}/icons/waveform-bars-32.svg`,
     background32: `${BASE}/icons/frame-icon-32.svg`,
+    backgroundCenter32: `${BASE}/icons/center-frame-32.svg`,
     voice32: `${BASE}/icons/mic-wave-32.svg`,
     subtitles32: `${BASE}/icons/caption-lines-32.svg`,
     barStyle16: `${BASE}/icons/section-16/waveform-bars-16.svg`,
