@@ -25,7 +25,7 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current br
 
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
-| **D — hosted Design Studio** | [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) | none yet (0011 next) | Full Studio on GitHub Pages via a `browser` global shim — **OPEN · Phase 0 ✅ landed, it mounts · Phase 1 next** |
+| **D — hosted Design Studio** | [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) | none yet (0011 next) | Full Studio on GitHub Pages via a `browser` global shim — **OPEN · Phase 0 ✅ complete · Phase 1 🚧 sprint 1 landed: base transcode works** |
 | **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E) · merged** |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper + framing — **full checklist PASS · merged** |
 | **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup Cividis skin + elevated restart caution — **agent QA gate PASS · merged** |
@@ -38,21 +38,23 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current br
 
 **Track C status:** ✅ popup-only Cividis skin + elevated restart caution · ✅ agent gate PASS · ✅ merged · §8 real-extension eyeball residual optional.
 
-**Track D status (OPEN · Phase 0 ✅ LANDED 2026-07-22):** ✅ branch cut · ✅ design doc redrafted against the verified tree (the draft's `StudioHost` interface was wrong — see its §0) · ✅ `track-d/` QA workspace · ✅ seam **implemented** (extension points **v1.39**, map **v3.24**) · ✅ D1 + chronos failure policy resolved; copy policy landed · ✅ **Phase 0 complete — the hosted Design Studio mounts and runs the real Studio on a plain web origin** · ⬜ **Phase 1 next**.
+**Track D status (OPEN · Phase 0 ✅ COMPLETE · Phase 1 🚧 sprint 1 landed 2026-07-22):** ✅ branch cut · ✅ design doc redrafted against the verified tree (the draft's `StudioHost` interface was wrong — see its §0) · ✅ `track-d/` QA workspace · ✅ seam **implemented** (extension points **v1.39**, map **v3.24**) · ✅ D1 + chronos failure policy resolved; copy policy landed · ✅ **Phase 0 complete — the hosted Design Studio mounts and runs the real Studio on a plain web origin** · ✅ **Phase 1 sprint 1 (`c3aad75`) — the media pipeline runs in-page and a base transcode completes end to end** · ⬜ Phase 1 remainder: record/stop/discard, take deck, persistence, download.
 
-The seam is **one `browser` global shim**, not an interface — and it held: zero extension-source edits were needed *for the host boundary*. Record and the default browser-composite bake are already `browser.*`-free; transcode/burn-in/transcribe will reuse `entrypoints/offscreen/main.ts` **in-page** over a loopback bus (Phase 1).
+The seam is **one `browser` global shim**, not an interface — and it held: zero extension-source edits were needed *for the host boundary*. Record and the default browser-composite bake are already `browser.*`-free; transcode/burn-in/transcribe now **do** reuse `entrypoints/offscreen/main.ts` in-page over the loopback bus, with `demo/design-studio/host/web-pipeline-host.ts` playing `background.ts`'s relay slice and `src/messaging/relay-validate.ts` shared by both relays.
 
 **Phase 0 as-built** (`dac1bf0`, `f96f5f8`, `+ assets`): demo `@` alias → repo root with the 12 duplicate DSP modules deleted · `demo/design-studio/host/` shim (storage over Pages-origin IDB, loopback runtime bus, `getURL` prefix swap) · Studio assets vendored whole-tree by `copy-studio-assets.mjs` · deploy workflow watches `src/**`. Gate met: **42 requests, 0 failures, 0 console output**; shim fidelity **11/11**; §0 standing regression green.
 
-**Five host-neutrality rules are now binding** (each one cost a real Phase 0 bug — full detail in [extension-points.md](docs/architecture/extension-points.md) → *Host adapter*):
+**Seven host-neutrality rules are now binding** (each one cost a real bug — full detail in [extension-points.md](docs/architecture/extension-points.md) → *Host adapter*):
 
 1. Classify the host with `isOwnStorageOrigin()` ([`src/utils/host-origin.ts`](src/utils/host-origin.ts)) — **never** `location.protocol`.
 2. Reach packaged assets via `browser.runtime.getURL()` — **never** a `'/assets/…'` literal. Build-enforced.
 3. Keep `browser.*` inside function bodies in shared `src/`.
 4. Root `tsconfig.json` excludes `demo/` — the two projects define `browser` differently.
 5. **`npm run compile` must stay at zero errors.** The demo's build gates on `tsc`, so an extension type error is a Pages-deploy failure. The two long-tolerated subtitle diagnostics were fixed; that allowance is gone.
+6. *(Phase 1)* A relay must **not** forward what the loopback bus already delivers — no `PROGRESS`/`COMPLETE` re-broadcast, and ignore `target:'offscreen'`. Both failures are **silent**: a duplicated `COMPLETE` reads as a phantom take.
+7. *(Phase 1)* Vendor packaged **multi-file** assets whole. `ffmpeg/esm/` is a module worker plus siblings; `demo/` mirrors the extension's `public/ffmpeg/` tree exactly so `getURL('ffmpeg/…')` needs no branch.
 
-**Checks:** ✅ **C2** app bundle 1.27 MB JS + 148 KB CSS (345 + 24 KB gzip) · ✅ **C3** Pages sends `max-age=600`, but revalidation returns **304 / 0 bytes / 0.58 s** — the warm-path risk is HTTP-cache *eviction* of a 31 MB entry, not expiry, so Cache Storage is still wanted · ⬜ **C1** moved to Phase 1 (needs a real bake).
+**Checks:** ✅ **C2** app bundle 1.27 MB JS + 148 KB CSS (345 + 24 KB gzip) · ✅ **C3** Pages sends `max-age=600`, but revalidation returns **304 / 0 bytes / 0.58 s** — the warm-path risk is HTTP-cache *eviction* of a 31 MB entry, not expiry, so Cache Storage is still wanted · ⬜ **C1** now measurable — a real bake runs (Phase 1).
 
 **Landed 2026-07-22 — naming + copy (presentational only, zero identifier renames):**
 
@@ -63,7 +65,7 @@ The seam is **one `browser` global shim**, not an interface — and it held: zer
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklists [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md) · [`track-d/qa-checklist.md`](qa/QA-6.0.0/track-d/qa-checklist.md)
 
-**NEXT:** Track D **Phase 1** (record + take lifecycle over the in-page loopback pipeline; check C1 lands there) · then the explicit v6.0.0 package/version + release-notes/tag decision · final release build · user-owned push of `main`/tag · optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint.
+**NEXT:** Track D **Phase 1 remainder** (record / stop / discard, live preview, take deck, artifact persistence, download; check C1 lands there) · then the explicit v6.0.0 package/version + release-notes/tag decision · final release build · user-owned push of `main`/tag · optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint.
 
 **Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0. **Track D adds:** no new execution context/message family/store; no behavioural change to the extension Studio (additive optional options only); Voice Lab + Field Guide green at every phase exit.
 

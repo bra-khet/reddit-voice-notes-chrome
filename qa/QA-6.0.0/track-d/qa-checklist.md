@@ -90,12 +90,15 @@ All exercised in-page against a **build** on 2026-07-22 — 11/11 assertions tru
 |---|---|---|
 | 2.1 | Mic permission prompt appears and is honoured on the Pages origin | ☐ |
 | 2.2 | Record → live WYSIWYG preview → stop; take appears in the deck | ☐ |
-| 2.3 | Base transcode completes through the in-page loopback pipeline | ☐ |
-| 2.4 | Progress UI advances (I5 semantics preserved — heartbeats do not reset the stall timer) | ☐ |
-| 2.5 | Cancel mid-transcode leaves consistent state | ☐ |
+| 2.3 | Base transcode completes through the in-page loopback pipeline | ✅ **agent 2026-07-22** — 30,690-byte MP4, real `ftyp` box; stages `queued → starting → writing-input → checking-assets → loading-wasm → transcoding-h264-aac → transcoding → done` |
+| 2.4 | Progress UI advances (I5 semantics preserved — heartbeats do not reset the stall timer) | ▲ partial — relay verified to deliver every tick **exactly once** (one send → one receipt); the I5 *timer* assertion needs a job long enough to emit a `-heartbeat` stage, so it is owed on a real recording |
+| 2.5 | Cancel mid-transcode leaves consistent state | ✅ **agent 2026-07-22** — terminal `COMPLETE ok:false "Transcode cancelled."`; no orphaned job |
 | 2.6 | Take survives reload (recovery path) | ☐ |
-| 2.7 | A second take does not corrupt the first | ☐ |
+| 2.7 | A second take does not corrupt the first | ✅ pipeline level, **agent 2026-07-22** — second job in the same session returned identical bytes in 74 ms at stage `20:ready` (engine reused). Take-level check still owed |
 | 2.8 | Download produces a playable file | ☐ |
+| 2.9 | Relay rejects a malformed payload with the shared validator's exact message | ✅ **agent 2026-07-22** — bad `byteLength` → `ok:false` *"WebM base64 length mismatch at relay (bytes=999999, chars=4, expected≈1333332)."*; missing `jobId` → *"Transcode request missing jobId."* |
+| 2.10 | FFmpeg assets resolve with the RIGHT content-type (not the `vite preview` HTML fallback) | ✅ **agent 2026-07-22** — `ffmpeg-core.wasm` → `application/wasm` 32,232,419 B; `esm/worker.js`, `esm/const.js` → `text/javascript`. **Never judge this by status code alone** |
+| 2.11 | Voice Lab still loads FFmpeg after the core path moved to `/ffmpeg/` | ✅ **agent 2026-07-22** — `loadFfmpeg()` → `loaded: true`, 299 ms |
 
 ---
 

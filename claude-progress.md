@@ -102,7 +102,8 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ## Immediate next
 
-1. **Track D Phase 1** — the in-page loopback pipeline (`web-pipeline-host` + `entrypoints/offscreen/main.ts` loaded in-page), then record / stop / discard, take deck, artifact persistence, and download. Check **C1** (in-page bake vs preview contention) lands here, since it needs a real bake.
+1. **Track D Phase 1 remainder.** ✅ Sprint 1 (`c3aad75`) landed the in-page loopback pipeline: `entrypoints/offscreen/main.ts` runs in-page (lazy, memoized on the promise) with `demo/design-studio/host/web-pipeline-host.ts` playing `background.ts`'s relay slice, and a base transcode completes end to end on the Pages origin — verified MP4 with a real `ftyp` box, a second job reusing the engine at 74 ms, exact shared-validator rejections, and a clean cancel. Remaining: record / stop / discard, live preview, take deck, artifact persistence across reload, download. Check **C1** (in-page bake vs preview contention) is now *measurable* and lands here.
+   - Worth doing while it is fresh: a focused Node suite for the relay slice. Its two invariants — **never re-broadcast `PROGRESS`/`COMPLETE`**, **ignore `target:'offscreen'`** — fail *silently* (a duplicated `COMPLETE` reads as a phantom take, not an error), so nothing else in the tree would catch a regression.
 2. Decide and execute the explicit **v6.0.0 release boundary**: package/manifest version bump, release notes, final release build, and tag. Tracks A/B/C are complete; sequence the release relative to Track D deliberately.
 3. User-owned push of `main` and tags remains deferred.
 4. Treat the minimized-window bake-speed observation as a separate performance investigation, not a release blocker — Track D check C1 may shed light on it.

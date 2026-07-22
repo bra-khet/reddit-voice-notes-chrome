@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.39 · **Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D Phase 0 landed**
+**Version:** v1.40 · **Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D Phase 0 complete, Phase 1 sprint 1 landed**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.39 — **Host adapter IMPLEMENTED (Track D Phase 0, 2026-07-22).** The hosted Studio mounts and runs the real `src/` on a plain web origin: `demo/` `@` alias repointed to the repo root (12 duplicate DSP modules deleted), `demo/design-studio/host/` shim (storage over Pages-origin IDB, loopback runtime bus, `getURL` prefix swap), Studio assets vendored whole-tree. Added a **host-neutrality rules** subsection capturing the five invariants Phase 0 paid for — chiefly `src/utils/host-origin.ts` → `isOwnStorageOrigin()`, which replaces two mirror-image protocol tests that misclassified the hosted surface, and the `getURL`-not-`'/assets/…'` rule now enforced by a build-failing check. Root `tsconfig.json` excludes `demo/` (ambient-`browser` collision); `npm run compile` is clean for the first time and must stay so, because the demo's build gates on it. No new context, message family, store, or preference version. v1.38 — **Host adapter seam registered** (2026-07-22, Track D open): the hosted GitHub Pages Design Studio runs the real `src/` under a `browser` **global shim** installed as the first import of the web entry — viable because `browser` is a WXT auto-import with zero explicit imports and **zero module-scope evaluations** in `src/`. Adds no execution context, message family, store, or preference version; pipelines are reused by loading `entrypoints/offscreen/main.ts` in-page over a loopback bus rather than reimplemented. Registered the shim's 15-member surface, the `storage.onChanged`-fires-for-the-writer gotcha, and the alias/workflow/asset sync points. Seam registered (implemented in v1.39). v1.37 — **Background Layout v2 / Track B merge** (2026-07-20): registered the normalized preference → Studio direct-manipulation/preset/treatment → recorder hot-swap/relay → record-time personal-image draw seam. Continuous position/scale, field dim, blur/blend/solid plate/Holo/GIF/safe-text controls extend `UserBackgroundLayout` additively; transient crop/compare/A-B remains page-local; post-base bake never repositions. Full operator checklist PASS, focused 89/89, build PASS, blur+GIF 23/29 MiB; no new context/message/store/signal/dependency/layer/version. v1.36 — **Track C popup Cividis unification** (2026-07-19): popup chrome became token-driven through its overlay because `entrypoints/popup/style.css` remains shared control-primitive CSS. v1.35 — **Style Control Center + shared performance policy** (2026-07-14): complete registries + governor. Earlier history remains in git.
+**Changelog:** v1.40 — **Host adapter gains the pipeline relay (Track D Phase 1 sprint 1, `c3aad75`).** `entrypoints/offscreen/main.ts` is now loaded **in-page** on the hosted surface and `demo/design-studio/host/web-pipeline-host.ts` plays `background.ts`'s relay slice over the loopback bus, so base transcode works end to end on a plain web origin through the unmodified message contract — no second pipeline, I5/cancel/queue/progress semantics untouched. The three `*_START` validators and `isOffscreenTarget` moved from `background.ts` into the pure, host-neutral **`src/messaging/relay-validate.ts`** and are shared by both relays (per-family error strings preserved verbatim). Added **host-neutrality rules 6 and 7**: a relay must not forward what the loopback bus already delivers (double `PROGRESS`/`COMPLETE` is silent, and reads as a phantom take), and packaged multi-file assets must be vendored whole (`ffmpeg/esm/` is a module worker plus siblings). Offscreen is imported lazily, memoized on the promise, mirroring `ensureOffscreenDocument()`; measured at ~12 kB split, so it adds ~0 first-load bytes rather than removing any. Fixed a loopback-bus fidelity bug surfaced by mounting offscreen: `webSendMessage()` stopped delivering after the first synchronous responder. No new context, message family, store, or preference version. v1.39 — **Host adapter IMPLEMENTED (Track D Phase 0, 2026-07-22).** The hosted Studio mounts and runs the real `src/` on a plain web origin: `demo/` `@` alias repointed to the repo root (12 duplicate DSP modules deleted), `demo/design-studio/host/` shim (storage over Pages-origin IDB, loopback runtime bus, `getURL` prefix swap), Studio assets vendored whole-tree. Added a **host-neutrality rules** subsection capturing the five invariants Phase 0 paid for — chiefly `src/utils/host-origin.ts` → `isOwnStorageOrigin()`, which replaces two mirror-image protocol tests that misclassified the hosted surface, and the `getURL`-not-`'/assets/…'` rule now enforced by a build-failing check. Root `tsconfig.json` excludes `demo/` (ambient-`browser` collision); `npm run compile` is clean for the first time and must stay so, because the demo's build gates on it. No new context, message family, store, or preference version. v1.38 — **Host adapter seam registered** (2026-07-22, Track D open): the hosted GitHub Pages Design Studio runs the real `src/` under a `browser` **global shim** installed as the first import of the web entry — viable because `browser` is a WXT auto-import with zero explicit imports and **zero module-scope evaluations** in `src/`. Adds no execution context, message family, store, or preference version; pipelines are reused by loading `entrypoints/offscreen/main.ts` in-page over a loopback bus rather than reimplemented. Registered the shim's 15-member surface, the `storage.onChanged`-fires-for-the-writer gotcha, and the alias/workflow/asset sync points. Seam registered (implemented in v1.39). v1.37 — **Background Layout v2 / Track B merge** (2026-07-20): registered the normalized preference → Studio direct-manipulation/preset/treatment → recorder hot-swap/relay → record-time personal-image draw seam. Continuous position/scale, field dim, blur/blend/solid plate/Holo/GIF/safe-text controls extend `UserBackgroundLayout` additively; transient crop/compare/A-B remains page-local; post-base bake never repositions. Full operator checklist PASS, focused 89/89, build PASS, blur+GIF 23/29 MiB; no new context/message/store/signal/dependency/layer/version. v1.36 — **Track C popup Cividis unification** (2026-07-19): popup chrome became token-driven through its overlay because `entrypoints/popup/style.css` remains shared control-primitive CSS. v1.35 — **Style Control Center + shared performance policy** (2026-07-14): complete registries + governor. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -534,6 +534,19 @@ failure that is **invisible in the extension** and only appears on the hosted su
 5. **`npm run compile` stays at zero errors.** The demo's build is `tsc --noEmit && vite build`, so
    an extension type error is now a Pages-deploy failure. The old "two known pre-existing
    diagnostics" allowance is gone — both were fixed in Phase 0.
+6. **A relay must not forward what the loopback bus already delivers** *(Phase 1)*. `background.ts`
+   re-broadcasts `PROGRESS`/`COMPLETE` because the Studio and the offscreen document are different
+   contexts. On the hosted surface they are the **same** context, so `web-pipeline-host.ts` must not:
+   forwarding doubles every progress tick and settles each job twice. It must also ignore anything
+   already `target: 'offscreen'` — in the extension a missing guard is a cross-context loop, here it
+   is immediate recursion. Both failures are **silent**: a duplicated `COMPLETE` reads as a phantom
+   take, never as an error.
+7. **Packaged multi-file assets must be vendored whole** *(Phase 1)*. `ffmpeg-runner` loads
+   `ffmpeg/esm/worker.js` as a **module worker** that imports its siblings at runtime, so copying the
+   entry file alone yields a runtime failure with no build signal. `demo/scripts/copy-ffmpeg-core.mjs`
+   mirrors the extension's `public/ffmpeg/` tree exactly — same layout, so `getURL('ffmpeg/…')`
+   resolves on both hosts with no branch. Under `vite preview` a missing sibling returns
+   `200 text/html`, which even defeats `assertAssetReachable()`; judge by `content-type`.
 
 ---
 
@@ -548,21 +561,30 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.39 (2026-07-22), feature/v6.0.0-hosted-design-studio from main@a4df9a1 @ package 5.11.0.
-Map v3.24 · v6 Tracks A/B/C merged; Track D (hosted Design Studio) Phase 0 LANDED, Phase 1 next.
+Extension points v1.40 (2026-07-22), feature/v6.0.0-hosted-design-studio from main@a4df9a1 @ package 5.11.0.
+Map v3.25 · v6 Tracks A/B/C merged; Track D (hosted Design Studio) Phase 0 COMPLETE, Phase 1 sprint 1 LANDED.
 Host adapter v1 IMPLEMENTED: hosted Pages Studio runs REAL src/ under a `browser` GLOBAL shim (WXT
 auto-import, zero explicit imports, zero module-scope browser.* in src/) installed as the first import
 of demo/design-studio/main.ts. Shim = demo/design-studio/host/{install-browser-shim,web-storage,
-web-runtime}.ts. demo `@` alias points at the REPO ROOT; the 12 duplicate DSP modules are deleted.
-No new context/message/store/version. Reuse entrypoints/offscreen/main.ts IN-PAGE over a
-loopback bus — never call ffmpeg-runner directly (forks I5/cancel/progress). NOT BUILT YET (Phase 1).
+web-runtime,web-pipeline-host}.ts. demo `@` alias points at the REPO ROOT; the 12 duplicate DSP
+modules are deleted. No new context/message/store/version.
+PIPELINE BUILT (c3aad75): entrypoints/offscreen/main.ts is loaded IN-PAGE (lazy dynamic import,
+memoized on the promise, mirrors ensureOffscreenDocument) and web-pipeline-host.ts plays
+background.ts's relay slice — START -> ACK -> re-dispatch as _OFFSCREEN. Base transcode works end
+to end on the Pages origin. Never call ffmpeg-runner directly (forks I5/cancel/progress).
+Shared validators: src/messaging/relay-validate.ts (pure; used by BOTH relays).
 GOTCHA: shim storage.onChanged must fire for the WRITER's own writes (ADR-0002/I9, I21). Verified.
-HOST-NEUTRALITY RULES (each cost a Phase 0 bug — see the seam's own subsection):
+HOST-NEUTRALITY RULES (each cost a real bug — see the seam's own subsection):
   1. Never classify the host by protocol/path. Use src/utils/host-origin.ts isOwnStorageOrigin().
   2. Packaged assets go through browser.runtime.getURL(), never a '/assets/…' literal.
   3. Keep browser.* inside function bodies in shared src/ or the hosted build breaks invisibly.
   4. Root tsconfig.json EXCLUDES demo/ — the two projects define `browser` differently.
   5. `npm run compile` is now zero-error and must stay so; demo's build gates on tsc.
+  6. A relay must NOT forward what the loopback bus already delivers (no PROGRESS/COMPLETE
+     re-broadcast; ignore target:'offscreen'). Both failures are SILENT — a duplicated COMPLETE
+     reads as a phantom take, not an error.
+  7. Vendor packaged multi-file assets WHOLE. ffmpeg/esm/ is a module worker + siblings; demo
+     mirrors the extension's public/ffmpeg/ tree exactly so getURL('ffmpeg/…') needs no branch.
 Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
 Audio-reactive visual system v20; no new context/message/store/signal/compositing layer.
 AudioVizFrame: normalized energy + 32 bands + registry-gated optional waveform + shared clock (I22).
