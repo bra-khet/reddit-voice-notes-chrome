@@ -16,6 +16,21 @@ import assert from 'node:assert/strict';
 const root = resolve(process.cwd());
 const outdir = mkdtempSync(join(tmpdir(), 'rvn-background-control-ui-'));
 
+// CHANGED: provide the `browser` global the module now needs (Track D Phase 0).
+// WHY: background-layout-controls.ts used to hardcode '/assets/…' in <img src>, which
+// worked in Node because it was just a string. It now resolves through
+// browser.runtime.getURL so the hosted Design Studio gets a base-correct URL, and
+// `browser` is a WXT auto-import that does not exist under bare Node. Mirroring the
+// extension's own getURL contract keeps this harness honest — a stub that returned the
+// bare path would let a root-absolute regression pass here and 404 on GitHub Pages.
+const EXTENSION_ORIGIN = 'chrome-extension://rvn-test-harness/';
+globalThis.browser = {
+  runtime: {
+    id: 'rvn-test-harness',
+    getURL: (path) => `${EXTENSION_ORIGIN}${String(path).replace(/^\/+/, '')}`,
+  },
+};
+
 async function bundle(entry, name) {
   const outfile = join(outdir, `${name}.mjs`);
   await build({
@@ -76,12 +91,27 @@ check('horizontal and vertical rails occupy explicit spatial roles', () => {
 });
 
 check('fine and coarse buttons use single and doubled directional assets', () => {
+  // CHANGED: assert on the resolved URL, not a root-absolute literal (Track D Phase 0).
+  // WHY: these <img src> values now come from browser.runtime.getURL. Keeping the old
+  // '/assets/…' expectation would have made the test demand exactly the bug that 404s
+  // under the GitHub Pages base path.
+  const iconRoot = `${EXTENSION_ORIGIN}assets/design-studio-v4/icons/navigation`;
   const sources = [...document.querySelectorAll('[data-background-nudge-axis] img')]
     .map((image) => image.getAttribute('src'));
-  assert.ok(sources.includes('/assets/design-studio-v4/icons/navigation/chevron-back-16.svg'));
-  assert.ok(sources.includes('/assets/design-studio-v4/icons/navigation/chevron-enter-double-16.svg'));
-  assert.ok(sources.includes('/assets/design-studio-v4/icons/navigation/chevron-up-16.svg'));
-  assert.ok(sources.includes('/assets/design-studio-v4/icons/navigation/chevron-down-double-16.svg'));
+  assert.ok(sources.includes(`${iconRoot}/chevron-back-16.svg`));
+  assert.ok(sources.includes(`${iconRoot}/chevron-enter-double-16.svg`));
+  assert.ok(sources.includes(`${iconRoot}/chevron-up-16.svg`));
+  assert.ok(sources.includes(`${iconRoot}/chevron-down-double-16.svg`));
+});
+
+check('no packaged asset is referenced by a root-absolute path', () => {
+  // Track D Phase 0 host-neutrality rule, enforced at the unit level so a regression
+  // fails here rather than silently 404-ing only on the hosted surface. A leading
+  // slash means the extension root in an extension and the SITE root on Pages.
+  const offenders = [...document.querySelectorAll('img[src]')]
+    .map((image) => image.getAttribute('src'))
+    .filter((src) => src.startsWith('/assets/'));
+  assert.deepEqual(offenders, [], `root-absolute asset src found: ${offenders.join(', ')}`);
 });
 
 check('Y up pair places fine 0.01 before coarse 0.05', () => {
@@ -148,7 +178,7 @@ check('closeout seats an accessible icon reset beside the axes and retires legac
   assert.match(center.getAttribute('title'), /Center background position \(Esc\)/);
   assert.equal(
     center.querySelector('img').getAttribute('src'),
-    '/assets/design-studio-v4/icons/center-frame-32.svg',
+    `${EXTENSION_ORIGIN}assets/design-studio-v4/icons/center-frame-32.svg`,
   );
   assert.equal(document.querySelectorAll('[data-background-center]').length, 1);
   assert.equal(document.querySelector('[data-scale-mode]'), null);

@@ -39,11 +39,15 @@ public/vosk/
 public/vosk-sandbox.js
 public/vosk-sandbox.js.map
 
-# Static voice studio demo (demo/) — build output, deps, vendored ffmpeg core.
+# Static voice studio demo (demo/) — build output, deps, vendored assets.
 # (node_modules and dist/ already match globally above; these are explicit.)
 demo/dist/
 demo/node_modules/
 demo/public/assets/ffmpeg/
+# Mirrored from public/assets by demo/scripts/copy-studio-assets.mjs (Track D Phase 0).
+demo/public/assets/design-studio-v4/
+demo/public/assets/fonts/
+demo/public/assets/backgrounds/
 
 
 # Editor directories and files

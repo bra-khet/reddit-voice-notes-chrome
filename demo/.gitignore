@@ -5,3 +5,9 @@ node_modules/
 dist/
 # Vendored ffmpeg.wasm core (~30 MB) — produced from node_modules by scripts/copy-ffmpeg-core.mjs
 public/assets/ffmpeg/
+# Vendored Studio assets (~2.4 MB) — mirrored from ../public/assets by
+# scripts/copy-studio-assets.mjs. Generated, never committed: a checked-in copy
+# is a thing that silently goes stale (see Track D Phase 0).
+public/assets/design-studio-v4/
+public/assets/fonts/
+public/assets/backgrounds/

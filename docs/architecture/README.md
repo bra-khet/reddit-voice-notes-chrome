@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D open; release boundary pending** · **Map:** v3.23 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D Phase 0 landed; release boundary pending** · **Map:** v3.24 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -12,8 +12,8 @@ This directory holds the **living, versioned** architecture index for the extens
 
 | File | Owns | Version |
 |------|------|---------|
-| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I23, preference publication/relay, recovery traces, v6 registry visuals, and Background Layout v2 | v3.23 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: Background Layout v2, audio-reactive visuals v20, Style/governor, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, trim, and the **Host adapter** (hosted Pages Studio) | v1.38 |
+| [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I23, preference publication/relay, recovery traces, v6 registry visuals, and Background Layout v2 | v3.24 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: Background Layout v2, audio-reactive visuals v20, Style/governor, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, trim, and the **Host adapter** (hosted Pages Studio) | v1.39 |
 | [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 fully closed (browser QA PASS); R18 prefs gate closed; H10 deferred | v2.13 |
 | `adr/` | [0001 WebCodecs backbone](adr/0001-webcodecs-encoding-backbone.md) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) · [0004 Audio decoupling](adr/0004-audio-decoupling-voice-reapply.md) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) · [0006 Full-IDB preferences](adr/0006-user-preferences-full-idb.md) · [0007 Audio-reactive core](adr/0007-audio-reactive-visualizer-core.md) · [0008 Background layout](adr/0008-background-direct-manipulation-layout.md) · [0009 Registry-native Sparkle/Bokeh](adr/0009-registry-native-sparkle-bokeh.md) · [0010 Bubbles label / stable key](adr/0010-bubbles-label-stable-bokeh-id.md) | 0001–0010 Accepted |
 
@@ -37,7 +37,7 @@ This directory holds the **living, versioned** architecture index for the extens
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration + relay + Export/Import — **browser QA PASS 2026-07-13 · merge-ready** |
 | `docs/v6.0.0-custom-styles-refactor.md` | **v6 merged** — complete audio-reactive catalog + Style Control Center/governor (ADR-0007/0009/0010) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 merged · full QA PASS** — direct-manipulation Background Layout v2 (Design-phase; ADR-0008) |
-| `docs/v6.0.0-hosted-design-studio.md` | **v6 Track D open** — hosted GitHub Pages Design Studio: `browser` global shim, in-page pipeline host, first-load budget/chronos gate, hub positioning |
+| `docs/v6.0.0-hosted-design-studio.md` | **v6 Track D · Phase 0 landed** — hosted GitHub Pages Design Studio: `browser` global shim, in-page pipeline host, first-load budget/chronos gate, hub positioning |
 | `docs/static-voice-studio-design.md` | The existing Pages demo (Voice Lab, formerly "Voice Studio") + GitHub Actions deploy pattern; hub/nav-banner WIP markers now Track D-owned |
 | `docs/release-notes-v5.11.0.md` | Latest tagged release notes (prior versions under `archive/docs/`); v6 release notes remain the next explicit release sprint |
 | `src/session/take-manager.ts` (header) | Take lifecycle contract |
@@ -77,8 +77,8 @@ This directory holds the **living, versioned** architecture index for the extens
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes, branch feature/v6.0.0-hosted-design-studio from main@a4df9a1 @ package 5.11.0; v6 Tracks A/B/C merged, Track D open, explicit release/tag pending.
-Map v3.23 · seams v1.38 · backlog v2.13 · ADRs 0001–0010 Accepted (0011 unallocated); six contexts unchanged.
+Repo: Reddit Voice Notes, branch feature/v6.0.0-hosted-design-studio from main@a4df9a1 @ package 5.11.0; v6 Tracks A/B/C merged, Track D Phase 0 LANDED (hosted Studio mounts), explicit release/tag pending.
+Map v3.24 · seams v1.39 · backlog v2.13 · ADRs 0001–0010 Accepted (0011 unallocated); six contexts unchanged.
 Track D = hosted Pages Design Studio: real src/ under a `browser` GLOBAL shim (WXT auto-import; zero explicit
 imports and zero module-scope browser.* in src/), offscreen module loaded in-page over a loopback bus. Second
 HOST, not a 7th context. Seam "Host adapter — v1"; canonical docs/v6.0.0-hosted-design-studio.md.
@@ -94,6 +94,11 @@ Automated artifact harness: npm run qa:visual-size -- --preset <id> --base <base
 Size ceiling for novel effects: base ≤25 MB / baked ≤30 MB on 120 s QA.
 Background Layout v2: prefs → hero/precision/presets/treatments → recorder hot-swap/relay → one personal-image slot; crop/compare/A-B transient. Track B full operator checklist + focused 89/89 + blur/GIF 23/29 MiB PASS.
 Read architecture-map.md, extension-points.md, ADR-0007/0008/0009/0010, and the v6 roadmaps (A/B/C + Track D).
-Next: Track D Phase 0 (flip demo `@` alias to repo root, verify Voice Lab green FIRST; then the browser shim
-skeleton), then the explicit v6.0.0 package/release-notes/tag sprint; push remains user-owned.
+Phase 0 as-built: demo `@` alias -> repo root (12 duplicate DSP modules deleted), demo/design-studio/host/
+shim, Studio assets vendored whole-tree, deploy workflow watches src/**. HOST-NEUTRALITY RULES now binding:
+use src/utils/host-origin.ts isOwnStorageOrigin() (never location.protocol); reach packaged assets via
+browser.runtime.getURL() (never '/assets/...'); keep browser.* in function bodies; root tsconfig EXCLUDES
+demo/; npm run compile must stay zero-error because demo's build gates on tsc.
+Next: Track D Phase 1 (record + take lifecycle over the in-page loopback pipeline; check C1 lands there),
+then the explicit v6.0.0 package/release-notes/tag sprint; push remains user-owned.
 ```

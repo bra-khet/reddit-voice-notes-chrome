@@ -33,7 +33,7 @@ This is the **living** progress file, focused on the current release boundary. T
 - Final control refinement moved the Center reset into the precision stage with a dedicated inward-arrow frame glyph and removed the redundant legacy Fit/Fill + 3×3 position UI. Migration-compatible `scaleMode` / discrete `position` fields remain normalized and emitted.
 - Focused Track B automation: **89/89**. Shared UI tokens: PASS. Visual-size logic: **5/5**. Production build: PASS.
 - Required real blur+GIF artifact gate: **23 MiB base / 29 MiB baked — PASS** against 25/30 MiB caps. Upper-end non-blur creative sample 28/35 MiB remains informational, not the defined gate.
-- `npm run compile` reports only the same two pre-existing subtitle diagnostics: `subtitle-canvas-bake.ts:158` (`number` vs `Timeout`) and `subtitle-overlay-lab.ts:130` (optional `enabled` vs required boolean).
+- `npm run compile` reports only the same two pre-existing subtitle diagnostics: `subtitle-canvas-bake.ts:158` (`number` vs `Timeout`) and `subtitle-overlay-lab.ts:130` (optional `enabled` vs required boolean). *(Historical: both were fixed in Track D Phase 0 — `npm run compile` is now zero-error and must stay so.)*
 - No new execution context, message family, store, signal, dependency, compositing layer, preference version, or post-capture background renderer. Backgrounds remain Design-phase configuration captured into the base video at record time (I1/I3/I22).
 
 ### Deferred observations (not v6 merge blockers)
@@ -44,7 +44,7 @@ This is the **living** progress file, focused on the current release boundary. T
 
 ---
 
-## v6.0 Track D — hosted Design Studio (IN FLIGHT · Phase 0 not started)
+## v6.0 Track D — hosted Design Studio (IN FLIGHT · **Phase 0 LANDED 2026-07-22**)
 
 **Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`) · **Canonical:** [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) · **QA:** [`qa/QA-6.0.0/track-d/`](qa/QA-6.0.0/track-d/)
 
@@ -60,7 +60,25 @@ Track D is a **delivery** surface, not a feature surface: the full Design Studio
 
 **Load-bearing hazard to carry forward:** the shim's `storage.onChanged` must fire **for the writer's own writes** — real `chrome.storage` notifies every context including the writer, and both the take lifecycle (ADR-0002/I9) and the preference coordinator (I21) depend on it. With a single context, a "notify others" implementation notifies nobody.
 
-**Open checks for Phase 0:** C1 in-page bake vs preview contention · C2 app bundle weight · C3 live Pages `Cache-Control` (if `max-age=600` holds, the warm path needs Cache Storage, not the HTTP cache).
+### Phase 0 — as built (2026-07-22 · `dac1bf0`, `f96f5f8`, `+ assets`)
+
+**The hosted Design Studio mounts and runs the real Studio source on a plain web origin.** Gate met on a clean load from a build: **42 requests, 0 failures, 0 console output**. Shim fidelity **11/11**. The Voice Lab, Field Guide and hub stayed green throughout (§0 standing regression).
+
+Three sprints, sequenced so no failure could be attributed to two changes at once:
+
+1. **Alias flip alone, no new code.** `@` → repo root; 12 byte-identical DSP copies deleted; Voice Lab verified green (build + real FFmpeg audition) before anything else was written. `demo/scripts/smoke.ts` broke because it reached the copies by *relative* path, bypassing `@` — the first proof that a "verbatim copy" model hides its own consumers.
+2. **Shim + scaffold.** `demo/design-studio/host/{install-browser-shim,web-storage,web-runtime}.ts` + entry. `storage.onChanged` fires for the **writer's own writes**, verified.
+3. **Assets.** `copy-studio-assets.mjs` mirrors `design-studio-v4` + `fonts` + `backgrounds` whole-tree, generated and git-ignored like the ffmpeg core.
+
+**The central prediction held:** zero extension-source edits were needed *for the host boundary itself*. What did not hold were three shared-source assumptions, all the same class — **code that classifies its own host**:
+
+- **`location.protocol` as a host test (R3, materialized).** `user-prefs-db.ts` read https as "content script" and routed prefs to a background that does not exist; `background-loader.ts` held the mirror-image test and the mirror-image bug (personal backgrounds would have silently failed). Both now call **`src/utils/host-origin.ts` → `isOwnStorageOrigin()`** — *does the extension's own base URL share my origin?* — identical for all three extension contexts, correct for the hosted one.
+- **`'/assets/…'` literals.** A leading slash is the extension root in an extension and the *site* root on Pages. Three in `background-layout-controls.ts` (Track B) bypassed `getURL`; `demo/vite.config.ts` now fails the build on any survivor, in CSS or JS.
+- **A shared type-check.** WXT's generated tsconfig includes `../**/*`, so the shim's ambient `browser` collided with WXT's across the whole extension. Root `tsconfig.json` now excludes `demo/`.
+
+**One process change worth carrying:** the demo's build is `tsc --noEmit && vite build`, so it *gates* on type errors the extension merely tolerated. The two long-known subtitle diagnostics became Pages-deploy blockers and were fixed — **`npm run compile` is now clean for the first time, and must stay that way.**
+
+**Checks:** ✅ **C2** — 1.27 MB JS + 148 KB CSS (345 + 24 KB gzipped), excluding the vendored core. ✅ **C3** — Pages does send `Cache-Control: max-age=600`, but a conditional re-request returns **304 / 0 bytes / 0.58 s**, so the core is *revalidated*, not re-downloaded. The real warm-path risk is HTTP-cache **eviction** of a 31 MB entry, which is what Cache Storage should address in Phase 3. ⬜ **C1** moved to Phase 1 — it needs a real bake, which needs the loopback pipeline.
 
 ### Decisions resolved + naming/copy sprint (2026-07-22)
 
@@ -75,8 +93,8 @@ Track D is a **delivery** surface, not a feature surface: the full Design Studio
 
 ## Architecture state
 
-- Architecture map **v3.23**; extension points **v1.38** (Host adapter — v1 registered, unimplemented); hardening backlog **v2.13**; ADRs 0001–0010, with ADR-0008 Accepted and finalized for Track B; **0011 unallocated**.
-- Six contexts remain unchanged: Reddit content script, background service worker, offscreen FFmpeg document, Vosk sandbox, Design Studio, popup. Track D adds a second **host** for the Design Studio context, not a seventh context.
+- Architecture map **v3.24**; extension points **v1.39** (Host adapter — v1 **implemented**, Phase 0); hardening backlog **v2.13**; ADRs 0001–0010, with ADR-0008 Accepted and finalized for Track B; **0011 unallocated**.
+- Six contexts remain unchanged: Reddit content script, background service worker, offscreen FFmpeg document, Vosk sandbox, Design Studio, popup. Track D adds a second **host** for the Design Studio context, not a seventh context — now demonstrated, not just planned.
 - Background Layout v2 extends the existing personal-image draw slot: normalized preferences → Studio preview/direct manipulation → recorder hot-swap/relay → `drawUserBackgroundLayer` / `drawImageBackground`. Bake does not re-render it; subtitle-only post-base composition preserves captured background pixels.
 - Canonical cross-cutting sources: [`docs/architecture/architecture-map.md`](docs/architecture/architecture-map.md), [`docs/architecture/extension-points.md`](docs/architecture/extension-points.md), [`docs/design-studio.md`](docs/design-studio.md).
 
@@ -84,7 +102,7 @@ Track D is a **delivery** surface, not a feature surface: the full Design Studio
 
 ## Immediate next
 
-1. **Track D Phase 0** — flip the demo `@` alias to the repo root and confirm the Voice Lab still builds and auditions **before** writing any Design Studio code; then the `browser` shim skeleton, the `demo/design-studio/` scaffold, the `src/**` deploy path filter, and checks C1/C2/C3.
+1. **Track D Phase 1** — the in-page loopback pipeline (`web-pipeline-host` + `entrypoints/offscreen/main.ts` loaded in-page), then record / stop / discard, take deck, artifact persistence, and download. Check **C1** (in-page bake vs preview contention) lands here, since it needs a real bake.
 2. Decide and execute the explicit **v6.0.0 release boundary**: package/manifest version bump, release notes, final release build, and tag. Tracks A/B/C are complete; sequence the release relative to Track D deliberately.
 3. User-owned push of `main` and tags remains deferred.
 4. Treat the minimized-window bake-speed observation as a separate performance investigation, not a release blocker — Track D check C1 may shed light on it.
@@ -99,9 +117,9 @@ Track D is a **delivery** surface, not a feature surface: the full Design Studio
 
 ```text
 Reddit Voice Notes: v6.0 Tracks A/B/C merged to main; package still 5.11.0 pending explicit v6 release/tag.
-CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phase 0 NOT started.
+CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phase 0 LANDED, Phase 1 next.
 Track B merged at 7d1c649 with full operator checklist PASS: responsive direct background layout, presets/effects/GIF/plate/Holo, framing/live compare, keyboard/ARIA, session-only A/B; focused 89/89 + build PASS; blur+GIF 23/29 MiB PASS.
-Architecture map v3.23, extension points v1.38, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
+Architecture map v3.24, extension points v1.39, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
 Background is Design-phase and captured at record time (I1/I3/I22); no post-capture reposition or multi-format export.
 
 TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earlier draft's StudioHost interface was WRONG):
@@ -110,9 +128,18 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   members, ZERO extension-source edits (except an additive optional MountClipStudioOptions.hostCapabilities).
   Record + default browser-composite bake are ALREADY browser.*-free. Reuse entrypoints/offscreen/main.ts
   IN-PAGE over a loopback bus + a ~120-line START→ACK→_OFFSCREEN router. Never call ffmpeg-runner directly.
-  PHASE 0 FIRST ACT: flip demo `@` alias demo/ → repo root (12 ported modules verified byte-identical),
-  verify Voice Lab builds+auditions BEFORE new code. Retires the re-copy chore.
-  HAZARD: shim storage.onChanged MUST fire for the writer's own writes (ADR-0002/I9 + I21).
+  PHASE 0 DONE (dac1bf0, f96f5f8, +assets): demo `@` → repo root, 12 duplicate modules DELETED,
+  demo/design-studio/host/ shim built, Studio assets vendored whole-tree, deploy watches src/**.
+  It MOUNTS: 42 requests / 0 failures / 0 console output; shim fidelity 11/11.
+  HAZARD (verified satisfied): shim storage.onChanged fires for the writer's own writes (ADR-0002/I9 + I21).
+  HOST-NEUTRALITY RULES now binding — each cost a Phase 0 bug:
+    1. isOwnStorageOrigin() in src/utils/host-origin.ts, NEVER location.protocol.
+    2. browser.runtime.getURL() for packaged assets, NEVER a '/assets/...' literal (build-enforced).
+    3. browser.* stays inside function bodies in shared src/.
+    4. Root tsconfig.json EXCLUDES demo/ (ambient `browser` collision with WXT's).
+    5. `npm run compile` is ZERO-ERROR and must stay so — demo's build gates on tsc.
+  QA TRAP: `vite preview` answers MISSING files with 200 text/html, so absent assets look fine.
+  Judge by content-type or performance.getEntriesByType('resource'), never status code.
   Chronos gate = correctness: transcoder ACK 45s / MAX 90s includes WASM cold start → pre-warm FFmpeg.
   Budget: 31 MB ffmpeg + 2.4 MB assets required, 40 MB Vosk optional.
   RESOLVED 2026-07-22: D1 = lightweight page is "Voice Lab" (/studio/ URL + demo/src/studio/ path UNCHANGED).
@@ -125,10 +152,12 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   attachToReddit, activateRedditTab, data-wf-switch-reddit untouched). Do NOT reintroduce the old phrasing.
   DEFERRED: Field Guide refresh (86 Reddit + 5 "Voice Studio"); it exists as TWO near-identical copies
   (docs/tutorial/tutorial.html vs demo/public/tutorial/index.html, one favicon line apart) — settle first.
-  OPEN: checks C1/C2/C3 in Phase 0.
+  CHECKS: C2 closed (1.27 MB JS + 148 KB CSS). C3 closed (max-age=600 BUT revalidation is 304/0 bytes —
+  warm-path risk is HTTP-cache EVICTION of a 31 MB entry, not expiry). C1 moved to Phase 1.
   QA hosted surfaces against a BUILD, never `vite dev`. Voice Lab + Field Guide green at EVERY phase exit.
 
 Full pre-closeout history: archive/progress/claude-progress-through-v6.0.0-tracks.md.
-NEXT: Track D Phase 0; then the explicit v6.0.0 version/release-notes/tag decision. Push is user-owned.
+NEXT: Track D Phase 1 (loopback pipeline + record/take lifecycle); then the explicit v6.0.0
+version/release-notes/tag decision. Push is user-owned.
 Run architecture-hardening resume if deeper context is needed.
 ```

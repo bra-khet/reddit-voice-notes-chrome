@@ -7,11 +7,13 @@
   "scripts": {
     "dev": "vite",
     "vendor:ffmpeg": "node scripts/copy-ffmpeg-core.mjs",
-    "prebuild": "npm run vendor:ffmpeg",
+    "vendor:studio-assets": "node scripts/copy-studio-assets.mjs",
+    "vendor": "npm run vendor:ffmpeg && npm run vendor:studio-assets",
+    "prebuild": "npm run vendor",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "smoke": "esbuild scripts/smoke.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/smoke.mjs && node node_modules/.cache/smoke.mjs",
-    "postinstall": "npm run vendor:ffmpeg"
+    "postinstall": "npm run vendor"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

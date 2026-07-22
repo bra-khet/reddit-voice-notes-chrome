@@ -92,8 +92,22 @@ export interface BackgroundColorSampleTarget {
 
 // V4 NOTE: Background layout controls may move into a dedicated Background panel when Studio sections are segmented.
 
-const NAV_ICON_ROOT = '/assets/design-studio-v4/icons/navigation';
-const CENTER_ICON_PATH = '/assets/design-studio-v4/icons/center-frame-32.svg';
+// BUG FIX: hand-built root-absolute asset URLs 404 on the hosted Design Studio
+// Fix: these were '/assets/…' string literals dropped straight into <img src>.
+//      A leading slash means "extension root" only inside the extension; on the
+//      Pages host it means the site root, above the project's base path, so the
+//      nudge chevrons, the center-frame glyph and the bundled background
+//      thumbnails all 404. Resolve through runtime.getURL instead — which yields
+//      the byte-identical URL in the extension, so nothing changes there.
+// Sync: any new packaged asset referenced from TS must go through assetUrl();
+//      demo/vite.config.ts fails the build if a bare '/assets/' literal survives.
+const NAV_ICON_ROOT = 'assets/design-studio-v4/icons/navigation';
+const CENTER_ICON_PATH = 'assets/design-studio-v4/icons/center-frame-32.svg';
+
+// Resolved at CALL time, never at module scope: the hosted build installs its
+// `browser` shim as the entry's first import, and a module-scope browser.* would
+// evaluate during the import graph walk, before the shim exists.
+const assetUrl = (path: string): string => browser.runtime.getURL(path as never);
 
 type BackgroundFramingAspect = 'native' | 'square' | 'vertical';
 
@@ -129,7 +143,7 @@ function renderNudgeButton(
       aria-label="Move ${direction} by ${Math.abs(delta).toFixed(2)}"
       title="Move ${direction} by ${Math.abs(delta).toFixed(2)}"
     >
-      <img src="${NAV_ICON_ROOT}/${nudgeIconName(axis, delta)}" alt="" aria-hidden="true">
+      <img src="${assetUrl(`${NAV_ICON_ROOT}/${nudgeIconName(axis, delta)}`)}" alt="" aria-hidden="true">
       <span>${step}</span>
     </button>
   `;
@@ -146,7 +160,7 @@ function renderBackgroundPreset(preset: BackgroundLayoutPresetDefinition): strin
       style="--preset-x:${preset.customPosition.x * 100}%;--preset-y:${preset.customPosition.y * 100}%;--preset-scale:${preset.manualScale};--preset-dim:${preset.dim}"
     >
       <span class="studio__background-preset-thumb" aria-hidden="true">
-        <img src="/${background.assetPath}" alt="">
+        <img src="${assetUrl(background.assetPath)}" alt="">
         <span class="studio__background-preset-dim"></span>
         <span class="studio__background-preset-grid"></span>
         <span class="studio__background-preset-focal"></span>
@@ -486,7 +500,7 @@ function renderPrecisionInstrument(): string {
             aria-label="Center background position"
             title="Center background position (Esc)"
           >
-            <img src="${CENTER_ICON_PATH}" alt="" aria-hidden="true">
+            <img src="${assetUrl(CENTER_ICON_PATH)}" alt="" aria-hidden="true">
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { resolve } from 'node:path';
 
 /*
@@ -11,10 +11,72 @@ import { resolve } from 'node:path';
  */
 const root = import.meta.dirname;
 
+const BASE = '/reddit-voice-notes-chrome/';
+
+/*
+ * Fail the build on any root-absolute asset URL that survived into emitted CSS.
+ *
+ * The extension's stylesheets legitimately write `url('/assets/fonts/…')` — in an
+ * extension, a leading slash IS the package root. On a PROJECT Pages site it is
+ * the user site root, so such a URL resolves to https://<user>.github.io/assets/…
+ * and 404s: no display font, no slider chrome.
+ *
+ * Vite already fixes this FOR FREE, but only under a condition that is easy to
+ * break and impossible to see: it rewrites a root-absolute URL to `<base>/…` only
+ * when the file actually exists under publicDir. So the prefixing silently
+ * depends on scripts/copy-studio-assets.mjs having mirrored that asset. Miss one,
+ * and Vite downgrades to a build WARNING, emits the URL unchanged, and the page
+ * breaks on the real deploy while looking perfect locally — doubly so because
+ * `vite preview` answers missing files with 200 text/html rather than 404.
+ *
+ * So this does not rewrite anything; it turns that warning into an error.
+ *
+ * It also covers JS, where the same mistake has a second form and no warning at
+ * all: a hand-written `"/assets/…"` string literal dropped into an <img src>.
+ * Track D Phase 0 found three of those in background-layout-controls.ts; they
+ * looked correct in the extension (a leading slash IS the extension root) and
+ * 404'd everywhere else. The rule for shared source is that packaged assets are
+ * addressed through `browser.runtime.getURL`, never by manual prefixing.
+ */
+function assertNoRootAbsoluteAssetUrls(): Plugin {
+  const IN_CSS = /url\(\s*['"]?\/assets\/[^)]*/g;
+  // Quote-anchored so Vite's OWN emitted "/reddit-voice-notes-chrome/assets/…"
+  // strings — which merely contain the same substring — are not flagged.
+  const IN_JS = /['"`]\/assets\/[^'"`]*/g;
+
+  return {
+    name: 'rvn-assert-no-root-absolute-asset-urls',
+    enforce: 'post',
+    generateBundle(_options, bundle) {
+      const offenders: string[] = [];
+      for (const file of Object.values(bundle)) {
+        if (file.type === 'asset' && file.fileName.endsWith('.css')) {
+          const css =
+            typeof file.source === 'string' ? file.source : new TextDecoder().decode(file.source);
+          for (const match of css.match(IN_CSS) ?? []) offenders.push(`${file.fileName}: ${match}`);
+        } else if (file.type === 'chunk') {
+          for (const match of file.code.match(IN_JS) ?? []) {
+            offenders.push(`${file.fileName}: ${match}`);
+          }
+        }
+      }
+      if (offenders.length > 0) {
+        this.error(
+          `Root-absolute asset URL(s) will 404 under the Pages base path.\n` +
+            `In CSS: mirror the asset in scripts/copy-studio-assets.mjs so Vite resolves it.\n` +
+            `In TS: address it through browser.runtime.getURL(), never a "/assets/…" literal.\n  ` +
+            offenders.join('\n  '),
+        );
+      }
+    },
+  };
+}
+
 export default defineConfig({
+  plugins: [assertNoRootAbsoluteAssetUrls()],
   // Project Pages serve under /<repo>/, so every absolute asset/route URL is
   // prefixed with this base.
-  base: '/reddit-voice-notes-chrome/',
+  base: BASE,
   resolve: {
     alias: {
       // CHANGED: "@" now points at the REPO ROOT, not demo/ (Track D Phase 0).

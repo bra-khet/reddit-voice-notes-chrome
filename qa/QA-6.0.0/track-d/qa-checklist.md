@@ -6,11 +6,15 @@
 
 **Legend:** ■ PASS · ▲ PARTIAL (explain) · ✕ FAIL (blocker) · ☐ not yet run · — N/A this phase
 
-> QA the hosted surface against a **build or a deploy**, never `vite dev`. The existing Voice Studio's audition freeze at "5%" under `vite dev` is a known dev-server artifact (HMR/re-optimization aborts the 31 MB `ffmpeg.load()`); the same failure mode applies to the Design Studio and will waste an operator session if forgotten.
+> QA the hosted surface against a **build or a deploy**, never `vite dev`. The Voice Lab's audition freeze at "5%" under `vite dev` is a known dev-server artifact (HMR/re-optimization aborts the 31 MB `ffmpeg.load()`); the same failure mode applies to the Design Studio and will waste an operator session if forgotten.
 >
 > ```bash
 > cd demo && npm run build && npm run preview
 > ```
+>
+> **Second trap, found in Phase 0:** `vite preview` serves an **HTML fallback**, so a *missing* asset answers `200 text/html` instead of 404. Absent SVGs therefore look like successes in the network panel and merely render as broken images — while being hard 404s on real Pages. Judge assets by `content-type`, or assert over `performance.getEntriesByType('resource')`, never by status code alone.
+>
+> **Clearing state for a clean-profile run** means clearing **both** the shim's `rvnWebHostStorage` *and* the Studio's real `rvn*` databases on the Pages origin.
 
 ---
 
@@ -50,26 +54,33 @@ Landed 2026-07-22. Re-check whenever Studio, popup, or hub copy changes — the 
 |---|---|---|
 | 1.1 | **Alias flip verified in isolation** — §0 green after `@` → repo root, **before** any Design Studio code exists | ■ (2026-07-22 — sprint 1 added zero new code; §0.1–0.4 all green) |
 | 1.2 | Ported duplicate modules under `demo/src/voice`, `demo/src/settings` removed; nothing still imports them | ■ (2026-07-22 — 12 files deleted after `diff -q` re-verified byte-identity; `demo/scripts/smoke.ts` repointed from `../src/…` to `../../src/…`; `npm run smoke` ALL PASS) |
-| 1.3 | `demo/design-studio/` builds and `mountClipStudio` mounts to default state | ☐ |
-| 1.4 | Zero console errors/warnings on first mount from a clean profile | ☐ |
-| 1.5 | Preferences read + write against Pages-origin IDB; survive reload | ☐ |
-| 1.6 | Extension-origin storage provably untouched (DevTools → Application, both origins) | ☐ |
+| 1.3 | `demo/design-studio/` builds and `mountClipStudio` mounts to default state | ■ (2026-07-22 — 318 modules; phase rail, profile cluster, take deck, live preview, Style/Background/Voice/Subtitles all render) |
+| 1.4 | Zero console errors/warnings on first mount from a clean profile | ■ (2026-07-22 — fresh tab: **42 requests, 0 failures, 0 console output**, 0 root-absolute URLs) |
+| 1.5 | Preferences read + write against Pages-origin IDB; survive reload | ■ (2026-07-22 — `rvnUserPrefs` schemaVersion **2** with 1 global row, written by the real `loadUserPreferences()`; `storage.local` value survived reload) |
+| 1.6 | Extension-origin storage provably untouched (DevTools → Application, both origins) | ▲ operator-owed. Browser-enforced by origin, and the Pages origin holds its own `rvnImageDb` / `rvnLastRecording` / `rvnLastBaseMp4` / `rvnSessionTranscript` / `rvnUserPrefs` / `rvnWebHostStorage`. The two-origin eyeball still wants a human |
 | 1.7 | Deploy workflow path filter includes `src/**` | ■ (2026-07-22 — `.github/workflows/deploy-demo.yml`) |
-| 1.8 | **C1** in-page bake vs preview contention — observation recorded | ☐ |
-| 1.9 | **C2** app bundle weight recorded (excluding vendored FFmpeg) | ☐ |
-| 1.10 | **C3** live Pages `Cache-Control` headers recorded; warm-path decision made | ☐ |
+| 1.8 | **C1** in-page bake vs preview contention — observation recorded | ☐ **moved to Phase 1** — needs a real bake, which needs the loopback pipeline |
+| 1.9 | **C2** app bundle weight recorded (excluding vendored FFmpeg) | ■ (2026-07-22 — **1.27 MB JS + 148 KB CSS**; 345 + 24 KB gzipped) |
+| 1.10 | **C3** live Pages `Cache-Control` headers recorded; warm-path decision made | ■ (2026-07-22 — `max-age=600` **confirmed**, but revalidation returns **304 / 0 bytes / 0.58 s**, so the core is not re-downloaded. Warm path still needs **Cache Storage**, for HTTP-cache *eviction* of a 31 MB entry — not for max-age) |
+| 1.11 | Studio assets vendored; no root-absolute `/assets/` survives the build | ■ (2026-07-22 — `copy-studio-assets.mjs` mirrors design-studio-v4 + fonts + backgrounds; build now **fails** on any surviving root-absolute URL in CSS or JS) |
+| 1.12 | All 6 font faces load (2 Chakra Petch + 4 DejaVu subtitle faces) | ■ (2026-07-22 — `document.fonts` all `loaded`) |
 
 ### §1a Shim fidelity (the highest-risk surface — roadmap §3.2)
 
 | # | Item | Result |
 |---|---|---|
-| 1a.1 | `storage.onChanged` fires **for the writer's own writes** (not only for other listeners) | ☐ |
-| 1a.2 | Change payload shape matches `{ [key]: { oldValue, newValue } }` | ☐ |
-| 1a.3 | `sendMessage` with no listener **resolves** (does not throw / reject) | ☐ |
-| 1a.4 | `runtime.id` truthy — `isExtensionContextValid()` passes | ☐ |
-| 1a.5 | `getURL` resolves under the Pages base path for all 10 call sites' asset classes | ☐ |
-| 1a.6 | `storage.local` writes are genuinely async and ordered | ☐ |
-| 1a.7 | `storage.session` clears on reload; `storage.sync` reads back what it wrote | ☐ |
+All exercised in-page against a **build** on 2026-07-22 — 11/11 assertions true.
+
+| # | Item | Result |
+|---|---|---|
+| 1a.1 | `storage.onChanged` fires **for the writer's own writes** (not only for other listeners) | ■ two writes → two events |
+| 1a.2 | Change payload shape matches `{ [key]: { oldValue, newValue } }` | ■ incl. correct `oldValue` chaining and `area === 'local'` |
+| 1a.3 | `sendMessage` with no listener **resolves** (does not throw / reject) | ■ resolves `undefined` |
+| 1a.4 | `runtime.id` truthy — `isExtensionContextValid()` passes | ■ `'rvn-web-host'` |
+| 1a.5 | `getURL` resolves under the Pages base path for all 10 call sites' asset classes | ■ exact-match assertion + every real asset request landed under the base |
+| 1a.6 | `storage.local` writes are genuinely async and ordered | ■ a read issued before the write resolved saw the stale value; 3 unawaited writes → last one wins |
+| 1a.7 | `storage.session` clears on reload; `storage.sync` reads back what it wrote | ■ session gone after reload; sync round-trips and is a **distinct namespace** from local |
+| 1a.8 | `remove()` of an absent key emits **no** change event (chrome does not) | ■ |
 
 ---
 
