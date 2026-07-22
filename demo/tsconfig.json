@@ -1,10 +1,10 @@
 {
   /*
    * Strictness mirrors the extension's tsconfig (.wxt/tsconfig.json: strict, but
-   * no noUnusedLocals / verbatimModuleSyntax) so the 10 verbatim-ported voice
-   * modules under src/voice and src/settings compile UNCHANGED. Do not add flags
-   * stricter than the extension's here — it would force forking the ported files
-   * and break the "delta-port = file copy" guarantee.
+   * no noUnusedLocals / verbatimModuleSyntax). This is now LOAD-BEARING, not a
+   * convenience: since Track D Phase 0 the "@" alias points at the repo root, so
+   * this project type-checks the extension's REAL src/ files. Any flag stricter
+   * than the extension's would make shared source compile here and not there.
    */
   "compilerOptions": {
     "target": "ESNext",
@@ -20,9 +20,20 @@
     "isolatedModules": true,
     "noEmit": true,
 
-    /* "@/*" -> demo root, matching the extension's alias so ported modules copy verbatim. */
+    /*
+     * CHANGED (Track D Phase 0): "@/*" -> REPO ROOT, was "./*" (demo/).
+     * WHY: one source of truth — the Voice Lab and the hosted Design Studio both
+     * compile the extension's real src/. Must stay in lockstep with the same
+     * alias in vite.config.ts.
+     */
     "baseUrl": ".",
-    "paths": { "@/*": ["./*"] }
+    "paths": { "@/*": ["../*"] }
   },
+  /*
+   * Only demo-owned entry roots are listed. Extension files reached through "@/"
+   * are pulled in transitively by tsc, so we type-check exactly what we import —
+   * listing "../src" wholesale would drag in WXT-only modules that reference the
+   * `browser` global this project does not have.
+   */
   "include": ["src"]
 }

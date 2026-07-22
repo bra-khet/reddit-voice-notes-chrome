@@ -20,11 +20,11 @@ The Voice Lab and Field Guide share the Pages origin and (after the Phase 0 alia
 
 | # | Item | Result |
 |---|---|---|
-| 0.1 | `cd demo && npm run build` completes clean (`tsc --noEmit` + `vite build`) | ☐ |
-| 0.2 | Field Guide loads at `/tutorial/`; no console errors | ☐ |
-| 0.3 | Voice Lab loads at `/studio/`; chips render; composer responds | ☐ |
-| 0.4 | Voice Lab audition renders through the active graph (against a **build**) | ☐ |
-| 0.5 | `rvn-voice-character-v1` copy/paste round-trips with the extension | ☐ |
+| 0.1 | `cd demo && npm run build` completes clean (`tsc --noEmit` + `vite build`) | ■ (2026-07-22, post-flip — 42 modules, built in 387 ms) |
+| 0.2 | Field Guide loads at `/tutorial/`; no console errors | ■ (2026-07-22, `vite preview` :6174) |
+| 0.3 | Voice Lab loads at `/studio/`; chips render; composer responds | ■ (2026-07-22 — 8 presets, composer categories, transfer cluster all render; console clean) |
+| 0.4 | Voice Lab audition renders through the active graph (against a **build**) | ■ (2026-07-22 — Cyber Oracle @ Hamlet sample; `ffmpeg-core.js` + `.wasm` both 200; panel reached "Playing the rendered voice — this is what bakes") |
+| 0.5 | `rvn-voice-character-v1` copy/paste round-trips with the extension | ▲ operator-owed. Clipboard read is blocked in the automation context. **Structurally stronger after the flip:** the Voice Lab now imports the extension's own `src/settings/clipboard-backup.ts`, so the envelope cannot diverge — only the two-app paste needs an eyeball |
 
 ---
 
@@ -48,13 +48,13 @@ Landed 2026-07-22. Re-check whenever Studio, popup, or hub copy changes — the 
 
 | # | Item | Result |
 |---|---|---|
-| 1.1 | **Alias flip verified in isolation** — §0 green after `@` → repo root, **before** any Design Studio code exists | ☐ |
-| 1.2 | Ported duplicate modules under `demo/src/voice`, `demo/src/settings` removed; nothing still imports them | ☐ |
+| 1.1 | **Alias flip verified in isolation** — §0 green after `@` → repo root, **before** any Design Studio code exists | ■ (2026-07-22 — sprint 1 added zero new code; §0.1–0.4 all green) |
+| 1.2 | Ported duplicate modules under `demo/src/voice`, `demo/src/settings` removed; nothing still imports them | ■ (2026-07-22 — 12 files deleted after `diff -q` re-verified byte-identity; `demo/scripts/smoke.ts` repointed from `../src/…` to `../../src/…`; `npm run smoke` ALL PASS) |
 | 1.3 | `demo/design-studio/` builds and `mountClipStudio` mounts to default state | ☐ |
 | 1.4 | Zero console errors/warnings on first mount from a clean profile | ☐ |
 | 1.5 | Preferences read + write against Pages-origin IDB; survive reload | ☐ |
 | 1.6 | Extension-origin storage provably untouched (DevTools → Application, both origins) | ☐ |
-| 1.7 | Deploy workflow path filter includes `src/**` | ☐ |
+| 1.7 | Deploy workflow path filter includes `src/**` | ■ (2026-07-22 — `.github/workflows/deploy-demo.yml`) |
 | 1.8 | **C1** in-page bake vs preview contention — observation recorded | ☐ |
 | 1.9 | **C2** app bundle weight recorded (excluding vendored FFmpeg) | ☐ |
 | 1.10 | **C3** live Pages `Cache-Control` headers recorded; warm-path decision made | ☐ |

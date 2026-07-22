@@ -54,17 +54,21 @@ branch, no publish script.**
 ## How it's wired (for the next developer)
 
 - **`vite.config.ts`** — multi-page (`index.html` hub + `studio/index.html`),
-  `base: '/reddit-voice-notes-chrome/'`, and the key alias **`@` → `demo/`**.
-- **The voice "brain" is a verbatim port.** The pure-data / string-emitter leaf
-  modules from the extension are copied **unchanged** under `demo/src/` mirroring
-  their original paths; the `@` alias makes even `@/src/voice/types` imports
-  resolve. Re-syncing after an extension DSP change is a file copy. (See the
-  design doc §4.)
+  `base: '/reddit-voice-notes-chrome/'`, and the key alias **`@` → the repo root**.
+- **The voice "brain" is the extension's own source — no longer a copy.** Since
+  Track D Phase 0 (2026-07-22) the `@` alias points one level up, so
+  `@/src/voice/types` resolves to the extension's real `src/voice/types.ts`.
+  There is nothing to re-sync after a DSP change, and drift is impossible rather
+  than merely discouraged. The 12 modules that used to live under `demo/src/voice`
+  and `demo/src/settings` were verified byte-identical before deletion.
+  **Consequence:** an extension change can now break this build, which is why the
+  Pages workflow also watches `src/**`. (See `docs/v6.0.0-hosted-design-studio.md` §3.4.)
 - **Fidelity = preview/export call the same code:** `resolveVoiceGraph` →
   `buildStylizedGraph(graph, ffmpegRenderer)` → the identical
   `-af` / `-filter_complex` run through ffmpeg.wasm.
-- **Copy-paste contract:** `rvn-voice-character-v1` (the ported
-  `clipboard-backup.ts`) — round-trips losslessly with the extension.
+- **Copy-paste contract:** `rvn-voice-character-v1` (the extension's own
+  `src/settings/clipboard-backup.ts`, imported directly) — round-trips losslessly
+  with the extension because it is literally the same module.
 - **Sample chips (Phase 7):** `public/assets/samples/*.mp3` ("Tina" reading the
   sources in that folder's `README.md`). `src/studio/audition.ts` renders a
   clicked clip through the active graph, or plays it raw when no effect is on.

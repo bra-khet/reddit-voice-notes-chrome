@@ -8,6 +8,12 @@ on:
     branches: [main]
     paths:
       - 'demo/**'
+      # CHANGED (Track D Phase 0): watch the extension source too.
+      # WHY: demo/'s "@" alias now points at the repo root, so the Pages build
+      # compiles these files directly. Without this filter an extension-only
+      # change could break the deploy silently and only surface at the NEXT
+      # demo edit — attributing the breakage to the wrong commit.
+      - 'src/**'
       - '.github/workflows/deploy-demo.yml'
   workflow_dispatch:
 

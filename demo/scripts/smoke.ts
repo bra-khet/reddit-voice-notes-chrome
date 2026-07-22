@@ -1,16 +1,20 @@
 /*
- * Phase 1 smoke test — proves the verbatim-ported voice brain runs end-to-end.
+ * Phase 1 smoke test — proves the shared voice brain runs end-to-end.
  *
  * Run:  npm run smoke   (bundles with esbuild → node; see package.json)
  *
- * Verifies that, for the SAME inputs the extension uses, the ported resolver +
- * renderer produce a real FFmpeg artifact — i.e. the preview=bake graph path
- * works outside the extension with no edits.
+ * Verifies that, for the SAME inputs the extension uses, the resolver + renderer
+ * produce a real FFmpeg artifact — i.e. the preview=bake graph path works outside
+ * the extension with no edits.
+ *
+ * CHANGED (Track D Phase 0): imports moved from demo/src/voice/* to the repo-root
+ * src/voice/* they used to be copied from. esbuild resolves these relative paths
+ * directly, so this file does not go through the "@" alias.
  */
-import { resolveVoiceGraph } from '../src/voice/dsp/resolve-graph';
-import { buildStylizedGraph } from '../src/voice/dsp/build-stylized-graph';
-import { CHARACTER_PRESETS } from '../src/voice/dsp/preset-graphs';
-import { normalizeVoiceEffectConfig } from '../src/voice/types';
+import { resolveVoiceGraph } from '../../src/voice/dsp/resolve-graph';
+import { buildStylizedGraph } from '../../src/voice/dsp/build-stylized-graph';
+import { CHARACTER_PRESETS } from '../../src/voice/dsp/preset-graphs';
+import { normalizeVoiceEffectConfig } from '../../src/voice/types';
 
 let failures = 0;
 function check(name: string, ok: boolean, detail = ''): void {

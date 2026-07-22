@@ -17,9 +17,15 @@ export default defineConfig({
   base: '/reddit-voice-notes-chrome/',
   resolve: {
     alias: {
-      // Mirror the extension's "@/..." alias so the ported leaf modules copy VERBATIM.
-      //   @  ->  demo/   ⇒   "@/src/voice/types"  resolves to  demo/src/voice/types.ts
-      '@': root,
+      // CHANGED: "@" now points at the REPO ROOT, not demo/ (Track D Phase 0).
+      // WHY: the Voice Lab used to compile verbatim COPIES of the extension's DSP
+      // leaves, which had to be re-copied by hand after every upstream change.
+      // Pointing the alias one level up makes the demo compile the real src/, so
+      // drift is structurally impossible instead of procedurally discouraged — and
+      // it is the same mechanism the hosted Design Studio will use to mount the
+      // real Studio tree. See docs/v6.0.0-hosted-design-studio.md §3.4.
+      //   @  ->  <repo root>   ⇒   "@/src/voice/types"  resolves to  <root>/src/voice/types.ts
+      '@': resolve(root, '..'),
     },
   },
   // ffmpeg.wasm is only reached via a lazy import('./audio-render'), so without

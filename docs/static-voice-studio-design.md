@@ -18,10 +18,12 @@ This file wins on the topic of the public static Voice Studio companion page.
 >
 > 1. **The orientation hub and the nav banner's `WIP:` markers** (§7 below, Phase 6 in §8). Track D Phase 3
 >    rewrites the hub into three destinations and drops the WIP badge. Do not build the hub from §7 alone.
-> 2. **The `@` alias and the "verbatim port" maintenance model** (§2.3, §4, §10). Track D Phase 0 repoints
->    `@` from `demo/` to the **repo root**, so the demo compiles the real extension source. All 12 ported
->    modules were verified byte-identical on 2026-07-22, which is what makes the flip safe — and it
->    **retires** the "re-copy the files after a DSP change" chore described in §4 and §10.
+> 2. **The `@` alias and the "verbatim port" maintenance model** (§2.3, §4, §10) — **DONE 2026-07-22
+>    (Track D Phase 0).** `@` now points at the **repo root**, the 12 byte-identical copies under
+>    `demo/src/voice` and `demo/src/settings` are **deleted**, and the demo compiles the extension's real
+>    source. Read §4 and §10 as history: the "re-copy the files after a DSP change" chore **no longer
+>    exists**. The new obligation runs the other way — an extension `src/` change can break the Pages
+>    build, so the deploy workflow watches `src/**` too.
 > 3. **Naming — RESOLVED 2026-07-22.** This page's public label is now **"Voice Lab"** (Track D decision
 >    D1). Changed: the hub destination card + CTA, this page's `<title>`, the nav-banner wordmark,
 >    `demo/README.md`, and the module header comments. **Unchanged: the `/studio/` URL and the
@@ -86,10 +88,16 @@ placeholder hub and is **clearly marked WIP** (see §7).
 
 ## 4. The port set (the whole "voice brain")
 
+> **Superseded 2026-07-22 (Track D Phase 0).** The copies described below are
+> **gone**. `@` → repo root, and the studio imports these modules from the
+> extension's own `src/`. The table remains accurate as the list of what the
+> studio depends on; only the *mechanism* changed from "copied verbatim" to
+> "imported directly."
+
 Everything the studio needs is a handful of **pure-data / string-emitting leaf
-modules** — no WASM, no `chrome.*`, no DOM. They are copied **verbatim** under
-`demo/src/` mirroring their extension paths; `@` → `demo/` makes even alias
-imports resolve unchanged.
+modules** — no WASM, no `chrome.*`, no DOM. They were originally copied
+**verbatim** under `demo/src/` mirroring their extension paths; `@` → `demo/`
+made even alias imports resolve unchanged.
 
 | Extension path → mirrored under `demo/src/…` | Role |
 |---|---|
@@ -249,10 +257,12 @@ GitHub Actions. The old `gh-pages` branch + `publish-pages.mjs` worktree flow is
   future Web Audio "lite mode."
 - **`getUserMedia` on github.io** → works on modern browsers over HTTPS;
   document the permission prompt.
-- **Fidelity drift** → mitigated structurally by the verbatim port (§4); always
-  side-by-side test against the extension at the same baseline.
-- **Maintenance** → when extension DSP changes, re-copy the 10 files (a script
-  can diff/copy); keep the studio pinned to a known baseline commit.
+- **Fidelity drift** → **eliminated 2026-07-22**: the studio imports the
+  extension's real DSP modules (§4 note), so there is no second copy to drift.
+- **Maintenance** → *was* "re-copy the 10 files after a DSP change"; that chore
+  **no longer exists**. The inverse risk replaces it: an extension `src/` change
+  can break the Pages build, mitigated by `tsc --noEmit` in `npm run build` plus
+  the deploy workflow's `src/**` path filter.
 
 ## 11. Success metrics
 
@@ -270,8 +280,9 @@ Pages deploy succeeds; URL is clean and shareable.
   deploys it to Pages (Source = GitHub Actions, **no `gh-pages` branch**); base
   `/reddit-voice-notes-chrome/`. *(Was `site/` on branch
   `feature/static-voice-studio` until the 2026-06-28 restructure.)*
-- The "voice brain" is the verbatim-copied leaf modules under `demo/src/`
-  (mirror extension paths; `@`→`demo/`). Fidelity = preview/export both call
+- The "voice brain" is the extension's **own** leaf modules, imported directly
+  (`@`→**repo root** since 2026-07-22; the `demo/src/voice` + `demo/src/settings`
+  copies are deleted). Fidelity = preview/export both call
   `resolveVoiceGraph` → `buildStylizedGraph(graph, ffmpegRenderer)` and run the
   identical `-af`/`-filter_complex` through ffmpeg.wasm. ConvReverb needs aux-IR
   WAVs written to the FFmpeg FS.
