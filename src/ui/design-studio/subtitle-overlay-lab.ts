@@ -127,8 +127,15 @@ function mergeLabStyle(
     ...base,
     textGradient: controls.textGradient,
     textGradientWave: controls.textGradientWave,
+    // BUG FIX: TS2322 backdrop.enabled 'boolean | undefined' vs required 'boolean'
+    // Fix: `base.backdrop` is optional on SubtitleStyleConfig, so spreading it could
+    //      omit the required `enabled`. Supply it explicitly with the SAME default
+    //      normalizeSubtitleStyle already applies (`enabled !== false` ⇒ absent means
+    //      true), so every input maps to the identical output as before.
+    //      Newly blocking as of Track D Phase 0 — see subtitle-canvas-bake.ts:158.
     backdrop: {
       ...base.backdrop,
+      enabled: base.backdrop?.enabled ?? true,
       borderRadius: controls.backdropBorderRadius,
     },
     glow: {

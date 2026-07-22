@@ -47,9 +47,11 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        // Multi-page build: orientation hub (root) + the voice studio.
+        // Multi-page build: orientation hub (root) + the Voice Lab + the full
+        // hosted Design Studio (Track D).
         hub: resolve(root, 'index.html'),
         studio: resolve(root, 'studio/index.html'),
+        designStudio: resolve(root, 'design-studio/index.html'),
       },
     },
   },

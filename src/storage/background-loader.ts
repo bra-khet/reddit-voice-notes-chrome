@@ -1,4 +1,5 @@
 import { unpackBinary } from '@/src/messaging/binary';
+import { isOwnStorageOrigin } from '@/src/utils/host-origin';
 import {
   BACKGROUND_BLOB_PORT,
   MSG_GET_BACKGROUND_BLOB_CHUNK,
@@ -59,13 +60,18 @@ function evictDecodedBackgroundImage(id: string): void {
   }
 }
 
+// BUG FIX: hosted Design Studio treated as a content script for image storage
+// Fix: `protocol === 'chrome-extension:'` answered "do I own the extension's
+//      IndexedDB?" correctly only for the two original hosts. The Pages-hosted
+//      Studio owns its storage but is served over https, so it fell to the port
+//      relay and personal backgrounds silently failed to load. Delegate to the
+//      shared origin test, which is behaviourally identical for extension pages,
+//      the service worker, and content scripts.
+// Sync: src/storage/user-prefs-db.ts (requiresBackgroundRelay) — same decision,
+//      same helper; they must never diverge again.
 /** Extension pages + service worker share extension-origin IndexedDB. */
 export function isExtensionPageContext(): boolean {
-  try {
-    return typeof location !== 'undefined' && location.protocol === 'chrome-extension:';
-  } catch {
-    return false;
-  }
+  return isOwnStorageOrigin();
 }
 
 function loadImageFromUrl(url: string, cacheKey: string): Promise<HTMLImageElement | null> {

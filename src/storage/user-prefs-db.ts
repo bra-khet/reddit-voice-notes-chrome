@@ -18,6 +18,7 @@ import {
   type TranscriptConfig,
 } from '@/src/transcription/types';
 import type { VoiceEffectConfig } from '@/src/voice/types';
+import { isOwnStorageOrigin } from '@/src/utils/host-origin';
 
 // CHANGED: v5.11.0 stores the complete user-preference snapshot as structured IDB rows.
 // WHY: rich profile/style records outgrew a single inspectable rvnUserPrefs local-storage blob.
@@ -63,9 +64,19 @@ export interface UserPrefsSerializedSizes {
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
+// BUG FIX: hosted Design Studio relayed prefs to a background that does not exist
+// Fix: the test was `protocol === 'http:'/'https:'`, which meant "content script"
+//      only while extension pages and Reddit content scripts were the sole hosts.
+//      The Pages-hosted Studio is https AND owns its storage, so it was misrouted
+//      into MSG_USER_PREFS_DB_LOAD and failed to boot with "Background could not
+//      load user preferences." Ask the durable question instead — does the
+//      extension's own base URL share this origin — which is identical for all
+//      three extension contexts and correct for the hosted one.
+// Sync: src/storage/background-loader.ts (isExtensionPageContext) makes the same
+//      origin decision and must keep using the same helper.
 function requiresBackgroundRelay(): boolean {
   if (typeof location === 'undefined') return false;
-  return location.protocol === 'http:' || location.protocol === 'https:';
+  return !isOwnStorageOrigin();
 }
 
 function parseRelayedSnapshot(snapshotJson: string | undefined): UserPrefsDbSnapshot | null {

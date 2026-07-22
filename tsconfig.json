@@ -1,3 +1,15 @@
 {
-  "extends": "./.wxt/tsconfig.json"
+  "extends": "./.wxt/tsconfig.json",
+  /*
+   * CHANGED (Track D Phase 0): exclude demo/ from the extension's type-check.
+   * WHY: WXT's generated config includes "../**\/*", which swept in the demo —
+   * harmless while the demo was self-contained, but the hosted Design Studio's
+   * host shim declares an ambient `browser` global, and that collided with WXT's
+   * real one across the ENTIRE extension project (TS2451 plus ~10 downstream
+   * errors in background.ts). The two projects have deliberately different ideas
+   * of what `browser` is; each must type-check under its own tsconfig.
+   * node_modules and .output are re-listed because specifying "exclude" here
+   * replaces the inherited list rather than adding to it.
+   */
+  "exclude": [".output", "node_modules", "demo"]
 }

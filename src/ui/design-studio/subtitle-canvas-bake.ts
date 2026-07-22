@@ -153,7 +153,14 @@ async function withRenderPerfGuard<T>(
 ): Promise<T> {
   const renderAbort = linkAbortSignals(userSignal);
   const startedAt = performance.now();
-  let timer: ReturnType<typeof window.setTimeout> | undefined;
+  // BUG FIX: TS2322 "Type 'number' is not assignable to type 'Timeout'"
+  // Fix: `ReturnType<typeof window.setTimeout>` resolved to Node's `Timeout` because
+  //      @types/node is in scope, while the actual DOM `window.setTimeout` returns a
+  //      number. Annotate the DOM type directly. Type-only — the value, the timer and
+  //      the matching window.clearTimeout below are unchanged.
+  //      Newly blocking as of Track D Phase 0: demo/'s build is `tsc --noEmit && vite
+  //      build`, so this long-tolerated diagnostic now fails the Pages deploy.
+  let timer: number | undefined;
   if (budgetMs != null && budgetMs > 0) {
     timer = window.setTimeout(() => {
       renderAbort.abort(

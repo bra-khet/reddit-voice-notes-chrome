@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2"
+    "@ffmpeg/util": "^0.12.2",
+    "mediabunny": "1.50.6"
   },
   "devDependencies": {
     "@ffmpeg/core": "^0.12.10",
