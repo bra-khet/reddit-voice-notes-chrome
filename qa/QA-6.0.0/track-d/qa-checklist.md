@@ -88,14 +88,17 @@ All exercised in-page against a **build** on 2026-07-22 — 11/11 assertions tru
 
 | # | Item | Result |
 |---|---|---|
-| 2.1 | Mic permission prompt appears and is honoured on the Pages origin | ☐ |
-| 2.2 | Record → live WYSIWYG preview → stop; take appears in the deck | ☐ |
+| 2.1 | Mic permission prompt appears and is honoured on the Pages origin | ▲ **OPERATOR-OWED** — the automation pane blocks `getUserMedia` outright. Verified only that **denial** degrades honestly ("Microphone access was denied…" + Retry). The grant path needs a human |
+| 2.2 | Record → live WYSIWYG preview → stop; take appears in the deck | ✅ **agent 2026-07-22** (synthetic mic; every layer below `getUserMedia` real) — "Mic live" preview, `recording` → `processing:baseRecording` → `ready:baseMp4+baseRecording`, deck shows 0:26 "Take ready" |
 | 2.3 | Base transcode completes through the in-page loopback pipeline | ✅ **agent 2026-07-22** — 30,690-byte MP4, real `ftyp` box; stages `queued → starting → writing-input → checking-assets → loading-wasm → transcoding-h264-aac → transcoding → done` |
 | 2.4 | Progress UI advances (I5 semantics preserved — heartbeats do not reset the stall timer) | ▲ partial — relay verified to deliver every tick **exactly once** (one send → one receipt); the I5 *timer* assertion needs a job long enough to emit a `-heartbeat` stage, so it is owed on a real recording |
 | 2.5 | Cancel mid-transcode leaves consistent state | ✅ **agent 2026-07-22** — terminal `COMPLETE ok:false "Transcode cancelled."`; no orphaned job |
-| 2.6 | Take survives reload (recovery path) | ☐ |
+| 2.6 | Take survives reload (recovery path) | ✅ **agent 2026-07-22** — after a full page reload the take is intact (0:26, "Take ready") and the workflow phase is restored to POLISH & BAKE |
 | 2.7 | A second take does not corrupt the first | ✅ pipeline level, **agent 2026-07-22** — second job in the same session returned identical bytes in 74 ms at stage `20:ready` (engine reused). Take-level check still owed |
-| 2.8 | Download produces a playable file | ☐ |
+| 2.8 | Download produces a playable file | ✅ **agent 2026-07-22** — `reddit-voice-note-<ts>.mp4`, `ftyp` present, **decoded by a `<video>` element at 26.46 s**. Second take's download matched its stamped byte length exactly (437,817 B) |
+| 2.12 | Discard take clears the session | ✅ **agent 2026-07-22** — take `null`, UI back to "No take yet". NOTE: gated by `window.confirm`, which the automation pane auto-dismisses; the dialog itself is **operator-owed** |
+| 2.13 | Second take replaces the first rather than accumulating | ✅ **agent 2026-07-22** — new take id, fresh 15.912 s artifacts, and both IDB stores hold **exactly one row** |
+| 2.14 | **C1** — preview does not stutter during an in-page bake | ◐ **partial.** Agent measured **zero main-thread long tasks** across a full transcode (6 s clip → 96,817 B MP4 in 617 ms; `PerformanceObserver` `longtask`), consistent with FFmpeg running in a real module worker. **OPERATOR-OWED:** RAF is paused while the automation pane is hidden, so "does the preview visibly stutter" cannot be answered here — watch it in a visible window. Same fact is a live hypothesis for the "5–6× faster while minimized" note |
 | 2.9 | Relay rejects a malformed payload with the shared validator's exact message | ✅ **agent 2026-07-22** — bad `byteLength` → `ok:false` *"WebM base64 length mismatch at relay (bytes=999999, chars=4, expected≈1333332)."*; missing `jobId` → *"Transcode request missing jobId."* |
 | 2.10 | FFmpeg assets resolve with the RIGHT content-type (not the `vite preview` HTML fallback) | ✅ **agent 2026-07-22** — `ffmpeg-core.wasm` → `application/wasm` 32,232,419 B; `esm/worker.js`, `esm/const.js` → `text/javascript`. **Never judge this by status code alone** |
 | 2.11 | Voice Lab still loads FFmpeg after the core path moved to `/ffmpeg/` | ✅ **agent 2026-07-22** — `loadFfmpeg()` → `loaded: true`, 299 ms |
