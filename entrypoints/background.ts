@@ -33,7 +33,7 @@ import {
   resolveActiveRedditTabId,
 } from '@/src/messaging/relay-registry';
 import { getBackgroundAsset } from '@/src/storage/image-db';
-import { saveLastRecording } from '@/src/storage/last-recording-db';
+import { commitLastBaseMp4, commitLastRecording } from '@/src/storage/artifact-commit';
 import { loadLastBaseMp4, saveLastBaseMp4 } from '@/src/storage/last-base-mp4-db';
 import { loadLastBakedMp4 } from '@/src/storage/last-baked-mp4-db';
 import {
@@ -1224,14 +1224,11 @@ export default defineBackground(() => {
             //      manufactured Date.now().
             // Sync: persistOrphanStudioTranscodeResult, MSG_SAVE_LAST_RECORDING,
             //       src/storage/last-base-mp4-db.ts (contract).
-            const savedMeta = await saveLastBaseMp4(blob, request.durationSeconds);
-            // v5.4.0: stamp the artifact into the current take AFTER the IDB
-            // write succeeds — the snapshot must never claim blobs it lacks.
-            void getTakeManager().recordArtifact('baseMp4', {
-              savedAt: savedMeta.savedAt,
-              byteLength: savedMeta.byteLength,
-              durationSeconds: savedMeta.durationSeconds,
-            });
+            // CHANGED: persist + stamp moved to src/storage/artifact-commit.ts
+            // WHY: the hosted Studio (v6.0 Track D) has no background to relay to
+            //      and must run the identical sequence; H13's guarantee only
+            //      holds while this choke point has ONE implementation.
+            await commitLastBaseMp4(blob, request.durationSeconds);
             response.ok = true;
             sendResponse(response);
           } catch (error) {
@@ -1262,17 +1259,11 @@ export default defineBackground(() => {
             //      returned persisted meta, not a manufactured Date.now().
             // Sync: MSG_SAVE_LAST_BASE_MP4 handler above,
             //       src/storage/last-recording-db.ts (contract).
-            const savedMeta = await saveLastRecording(blob, request.durationSeconds);
-            // CHANGED: signal Design Studio to reload voice preview without tab visibility flip.
-            // WHY: recording completes on Reddit while studio may stay open (eloquent-2 UX).
-            await browser.storage.local.set({ [LAST_RECORDING_READY_KEY]: Date.now() });
-            // v5.4.0: stamp the artifact into the current take AFTER the IDB
-            // write succeeds — the snapshot must never claim blobs it lacks.
-            void getTakeManager().recordArtifact('baseRecording', {
-              savedAt: savedMeta.savedAt,
-              byteLength: savedMeta.byteLength,
-              durationSeconds: savedMeta.durationSeconds,
-            });
+            // CHANGED: persist + ready signal + stamp moved to src/storage/artifact-commit.ts
+            // WHY: the hosted Studio (v6.0 Track D) has no background to relay to
+            //      and must run the identical sequence; H13's guarantee only
+            //      holds while this choke point has ONE implementation.
+            await commitLastRecording(blob, request.durationSeconds);
             response.ok = true;
             sendResponse(response);
           } catch (error) {
