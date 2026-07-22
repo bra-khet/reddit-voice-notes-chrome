@@ -26,7 +26,12 @@ export function resolveVoskModelUrl(): string {
 }
 
 /**
- * Sandbox / blob workers cannot resolve relative URLs — parent must pass absolute chrome-extension:// URLs.
+ * Sandbox / blob workers cannot resolve relative URLs — parent must pass an
+ * absolute package-asset URL (same origin as `browser.runtime.getURL('')`).
+ *
+ * On the extension that is `chrome-extension://<id>/…`. On the hosted Design
+ * Studio (Track D) the web shim's `getURL` returns the Pages / preview origin
+ * under the site base — same helper, same trust rule: reject foreign origins.
  */
 export function normalizeAbsoluteExtensionUrl(url: string): string {
   const trimmed = url.trim();
@@ -41,8 +46,23 @@ export function normalizeAbsoluteExtensionUrl(url: string): string {
     throw new Error(`Vosk model URL must be absolute — got "${trimmed}"`);
   }
 
-  if (parsed.protocol !== 'chrome-extension:') {
-    throw new Error(`Vosk model URL must be chrome-extension:// — got "${parsed.href}"`);
+  // BUG FIX: hosted Design Studio Vosk model URL rejected as non-chrome-extension
+  // Fix: accept absolute URLs whose origin matches package root via getURL('')
+  // (extension → chrome-extension://<id>; Pages/preview → http(s) site origin).
+  // Sync: resolveVoskModelUrl + vosk-sandbox-client (sole callers of this helper)
+  let packageOrigin: string;
+  try {
+    packageOrigin = new URL(browser.runtime.getURL('' as never)).origin;
+  } catch {
+    throw new Error(
+      `Vosk model URL package origin could not be resolved — got "${parsed.href}"`,
+    );
+  }
+
+  if (parsed.origin !== packageOrigin) {
+    throw new Error(
+      `Vosk model URL must be same-origin as the package root (${packageOrigin}) — got "${parsed.href}"`,
+    );
   }
 
   return parsed.href;
