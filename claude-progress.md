@@ -152,13 +152,17 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
        SILENTLY. Fall back to a direct commit only when unanswered AND isOwnStorageOrigin(); the
        persist→signal→stamp choke point lives ONCE in src/storage/artifact-commit.ts (H13).
     8. Vendor packaged MULTI-FILE assets whole (ffmpeg/esm/ is a module worker + siblings).
-  RULES 1/2/3/8 ARE MACHINE-CHECKED: `npm run test:host-neutrality` resolves the hosted Studio's REAL
-  module graph (esbuild metafile from demo/design-studio/main.ts, ~210 shared .ts files) and lints only
-  those — graph-scoped, so it widens with Phase 2 and never fires on extension-only code. Negative-tested.
-  It CANNOT catch rule 7 (behavioural). Roadmap §7.2 = 5-row hazard register, each with an owning phase:
-  H-1 design-studio.html hard-code (Phase 3) · H-2 unvendored Vosk (Phase 4) · H-3 "reload the extension"
-  copy (Phase 4) · H-4 popup module-scope getURL (legitimate, do NOT "fix") · H-5 port relay unreachable
-  by inspection — CONFIRM FOR REAL in Phase 2 (QA 3.9).
+  RULES 1/2/3/8 ARE MACHINE-CHECKED AND GATE THE BUILD: `npm run test:host-neutrality` resolves the
+  hosted Studio's REAL module graph (esbuild metafile from demo/design-studio/main.ts, ~210 shared .ts)
+  and lints only those — graph-scoped, so it widens with Phase 2 and never fires on extension-only code.
+  Negative-tested. It CANNOT catch rule 7 (behavioural). It is the FIRST STEP of demo's `build`
+  (test:host-neutrality && tsc --noEmit && vite build), so a regression fails `cd demo && npm run build`
+  before tsc/vite and BLOCKS THE PAGES DEPLOY (whose Build step is `npm run build`). CI-safe, no root
+  install: cwd-independent (root from import.meta) + esbuild resolved from demo/node_modules. Roadmap
+  §7.2 = 5-row hazard register, each with an owning phase: H-1 design-studio.html hard-code (Phase 3) ·
+  H-2 unvendored Vosk (Phase 4) · H-3 "reload the extension" copy (Phase 4) · H-4 popup module-scope
+  getURL (legitimate, do NOT "fix") · H-5 port relay unreachable — OPERATOR-CONFIRMED 2026-07-22 (QA 3.9
+  kept as a standing watch through Phase 2).
   QA TRAP: `vite preview` answers MISSING files with 200 text/html, so absent assets look fine.
   Judge by content-type or performance.getEntriesByType('resource'), never status code.
   Chronos gate = correctness: transcoder ACK 45s / MAX 90s includes WASM cold start → pre-warm FFmpeg.

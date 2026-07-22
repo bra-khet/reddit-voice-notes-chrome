@@ -1,6 +1,11 @@
 // v6.0 Track D — mechanical guard for the host-neutrality rules.
 //
-//   Run: node scripts/test-host-neutrality.mjs
+//   Run: node scripts/test-host-neutrality.mjs   (or `npm run test:host-neutrality`)
+//   Also runs automatically as the first step of the demo build (demo/package.json),
+//   so a host-classification regression fails `cd demo && npm run build` — and the
+//   Pages deploy — before tsc or vite. Reads its root from this file's location, and
+//   resolves esbuild from demo/node_modules, so it works from either cwd and in CI
+//   (where only the demo's dependencies are installed).
 //
 // WHY THIS EXISTS
 // ---------------
@@ -35,13 +40,41 @@
 // shim, not a lint. Treating a green run here as "host-neutral" would rebuild the
 // same false confidence that let those recordings vanish in silence.
 
-import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = resolve(process.cwd());
+/*
+ * Repo root, derived from this file's own location — NOT process.cwd(). The demo
+ * build invokes this guard as `node ../scripts/test-host-neutrality.mjs` with cwd
+ * set to demo/, so a cwd-relative root would resolve every path one level too deep.
+ * scripts/ lives directly under the repo root, so `..` is the root from anywhere.
+ */
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = 'demo/design-studio/main.ts';
+
+/*
+ * Resolve esbuild from demo/node_modules first. This guard is wired into the demo's
+ * build (demo/package.json), and CI installs ONLY demo's dependencies — root deps
+ * are never `npm ci`'d on the Pages runner. The demo is an esbuild/vite project, so
+ * its tree always has esbuild; the root tree only has it when someone ran a full
+ * `npm install` locally. Fall back to root, then to bare resolution, so a plain
+ * `node scripts/test-host-neutrality.mjs` at the root still works during dev.
+ */
+function loadEsbuild() {
+  for (const base of ['demo/package.json', 'package.json']) {
+    try {
+      return createRequire(resolve(root, base))('esbuild');
+    } catch {
+      // try the next candidate
+    }
+  }
+  return createRequire(import.meta.url)('esbuild');
+}
+
+const { build } = loadEsbuild();
 
 let checks = 0;
 const failures = [];

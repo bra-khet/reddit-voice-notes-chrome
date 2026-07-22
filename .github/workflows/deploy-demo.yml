@@ -51,6 +51,11 @@ jobs:
         run: npm ci
 
       - name: Build
+        # `npm run build` runs `test:host-neutrality` FIRST (see demo/package.json),
+        # so a host-classification regression fails the deploy here — before tsc or
+        # vite — instead of shipping a "works in the extension, dies on Pages"
+        # surprise. The guard resolves esbuild from demo/node_modules, which this
+        # job's `npm ci` already installed; no root install is needed.
         run: npm run build
 
       - name: Configure Pages

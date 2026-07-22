@@ -9,8 +9,9 @@
     "vendor:ffmpeg": "node scripts/copy-ffmpeg-core.mjs",
     "vendor:studio-assets": "node scripts/copy-studio-assets.mjs",
     "vendor": "npm run vendor:ffmpeg && npm run vendor:studio-assets",
+    "test:host-neutrality": "node ../scripts/test-host-neutrality.mjs",
     "prebuild": "npm run vendor",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run test:host-neutrality && tsc --noEmit && vite build",
     "preview": "vite preview",
     "smoke": "esbuild scripts/smoke.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/smoke.mjs && node node_modules/.cache/smoke.mjs",
     "postinstall": "npm run vendor"

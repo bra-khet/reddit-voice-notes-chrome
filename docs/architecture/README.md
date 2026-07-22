@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D Phases 0 + 1 complete, host-classification swept; release boundary pending** · **Map:** v3.26 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D Phases 0 + 1 complete, host-classification swept + guard gates the Pages build; release boundary pending** · **Map:** v3.26 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -13,7 +13,7 @@ This directory holds the **living, versioned** architecture index for the extens
 | File | Owns | Version |
 |------|------|---------|
 | [`architecture-map.md`](architecture-map.md) | Cross-cutting architecture: six contexts, current diagrams, first-class concerns, invariants I1–I23, preference publication/relay, recovery traces, v6 registry visuals, and Background Layout v2 | v3.26 |
-| [`extension-points.md`](extension-points.md) | Integration seam registry: Background Layout v2, audio-reactive visuals v20, Style/governor, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, trim, and the **Host adapter** (hosted Pages Studio, incl. the in-page pipeline relay, artifact-commit fallback, and machine-checked host-neutrality rules) | v1.42 |
+| [`extension-points.md`](extension-points.md) | Integration seam registry: Background Layout v2, audio-reactive visuals v20, Style/governor, preference storage v2, message pipelines v3, H13 storage rule, Studio/capture, browser/fallback composite, take/audio editing, splice, timeline, trim, and the **Host adapter** (hosted Pages Studio, incl. the in-page pipeline relay, artifact-commit fallback, and machine-checked host-neutrality rules that gate the Pages build) | v1.43 |
 | [`hardening-backlog.md`](hardening-backlog.md) | Ranked hardening: H8/H13/H14 fully closed (browser QA PASS); R18 prefs gate closed; H10 deferred | v2.13 |
 | `adr/` | [0001 WebCodecs backbone](adr/0001-webcodecs-encoding-backbone.md) · [0002 Take lifecycle storage sync](adr/0002-take-lifecycle-storage-sync.md) · [0003 Composite-stage elimination](adr/0003-composite-stage-elimination.md) · [0004 Audio decoupling](adr/0004-audio-decoupling-voice-reapply.md) · [0005 Partial re-bake splice](adr/0005-partial-rebake-splice.md) · [0006 Full-IDB preferences](adr/0006-user-preferences-full-idb.md) · [0007 Audio-reactive core](adr/0007-audio-reactive-visualizer-core.md) · [0008 Background layout](adr/0008-background-direct-manipulation-layout.md) · [0009 Registry-native Sparkle/Bokeh](adr/0009-registry-native-sparkle-bokeh.md) · [0010 Bubbles label / stable key](adr/0010-bubbles-label-stable-bokeh-id.md) | 0001–0010 Accepted |
 
@@ -78,7 +78,7 @@ This directory holds the **living, versioned** architecture index for the extens
 ```
 architecture-hardening resume.
 Repo: Reddit Voice Notes, branch feature/v6.0.0-hosted-design-studio from main@a4df9a1 @ package 5.11.0; v6 Tracks A/B/C merged, Track D Phase 0 LANDED (hosted Studio mounts), explicit release/tag pending.
-Map v3.26 · seams v1.42 · backlog v2.13 · ADRs 0001–0010 Accepted (0011 unallocated); six contexts unchanged.
+Map v3.26 · seams v1.43 · backlog v2.13 · ADRs 0001–0010 Accepted (0011 unallocated); six contexts unchanged.
 Track D = hosted Pages Design Studio: real src/ under a `browser` GLOBAL shim (WXT auto-import; zero explicit
 imports and zero module-scope browser.* in src/), offscreen module loaded in-page over a loopback bus. Second
 HOST, not a 7th context. Seam "Host adapter — v1"; canonical docs/v6.0.0-hosted-design-studio.md.
