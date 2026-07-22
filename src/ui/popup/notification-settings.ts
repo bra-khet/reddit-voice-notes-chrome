@@ -10,7 +10,7 @@ export function mountNotificationSettingsSection(root: HTMLElement): () => void 
         id: 'notifications-result-toasts',
         label: 'Show result toasts',
         description:
-          'Brief on-page messages after attach, download, cap stop, or errors while recording on Reddit.',
+          'Brief on-page messages after attach, download, cap stop, or errors while recording.',
         checked: true,
         disabled: true,
         comingSoon: true,

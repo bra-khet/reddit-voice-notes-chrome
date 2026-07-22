@@ -154,7 +154,10 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
   if (unsavedProfile) blockers.push('Save profile changes');
   if (unsavedStyle) blockers.push('Save custom style');
   if (subtitlesEnabled) {
-    if (!hasSessionRecording) blockers.push('Record a take (deck above, or on Reddit)');
+    // CHANGED: blocker names the Studio deck only.
+    // WHY: listing Reddit as a co-equal path in a "what's blocking you" list implied it was
+    // a required alternative; the deck is the primary and always-available route.
+    if (!hasSessionRecording) blockers.push('Record a take (deck above)');
     else if (transcriptDelivery === 'pending') blockers.push('Wait for subtitles');
     else if (transcriptDirty) blockers.push('Confirm subtitle edits');
     else if (transcriptDelivery === 'timeout') blockers.push('Type subtitles into the template, then bake');

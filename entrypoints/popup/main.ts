@@ -43,9 +43,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </a>
       </div>
     </header>
+    <!-- CHANGED: lead with the Design Studio instead of the Reddit comment box.
+         WHY: the Studio has been the primary, self-sufficient authoring surface since v5.4;
+         the old hint described the Reddit path as the only way in, which is no longer true. -->
     <p class="popup__hint">
-      Open a Reddit comment box with video comments enabled, then click the microphone
-      button next to the video icon.
+      Open the Design Studio to design, record, caption, and export a voice note.
+      To post one, use the microphone button in any comment box with video comments enabled.
     </p>
     <div data-clip-summary></div>
     <div data-audio-settings></div>

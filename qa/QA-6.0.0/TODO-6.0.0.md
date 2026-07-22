@@ -33,13 +33,16 @@
 - [x] Open `track-d/` (README + phase-staged checklist)
 - [x] Register the **Host adapter — v1** seam (extension-points v1.38) + map v3.23 (no new context)
 - [x] Flip workspace + root living-doc status to Track D open
+- [x] **D1 resolved** → the lightweight page is **Voice Lab** (hub card/CTA, `/studio/` `<title>`, nav wordmark, README, module headers; URL + path unchanged)
+- [x] **Chronos failure policy resolved** → Retry + **warned** click-through, never a hard block, never silent (roadmap §5.1)
+- [x] **User-facing "Reddit" copy policy landed** (roadmap §4.2 · rule mirrored in `docs/design-studio.md` §8.5) — removed only the *requirement* class; kept provenance / optional attach / real constraints / product name; hub + Studio now share Design → Capture → Polish; **zero identifier renames**; compile clean (2 pre-existing) · demo `tsc` clean · hub + Voice Lab rendered console-clean
 
 ### Implementation backlog (roadmap §6)
 
 - [ ] **Phase 0** — flip demo `@` alias to repo root (**verify Voice Studio green first**), `browser` shim skeleton, `demo/design-studio/` scaffold, widen deploy path filter to `src/**`, run checks C1/C2/C3
 - [ ] **Phase 1** — loopback bus + in-page pipeline host; record / transcode / take deck / download; reload recovery
 - [ ] **Phase 2** — Track A/B/C surfaces appear without per-surface fixes; browser-composite + FFmpeg fallback bake; **bake parity vs extension**
-- [ ] **Phase 3** — resolve **D1** naming, then three-destination hub + amber chronos gate + warm-cache path + hosted three-phase narrative
+- [ ] **Phase 3** — three-destination hub + amber chronos gate (failure policy §5.1) + warm-cache path + hosted no-extension narrative (naming and the shared workflow relabel already landed)
 - [ ] **Phase 4** — a11y/reduced-motion/error states, optional Vosk tier, living docs, production build + real Pages deploy
 
 ### Open checks (Phase 0)
@@ -50,16 +53,17 @@
 | **C2** | App bundle weight excluding vendored FFmpeg | ☐ |
 | **C3** | Live Pages `Cache-Control` headers → warm-path decision (Cache Storage vs HTTP cache) | ☐ |
 
-### Open decision
+### Deferred (owner-scheduled, before v6 ships)
 
-- [ ] **D1 — naming.** The hub says "Voice Studio" twice already; adding "Design Studio" makes three overlapping names. **Recommend renaming the lightweight page to "Voice Lab."** Blocks Phase 3 copy only.
+- [ ] **Tutorial refresh** — 86 "Reddit" + 5 "Voice Studio" mentions in the Field Guide, needing editorial judgment. **Settle first:** it exists as two near-identical copies (`docs/tutorial/tutorial.html` vs `demo/public/tutorial/index.html`, differing by one favicon line), so editing one silently staleness the other.
 
 ### Non-negotiables (Track D)
 
 - No new execution context, message family, IDB store, `rvn.*` key, or `USER_PREFS_VERSION` bump
 - No behavioural change to the extension Studio — only **additive, optional, default-off** option fields (`hostCapabilities`)
 - No second Design Studio implementation; the hosted surface compiles the real `src/`
-- Voice Studio + Field Guide green at **every** phase exit
+- Voice Lab + Field Guide green at **every** phase exit
+- Copy policy holds: never reintroduce "record on Reddit first"-class phrasing (`docs/design-studio.md` §8.5)
 - No Reddit injector/attach/composer on the hosted surface
 - Package stays `5.11.0`
 

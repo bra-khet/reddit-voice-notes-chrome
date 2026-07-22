@@ -166,7 +166,7 @@ export function renderSubtitleSegmentEditorFields(): string {
         when baking, so fill only the ones you need.
       </div>
       <div class="studio__transcript-preview" data-transcript-preview>
-        <p class="studio__transcript-empty">No transcript yet — record on Reddit first.</p>
+        <p class="studio__transcript-empty">No transcript yet — record a take first.</p>
       </div>
       <div class="popup__profile-actions studio__inline-actions studio__transcript-actions">
         <button type="button" class="popup__profile-btn popup__profile-btn--save" data-transcript-edit-open>
@@ -969,7 +969,7 @@ export function mountSubtitleSegmentEditor(
 
     if (!edited) {
       previewEl.innerHTML =
-        '<p class="studio__transcript-empty">No transcript yet — record on Reddit first.</p>';
+        '<p class="studio__transcript-empty">No transcript yet — record a take first.</p>';
       editOpenBtn.disabled = true;
       return;
     }

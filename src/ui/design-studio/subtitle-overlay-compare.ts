@@ -35,7 +35,7 @@ export async function renderSubtitleOverlayComparison(
 
   const base = await loadLastBaseMp4();
   if (!base?.blob) {
-    throw new Error('No base MP4 found — record a clip on Reddit first for drawtext comparison.');
+    throw new Error('No base MP4 found — record a clip first for drawtext comparison.');
   }
 
   const canvasOverlayPromise = renderSubtitleOverlayForPreview(segments, style, durationSeconds, {

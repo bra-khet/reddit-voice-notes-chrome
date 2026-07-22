@@ -168,8 +168,12 @@ export function renderSubtitleControlFields(): string {
                 </button>
               </div>
             </div>
+            <!-- CHANGED: capture-gating copy no longer names Reddit as the source/consumer.
+                 WHY: the Studio has recorded natively since v5.4 — telling the user the "Reddit
+                 recorder" owns the output contradicts the standalone flow. Reddit attach stays
+                 named only where it is a real, optional destination. -->
             <p class="popup__field-desc studio__bake-status" data-subtitle-bake-status>
-              Confirm your transcript edits, then bake. The Reddit recorder will pick up the captioned MP4.
+              Confirm your transcript edits, then bake. The captioned MP4 lands in the Current Take deck.
             </p>
             <div class="studio__bake-chronos" data-subtitle-bake-chronos hidden>
               <div
@@ -789,7 +793,7 @@ export function mountSubtitleControls(
       const delivery = segmentEditor.getTranscriptDeliveryStatus();
       if (delivery === 'pending') return 'Waiting for transcript — or add cues manually';
       if (delivery === 'timeout' || delivery === 'ready') return 'No transcript — add cues manually to bake';
-      if (!transcriptMatchesCurrentRecording()) return 'Record on Reddit first';
+      if (!transcriptMatchesCurrentRecording()) return 'Record a take first';
       return 'No transcript to bake';
     }
     const { dirty } = segmentEditor.getState();
@@ -808,8 +812,8 @@ export function mountSubtitleControls(
     if (label.startsWith('No transcript — add')) {
       return 'Vosk found no speech. Open the Subtitles panel to add cues manually, then bake.';
     }
-    if (label === 'Record on Reddit first') {
-      return 'Record a voice note on Reddit, then reopen Design Studio.';
+    if (label === 'Record a take first') {
+      return 'Record a voice note in the Current Take deck, then confirm your transcript.';
     }
     return label;
   }
@@ -901,7 +905,7 @@ export function mountSubtitleControls(
         },
       });
       bakeStatusEl.textContent =
-        'Subtitles baked. Switch to your Reddit tab and attach the MP4 from the recorder.';
+        'Subtitles baked. Download the MP4 from the Current Take deck — or attach it on Reddit.';
       await refreshSessionStatusCache();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1038,7 +1042,7 @@ export function mountSubtitleControls(
   function updateSourceCopy(): void {
     if (!lastSnapshot) {
       sourceEl.textContent =
-        'No transcript yet — record a voice note on Reddit, then reopen Design Studio. Transcription runs in parallel with export (~40 MB model).';
+        'No transcript yet — record a voice note to get one. Transcription runs in parallel with export (~40 MB model).';
       return;
     }
 

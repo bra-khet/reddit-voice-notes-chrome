@@ -1,5 +1,5 @@
 /**
- * Static Voice Studio — audition (Phase 3).
+ * Voice Lab — audition (Phase 3).
  *
  * Mirrors the extension Voice panel's audition flow: render the ACTIVE graph
  * through ffmpeg.wasm and play it back, with a shared Stop + a single player.

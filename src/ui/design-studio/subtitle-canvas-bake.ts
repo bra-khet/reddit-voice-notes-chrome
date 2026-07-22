@@ -191,7 +191,7 @@ export async function bakeWithCanvasOverlay(options: CanvasOverlayBakeOptions): 
   if (!baseBlob) {
     const base = await loadLastBaseMp4();
     if (!base?.blob) {
-      throw new Error('No base MP4 found — record a clip on Reddit first.');
+      throw new Error('No base MP4 found — record a clip first.');
     }
     baseBlob = base.blob;
     durationFromMeta = base.meta.durationSeconds;

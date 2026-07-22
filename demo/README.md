@@ -1,4 +1,4 @@
-# Static Voice Studio (`demo/`)
+# Voice Lab (`demo/`)
 
 A **static, install-free** GitHub Pages companion for
 [reddit-voice-notes-chrome](../). It replicates the Design Studio's **Voice

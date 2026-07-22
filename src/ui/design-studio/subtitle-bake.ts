@@ -243,7 +243,9 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
 
   const base = await loadLastBaseMp4();
   if (!base?.blob) {
-    throw new Error('No base MP4 found — record a clip on Reddit first.');
+    // CHANGED: drop "on Reddit" from the capture prerequisite.
+    // WHY: the Studio records natively (v5.4+), so naming Reddit here reads as a hard requirement.
+    throw new Error('No base MP4 found — record a clip first.');
   }
   // Capture the narrowed Blob once — TS widens `base.blob` back to nullable
   // inside the nested bake closures below.

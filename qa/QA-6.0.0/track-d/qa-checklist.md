@@ -16,15 +16,31 @@
 
 ## §0 Standing regression — run at EVERY phase exit
 
-The Voice Studio and Field Guide share the Pages origin and (after the Phase 0 alias flip) the same source tree. A Track D change must never be the reason either goes dark.
+The Voice Lab and Field Guide share the Pages origin and (after the Phase 0 alias flip) the same source tree. A Track D change must never be the reason either goes dark.
 
 | # | Item | Result |
 |---|---|---|
 | 0.1 | `cd demo && npm run build` completes clean (`tsc --noEmit` + `vite build`) | ☐ |
 | 0.2 | Field Guide loads at `/tutorial/`; no console errors | ☐ |
-| 0.3 | Voice Studio loads at `/studio/`; chips render; composer responds | ☐ |
-| 0.4 | Voice Studio audition renders through the active graph (against a **build**) | ☐ |
+| 0.3 | Voice Lab loads at `/studio/`; chips render; composer responds | ☐ |
+| 0.4 | Voice Lab audition renders through the active graph (against a **build**) | ☐ |
 | 0.5 | `rvn-voice-character-v1` copy/paste round-trips with the extension | ☐ |
+
+---
+
+## §0b Copy policy regression (roadmap §4.2 · `docs/design-studio.md` §8.5)
+
+Landed 2026-07-22. Re-check whenever Studio, popup, or hub copy changes — the old phrasing is easy to reintroduce by muscle memory.
+
+| # | Item | Result |
+|---|---|---|
+| 0b.1 | No surface says Reddit is needed to record, caption, bake, or download | ■ (2026-07-22) |
+| 0b.2 | Provenance copy survives — a Reddit-sourced take still reads "Live on the Reddit recorder…" | ■ (2026-07-22) |
+| 0b.3 | Attach copy survives and stays ordered **after** Download | ■ (2026-07-22) |
+| 0b.4 | Hub + Studio agree on Design → Capture → Polish | ■ (2026-07-22) |
+| 0b.5 | Zero identifier renames (`takeSource:'reddit'`, `attachToReddit`, `activateRedditTab`, `data-wf-switch-reddit`) | ■ (2026-07-22) |
+| 0b.6 | `npm run compile` shows only the two known pre-existing subtitle diagnostics | ■ (2026-07-22) |
+| 0b.7 | Real-extension eyeball of the changed Studio/popup strings | ☐ deferred to the next extension QA pass |
 
 ---
 
@@ -91,15 +107,16 @@ The Voice Studio and Field Guide share the Pages origin and (after the Phase 0 a
 
 | # | Item | Result |
 |---|---|---|
-| 4.1 | **D1 naming resolved** before copy was written | ☐ |
+| 4.1 | Naming reads correctly end to end: Voice Lab (light) vs Design Studio (full) — no stray "Voice Studio" | ☐ |
 | 4.2 | Three destinations present; Design Studio is visually primary | ☐ |
 | 4.3 | Card copy states the real first-load cost and the no-Reddit-posting limitation | ☐ |
 | 4.4 | Cold cache — stages advance on real milestones, with byte progress on the engine fetch | ☐ |
 | 4.5 | Warm cache — gate is brief or skipped | ☐ |
-| 4.6 | Failure path — throttled/blocked fetch surfaces an error with **Retry** and **Open anyway** | ☐ |
-| 4.7 | Hosted three-phase narrative replaces the Reddit-attach story; no dead Reddit CTA | ☐ |
-| 4.8 | **Timeout safety** — first bake after a gated cold load completes inside `ABSOLUTE_MAX_MS` | ☐ |
-| 4.9 | Deep link straight to `/design-studio/` on a cold cache degrades honestly (no hang) | ☐ |
+| 4.6 | Failure path — throttled/blocked fetch surfaces an error with **Retry** and **Open anyway**; the warning sits **adjacent to the button** (not a dismissible toast) and names the consequence, per §5.1 | ☐ |
+| 4.7 | Click-through actually proceeds — the user is never trapped on the hub | ☐ |
+| 4.8 | Hosted narrative replaces the attach story; `hostCapabilities.redditAttach:false` suppresses the CTA rather than leaving a dead button | ☐ |
+| 4.9 | **Timeout safety** — first bake after a gated cold load completes inside `ABSOLUTE_MAX_MS` | ☐ |
+| 4.10 | Deep link straight to `/design-studio/` on a cold cache degrades honestly (no hang) — the un-warmed state must be visible without ever passing the gate (§5.1) | ☐ |
 
 ---
 

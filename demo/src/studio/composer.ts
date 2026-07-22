@@ -1,5 +1,5 @@
 /**
- * Static Voice Studio — Custom voice composer.
+ * Voice Lab — Custom voice composer.
  *
  * A *controlled* StylizedGraph editor: the seven primitive categories as
  * accordions, a curated "core" of high-impact effects with an "Advanced" reveal

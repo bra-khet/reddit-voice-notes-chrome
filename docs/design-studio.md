@@ -626,6 +626,20 @@ Styles live in `entrypoints/design-studio/style.css` (+ shared `entrypoints/popu
 
 Chips are HTML fragments built in `studio-section-summaries.ts` — not plain text. A refresh may change markup but must preserve **information content** (style name, swatch, alignment, voice summary, subtitle on/off + position).
 
+### 8.5 Saying "Reddit" in user-facing copy (policy, 2026-07-22)
+
+Since v5.4 the Studio records natively, so copy that presents Reddit as a *precondition* is factually wrong. Identifiers are untouched — this is a copy rule only. Canonical statement and rationale: [`v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) §4.2.
+
+| Class | Rule | Example |
+|---|---|---|
+| **Requirement** | **Never.** Reddit is not needed to record, caption, bake, or download | ~~"record a clip on Reddit first"~~ → "record a clip first" |
+| **Provenance** | **Keep** — it states where a take actually came from | `take.source === 'reddit'` → "Live on the Reddit recorder…" |
+| **Optional destination** | **Keep**, framed after Download | "download from the deck or attach on Reddit" |
+| **Reddit-specific constraint** | **Keep** — it explains a real limit | "Reddit video comments allow up to about 3:00" |
+| **Product name** | **Keep** — "Reddit Voice Notes" is the name | popup title, prefs confirm |
+
+Never rename identifiers to satisfy this: `takeSource:'reddit'`, `attachToReddit`, `activateRedditTab`, `data-wf-switch-reddit`, `RecorderHostContext`, message constants, storage keys, and CSS classes all stay.
+
 ---
 
 ## 9. Messaging & external integration

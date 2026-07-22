@@ -38,15 +38,22 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current br
 
 **Track C status:** ✅ popup-only Cividis skin + elevated restart caution · ✅ agent gate PASS · ✅ merged · §8 real-extension eyeball residual optional.
 
-**Track D status (OPEN):** ✅ branch cut · ✅ design doc redrafted against the verified tree (the draft's `StudioHost` interface was wrong — see its §0) · ✅ `track-d/` QA workspace · ✅ seam registered (extension points **v1.38**, map **v3.23**) · ⬜ **Phase 0 not started**.
+**Track D status (OPEN):** ✅ branch cut · ✅ design doc redrafted against the verified tree (the draft's `StudioHost` interface was wrong — see its §0) · ✅ `track-d/` QA workspace · ✅ seam registered (extension points **v1.38**, map **v3.23**) · ✅ **D1 + chronos failure policy resolved; user-facing "Reddit" copy policy landed** · ⬜ **Phase 0 not started**.
 
-The seam is **one `browser` global shim**, not an interface: `browser` is a WXT auto-import with zero explicit imports, and no `src/` module evaluates `browser.*` at module scope — so a first-import side-effect shim covers all 15 members with **zero** extension-source edits. Record and the default browser-composite bake are already `browser.*`-free; transcode/burn-in/transcribe reuse `entrypoints/offscreen/main.ts` **in-page** over a loopback bus. **Phase 0's first act** is flipping the demo `@` alias to the repo root and confirming the Voice Studio is still green *before* new code. **Open:** D1 naming (recommend "Voice Lab") blocks Phase 3 copy; checks C1/C2/C3 in Phase 0.
+The seam is **one `browser` global shim**, not an interface: `browser` is a WXT auto-import with zero explicit imports, and no `src/` module evaluates `browser.*` at module scope — so a first-import side-effect shim covers all 15 members with **zero** extension-source edits. Record and the default browser-composite bake are already `browser.*`-free; transcode/burn-in/transcribe reuse `entrypoints/offscreen/main.ts` **in-page** over a loopback bus. **Phase 0's first act** is flipping the demo `@` alias to the repo root and confirming the Voice Lab is still green *before* new code. **Open:** checks C1/C2/C3 in Phase 0.
+
+**Landed 2026-07-22 — naming + copy (presentational only, zero identifier renames):**
+
+- **D1:** the lightweight Pages page is now **Voice Lab** (hub card/CTA, `<title>`, nav wordmark, README, module headers). The `/studio/` URL and `demo/src/studio/` path are unchanged.
+- **Chronos failure policy:** Retry + **Open anyway** click-through with an adjacent warning naming the consequence ("baking may fail or time out"). Never a hard block, never silent — roadmap §5.1.
+- **User-facing "Reddit" copy:** removed only where Reddit was presented as a **requirement** (false since v5.4 Studio-native capture). **Kept** provenance (`take.source === 'reddit'`), optional attach (after Download), Reddit-specific constraints, and the product name. Hub + Studio now share **Design → Capture → Polish**. Rule: [`docs/design-studio.md`](docs/design-studio.md) §8.5 · rationale: [roadmap §4.2](docs/v6.0.0-hosted-design-studio.md). Verified: `npm run compile` only the 2 pre-existing subtitle diagnostics · demo `tsc --noEmit` clean · hub + Voice Lab rendered console-clean.
+- **Deferred:** Field Guide refresh (86 "Reddit" + 5 "Voice Studio"). **Settle first** — the tutorial exists as two near-identical copies (`docs/tutorial/tutorial.html` vs `demo/public/tutorial/index.html`, differing by one favicon line).
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklists [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md) · [`track-d/qa-checklist.md`](qa/QA-6.0.0/track-d/qa-checklist.md)
 
 **NEXT:** Track D Phase 0 · then the explicit v6.0.0 package/version + release-notes/tag decision · final release build · user-owned push of `main`/tag · optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint.
 
-**Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0. **Track D adds:** no new execution context/message family/store; no behavioural change to the extension Studio (additive optional options only); Voice Studio + Field Guide green at every phase exit.
+**Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0. **Track D adds:** no new execution context/message family/store; no behavioural change to the extension Studio (additive optional options only); Voice Lab + Field Guide green at every phase exit.
 
 Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 

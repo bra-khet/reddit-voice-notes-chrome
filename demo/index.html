@@ -50,22 +50,26 @@
       <section class="hub__workflow" aria-labelledby="hub-workflow-h">
         <p class="hub__section-eyebrow" id="hub-workflow-h">3-Phase Creative Workflow</p>
         <div class="hub__phaserail">
+          <!-- CHANGED: phase rail now mirrors the Studio's own Design / Capture / Polish & Bake
+               labels instead of naming Reddit as phase 02.
+               WHY: the Design Studio has recorded natively since v5.4, so "On Reddit" described a
+               requirement that no longer exists. Posting to Reddit is the optional last step. -->
           <article class="hub__phasecard hub__phasecard--studio">
             <span class="hub__phase-n">01 · Design</span>
-            <h2 class="hub__phase-t">Voice Studio</h2>
+            <h2 class="hub__phase-t">Design Studio</h2>
             <p class="hub__phase-d">Shape pitch, timbre, room presence, and texture. Hear every change in the live preview before you record.</p>
           </article>
           <span class="hub__phase-arrow" aria-hidden="true">→</span>
           <article class="hub__phasecard hub__phasecard--reddit">
             <span class="hub__phase-n">02 · Capture</span>
-            <h2 class="hub__phase-t">On Reddit</h2>
-            <p class="hub__phase-d">Record your note on any thread. The extension captures and processes audio entirely on-device.</p>
+            <h2 class="hub__phase-t">Record</h2>
+            <p class="hub__phase-d">Record your note right where you designed it — or on the spot in any thread. Audio is captured and processed entirely on-device.</p>
           </article>
           <span class="hub__phase-arrow" aria-hidden="true">→</span>
           <article class="hub__phasecard hub__phasecard--studio">
             <span class="hub__phase-n">03 · Polish</span>
-            <h2 class="hub__phase-t">Back in Studio</h2>
-            <p class="hub__phase-d">Fine-tune the final render. Bake to MP4 and post — nothing leaves your machine until you choose to share.</p>
+            <h2 class="hub__phase-t">Bake &amp; Share</h2>
+            <p class="hub__phase-d">Fine-tune the final render and bake to MP4. Download it, or attach it to a comment — nothing leaves your machine until you choose to share.</p>
           </article>
         </div>
       </section>
@@ -106,12 +110,16 @@
                 <path d="M6 8v8M10 5v14M14 9v6M18 7v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
               <div>
-                <h2 class="hub__dest-name">Voice Studio</h2>
+                <!-- CHANGED (D1): "Voice Studio" → "Voice Lab".
+                     WHY: the hub was about to carry three overlapping "Studio" names once the full
+                     hosted Design Studio lands. "Lab" names this page's real charter — a bounded
+                     experiment with one panel. The /studio/ URL is unchanged, so no link breaks. -->
+                <h2 class="hub__dest-name">Voice Lab</h2>
                 <p class="hub__dest-tag">No-install demo</p>
               </div>
             </header>
             <p class="hub__dest-desc">
-              The extension's Design Studio Voice panel, live in your browser.
+              The Design Studio's Voice panel, live in your browser.
               Shape a voice, audition it on a sample clip or your own mic,
               then copy the profile straight into the extension.
             </p>
@@ -120,7 +128,7 @@
               <li>Live FFmpeg render preview</li>
               <li>Copy / paste voice profiles</li>
             </ul>
-            <a class="hub__dest-cta hub__dest-cta--primary" href="studio/">Open Voice Studio →</a>
+            <a class="hub__dest-cta hub__dest-cta--primary" href="studio/">Open Voice Lab →</a>
           </article>
 
         </div>

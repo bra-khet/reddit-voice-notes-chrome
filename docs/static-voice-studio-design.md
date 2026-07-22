@@ -22,9 +22,11 @@ This file wins on the topic of the public static Voice Studio companion page.
 >    `@` from `demo/` to the **repo root**, so the demo compiles the real extension source. All 12 ported
 >    modules were verified byte-identical on 2026-07-22, which is what makes the flip safe — and it
 >    **retires** the "re-copy the files after a DSP change" chore described in §4 and §10.
-> 3. **Naming.** Decision D1 in the Track D roadmap §4.1 recommends renaming this page's public label from
->    "Voice Studio" to **"Voice Lab"**, because the hub would otherwise carry three overlapping "Studio"
->    names. Unresolved at time of writing; the `/studio/` URL is expected to stay either way.
+> 3. **Naming — RESOLVED 2026-07-22.** This page's public label is now **"Voice Lab"** (Track D decision
+>    D1). Changed: the hub destination card + CTA, this page's `<title>`, the nav-banner wordmark,
+>    `demo/README.md`, and the module header comments. **Unchanged: the `/studio/` URL and the
+>    `demo/src/studio/` path** — so every link in this document still resolves. Read "Voice Studio"
+>    below as the historical name of the same page.
 >
 > Everything else here — the DSP fidelity contract (§4.1), the copy-paste envelope (§4.2), the deploy
 > mechanics (§9), and the `vite dev` audition caveat (§8) — remains canonical and applies to Track D too.

@@ -180,11 +180,14 @@ export function renderVoiceControlFields(): string {
             type="button"
             class="popup__profile-btn popup__profile-btn--save"
             data-voice-test
-            aria-label="Test the current voice character on your last recording from Reddit"
+            aria-label="Test the current voice character on your last saved recording"
           >
             Last Voice Note
           </button>
-          <p class="studio__voice-test-cap" data-voice-test-cap>Stored recording from Reddit</p>
+          <!-- CHANGED: the audition source is source-agnostic in the copy.
+               WHY: the stored recording can come from the Studio deck or a Reddit capture;
+               naming Reddit was both stale and, for Studio-native takes, simply wrong. -->
+          <p class="studio__voice-test-cap" data-voice-test-cap>Last saved recording</p>
         </div>
         <!-- Shared voice glyph: visual cue that both buttons audition the same voice.
              Inlined (not <img>) so stroke="currentColor" inherits the panel color. -->
@@ -523,7 +526,7 @@ export function mountVoiceControls(
     if (!lastRecording) {
       // The storage-safety rule (no mic capture is ever stored) pinches hardest for
       // newcomers with no saved take — so frame it as a path forward, not a dead end.
-      sourceEl.textContent = `No saved recording yet — record a voice note on Reddit (up to ${formatRecordingCapClock()}) to use “Last Voice Note”, or try “One-Time Test” to audition with your mic right now.`;
+      sourceEl.textContent = `No saved recording yet — record a voice note (up to ${formatRecordingCapClock()}) to use “Last Voice Note”, or try “One-Time Test” to audition with your mic right now.`;
       return;
     }
 
@@ -819,7 +822,7 @@ export function mountVoiceControls(
     if (rendering) return;
     void (async () => {
       if (!lastRecording) {
-        setStatus('No saved recording yet — record a voice note on Reddit, or use One-Time Test to audition with your mic now.');
+        setStatus('No saved recording yet — record a voice note, or use One-Time Test to audition with your mic now.');
         return;
       }
 

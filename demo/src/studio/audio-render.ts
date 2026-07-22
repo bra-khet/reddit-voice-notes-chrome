@@ -1,5 +1,5 @@
 /**
- * Static Voice Studio — ffmpeg.wasm render path.
+ * Voice Lab — ffmpeg.wasm render path.
  *
  * The fidelity heart of the studio: it builds the FFmpeg command from the SAME
  * `buildStylizedGraph` result the extension's `process-audio.ts` builds, writes

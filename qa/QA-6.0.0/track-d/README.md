@@ -11,7 +11,7 @@ Track D ships the full Design Studio as a static GitHub Pages surface via a **`b
 Unlike Tracks A/B/C, most of Track D's risk is **not** in new product behaviour — it is in the host adapter faithfully impersonating the extension platform. A shim gap usually presents as *subtly wrong behaviour*, not an error (roadmap §8 R3). QA is therefore weighted toward:
 
 1. **Shim fidelity** — especially `storage.onChanged` firing for the writer's own writes, which the take lifecycle (ADR-0002 / I9) and the preference coordinator (I21) both depend on.
-2. **Standing regression** — the Voice Studio and Field Guide must be green at **every phase exit**, not only at the end. They share the Pages origin and (after the Phase 0 alias flip) the same source tree.
+2. **Standing regression** — the Voice Lab and Field Guide must be green at **every phase exit**, not only at the end. They share the Pages origin and (after the Phase 0 alias flip) the same source tree.
 3. **Timeout safety** — `transcoder.ts` allows 45 s ACK / 90 s absolute *including WASM cold start*, so the chronos gate's pre-warm is a correctness gate, not polish.
 4. **Parity, not pixel-identity** — the hosted Studio is feature-complete and tracks `main`; it is not held to moment-to-moment visual identity with the extension. Bake output *is* held to parity.
 
@@ -19,10 +19,10 @@ Unlike Tracks A/B/C, most of Track D's risk is **not** in new product behaviour 
 
 | Phase | Gate | Status |
 |---|---|---|
-| 0 — alias flip + shim + scaffold | Voice Studio green **after the flip, before new code**; demo build clean; Studio mounts with no console errors; checks C1/C2/C3 run | ☐ |
+| 0 — alias flip + shim + scaffold | Voice Lab green **after the flip, before new code**; demo build clean; Studio mounts with no console errors; checks C1/C2/C3 run | ☐ |
 | 1 — record + take lifecycle | Record → base MP4 → download twice in a session; reload recovery | ☐ |
 | 2 — visual system + bake | Track A/B/C surfaces appear without per-surface fixes; bake parity vs extension on an identical profile | ☐ |
-| 3 — hub + chronos gate | D1 naming resolved first; cold + warm runs observed; failure/retry under throttling | ☐ |
+| 3 — hub + chronos gate | Cold + warm runs observed; failure path shows Retry **and a warned Open anyway** under throttling | ☐ |
 | 4 — polish / a11y / docs | Production build + real Pages deploy verified from a clean profile | ☐ |
 
 ## Open checks (carried into Phase 0)
@@ -33,9 +33,15 @@ Unlike Tracks A/B/C, most of Track D's risk is **not** in new product behaviour 
 | **C2** | App bundle weight (excluding vendored FFmpeg) | Completes the first-load budget in roadmap §3.5 |
 | **C3** | Actual `Cache-Control` on the live Pages origin | If `max-age=600` holds, "later visits are instant" needs a Cache Storage layer, not the HTTP cache |
 
-## Open decision
+## Resolved decisions
 
-**D1 — naming.** `demo/index.html` already uses "Voice Studio" twice (phase card 01 and the lightweight destination). Recommendation: rename the lightweight page to **Voice Lab**. **Blocks Phase 3 copy; Phases 0–2 are unaffected.** Full options in roadmap §4.1.
+- **D1 — naming · RESOLVED 2026-07-22.** The lightweight page is **Voice Lab**. The `/studio/` URL and `demo/src/studio/` path are unchanged, so no link or route work is needed. Roadmap §4.1.
+- **Chronos failure policy · RESOLVED 2026-07-22.** Click-through is allowed: **Retry** plus **Open anyway** with an adjacent warning naming the consequence ("baking may fail or time out"). Never a hard block, never silent. Roadmap §5.1 — QA covers it at §4.6.
+- **User-facing "Reddit" copy policy · LANDED 2026-07-22.** Only the *requirement* class was removed; provenance, optional attach, Reddit-specific constraints, and the product name stay. Zero identifier renames. Roadmap §4.2, rule mirrored in `docs/design-studio.md` §8.5.
+
+## Deferred
+
+**Tutorial refresh** — 86 "Reddit" and 5 "Voice Studio" mentions, owner-scheduled before v6 ships. It exists as **two near-identical copies** (`docs/tutorial/tutorial.html` and `demo/public/tutorial/index.html`, differing by one favicon line); settle that duplication before editing either. Roadmap §4.3.
 
 ## Evidence layout
 

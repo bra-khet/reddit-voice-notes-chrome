@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
 /*
- * Static Voice Studio — Vite config (Phase 0).
+ * Voice Lab — Vite config (Phase 0).
  *
  * Self-contained mini-project; 100% separate from the WXT extension at the repo
  * root. Builds the orientation hub (index.html) + the studio (studio/index.html)

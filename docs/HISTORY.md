@@ -76,7 +76,7 @@ Living documents carry a short **Archive Notice** and link into the archive only
 | Engineering principles & save pathways | [`engineering-principles.md`](engineering-principles.md) |
 | Voice DSP (Dulcet II) | [`v5-development-roadmap.md`](v5-development-roadmap.md), [`dsp-foundation-design.md`](dsp-foundation-design.md) |
 | Latest ship (preferences full-IDB migration) | [`release-notes-v5.11.0.md`](release-notes-v5.11.0.md), [`v5.11.0-prefs-storage-refactor.md`](v5.11.0-prefs-storage-refactor.md) |
-| Hosted Pages surfaces (hub, Voice Studio, hosted Design Studio) | [`static-voice-studio-design.md`](static-voice-studio-design.md), [`v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) |
+| Hosted Pages surfaces (hub, Voice Lab, hosted Design Studio) | [`static-voice-studio-design.md`](static-voice-studio-design.md), [`v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) |
 | Open issues / future ideas | [`deferred-issues.md`](deferred-issues.md), [`future-ideas.md`](future-ideas.md) |
 | Bug history (`BUG-###`) | [`bug-archive.md`](bug-archive.md) |
 

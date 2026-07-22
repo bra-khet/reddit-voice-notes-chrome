@@ -1,5 +1,5 @@
 /**
- * Static Voice Studio — the voice authoring panel.
+ * Voice Lab — the voice authoring panel.
  *
  * Mirrors the extension's `voice-controls.ts` panel (enable, character chips,
  * intensity/Turbo, the composer, live summary) over the verbatim-ported voice

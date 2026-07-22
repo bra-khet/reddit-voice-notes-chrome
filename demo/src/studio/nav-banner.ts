@@ -1,5 +1,5 @@
 /**
- * Static Voice Studio — themed navigation banner.
+ * Voice Lab — themed navigation banner.
  *
  * Built from existing Design Studio v4 vector assets (amber/indigo themed):
  *   panels/nav-chip-9slice.svg ............ back-chip 9-slice frame (border-image)
@@ -34,7 +34,7 @@ export function mountNavBanner(host: HTMLElement): void {
     <span class="nav-banner__wordmark">
       <img src="${asset(`${ASSETS}/icons/mic-wave-32.svg`)}"
            alt="" width="26" height="26" aria-hidden="true" />
-      <span class="nav-banner__wordmark-text">Static Voice Studio</span>
+      <span class="nav-banner__wordmark-text">Voice Lab</span>
     </span>
 
     <span class="nav-banner__status" title="Static demo — no extension required">
