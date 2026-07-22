@@ -1,11 +1,12 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v3.22 · **Reflects branch/tag:** `main@7d1c649` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track B full QA PASS** · **Updated:** 2026-07-20
+**Version:** v3.23 · **Reflects branch/tag:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D open** · **Updated:** 2026-07-22
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
 
 ### Changelog
+- `v3.23` (2026-07-22) — **Track D opened; still six contexts.** The planned GitHub Pages "hosted Design Studio" runs the **real** `src/` Studio under a web **host adapter**, so it adds a second *host* for existing code rather than a seventh execution context, message family, IDB store, `rvn.*` key, or preference version. Verified basis: `browser` is a WXT auto-import with **zero** explicit imports across `src/`+`entrypoints/`, and **zero** modules evaluate `browser.*` at module scope — so a `globalThis.browser` shim installed as the web entry's first import suffices, with no extension-source edits beyond an additive, optional, default-off `MountClipStudioOptions.hostCapabilities`. `src/recorder/*`, `src/composite/*`, `src/encoding/*` and `studio-recorder.ts` are already `browser.*`-free, so record and the default browser-composite bake are host-neutral today; the transcode/burn-in/transcribe families are reused by loading `entrypoints/offscreen/main.ts` **in-page** over a loopback bus rather than reimplemented (preserving I5, cancel, and the progress contract). No invariant added or amended — I1/I3/I22/I23 hold unchanged because the hosted surface runs the same resolve/render code. Extension points **v1.38** (Host adapter — v1, registered but unimplemented); ADR-0011 remains unallocated (trigger: the host boundary making policy decisions rather than relaying).
 - `v3.22` (2026-07-20) — **Background Layout v2 / Track B merge closeout:** normalized additive `UserBackgroundLayout` now carries continuous position/scale, dim/blur/blend/solid-plate/Holo/GIF/safe-text fields through one preference → Studio preview/direct-manipulation → recorder hot-swap/relay → record-time Canvas 2D draw seam. `computeImageDrawOffset` prefers normalized `customPosition` with discrete fallback; the personal slot paints plate → treated image → dim. Presets, DOM-only crop/thirds, transient Theme-only compare, and page-local A/B add no context/message/store/signal/layer. Added I23 and refreshed Trace C/confidence after full operator checklist PASS, focused 89/89, build PASS, and blur+GIF 23/29 MiB. Feature merged to `main@7d1c649`; package and `USER_PREFS_VERSION` intentionally unchanged. Extension points **v1.37**; ADR-0008 Accepted/final.
 - `v3.21` (2026-07-14) — **v6 Phase 4 Style Control Center + shared performance governor:** replaced the live Bar Style panel/summary/guard IDs with `style`; added registry-driven 6-spectrum, 7-atmosphere (+Clean), and 7-accent discovery; shared tuning/palettes/band weights/contextual layout/readability; and reused existing `DesignOverrides` + debounced custom-style persistence. A pure `maxElements` estimate defines Comfortable ≤560, Elevated ≤980, and Guarded >980; Guarded suspends the costliest selected accent in the actual record-time renderer without rewriting the saved ordered list. Identity hot-swaps reset bounded per-canvas state; caption-safe dim paints after visual layers and below captions. New focused tests 6/6, v6 total 226/226, production build PASS, and responsive production-fixture browser QA PASS (desktop/mobile containment, max-three, ARIA/keyboard, governor transitions); QA found/fixed CSS Grid min-content overflow. I22 remains Medium until live capture/FPS and real heavy 120-second artifacts land. No new context/message/store/signal/dependency/compositing layer/preference version/ADR; ADR-0007 already owns the governor direction. Extension-points **v1.35**.
 - `v3.20` (2026-07-14) — **v6 Phase 3 Particle Burst / curated visual catalog complete:** registered the final stackable ID as an onset-only field of 14–28 comet/diamond shards per bloom. The existing lifetime emitter caps three overlapping loads at 42–84 particles; three fixed effect-local shock shells add two rings and a core flash for ≤261 paint elements. Explicit transients and a consumer-local positive spectral-flux fallback trigger linear dominant-band fans, centered novas, or radial rim cones; steady/falling spectra stay quiet behind a bounded cooldown. Capture silence is empty, preview deterministic, High Contrast hard/no-blur, and reduced motion fixed. Node 15/15; focused v6 regressions 220/220; production build PASS and recorder + Studio bundles contain Particle Burst. ADR-0007 owns the unchanged ordered record-time seam; no shared onset/event/burst framework, preference/UI/context/message/store/signal/dependency/compositing layer/bake renderer/scene graph/governor/ADR. Extension-points **v1.34**; browser visual/FPS and real heavy three-stack artifact evidence remain Phase 4 gates.
@@ -63,6 +64,8 @@ Verified against `wxt.config.ts` `manifest.content_security_policy` (2026-07-06 
 | Popup | ext page | no | yes | quick settings | `entrypoints/popup/` |
 
 **Sandbox CSP detail (BUG-010/011/013):** `sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; worker-src blob: 'self'; child-src blob: 'self'` — Vosk needs `unsafe-eval` for Emscripten and `worker-src blob:` for blob workers. Full CSP archaeology: `docs/transcription-architecture.md`.
+
+**Hosted-surface note (v6 Track D, planned):** GitHub Pages will host the full Design Studio at `/design-studio/` by compiling **this same source** under a `browser` global shim (`docs/v6.0.0-hosted-design-studio.md`; seam registered in `extension-points.md` → *Host adapter — v1*). That is a second **host** for the Design Studio context, **not a seventh context** — the table above is unchanged. Its `chrome.*` column would read "shimmed", its origin `https://bra-khet.github.io` (browser-enforced isolation from extension storage), and its CSP is the page default. It has no background SW and no offscreen document: the offscreen module is loaded in-page over a loopback message bus.
 
 **v5.9–v5.10 note:** no execution context has been added since v5.4.0. Studio-native recording runs `VoiceRecorderSession` on the extension page; transcode/transcribe still cross the existing background→offscreen boundary, while browser composite, partial splice, voice re-apply orchestration, and trim apply (MP4 + raw WebM legs) stay in the Studio page. The WebCodecs encode loop remains worker-portable but page-local (ADR-0001).
 
@@ -523,8 +526,10 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 | `docs/v5.10.0-raw-trim-apply-roadmap.md` | **Raw-WebM trim as-built (v5.10.0):** Phase 0 closed the storage-API-name gap (`saveLastRecording`, not the planning draft's `saveLastBaseRecording`) and the H13 posture (exported bounds pre-check); §10 is the as-built log, §7 the real-browser QA gate |
 | `docs/v5.11.0-prefs-storage-refactor.md` | **Full-IDB preferences implementation:** migration, relay, Export/Import, size telemetry, risk and browser QA matrix |
 | `docs/v6.0.0-background-panel-refactor.md` | Background Layout v2 as-built roadmap + full QA/merge closeout |
-| `docs/architecture/adr/` | ADR-0001–0010 Accepted; ADR-0008 owns Background Layout v2 |
-| `docs/architecture/extension-points.md` | Seam registry (v1.37) |
+| `docs/v6.0.0-hosted-design-studio.md` | **Track D (open):** hosted Pages Design Studio — the `browser` global shim, in-page pipeline host, alias/asset/first-load budget, chronos gate, hub positioning |
+| `docs/static-voice-studio-design.md` | The existing Pages demo + GitHub Actions deploy pattern Track D extends (its hub / nav-banner WIP markers are Track D-owned from here) |
+| `docs/architecture/adr/` | ADR-0001–0010 Accepted; ADR-0008 owns Background Layout v2; **0011 next** |
+| `docs/architecture/extension-points.md` | Seam registry (v1.38) |
 | `docs/architecture/hardening-backlog.md` | Ranked hardening items + risk register (v2.13) |
 | `src/messaging/types.ts` | Wire registry — authoritative message constants |
 | `src/session/take-manager.ts` | Take lifecycle contract (header doc is authoritative) |
@@ -535,9 +540,13 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 
 ```
 architecture-hardening resume.
-Repo: Reddit Voice Notes (Chrome MV3/WXT), main@7d1c649 @ package 5.11.0; v6 Tracks A/B/C merged, explicit release/tag pending.
-Map v3.22 · Style/governor + Background Layout v2 integrated; Track B full operator checklist PASS, focused 89/89, blur/GIF 23/29 MiB.
+Repo: Reddit Voice Notes (Chrome MV3/WXT), branch feature/v6.0.0-hosted-design-studio from main@a4df9a1 @ package 5.11.0; v6 Tracks A/B/C merged, Track D open, explicit release/tag pending.
+Map v3.23 · Style/governor + Background Layout v2 integrated; Track B full operator checklist PASS, focused 89/89, blur/GIF 23/29 MiB.
 Contexts (6): content / background SW / offscreen FFmpeg / Vosk sandbox / Design Studio / popup.
+Track D adds a second HOST for the Design Studio context (GitHub Pages), not a 7th context: real src/ under a
+`browser` global shim (WXT auto-import, zero explicit imports, zero module-scope browser.* in src/), offscreen
+module loaded in-page over a loopback bus. No new message/store/key/preference version. Seam: extension-points
+"Host adapter — v1". Canonical: docs/v6.0.0-hosted-design-studio.md.
 Spine:
   preview=bake: AudioVizFrame feeds capture + synthetic preview (I22); background layout is captured at record time (I23); timeline frame-snap I17; trim preview=APPLY I18.
   composition: bg→overlay→bars in record-time canvas; subtitles post-base. No v6 bake layer/message/store.
@@ -548,7 +557,7 @@ Spine:
 Audio visual seam: src/theme/audio-reactive; six core spectra plus seven overlays. Ordered stackables are Rising Ember (16–44 cinders / ≤132), Electric Arc (6–18 corona streamers / ≤300), sustained Lightning (14–30-point channel + ≤5 branches / ≤158), Conway Life (dead-edge 48×16 B3/S23 / ≤769), Layered Smoke (4–10 plumes × 9 fixed-ring nodes / ≤280), Neon Glow (3–7 continuous 18-point tubes + two charge knots / ≤49), and Particle Burst (14–28 onset shards × ≤3 blooms / ≤261). Static definition wants gates optional waveform; Oscilloscope alone uses a ≤6-frame/960-element trace ring. `bokeh` is only the stable serialized key (ADR-0009/0010).
 Shared Cividis: src/ui/tokens.ts ↔ studio-palette.css; sync test 7/7.
 Background Layout v2: normalized prefs → Studio hero/precision/presets/treatments → recorder hot-swap/relay → drawUserBackgroundLayer; crop/compare/A-B transient; no post-capture reposition (ADR-0008).
-Extension points v1.37 · backlog v2.13 · ADR-0007/0008/0009/0010 Accepted. Track B 89/89 + full operator QA; shared size contract 5/5.
+Extension points v1.38 · backlog v2.13 · ADR-0007/0008/0009/0010 Accepted, 0011 unallocated. Track B 89/89 + full operator QA; shared size contract 5/5.
 Run real artifact gate with npm run qa:visual-size -- --preset <id> --base <base.mp4> --baked <baked.mp4>.
-Next: explicit v6.0.0 package/release-notes/tag sprint; push remains user-owned.
+Next: Track D Phase 0 (demo `@` alias → repo root, verify Voice Studio green FIRST; browser shim skeleton), then the explicit v6.0.0 package/release-notes/tag sprint; push remains user-owned.
 ```

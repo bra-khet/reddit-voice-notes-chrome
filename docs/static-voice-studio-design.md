@@ -8,8 +8,26 @@ This file wins on the topic of the public static Voice Studio companion page.
 |---|---|
 | **Repo** | `bra-khet/reddit-voice-notes-chrome` |
 | **Baseline** | `main@4383593` (v5.3.1) → feature branch `feature/static-voice-studio` |
-| **Status** | Phases 0–5 + 7-samples done (audio + round-trip QA confirmed 2026-06-28); Phase 6 Orientation hub (user-owned) + publish remain |
+| **Status** | Phases 0–5 + 7-samples done (audio + round-trip QA confirmed 2026-06-28); Phase 6 Orientation hub + publish remain — **now owned by v6 Track D** |
 | **Public URL (target)** | `https://bra-khet.github.io/reddit-voice-notes-chrome/` (hub) · `/studio/` (the studio) |
+
+> ### ⚠ Ownership handoff — v6.0.0 Track D (2026-07-22)
+>
+> [`docs/v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) now **wins** on three topics this
+> document used to own. Read it before touching them:
+>
+> 1. **The orientation hub and the nav banner's `WIP:` markers** (§7 below, Phase 6 in §8). Track D Phase 3
+>    rewrites the hub into three destinations and drops the WIP badge. Do not build the hub from §7 alone.
+> 2. **The `@` alias and the "verbatim port" maintenance model** (§2.3, §4, §10). Track D Phase 0 repoints
+>    `@` from `demo/` to the **repo root**, so the demo compiles the real extension source. All 12 ported
+>    modules were verified byte-identical on 2026-07-22, which is what makes the flip safe — and it
+>    **retires** the "re-copy the files after a DSP change" chore described in §4 and §10.
+> 3. **Naming.** Decision D1 in the Track D roadmap §4.1 recommends renaming this page's public label from
+>    "Voice Studio" to **"Voice Lab"**, because the hub would otherwise carry three overlapping "Studio"
+>    names. Unresolved at time of writing; the `/studio/` URL is expected to stay either way.
+>
+> Everything else here — the DSP fidelity contract (§4.1), the copy-paste envelope (§4.2), the deploy
+> mechanics (§9), and the `vite dev` audition caveat (§8) — remains canonical and applies to Track D too.
 
 ---
 

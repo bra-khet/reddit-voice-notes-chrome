@@ -1,6 +1,6 @@
 # Project History — Reddit Voice Notes
 
-**Living milestone index.** Updated **2026-07-20** · Current tagged stable: **v5.11.0 — Preferences full-IDB migration** (browser QA PASS · push deferred) · Current `main`: **all v6.0 Polish & Visual Maturity Tracks A/B/C merged; explicit v6 package/tag pending** · Post-ship hardening: **H8 + H13 + H14/BUG-038 closed** · Docs-archiving: **Refresh #4 complete**.
+**Living milestone index.** Updated **2026-07-22** · Current tagged stable: **v5.11.0 — Preferences full-IDB migration** (browser QA PASS · push deferred) · Current `main`: **all v6.0 Polish & Visual Maturity Tracks A/B/C merged; explicit v6 package/tag pending** · **In flight:** v6.0 **Track D — hosted Design Studio** on `feature/v6.0.0-hosted-design-studio` (Phase 0 not started) · Post-ship hardening: **H8 + H13 + H14/BUG-038 closed** · Docs-archiving: **Refresh #4 complete**.
 
 This is the go-to orientation doc: it indexes every major milestone and points to both the **living** documents (current work) and their **archived** history. Read this first when you need to know "what happened before the current feature branch?" — then follow a pointer into [`archive/`](../archive/) only if you need the full detail.
 
@@ -8,6 +8,7 @@ This is the go-to orientation doc: it indexes every major milestone and points t
 - **Archived progress logs:** [`claude-progress-through-v6.0.0-tracks.md`](../archive/progress/claude-progress-through-v6.0.0-tracks.md) (complete v5.11 + v6 track development record) · [`claude-progress-through-v5.10.0.md`](../archive/progress/claude-progress-through-v5.10.0.md) (v5.9.0 → v5.10.0) · [`claude-progress-through-v5.9.0.md`](../archive/progress/claude-progress-through-v5.9.0.md) · [`claude-progress-pre-v5.8.0.md`](../archive/progress/claude-progress-pre-v5.8.0.md) · [`claude-progress-pre-v5.4.0.md`](../archive/progress/claude-progress-pre-v5.4.0.md).
 - **Architecture (living):** [`architecture/README.md`](architecture/README.md) — map **v3.22**, extension-points **v1.37**, hardening backlog **v2.13**, ADRs 0001–0010 Accepted.
 - **Current development:** the three **v6.0 "Polish & Visual Maturity"** tracks are integrated on `main`: Track A complete audio-reactive catalog + Style/governor, Track B Background Layout v2 with full operator checklist PASS, and Track C popup Cividis refresh. Package remains 5.11.0 until a separate explicit v6.0.0 release-notes/version/tag sprint.
+- **In flight — Track D (delivery, not features):** [`v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) ships the full Design Studio as a static GitHub Pages surface by compiling the **real** `src/` under a `browser` global shim. No new execution context, message family, store, or preference version. QA: [`qa/QA-6.0.0/track-d/`](../qa/QA-6.0.0/track-d/).
 
 ---
 
@@ -75,6 +76,7 @@ Living documents carry a short **Archive Notice** and link into the archive only
 | Engineering principles & save pathways | [`engineering-principles.md`](engineering-principles.md) |
 | Voice DSP (Dulcet II) | [`v5-development-roadmap.md`](v5-development-roadmap.md), [`dsp-foundation-design.md`](dsp-foundation-design.md) |
 | Latest ship (preferences full-IDB migration) | [`release-notes-v5.11.0.md`](release-notes-v5.11.0.md), [`v5.11.0-prefs-storage-refactor.md`](v5.11.0-prefs-storage-refactor.md) |
+| Hosted Pages surfaces (hub, Voice Studio, hosted Design Studio) | [`static-voice-studio-design.md`](static-voice-studio-design.md), [`v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) |
 | Open issues / future ideas | [`deferred-issues.md`](deferred-issues.md), [`future-ideas.md`](future-ideas.md) |
 | Bug history (`BUG-###`) | [`bug-archive.md`](bug-archive.md) |
 

@@ -44,10 +44,30 @@ This is the **living** progress file, focused on the current release boundary. T
 
 ---
 
+## v6.0 Track D — hosted Design Studio (IN FLIGHT · Phase 0 not started)
+
+**Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`) · **Canonical:** [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) · **QA:** [`qa/QA-6.0.0/track-d/`](qa/QA-6.0.0/track-d/)
+
+Track D is a **delivery** surface, not a feature surface: the full Design Studio served as a static GitHub Pages site so people can record → style → caption → bake → download without installing anything. Package stays `5.11.0`.
+
+**The design document was redrafted on 2026-07-22** because the original draft's central architecture — a `StudioHost` interface threaded through the Studio tree — was wrong and would have required editing ~40 files, contradicting its own non-goals. Verified corrections that now drive the track:
+
+- **The seam is a global, not an interface.** `browser` is a WXT auto-import — zero explicit imports across `src/`+`entrypoints/`, and **zero modules evaluate `browser.*` at module scope**. So one `globalThis.browser` shim installed as the web entry's first import is provably sufficient, with **zero** extension-source edits. Surface: 15 members.
+- **Record and the flagship bake are already host-neutral.** `src/recorder/*`, `src/composite/*`, `src/encoding/*`, `studio-recorder.ts` contain no `browser.*`, and `browserComposite` has been default-on since v5.5.1. Only transcode / fallback burn-in / transcribe cross the offscreen boundary — reused by loading `entrypoints/offscreen/main.ts` **in-page** over a loopback bus, never by calling `ffmpeg-runner` directly (that would fork I5, cancel, and the progress contract).
+- **Phase 0's first act is the `@` alias flip** (`demo/` → repo root), verified against a green Voice Studio *before* any new code. The 12 ported demo modules are byte-identical to `src/`, so the flip is safe — and it retires the documented "re-copy the DSP files" chore permanently.
+- **The chronos gate is correctness, not polish.** `transcoder.ts` allows 45 s ACK / 90 s absolute *including WASM cold start*; over the network that ceiling is not safe unless FFmpeg is pre-warmed before the Studio mounts.
+- **Measured first-load budget:** 31 MB FFmpeg core + 2.4 MB Studio assets required; 40 MB Vosk model optional. Replaces the draft's "~40–80 MB" guess.
+
+**Load-bearing hazard to carry forward:** the shim's `storage.onChanged` must fire **for the writer's own writes** — real `chrome.storage` notifies every context including the writer, and both the take lifecycle (ADR-0002/I9) and the preference coordinator (I21) depend on it. With a single context, a "notify others" implementation notifies nobody.
+
+**Open before Phase 3:** decision **D1** — the hub already says "Voice Studio" twice; recommendation is to rename the lightweight page **"Voice Lab."** **Open checks for Phase 0:** C1 in-page bake vs preview contention · C2 app bundle weight · C3 live Pages `Cache-Control` (if `max-age=600` holds, the warm path needs Cache Storage, not the HTTP cache).
+
+---
+
 ## Architecture state
 
-- Architecture map **v3.22**; extension points **v1.37**; hardening backlog **v2.13**; ADRs 0001–0010, with ADR-0008 Accepted and finalized for Track B.
-- Six contexts remain unchanged: Reddit content script, background service worker, offscreen FFmpeg document, Vosk sandbox, Design Studio, popup.
+- Architecture map **v3.23**; extension points **v1.38** (Host adapter — v1 registered, unimplemented); hardening backlog **v2.13**; ADRs 0001–0010, with ADR-0008 Accepted and finalized for Track B; **0011 unallocated**.
+- Six contexts remain unchanged: Reddit content script, background service worker, offscreen FFmpeg document, Vosk sandbox, Design Studio, popup. Track D adds a second **host** for the Design Studio context, not a seventh context.
 - Background Layout v2 extends the existing personal-image draw slot: normalized preferences → Studio preview/direct manipulation → recorder hot-swap/relay → `drawUserBackgroundLayer` / `drawImageBackground`. Bake does not re-render it; subtitle-only post-base composition preserves captured background pixels.
 - Canonical cross-cutting sources: [`docs/architecture/architecture-map.md`](docs/architecture/architecture-map.md), [`docs/architecture/extension-points.md`](docs/architecture/extension-points.md), [`docs/design-studio.md`](docs/design-studio.md).
 
@@ -55,22 +75,41 @@ This is the **living** progress file, focused on the current release boundary. T
 
 ## Immediate next
 
-1. Decide and execute the explicit **v6.0.0 release boundary**: package/manifest version bump, release notes, final release build, and tag. Track implementation itself is complete.
-2. User-owned push of `main` and tags remains deferred.
-3. Treat the minimized-window bake-speed observation as a separate performance investigation, not a release blocker.
+1. **Track D Phase 0** — flip the demo `@` alias to the repo root and confirm the Voice Studio still builds and auditions **before** writing any Design Studio code; then the `browser` shim skeleton, the `demo/design-studio/` scaffold, the `src/**` deploy path filter, and checks C1/C2/C3.
+2. Decide and execute the explicit **v6.0.0 release boundary**: package/manifest version bump, release notes, final release build, and tag. Tracks A/B/C are complete; sequence the release relative to Track D deliberately.
+3. User-owned push of `main` and tags remains deferred.
+4. Treat the minimized-window bake-speed observation as a separate performance investigation, not a release blocker — Track D check C1 may shed light on it.
 
 **Restore stable v5.11.0:** `git checkout v5.11.0 && npm install && npm run dev`
 **Develop current main:** `git checkout main && npm install && npm run dev`
+**Track D:** `git checkout feature/v6.0.0-hosted-design-studio && cd demo && npm install && npm run build && npm run preview` — QA the hosted surfaces against a **build**, never `vite dev`.
 
 ---
 
 ## Resume in a new chat
 
 ```text
-Reddit Voice Notes current main: all v6.0 visual-maturity Tracks A/B/C merged; package still 5.11.0 pending explicit v6 release/tag.
+Reddit Voice Notes: v6.0 Tracks A/B/C merged to main; package still 5.11.0 pending explicit v6 release/tag.
+CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phase 0 NOT started.
 Track B merged at 7d1c649 with full operator checklist PASS: responsive direct background layout, presets/effects/GIF/plate/Holo, framing/live compare, keyboard/ARIA, session-only A/B; focused 89/89 + build PASS; blur+GIF 23/29 MiB PASS.
-Architecture map v3.22, extension points v1.37, ADR-0008 Accepted/final. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
+Architecture map v3.23, extension points v1.38, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
 Background is Design-phase and captured at record time (I1/I3/I22); no post-capture reposition or multi-format export.
+
+TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earlier draft's StudioHost interface was WRONG):
+  SEAM = ONE `browser` GLOBAL shim, not an interface. `browser` is a WXT auto-import (zero explicit imports)
+  and NO src/ module evaluates browser.* at module scope, so a first-import side-effect shim suffices — 15 API
+  members, ZERO extension-source edits (except an additive optional MountClipStudioOptions.hostCapabilities).
+  Record + default browser-composite bake are ALREADY browser.*-free. Reuse entrypoints/offscreen/main.ts
+  IN-PAGE over a loopback bus + a ~120-line START→ACK→_OFFSCREEN router. Never call ffmpeg-runner directly.
+  PHASE 0 FIRST ACT: flip demo `@` alias demo/ → repo root (12 ported modules verified byte-identical),
+  verify Voice Studio builds+auditions BEFORE new code. Retires the re-copy chore.
+  HAZARD: shim storage.onChanged MUST fire for the writer's own writes (ADR-0002/I9 + I21).
+  Chronos gate = correctness: transcoder ACK 45s / MAX 90s includes WASM cold start → pre-warm FFmpeg.
+  Budget: 31 MB ffmpeg + 2.4 MB assets required, 40 MB Vosk optional.
+  OPEN: D1 naming (recommend Voice Studio → "Voice Lab") blocks Phase 3 copy; checks C1/C2/C3 in Phase 0.
+  QA hosted surfaces against a BUILD, never `vite dev`. Voice Studio + Field Guide green at EVERY phase exit.
+
 Full pre-closeout history: archive/progress/claude-progress-through-v6.0.0-tracks.md.
-NEXT: explicit v6.0.0 version/release-notes/tag decision; push is user-owned. Run architecture-hardening resume if deeper context is needed.
+NEXT: Track D Phase 0; then the explicit v6.0.0 version/release-notes/tag decision. Push is user-owned.
+Run architecture-hardening resume if deeper context is needed.
 ```

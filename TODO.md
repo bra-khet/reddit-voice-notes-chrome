@@ -19,12 +19,13 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
-## Current work — **v6.0 "Polish & Visual Maturity" · Tracks A/B/C merged · release boundary next**
+## Current work — **v6.0 "Polish & Visual Maturity" · Tracks A/B/C merged · Track D open**
 
-Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current branch:** `main`; Track B merged at `7d1c649` after full operator QA PASS.
+Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`); Track B merged at `7d1c649` after full operator QA PASS.
 
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
+| **D — hosted Design Studio** | [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) | none yet (0011 next) | Full Studio on GitHub Pages via a `browser` global shim — **OPEN · Phase 0 not started** |
 | **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E) · merged** |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper + framing — **full checklist PASS · merged** |
 | **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup Cividis skin + elevated restart caution — **agent QA gate PASS · merged** |
@@ -37,11 +38,15 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current br
 
 **Track C status:** ✅ popup-only Cividis skin + elevated restart caution · ✅ agent gate PASS · ✅ merged · §8 real-extension eyeball residual optional.
 
-**QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklist [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md)
+**Track D status (OPEN):** ✅ branch cut · ✅ design doc redrafted against the verified tree (the draft's `StudioHost` interface was wrong — see its §0) · ✅ `track-d/` QA workspace · ✅ seam registered (extension points **v1.38**, map **v3.23**) · ⬜ **Phase 0 not started**.
 
-**NEXT:** explicit v6.0.0 package/version + release-notes/tag decision · final release build · user-owned push of `main`/tag · optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint.
+The seam is **one `browser` global shim**, not an interface: `browser` is a WXT auto-import with zero explicit imports, and no `src/` module evaluates `browser.*` at module scope — so a first-import side-effect shim covers all 15 members with **zero** extension-source edits. Record and the default browser-composite bake are already `browser.*`-free; transcode/burn-in/transcribe reuse `entrypoints/offscreen/main.ts` **in-page** over a loopback bus. **Phase 0's first act** is flipping the demo `@` alias to the repo root and confirming the Voice Studio is still green *before* new code. **Open:** D1 naming (recommend "Voice Lab") blocks Phase 3 copy; checks C1/C2/C3 in Phase 0.
 
-**Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0.
+**QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklists [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md) · [`track-d/qa-checklist.md`](qa/QA-6.0.0/track-d/qa-checklist.md)
+
+**NEXT:** Track D Phase 0 · then the explicit v6.0.0 package/version + release-notes/tag decision · final release build · user-owned push of `main`/tag · optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint.
+
+**Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0. **Track D adds:** no new execution context/message family/store; no behavioural change to the extension Studio (additive optional options only); Voice Studio + Field Guide green at every phase exit.
 
 Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 

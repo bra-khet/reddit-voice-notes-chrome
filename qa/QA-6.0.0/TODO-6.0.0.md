@@ -1,8 +1,8 @@
 # TODO — v6.0.0 QA workspace
 
 **Workspace:** [`qa/QA-6.0.0/`](./) · **Progress:** [`progress-QA-6.0.0.md`](progress-QA-6.0.0.md)<br>
-**Current branch:** `main`; Track B merged at `7d1c649` (final implementation `bdae9ab`)<br>
-**Baseline package:** v5.11.0 · Tracks A/B/C merged
+**Current branch:** `feature/v6.0.0-hosted-design-studio` (from `main@a4df9a1`); Track B merged at `7d1c649`<br>
+**Baseline package:** v5.11.0 · Tracks A/B/C merged · **Track D open**
 **Globals (pointers only):** root [`TODO.md`](../../TODO.md) · [`claude-progress.md`](../../claude-progress.md)
 
 ---
@@ -11,13 +11,57 @@
 
 | Track | Status | Roadmap | ADR |
 |-------|--------|---------|-----|
+| **D — hosted Design Studio** | **OPEN · Phase 0 not started** ([`track-d/`](track-d/)) | [`docs/v6.0.0-hosted-design-studio.md`](../../docs/v6.0.0-hosted-design-studio.md) | none yet — 0011 next |
 | **A — audio-reactive visuals** | **Confidence PASS (Pass E) · merged** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
 | **B — background layout** | **Full checklist PASS · merged to `main`** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
 | **C — popup UI refresh** | **Agent QA gate PASS · merged to `main`** · §8 residual optional ([`track-c/qa-checklist.md`](track-c/qa-checklist.md)) | [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md) | none — presentational under 0007 tokens |
 
 **Automated (Track B final):** focused layout/interaction/UI set **89/89** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate **23/29 MiB PASS**.
 
-**Architecture at all-track close:** map **v3.22** / I22 · extension-points **v1.37** · package version remains **5.11.0** until an explicit v6 ship/tag.
+**Architecture at Track D open:** map **v3.23** / I22–I23 · extension-points **v1.38** (Host adapter seam) · package version remains **5.11.0** until an explicit v6 ship/tag.
+
+---
+
+## Open — Track D (hosted Design Studio)
+
+**Branch:** `feature/v6.0.0-hosted-design-studio` · **QA:** [`track-d/README.md`](track-d/README.md) · [`track-d/qa-checklist.md`](track-d/qa-checklist.md)
+
+### Scaffold — **DONE**
+
+- [x] Cut `feature/v6.0.0-hosted-design-studio` from `main`
+- [x] Redraft [`docs/v6.0.0-hosted-design-studio.md`](../../docs/v6.0.0-hosted-design-studio.md) against the verified tree (the draft's `StudioHost` interface was wrong — see §0)
+- [x] Open `track-d/` (README + phase-staged checklist)
+- [x] Register the **Host adapter — v1** seam (extension-points v1.38) + map v3.23 (no new context)
+- [x] Flip workspace + root living-doc status to Track D open
+
+### Implementation backlog (roadmap §6)
+
+- [ ] **Phase 0** — flip demo `@` alias to repo root (**verify Voice Studio green first**), `browser` shim skeleton, `demo/design-studio/` scaffold, widen deploy path filter to `src/**`, run checks C1/C2/C3
+- [ ] **Phase 1** — loopback bus + in-page pipeline host; record / transcode / take deck / download; reload recovery
+- [ ] **Phase 2** — Track A/B/C surfaces appear without per-surface fixes; browser-composite + FFmpeg fallback bake; **bake parity vs extension**
+- [ ] **Phase 3** — resolve **D1** naming, then three-destination hub + amber chronos gate + warm-cache path + hosted three-phase narrative
+- [ ] **Phase 4** — a11y/reduced-motion/error states, optional Vosk tier, living docs, production build + real Pages deploy
+
+### Open checks (Phase 0)
+
+| # | Check | Status |
+|---|-------|--------|
+| **C1** | In-page bake vs live-preview contention (relates to the minimized-window speed observation) | ☐ |
+| **C2** | App bundle weight excluding vendored FFmpeg | ☐ |
+| **C3** | Live Pages `Cache-Control` headers → warm-path decision (Cache Storage vs HTTP cache) | ☐ |
+
+### Open decision
+
+- [ ] **D1 — naming.** The hub says "Voice Studio" twice already; adding "Design Studio" makes three overlapping names. **Recommend renaming the lightweight page to "Voice Lab."** Blocks Phase 3 copy only.
+
+### Non-negotiables (Track D)
+
+- No new execution context, message family, IDB store, `rvn.*` key, or `USER_PREFS_VERSION` bump
+- No behavioural change to the extension Studio — only **additive, optional, default-off** option fields (`hostCapabilities`)
+- No second Design Studio implementation; the hosted surface compiles the real `src/`
+- Voice Studio + Field Guide green at **every** phase exit
+- No Reddit injector/attach/composer on the hosted surface
+- Package stays `5.11.0`
 
 ---
 

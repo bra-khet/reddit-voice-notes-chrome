@@ -1,8 +1,8 @@
 # Extension Points — Reddit Voice Notes
 
-**Version:** v1.37 · **Updated:** 2026-07-20 · **Reflects:** `main@7d1c649` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track B full QA PASS**
+**Version:** v1.38 · **Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D open**
 **Status:** Canonical registry of integration seams. Pair with `docs/architecture/architecture-map.md`.  
-**Changelog:** v1.37 — **Background Layout v2 / Track B merge** (2026-07-20): registered the normalized preference → Studio direct-manipulation/preset/treatment → recorder hot-swap/relay → record-time personal-image draw seam. Continuous position/scale, field dim, blur/blend/solid plate/Holo/GIF/safe-text controls extend `UserBackgroundLayout` additively; transient crop/compare/A-B remains page-local; post-base bake never repositions. Full operator checklist PASS, focused 89/89, build PASS, blur+GIF 23/29 MiB; no new context/message/store/signal/dependency/layer/version. v1.36 — **Track C popup Cividis unification** (2026-07-19): popup chrome became token-driven through its overlay because `entrypoints/popup/style.css` remains shared control-primitive CSS. v1.35 — **Style Control Center + shared performance policy** (2026-07-14): complete registries + governor. Earlier history remains in git.
+**Changelog:** v1.38 — **Host adapter seam registered** (2026-07-22, Track D open): the hosted GitHub Pages Design Studio runs the real `src/` under a `browser` **global shim** installed as the first import of the web entry — viable because `browser` is a WXT auto-import with zero explicit imports and **zero module-scope evaluations** in `src/`. Adds no execution context, message family, store, or preference version; pipelines are reused by loading `entrypoints/offscreen/main.ts` in-page over a loopback bus rather than reimplemented. Registered the shim's 15-member surface, the `storage.onChanged`-fires-for-the-writer gotcha, and the alias/workflow/asset sync points. Seam is registered but **not yet implemented**. v1.37 — **Background Layout v2 / Track B merge** (2026-07-20): registered the normalized preference → Studio direct-manipulation/preset/treatment → recorder hot-swap/relay → record-time personal-image draw seam. Continuous position/scale, field dim, blur/blend/solid plate/Holo/GIF/safe-text controls extend `UserBackgroundLayout` additively; transient crop/compare/A-B remains page-local; post-base bake never repositions. Full operator checklist PASS, focused 89/89, build PASS, blur+GIF 23/29 MiB; no new context/message/store/signal/dependency/layer/version. v1.36 — **Track C popup Cividis unification** (2026-07-19): popup chrome became token-driven through its overlay because `entrypoints/popup/style.css` remains shared control-primitive CSS. v1.35 — **Style Control Center + shared performance policy** (2026-07-14): complete registries + governor. Earlier history remains in git.
 
 > For each seam: the **files to touch**, the **contract** to satisfy, the
 > **sync points** (places that must change together), and whether a new instance
@@ -470,6 +470,49 @@ the existing edit / dirty-tracking / trim seams. Canonical as-built:
 
 ---
 
+## Host adapter — v1 (Track D, hosted Design Studio)
+
+**Status: registered seam, not yet implemented.** Canonical: [`docs/v6.0.0-hosted-design-studio.md`](../v6.0.0-hosted-design-studio.md).
+The GitHub Pages surface runs the **real** Studio source under a web host adapter. This adds **no execution context to the extension** — it is a second *host* for an existing context's code.
+
+- **The seam is a global, not an interface.** `browser` is a WXT auto-import: there is no
+  `import { browser }` anywhere in `src/` or `entrypoints/`, and **no module evaluates `browser.*`
+  at module scope**. So the web host installs `globalThis.browser` from a side-effect module
+  imported *first* in `demo/design-studio/main.ts`, and every downstream extension module runs
+  unmodified. Do not "improve" this into a threaded `StudioHost` parameter — that would mean
+  editing ~40 files to gain nothing.
+- **Keep the global assumption true.** Any new module-scope `browser.*` evaluation in shared
+  `src/` code breaks the hosted build in a way that is invisible in the extension. Keep
+  `browser.*` inside function bodies. (`entrypoints/popup/main.ts:15` is the counter-example —
+  fine there because the popup is extension-only.)
+- **Shim surface (15 members):** `storage.local` · `storage.sync` · `storage.session` ·
+  `storage.onChanged` · `runtime.sendMessage` / `.onMessage` / `.getURL` / `.id` / `.connect` /
+  `.onConnect` / `.reload` / `.getPlatformInfo` · `tabs.*` · `windows.update` · `commands.onCommand`.
+  A feature that reaches for a *new* `browser.*` member must add it here and to the shim.
+- **The load-bearing gotcha:** the shim's `storage.onChanged` must fire **for the writer's own
+  writes**. Real `chrome.storage` notifies every context including the writer; the take lifecycle
+  (ADR-0002 / I9) and the preference coordinator (I21) both depend on it. With one context, a
+  "notify others" implementation notifies nobody.
+- **Pipelines are reused, not reimplemented.** `entrypoints/offscreen/main.ts` is pure message
+  plumbing over `ffmpeg-runner.ts`, so the web host loads it **in-page** and delivers to it over a
+  loopback `runtime` bus, plus a small router mirroring only `background.ts`'s START→ACK→`_OFFSCREEN`
+  relay slice. Calling `ffmpeg-runner` directly would fork I5 (stall-timer semantics), cancel, and
+  the progress contract — do not.
+- **Already host-neutral (no work needed):** `src/recorder/*`, `src/composite/*`, `src/encoding/*`,
+  `src/ui/design-studio/studio-recorder.ts` contain zero `browser.*`. Record and the default
+  browser-composite bake run in-page as-is.
+- **Sync points:** `demo/vite.config.ts` + `demo/tsconfig.json` `@` alias (points at the **repo
+  root** from Track D Phase 0, so the demo compiles real `src/`) ↔ `.github/workflows/deploy-demo.yml`
+  path filter (must include `src/**`) ↔ vendored assets under `demo/public/assets/` mirroring
+  `public/assets/` paths so `getURL` rewriting stays a pure prefix swap.
+- **Extension-side edits allowed:** additive, optional, default-off option fields only — currently
+  `MountClipStudioOptions.hostCapabilities` for suppressing Reddit-only affordances. Absent field
+  ⇒ today's behaviour.
+- **Preview=bake?** Unchanged — the hosted surface runs the same resolve/render code, so the
+  promise holds by construction. Bake **parity with the extension** is a Track D QA gate.
+
+---
+
 ## How to extend this registry
 
 When a feature introduces a genuinely new seam, add a `## <Seam> — v1` section here.
@@ -481,8 +524,14 @@ bump its version in the heading and add a one-line note of what changed.
 ## Resume in a new chat (carry-forward)
 
 ```
-Extension points v1.37 (2026-07-20), main@7d1c649 @ package 5.11.0; explicit v6 release/tag pending.
-Map v3.22 · v6 Tracks A/B/C merged; Track B full operator checklist PASS.
+Extension points v1.38 (2026-07-22), feature/v6.0.0-hosted-design-studio from main@a4df9a1 @ package 5.11.0.
+Map v3.23 · v6 Tracks A/B/C merged; Track D (hosted Design Studio) OPEN, Phase 0 not started.
+Host adapter v1: hosted Pages Studio runs REAL src/ under a `browser` GLOBAL shim (WXT auto-import,
+zero explicit imports, zero module-scope browser.* in src/) installed as the first import of the web
+entry. No new context/message/store/version. Reuse entrypoints/offscreen/main.ts IN-PAGE over a
+loopback bus — never call ffmpeg-runner directly (forks I5/cancel/progress).
+GOTCHA: shim storage.onChanged must fire for the WRITER's own writes (ADR-0002/I9, I21).
+Keep browser.* inside function bodies in shared src/ or the hosted build breaks invisibly.
 Core seams unchanged: messages v3 · prefs storage v2 · take/capture/audio editing/splice/timeline v1.
 Audio-reactive visual system v20; no new context/message/store/signal/compositing layer.
 AudioVizFrame: normalized energy + 32 bands + registry-gated optional waveform + shared clock (I22).
