@@ -88,9 +88,7 @@ export function webSendMessage(message: any): Promise<any> {
     };
 
     for (const listener of listeners) {
-      let respondedSynchronously = false;
       const sendResponse = (response?: any): void => {
-        respondedSynchronously = true;
         settle(response);
       };
 
@@ -122,9 +120,16 @@ export function webSendMessage(message: any): Promise<any> {
       } else if (result === true) {
         // MV3 convention: `return true` means "sendResponse will be called later".
         pendingAsync += 1;
-      } else if (respondedSynchronously) {
-        return;
       }
+      // BUG FIX: a synchronous responder silenced every later listener
+      // Fix: this loop used to `return` as soon as one listener called
+      // sendResponse. That conflates "won the response race" with "consumed the
+      // message" — in the real runtime EVERY listener receives EVERY message and
+      // only the first response is kept. With offscreen/main.ts now mounted
+      // in-page (Phase 1) the two collide directly: offscreen answers
+      // MSG_*_OFFSCREEN synchronously, so any listener registered after it
+      // would have stopped seeing traffic. settle() is already idempotent, so
+      // delivering to the rest is free.
     }
 
     if (pendingAsync === 0) settle(undefined);

@@ -22,6 +22,10 @@ import '@/entrypoints/design-studio/style.css';
 import '@/entrypoints/design-studio/studio-v4-controls.css';
 import '@/entrypoints/design-studio/style-control-center.css';
 
+// Track D Phase 1: the background's relay slice, in-page. Installed before boot
+// so a Studio that renders the Record button can always service it.
+import { installWebPipelineHost } from './host/web-pipeline-host';
+
 import { reconcileBackgroundPreferences } from '@/src/storage/background-refs';
 import { loadUserPreferences } from '@/src/settings/user-preferences';
 import { mountClipStudio } from '@/src/ui/design-studio/mount-clip-studio';
@@ -31,6 +35,7 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 let unmount: () => void = () => {};
 
 async function bootDesignStudio(): Promise<void> {
+  installWebPipelineHost();
   const [prefs, workflowPhase] = await Promise.all([loadUserPreferences(), getWorkflowPhase()]);
   const reconciled = await reconcileBackgroundPreferences(prefs);
   // Phase 3 adds `hostCapabilities: { redditAttach: false }` here (roadmap §3.6).

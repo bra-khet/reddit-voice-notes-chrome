@@ -30,7 +30,11 @@ export interface RenderOptions {
   maxDurationSeconds?: number;
 }
 
-const CORE_BASE = `${import.meta.env.BASE_URL}assets/ffmpeg/`;
+// CHANGED: assets/ffmpeg/ → ffmpeg/ (v6.0 Track D Phase 1)
+// WHY: one vendored copy of the 31 MB core now serves both this loader and the
+//      hosted Design Studio, which reaches it through the extension's own
+//      getURL('ffmpeg/…') path. See demo/scripts/copy-ffmpeg-core.mjs.
+const CORE_BASE = `${import.meta.env.BASE_URL}ffmpeg/`;
 const OUTPUT_PATH = 'voice-output.m4a';
 const AUX_PATH = (i: number): string => `voice-aux-${i}.wav`;
 const VOICE_TIMEOUT_MS = 45_000;

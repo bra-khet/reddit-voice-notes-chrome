@@ -1,6 +1,14 @@
 // DISABLED: Keyboard shortcut — see src/reddit-injector/shortcut-handler.ts
 // import { MSG_OPEN_RECORDER } from '@/src/messaging/types';
-import { expectedBase64CharLength } from '@/src/messaging/binary-verify';
+// CHANGED: relay-boundary validation moved to src/messaging/relay-validate.ts
+// WHY: v6.0 Track D — the hosted Studio's in-page relay must enforce the same
+//      payload contract, and a second copy of these checks would drift.
+import {
+  isOffscreenTarget,
+  validateBurnInStartRequest,
+  validateTranscodeStartRequest,
+  validateTranscribeStartRequest,
+} from '@/src/messaging/relay-validate';
 import {
   BACKGROUND_BLOB_CHUNK_BYTES,
   BACKGROUND_BLOB_PORT,
@@ -541,15 +549,6 @@ async function registerTranscodeTab(
   console.warn('[Reddit Voice Notes] Could not resolve Reddit tab for transcode relay', jobId);
 }
 
-function isOffscreenTarget(message: unknown): boolean {
-  return (
-    typeof message === 'object' &&
-    message !== null &&
-    'target' in message &&
-    (message as { target: string }).target === 'offscreen'
-  );
-}
-
 async function registerBurnInTab(
   jobId: string,
   sender: Browser.runtime.MessageSender,
@@ -631,60 +630,6 @@ async function registerTranscribeTab(
   }
 
   console.warn('[Reddit Voice Notes] Could not resolve Reddit tab for transcribe relay', jobId);
-}
-
-function validateTranscodeStartRequest(request: TranscodeStartRequest): void {
-  if (!request.jobId) {
-    throw new Error('Transcode request missing jobId.');
-  }
-  if (!request.webmBase64 || request.webmByteLength <= 0) {
-    throw new Error(`WebM payload missing at background relay (bytes=${request.webmByteLength}).`);
-  }
-
-  const expectedChars = expectedBase64CharLength(request.webmByteLength);
-  if (Math.abs(request.webmBase64.length - expectedChars) > 4) {
-    throw new Error(
-      `WebM base64 length mismatch at relay (bytes=${request.webmByteLength}, chars=${request.webmBase64.length}, expected≈${expectedChars}).`,
-    );
-  }
-}
-
-function validateBurnInStartRequest(request: BurnInStartRequest): void {
-  if (!request.jobId) {
-    throw new Error('Burn-in request missing jobId.');
-  }
-  if (!request.mp4Base64 || request.mp4ByteLength <= 0) {
-    throw new Error(`MP4 payload missing at burn-in relay (bytes=${request.mp4ByteLength}).`);
-  }
-  if (!request.segmentsJson?.trim()) {
-    throw new Error('Subtitle segments JSON missing at burn-in relay.');
-  }
-  if (!request.styleJson?.trim()) {
-    throw new Error('Subtitle style JSON missing at burn-in relay.');
-  }
-
-  const expectedChars = expectedBase64CharLength(request.mp4ByteLength);
-  if (Math.abs(request.mp4Base64.length - expectedChars) > 4) {
-    throw new Error(
-      `MP4 base64 length mismatch at burn-in relay (bytes=${request.mp4ByteLength}, chars=${request.mp4Base64.length}, expected≈${expectedChars}).`,
-    );
-  }
-}
-
-function validateTranscribeStartRequest(request: TranscribeStartRequest): void {
-  if (!request.jobId) {
-    throw new Error('Transcribe request missing jobId.');
-  }
-  if (!request.webmBase64 || request.webmByteLength <= 0) {
-    throw new Error(`WebM payload missing at transcribe relay (bytes=${request.webmByteLength}).`);
-  }
-
-  const expectedChars = expectedBase64CharLength(request.webmByteLength);
-  if (Math.abs(request.webmBase64.length - expectedChars) > 4) {
-    throw new Error(
-      `WebM base64 length mismatch at transcribe relay (bytes=${request.webmByteLength}, chars=${request.webmBase64.length}, expected≈${expectedChars}).`,
-    );
-  }
 }
 
 async function hasOffscreenDocument(): Promise<boolean> {
