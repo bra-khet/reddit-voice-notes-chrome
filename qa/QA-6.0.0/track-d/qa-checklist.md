@@ -29,6 +29,7 @@ The Voice Lab and Field Guide share the Pages origin and (after the Phase 0 alia
 | 0.3 | Voice Lab loads at `/studio/`; chips render; composer responds | ■ (2026-07-22 — 8 presets, composer categories, transfer cluster all render; console clean) |
 | 0.4 | Voice Lab audition renders through the active graph (against a **build**) | ■ (2026-07-22 — Cyber Oracle @ Hamlet sample; `ffmpeg-core.js` + `.wasm` both 200; panel reached "Playing the rendered voice — this is what bakes") |
 | 0.5 | `rvn-voice-character-v1` copy/paste round-trips with the extension | ▲ operator-owed. Clipboard read is blocked in the automation context. **Structurally stronger after the flip:** the Voice Lab now imports the extension's own `src/settings/clipboard-backup.ts`, so the envelope cannot diverge — only the two-app paste needs an eyeball |
+| 0.6 | `npm run test:host-neutrality` passes — host-classification rules 1/2/3/8 against the hosted Studio's real module graph (roadmap §7.2) | ■ (2026-07-22 — 10/10; 210 shared `.ts` files reachable from `demo/design-studio/main.ts`. **Agent-runnable, so run it every phase exit** — it is the cheapest check on this list and it covers the class that has produced the most bugs. Does **not** cover rule 7) |
 
 ---
 
@@ -117,6 +118,7 @@ All exercised in-page against a **build** on 2026-07-22 — 11/11 assertions tru
 | 3.6 | **Bake parity** — identical profile + source, extension vs hosted, compared frame-wise | ☐ |
 | 3.7 | Preview → record → bake parity holds on the hosted surface (I1/I3/I22/I23) | ☐ |
 | 3.8 | Bake size within the shared caps (base ≤25 MiB / baked ≤30 MiB on the 120 s gate) | ☐ |
+| 3.9 | **H-5 confirmed for real** (roadmap §7.2) — a personal background and an animated GIF background both load through **direct IDB**, never the port relay (`runtime.connect` throws on the hosted host). Watch for the console warning `Personal background port relay failed` — its absence is the pass | ☐ — static analysis says `isOwnStorageOrigin()` routes both to the local path; Phase 2 is the first phase that actually runs them |
 
 ---
 

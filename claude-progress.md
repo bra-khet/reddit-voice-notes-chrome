@@ -105,6 +105,7 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 1. **Track D Phase 2 — full visual system + bake parity.** Phases 0 and 1 are complete: the hosted Studio mounts, records, transcodes through the in-page loopback pipeline, keeps takes across a reload, and downloads a playable MP4 (`c3aad75`, `7400a57`). Phase 2's premise is that the Track A/B/C surfaces appear *for free*; anything that does not is a shim gap whose root cause gets recorded rather than patched locally. Gate: bake parity, extension vs hosted, compared frame-wise.
    - Worth doing while it is fresh: a focused Node suite for the relay slice. Its two invariants — **never re-broadcast `PROGRESS`/`COMPLETE`**, **ignore `target:'offscreen'`** — fail *silently* (a duplicated `COMPLETE` reads as a phantom take, not an error), so nothing else in the tree would catch a regression.
    - **Operator-owed from Phase 1:** real mic grant, the `window.confirm` discard dialog, and the visible-window half of C1 (preview smoothness during a bake). The automation pane blocks `getUserMedia`, auto-dismisses `confirm`, and pauses RAF while hidden.
+   - **Host-classification debt was swept proactively before Phase 2** (roadmap §7.2). No live hits remain in shared code; the residue is five registered hazards, each with an owning phase. The sweep's product is a command — `npm run test:host-neutrality`, graph-scoped and negative-tested — which replaces the old "grep `location.protocol` before each phase exit" mitigation. **Run it at every phase exit.** Phase 2 must also confirm **H-5**: personal and animated backgrounds load through direct IDB and never touch the port relay, which throws on the hosted host.
 2. Decide and execute the explicit **v6.0.0 release boundary**: package/manifest version bump, release notes, final release build, and tag. Tracks A/B/C are complete; sequence the release relative to Track D deliberately.
 3. User-owned push of `main` and tags remains deferred.
 4. Treat the minimized-window bake-speed observation as a separate performance investigation, not a release blocker — Track D check C1 may shed light on it.
@@ -119,9 +120,9 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ```text
 Reddit Voice Notes: v6.0 Tracks A/B/C merged to main; package still 5.11.0 pending explicit v6 release/tag.
-CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phase 0 LANDED, Phase 1 next.
+CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phases 0 + 1 COMPLETE, Phase 2 next.
 Track B merged at 7d1c649 with full operator checklist PASS: responsive direct background layout, presets/effects/GIF/plate/Holo, framing/live compare, keyboard/ARIA, session-only A/B; focused 89/89 + build PASS; blur+GIF 23/29 MiB PASS.
-Architecture map v3.24, extension points v1.39, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
+Architecture map v3.26, extension points v1.42, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
 Background is Design-phase and captured at record time (I1/I3/I22); no post-capture reposition or multi-format export.
 
 TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earlier draft's StudioHost interface was WRONG):
@@ -133,13 +134,31 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   PHASE 0 DONE (dac1bf0, f96f5f8, +assets): demo `@` → repo root, 12 duplicate modules DELETED,
   demo/design-studio/host/ shim built, Studio assets vendored whole-tree, deploy watches src/**.
   It MOUNTS: 42 requests / 0 failures / 0 console output; shim fidelity 11/11.
+  PHASE 1 DONE (c3aad75 pipeline, 7400a57 lifecycle): offscreen/main.ts imported IN-PAGE (lazy,
+  memoized on the PROMISE) + web-pipeline-host.ts playing background.ts's relay slice; message
+  contract UNMODIFIED so I5/cancel/queue/progress are reused, not forked; validators shared via
+  src/messaging/relay-validate.ts. GATE MET: record → base MP4 → download, TWICE, plus reload recovery.
   HAZARD (verified satisfied): shim storage.onChanged fires for the writer's own writes (ADR-0002/I9 + I21).
-  HOST-NEUTRALITY RULES now binding — each cost a Phase 0 bug:
+  HOST-NEUTRALITY RULES now binding — each cost a real bug:
     1. isOwnStorageOrigin() in src/utils/host-origin.ts, NEVER location.protocol.
     2. browser.runtime.getURL() for packaged assets, NEVER a '/assets/...' literal (build-enforced).
     3. browser.* stays inside function bodies in shared src/.
     4. Root tsconfig.json EXCLUDES demo/ (ambient `browser` collision with WXT's).
     5. `npm run compile` is ZERO-ERROR and must stay so — demo's build gates on tsc.
+    6. A relay must NOT forward what the loopback bus already delivers: no PROGRESS/COMPLETE
+       re-broadcast, ignore target:'offscreen'. Both failures are SILENT (dup COMPLETE = phantom take).
+    7. A shim that faithfully RESOLVES can be worse than one that throws. Both artifact relays assumed
+       a background SW existed; sendMessage RESOLVED, the catch never fired, every recording was dropped
+       SILENTLY. Fall back to a direct commit only when unanswered AND isOwnStorageOrigin(); the
+       persist→signal→stamp choke point lives ONCE in src/storage/artifact-commit.ts (H13).
+    8. Vendor packaged MULTI-FILE assets whole (ffmpeg/esm/ is a module worker + siblings).
+  RULES 1/2/3/8 ARE MACHINE-CHECKED: `npm run test:host-neutrality` resolves the hosted Studio's REAL
+  module graph (esbuild metafile from demo/design-studio/main.ts, ~210 shared .ts files) and lints only
+  those — graph-scoped, so it widens with Phase 2 and never fires on extension-only code. Negative-tested.
+  It CANNOT catch rule 7 (behavioural). Roadmap §7.2 = 5-row hazard register, each with an owning phase:
+  H-1 design-studio.html hard-code (Phase 3) · H-2 unvendored Vosk (Phase 4) · H-3 "reload the extension"
+  copy (Phase 4) · H-4 popup module-scope getURL (legitimate, do NOT "fix") · H-5 port relay unreachable
+  by inspection — CONFIRM FOR REAL in Phase 2 (QA 3.9).
   QA TRAP: `vite preview` answers MISSING files with 200 text/html, so absent assets look fine.
   Judge by content-type or performance.getEntriesByType('resource'), never status code.
   Chronos gate = correctness: transcoder ACK 45s / MAX 90s includes WASM cold start → pre-warm FFmpeg.
@@ -155,11 +174,18 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   DEFERRED: Field Guide refresh (86 Reddit + 5 "Voice Studio"); it exists as TWO near-identical copies
   (docs/tutorial/tutorial.html vs demo/public/tutorial/index.html, one favicon line apart) — settle first.
   CHECKS: C2 closed (1.27 MB JS + 148 KB CSS). C3 closed (max-age=600 BUT revalidation is 304/0 bytes —
-  warm-path risk is HTTP-cache EVICTION of a 31 MB entry, not expiry). C1 moved to Phase 1.
+  warm-path risk is HTTP-cache EVICTION of a 31 MB entry, not expiry). C1 PARTIAL: a full transcode
+  produced ZERO main-thread long tasks; the visible-window preview half is OPERATOR-OWED because RAF is
+  paused while the automation pane is hidden (also a live hypothesis for "5-6x faster while minimized").
+  HARNESS LIMITS (all operator-owed): the pane BLOCKS getUserMedia, AUTO-DISMISSES window.confirm
+  (Discard is confirm-gated), PAUSES RAF while hidden, and screenshots fail. QA RECIPE that works:
+  override ONLY navigator.mediaDevices.getUserMedia with an oscillator stream — everything below the mic
+  then runs for real; also stub HTMLAnchorElement.prototype.click and window.confirm.
   QA hosted surfaces against a BUILD, never `vite dev`. Voice Lab + Field Guide green at EVERY phase exit.
 
 Full pre-closeout history: archive/progress/claude-progress-through-v6.0.0-tracks.md.
-NEXT: Track D Phase 1 (loopback pipeline + record/take lifecycle); then the explicit v6.0.0
-version/release-notes/tag decision. Push is user-owned.
+NEXT: Track D Phase 2 (full visual system + bake parity; gate = frame-wise parity extension vs hosted).
+Also wanted: a focused Node suite for the relay slice — rule 6's invariants fail SILENTLY.
+Then the explicit v6.0.0 version/release-notes/tag decision. Push is user-owned.
 Run architecture-hardening resume if deeper context is needed.
 ```

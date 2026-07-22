@@ -167,9 +167,16 @@ export const webRuntime = {
    * blob relay) wraps this in try/catch and degrades to `null`, which is exactly
    * the "relay unavailable, use the direct path" outcome we want here.
    *
-   * Typed as returning a port so shared source still compiles. Phase 2 check:
-   * confirm personal backgrounds load through direct IDB on the hosted surface
-   * and never actually need this relay.
+   * Typed as returning a port so shared source still compiles.
+   *
+   * CHANGED: swept 2026-07-22 — by inspection this is unreachable here.
+   * WHY: background-loader.ts routes BOTH loadBackgroundImageElement() and
+   *      fetchAnimatableBytes() through isExtensionPageContext() →
+   *      isOwnStorageOrigin(), which is true on the hosted Studio, so both take
+   *      the local-IDB branch and the port relay is never entered. That is a
+   *      static claim, not an observation: roadmap §7.2 registers it as H-5 and
+   *      QA item 3.9 confirms it in Phase 2, which is the first phase that runs
+   *      personal and animated backgrounds for real.
    */
   connect(_connectInfo?: { name?: string }): WebPort {
     throw new Error('[web-runtime] runtime.connect has no background to reach on the hosted surface');

@@ -13,6 +13,7 @@
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
     "test:style-control-center": "node scripts/test-style-control-center.mjs",
+    "test:host-neutrality": "node scripts/test-host-neutrality.mjs",
     "qa:style-control-center": "vite --config scripts/fixtures/style-control-center-visual/vite.config.mjs",
     "qa:popup-visual": "vite --config scripts/fixtures/popup-visual/vite.config.mjs",
     "qa:visual-size": "node scripts/qa-visual-size.mjs",
