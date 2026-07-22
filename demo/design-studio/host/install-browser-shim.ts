@@ -41,8 +41,26 @@ declare global {
   var browser: WebBrowserShim;
 }
 
-// Idempotent: a second import (or an HMR re-execution) must not swap the object
-// out from under listeners that already registered against the first one.
-if (!(globalThis as { browser?: WebBrowserShim }).browser) {
-  (globalThis as { browser?: WebBrowserShim }).browser = webBrowser;
+/**
+ * True when `value` already exposes the storage surface the Studio boots through.
+ *
+ * BUG FIX: incomplete pre-existing `globalThis.browser`
+ * Fix: the old guard was truthy-only (`if (!globalThis.browser)`). Any other
+ * script or extension that plants a partial `browser` object (e.g. `{ runtime }`)
+ * left the shim uninstalled, so boot died on `browser.storage.local` with
+ * "Cannot read properties of undefined (reading 'local')". Require a real
+ * `storage.local.get` before treating the global as already installed.
+ * Sync: web-storage.ts (`local.get`); boot path in design-studio/main.ts.
+ */
+function isUsableBrowserShim(value: unknown): value is WebBrowserShim {
+  if (value == null || typeof value !== 'object') return false;
+  const storage = (value as { storage?: { local?: { get?: unknown } } }).storage;
+  return typeof storage?.local?.get === 'function';
+}
+
+// Idempotent for our own complete install (HMR must not swap the object out from
+// under listeners). Incomplete foreign objects are replaced.
+const globalWithBrowser = globalThis as { browser?: WebBrowserShim };
+if (!isUsableBrowserShim(globalWithBrowser.browser)) {
+  globalWithBrowser.browser = webBrowser;
 }
