@@ -10,6 +10,7 @@ import {
   buildBurnInStrategies,
   type SubtitleBurnInInput,
 } from '@/src/ffmpeg/subtitle-burnin';
+import { openWarmWasm } from '@/src/ffmpeg/ffmpeg-warm-cache';
 import { EXTENSION_LOG_PREFIX, WAVEFORM_TARGET_FPS } from '@/src/utils/constants';
 import {
   buildStylizedGraph,
@@ -170,7 +171,23 @@ export async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<F
 
     await assertAssetReachable('FFmpeg worker', workerUrl);
     await assertAssetReachable('FFmpeg core JS', coreJsUrl);
-    await assertAssetReachable('FFmpeg core WASM', coreWasmUrl);
+
+    // CHANGED: serve the 31 MB core wasm from the chronos gate's durable Cache-Storage
+    //          copy when it's there, so a warmed hosted bake survives HTTP-cache eviction (§3.5).
+    // WHY: the extension serves the wasm from its own storage (never evicts); on Pages the
+    //      HTTP disk cache can drop a blob this large. openWarmWasm() is a clean miss on the
+    //      extension (nothing wrote the cache; cacheName-scoped match won't create it), so
+    //      this branch is not taken there and the packaged path below is byte-identical.
+    //      Only wasmURL becomes a blob — a module worker cannot import() a blob coreURL/worker,
+    //      but wasmURL is fetched, not imported, so a blob is safe. On a hit skip the wasm
+    //      reachability probe (which would re-fetch 31 MB over the very HTTP cache we bypass).
+    const warmWasm = await openWarmWasm(coreWasmUrl);
+    if (warmWasm) {
+      console.log(`${EXTENSION_LOG_PREFIX} FFmpeg core WASM served from warm Cache Storage`);
+    } else {
+      await assertAssetReachable('FFmpeg core WASM', coreWasmUrl);
+    }
+    const wasmUrl = warmWasm?.url ?? coreWasmUrl;
 
     onProgress?.(0.08, 'loading-wasm');
 
@@ -182,14 +199,17 @@ export async function loadFfmpeg(onProgress?: FfmpegProgressCallback): Promise<F
       // Fix: Worker is an ES module importing ./const.js etc.; load from extension URL (not blob).
       // Sync: wxt.config.ts web_accessible_resources must include ffmpeg/* and ffmpeg/esm/*
       // BUG FIX: dynamic import blob:chrome-extension://… failed in module worker
-      // Fix: Pass chrome-extension:// URLs for core + wasm; module workers cannot import() blob URLs.
+      // Fix: Pass chrome-extension:// URLs for core + WORKER; module workers cannot import() blob URLs.
+      //      wasmURL may be a blob (fetched, not imported) — see the warm-cache branch above.
       await ffmpeg.load({
         classWorkerURL: workerUrl,
         coreURL: coreJsUrl,
-        wasmURL: coreWasmUrl,
+        wasmURL: wasmUrl,
       });
     } finally {
       detach();
+      // The worker has fetched the blob by the time load() settles; release it either way.
+      warmWasm?.revoke();
     }
 
     if (!ffmpeg.loaded) {

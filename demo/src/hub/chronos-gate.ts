@@ -15,11 +15,13 @@
  * load becomes a cache hit. The expensive, watchdog-relevant part (the 31 MB
  * download) is then paid once, here, with an honest progress bar.
  *
- * CACHE STORAGE is written as a warm marker + durable copy. Today it only powers
- * this gate's own warm-path detection; making the STUDIO read from it to survive
- * HTTP-cache eviction (roadmap §3.5) is a Phase 4 follow-up that touches shared
- * src/ and is deliberately out of scope here.
+ * CACHE STORAGE is written as a warm marker + durable copy. The STUDIO now reads
+ * from it to survive HTTP-cache eviction (roadmap §3.5): src/ffmpeg/ffmpeg-warm-cache.ts
+ * matches the SAME key this gate stores, so the shared FFMPEG_WARM_CACHE constant is
+ * imported from there rather than duplicated — writer and reader cannot drift.
  */
+
+import { FFMPEG_WARM_CACHE } from '@/src/ffmpeg/ffmpeg-warm-cache';
 
 const base = import.meta.env.BASE_URL;
 const WORKER_URL = `${base}ffmpeg/esm/worker.js`;
@@ -27,7 +29,10 @@ const CORE_JS_URL = `${base}ffmpeg/ffmpeg-core.js`;
 const CORE_WASM_URL = `${base}ffmpeg/ffmpeg-core.wasm`;
 const STUDIO_URL = `${base}design-studio/`;
 
-const CACHE_NAME = 'rvn-ffmpeg-warm-v1';
+// Sync: src/ffmpeg/ffmpeg-warm-cache.ts (the studio-side reader). The wasm is stored
+// under CORE_WASM_URL, which resolves to the same absolute URL the runner's getURL
+// produces — that URL-key identity is what lets the studio find this copy.
+const CACHE_NAME = FFMPEG_WARM_CACHE;
 // Generous — a 31 MB download on a slow link is legitimately slow, and the point
 // of the gate is to absorb that wait honestly rather than fail it early.
 const GATE_TIMEOUT_MS = 180_000;
