@@ -90,6 +90,30 @@ export default defineConfig({
       '@': resolve(root, '..'),
     },
   },
+  /*
+   * BUG FIX: Pages CI build without .wxt/
+   * Fix: shared `@/` modules live under repo-root `src/`. Vite's esbuild
+   * transform, when `esbuild.tsconfigRaw` is an *object*, still loads each
+   * file's nearest tsconfig to merge jsx/target fields — and for those files
+   * that is root `tsconfig.json`, which only `extends` gitignored
+   * `.wxt/tsconfig.json` (from a local `wxt prepare`). The Pages job installs
+   * demo deps only and never runs WXT, so the extend is missing and the build
+   * dies with "failed to resolve extends ./.wxt/tsconfig.json".
+   *
+   * Passing `tsconfigRaw` as a **string** makes Vite skip that load entirely
+   * (see transformWithEsbuild in vite). Path aliases stay on `resolve.alias`
+   * above; this string is only a valid transform target.
+   * Sync: scripts/test-host-neutrality.mjs (aliasAt plugin + demo tsconfig).
+   */
+  esbuild: {
+    tsconfigRaw: JSON.stringify({
+      compilerOptions: {
+        target: 'ESNext',
+        useDefineForClassFields: true,
+        module: 'ESNext',
+      },
+    }),
+  },
   // ffmpeg.wasm is only reached via a lazy import('./audio-render'), so without
   // this Vite discovers @ffmpeg/* at first render and re-optimizes deps — a
   // full page reload. Pre-bundling them removes that one reload trigger.

@@ -41,7 +41,7 @@
 // same false confidence that let those recordings vanish in silence.
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,10 +87,53 @@ function check(label, condition, detail) {
 // ── 1. Resolve the hosted Studio's real module graph ────────────────────────
 
 /*
+ * Resolve `@/…` to the repo root. Do NOT rely on root tsconfig.json paths:
+ * that file only `extends` `.wxt/tsconfig.json`, which is gitignored and only
+ * appears after a local WXT prepare. The Pages CI job installs demo deps only
+ * and never runs WXT, so esbuild's default tsconfig walk finds a broken extend
+ * and every `@/src/…` import dies with "Could not resolve" (63×) before any
+ * neutrality rule runs. demo/tsconfig.json and demo/vite.config.ts already
+ * define the same alias for the real build; this plugin keeps the guard in
+ * lockstep without needing .wxt.
+ *
+ * Only return real *files*. `existsSync` is true for directories, and handing
+ * esbuild a directory path yields Windows "Incorrect function" / Unix EISDIR
+ * when it tries to read the module source. Prefer `foo.ts` then `foo/index.ts`.
+ */
+const FILE_CANDIDATES = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '/index.ts', '/index.tsx', '/index.js'];
+
+function resolveAtAlias(specifier) {
+  const base = resolve(root, specifier.slice(2)); // '@/src/x' → <root>/src/x
+  try {
+    if (statSync(base).isFile()) return base;
+  } catch {
+    // not a file (or missing) — try extensions
+  }
+  for (const ext of FILE_CANDIDATES) {
+    const candidate = base + ext;
+    try {
+      if (statSync(candidate).isFile()) return candidate;
+    } catch {
+      // try next
+    }
+  }
+  return undefined;
+}
+
+const aliasAt = {
+  name: 'alias-at-repo-root',
+  setup(pluginBuild) {
+    pluginBuild.onResolve({ filter: /^@\// }, (args) => {
+      const resolved = resolveAtAlias(args.path);
+      return resolved ? { path: resolved } : undefined;
+    });
+  },
+};
+
+/*
  * Externalize bare specifiers. We only audit first-party files, and not walking
  * into node_modules keeps this fast and immune to demo/ vs root dependency drift.
- * `@/…` is NOT a package — it is the repo-root alias — so it must fall through to
- * esbuild's normal tsconfig-paths resolution.
+ * `@/…` is handled by aliasAt above — not a package.
  */
 const externalizeBare = {
   name: 'externalize-bare',
@@ -111,7 +154,13 @@ const result = await build({
   format: 'esm',
   platform: 'browser',
   logLevel: 'silent',
-  plugins: [externalizeBare],
+  // BUG FIX: hosted-studio Pages deploy host-neutrality guard
+  // Fix: do not walk root tsconfig → .wxt (absent in CI). Point at demo's
+  // committed tsconfig so path metadata is available without a WXT prepare;
+  // the aliasAt plugin is the real `@/` resolver and does not need it.
+  // Sync: demo/tsconfig.json paths "@/*"→"../*", demo/vite.config.ts alias '@'
+  tsconfig: resolve(root, 'demo/tsconfig.json'),
+  plugins: [aliasAt, externalizeBare],
   /*
    * Stylesheets and binary assets are emptied rather than parsed. We audit CSS
    * separately (demo/vite.config.ts already fails the BUILD on a surviving
