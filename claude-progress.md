@@ -102,9 +102,9 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ## Immediate next
 
-1. **Track D Phase 4 — NEXT.** Phases **0–3 COMPLETE** (Phase 3 operator QA **PASS 2026-07-22**: cold Slow 3G, warm path, blocked-wasm Retry/Open-anyway, first bake after gated cold load, deep-link cold, hosted banner — QA §4.1–4.10). Phase 3 code was three slices: `hostCapabilities.redditAttach`, primary hub card, chronos gate; relay suite 15/15.
-   - **Preferred product slice when opened:** **captions (H-2 / QA 5.6)** — vendor `public/vosk/*` + `vosk-sandbox.html/js` into the demo the same way FFmpeg is vendored; prove sandbox-ready + real transcript + bake. **Not cut** — only deferred until Phases 0–3 closed. Until then auto-Vosk still fails as-designed (SPA HTML for missing assets).
-   - **Also Phase 4:** gate a11y (5.1–5.4), multi-take memory (5.5), studio-side Cache-Storage wasm read (§3.5), living-doc tidy (5.8), real Pages clean-profile deploy (5.7).
+1. **Track D Phase 4 — IN FLIGHT.** Phases **0–3 COMPLETE** (Phase 3 operator QA **PASS 2026-07-22**, `2500c9c`: cold Slow 3G, warm path, blocked-wasm Retry/Open-anyway, first bake after gated cold load, deep-link cold, hosted banner — QA §4.1–4.10). Phase 3 code was three slices: `hostCapabilities.redditAttach`, primary hub card, chronos gate; relay suite 15/15.
+   - **Slice 1 — captions vendoring (H-2 / QA 5.6) — DONE 2026-07-23 (`6213f0e`).** Vosk model + sandbox vendored into `demo/` the way FFmpeg is: a shared builder `scripts/vosk-sandbox-build.mjs` (esbuild dependency-injected, the base64 worker patch held ONCE — extension artifact byte-identical), `demo/scripts/{fetch-vosk-model,build-vosk-sandbox}.mjs`, `vosk-browser` added as a demo dep, all git-ignored, workflow caches the model. Host-neutrality rule 8 extended → **15/15**. **Proven on a preview build:** sandbox READY in 381 ms + a real 16 s Hamlet clip transcribed accurately (`ok`, 4 segments, 0 console errors), no mic needed. **Operator tail (QA 5.6):** mic record → auto-caption → bake with real captions.
+   - **Remaining Phase 4:** gate a11y (5.1–5.4), multi-take memory (5.5), studio-side Cache-Storage wasm read (§3.5), living-doc tidy (5.8), real Pages clean-profile deploy (5.7).
    - **Phase 2 residual (not blockers):** frame-wise eyeball, record-time hot-swap under RAF throttle, FFmpeg fallback tier, bake-size (3.8).
    - **Run `npm run test:host-neutrality` at every phase exit** — first step of the demo build, gates the Pages deploy.
 2. After Phase 4 (or in parallel if Track D is cut short of captions): explicit **v6.0.0 release boundary** — package/manifest bump, release notes, tag. Package stays **5.11.0** until then.
@@ -201,8 +201,11 @@ Full pre-closeout history: archive/progress/claude-progress-through-v6.0.0-track
 PHASE 3 OPERATOR QA PASS 2026-07-22 (QA §4.1–4.10): cold+Slow 3G chronos honest; warm path agent-verified;
 blocked ffmpeg-core.wasm → Retry + Open-anyway + adjacent warning; first bake after gated cold OK;
 deep-link /design-studio/ cold no hang; hosted banner no dead Reddit CTA.
-NEXT: Track D Phase 4 — preferred first engineering slice = Vosk vendor + sandbox for hosted captions
-(H-2 / QA 5.6; product wants this — not permanently cut). Also a11y, Cache Storage studio-side, Pages
-deploy clean-profile, living docs. Then explicit v6.0.0 version/release-notes/tag. Push is user-owned.
+PHASE 4 IN FLIGHT: slice 1 = Vosk captions VENDORED into demo (H-2 RESOLVED 2026-07-23, 6213f0e) —
+shared sandbox builder, demo fetch/build scripts, guard rule 8 15/15; PROVEN on a build (sandbox READY
+381ms + real Hamlet transcript, no mic). Operator tail = mic record→auto-caption→bake (QA 5.6).
+NEXT: remaining Phase 4 — a11y (5.1-5.4), multi-take memory (5.5), studio-side Cache Storage wasm read
+(3.5), Pages clean-profile deploy (5.7), living docs (5.8). Then explicit v6.0.0 version/notes/tag.
+Push is user-owned.
 Run architecture-hardening resume if deeper context is needed.
 ```
