@@ -44,6 +44,11 @@ public/vosk-sandbox.js.map
 demo/dist/
 demo/node_modules/
 demo/public/ffmpeg/
+# Vendored Vosk model + sandbox bundle by demo/scripts/{fetch-vosk-model,build-vosk-sandbox}.mjs (Track D Phase 4).
+demo/public/vosk/
+demo/public/vosk-sandbox.js
+demo/public/vosk-sandbox.js.map
+demo/public/vosk-sandbox.html
 # Mirrored from public/assets by demo/scripts/copy-studio-assets.mjs (Track D Phase 0).
 demo/public/assets/design-studio-v4/
 demo/public/assets/fonts/

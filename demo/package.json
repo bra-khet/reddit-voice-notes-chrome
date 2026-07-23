@@ -8,7 +8,8 @@
     "dev": "vite",
     "vendor:ffmpeg": "node scripts/copy-ffmpeg-core.mjs",
     "vendor:studio-assets": "node scripts/copy-studio-assets.mjs",
-    "vendor": "npm run vendor:ffmpeg && npm run vendor:studio-assets",
+    "vendor:vosk": "node scripts/fetch-vosk-model.mjs && node scripts/build-vosk-sandbox.mjs",
+    "vendor": "npm run vendor:ffmpeg && npm run vendor:studio-assets && npm run vendor:vosk",
     "test:host-neutrality": "node ../scripts/test-host-neutrality.mjs",
     "prebuild": "npm run vendor",
     "build": "npm run test:host-neutrality && tsc --noEmit && vite build",
@@ -19,7 +20,8 @@
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
-    "mediabunny": "1.50.6"
+    "mediabunny": "1.50.6",
+    "vosk-browser": "^0.0.8"
   },
   "devDependencies": {
     "@ffmpeg/core": "^0.12.10",

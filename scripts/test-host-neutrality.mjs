@@ -334,6 +334,49 @@ for (const script of ['demo/scripts/copy-ffmpeg-core.mjs', 'scripts/copy-ffmpeg-
   );
 }
 
+/*
+ * Vosk (Phase 4) is the same shape as ffmpeg: vosk-sandbox.html loads
+ * vosk-sandbox.js, whose worker fetches vosk/model.tar.gz — three siblings the
+ * extension serves from public/ and the hosted Studio must serve from demo/public/.
+ * A missing one 404s to SPA HTML under vite preview and surfaces only as "Vosk
+ * sandbox failed to become ready" (roadmap H-2, the very failure Phase 4 fixes).
+ * Assert the demo vendors all three, and that the fragile base64 worker patch is
+ * SHARED with the extension rather than a second copy that drifts on a version bump.
+ */
+const voskDemoBuild = 'demo/scripts/build-vosk-sandbox.mjs';
+const voskDemoFetch = 'demo/scripts/fetch-vosk-model.mjs';
+
+check(
+  `rule 8 — ${voskDemoBuild} builds vosk-sandbox.js + copies vosk-sandbox.html`,
+  existsSync(resolve(root, voskDemoBuild)) &&
+    /buildVoskSandbox\(/.test(readFileSync(resolve(root, voskDemoBuild), 'utf8')) &&
+    /vosk-sandbox\.html/.test(readFileSync(resolve(root, voskDemoBuild), 'utf8')),
+  'demo must build vosk-sandbox.js from source and copy the vosk-sandbox.html sibling',
+);
+
+check(
+  `rule 8 — ${voskDemoFetch} vendors vosk/model.tar.gz`,
+  existsSync(resolve(root, voskDemoFetch)) &&
+    /model\.tar\.gz/.test(readFileSync(resolve(root, voskDemoFetch), 'utf8')),
+  'demo must vendor the Vosk model alongside the sandbox',
+);
+
+check(
+  'rule 8 — demo `vendor` runs vendor:vosk',
+  /"vendor"\s*:\s*"[^"]*vendor:vosk/.test(readFileSync(resolve(root, 'demo/package.json'), 'utf8')),
+  'add `npm run vendor:vosk` to the demo `vendor` script so CI produces the assets',
+);
+
+for (const script of ['scripts/build-vosk-sandbox.mjs', voskDemoBuild]) {
+  const path = resolve(root, script);
+  if (!existsSync(path)) continue;
+  check(
+    `rule 8 — ${script} uses the shared vosk sandbox builder`,
+    /buildVoskSandbox/.test(readFileSync(path, 'utf8')),
+    'the base64 worker patch must live once in scripts/vosk-sandbox-build.mjs, not be re-copied',
+  );
+}
+
 // ── Report ──────────────────────────────────────────────────────────────────
 
 console.log(

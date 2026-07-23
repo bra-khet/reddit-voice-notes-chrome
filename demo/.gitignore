@@ -5,6 +5,13 @@ node_modules/
 dist/
 # Vendored ffmpeg.wasm core (~30 MB) — produced from node_modules by scripts/copy-ffmpeg-core.mjs
 public/ffmpeg/
+# Vendored Vosk model (~40 MB) + sandbox bundle — produced from ../public and
+# node_modules by scripts/{fetch-vosk-model,build-vosk-sandbox}.mjs (Track D Phase 4).
+# The .html is a copy of the committed ../public/vosk-sandbox.html — generated, never committed.
+public/vosk/
+public/vosk-sandbox.js
+public/vosk-sandbox.js.map
+public/vosk-sandbox.html
 # Vendored Studio assets (~2.4 MB) — mirrored from ../public/assets by
 # scripts/copy-studio-assets.mjs. Generated, never committed: a checked-in copy
 # is a thing that silently goes stale (see Track D Phase 0).

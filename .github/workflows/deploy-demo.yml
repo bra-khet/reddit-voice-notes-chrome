@@ -45,8 +45,18 @@ jobs:
           cache: npm
           cache-dependency-path: demo/package-lock.json
 
-      # npm ci runs the demo's postinstall, which vendors the ~30 MB ffmpeg core
-      # from node_modules — so it never needs to be committed.
+      # Cache the vendored ~40 MB Vosk model so we don't re-download it from the
+      # upstream academic mirror on every deploy. Restored BEFORE install so the
+      # postinstall vendor sees a complete file and skips the fetch (Track D Phase 4).
+      # Key tracks the fetch script — bump the model URL there and the cache rolls.
+      - name: Cache Vosk model
+        uses: actions/cache@v4
+        with:
+          path: demo/public/vosk
+          key: vosk-model-${{ hashFiles('demo/scripts/fetch-vosk-model.mjs') }}
+
+      # npm ci runs the demo's postinstall, which vendors the ~30 MB ffmpeg core and
+      # builds the Vosk sandbox from node_modules — so they never need to be committed.
       - name: Install
         run: npm ci
 
