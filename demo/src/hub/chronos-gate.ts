@@ -236,7 +236,7 @@ function buildOverlay(): Overlay {
       </ol>
       <div class="chronos__bar" role="presentation"><div class="chronos__bar-fill" data-chronos-bar></div></div>
       <p class="chronos__status" data-chronos-status aria-live="polite">Preparing…</p>
-      <div class="chronos__error" data-chronos-error hidden>
+      <div class="chronos__error" data-chronos-error role="alert" hidden>
         <p class="chronos__error-text" data-chronos-error-text></p>
         <div class="chronos__actions">
           <button type="button" class="chronos__btn chronos__btn--primary" data-chronos-retry>Retry</button>
@@ -249,6 +249,7 @@ function buildOverlay(): Overlay {
       </div>
     </div>`;
 
+  const card = el.querySelector<HTMLElement>('.chronos__card')!;
   const bar = el.querySelector<HTMLElement>('[data-chronos-bar]')!;
   const status = el.querySelector<HTMLElement>('[data-chronos-status]')!;
   const errorBox = el.querySelector<HTMLElement>('[data-chronos-error]')!;
@@ -264,6 +265,34 @@ function buildOverlay(): Overlay {
     });
   }
 
+  // §5.2: aria-modal="true" claims the background is inert, so keyboard focus must
+  // not escape to it. While warming there are NO focusable controls, so Tab is a
+  // no-op then (kept on the card); once the error actions appear, Tab cycles
+  // between exactly the two buttons. This CONTAINS focus without ever trapping the
+  // user — either button proceeds, and success navigates the whole page away.
+  // Escape is deliberately unbound: a warm has no "cancel" (it must finish or
+  // fail), and the visible Retry / Open anyway buttons are the only honest exits.
+  card.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab') return;
+    const focusables = Array.from(
+      card.querySelectorAll<HTMLButtonElement>('button:not([disabled])'),
+    ).filter((node) => node.offsetParent !== null);
+    if (focusables.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
   return {
     el,
     update(event) {
@@ -272,11 +301,18 @@ function buildOverlay(): Overlay {
       markStages(STAGE_INDEX[event.key]);
     },
     fail(message, onRetry, onOpenAnyway) {
-      errorText.textContent = message;
+      // §5.3: unhide the role="alert" box FIRST, then write the text, so the
+      // content mutation lands while the region is visible — that is what makes
+      // assistive tech announce the failure reason and its consequence.
       errorBox.hidden = false;
+      errorText.textContent = message;
       status.textContent = 'Could not warm the media engines.';
-      el.querySelector<HTMLButtonElement>('[data-chronos-retry]')!.onclick = onRetry;
+      const retry = el.querySelector<HTMLButtonElement>('[data-chronos-retry]')!;
+      retry.onclick = onRetry;
       el.querySelector<HTMLButtonElement>('[data-chronos-open]')!.onclick = onOpenAnyway;
+      // §5.2: move focus to the primary action so a keyboard / AT user lands on
+      // something actionable instead of the now-stale progress card.
+      retry.focus();
     },
     remove() {
       el.remove();

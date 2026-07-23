@@ -469,6 +469,10 @@ a {
   gap: 0.6rem;
   font-size: 0.86rem;
   color: var(--studio-text-muted);
+  /* §5.4: 0.5 is the INACTIVE/upcoming state (contrast-exempt, WCAG 1.4.3) and is
+     intentional — do not raise it to clear 4.5:1, that collapses the
+     pending/done/active hierarchy. The current step is carried at full contrast by
+     --active (12.9:1) and announced via the polite .chronos__status live region. */
   opacity: 0.5;
 }
 .chronos__stage-dot {
