@@ -35,6 +35,13 @@
  *   - PROGRESS/COMPLETE re-broadcast             — see the guard below; this one
  *     is not an omission for brevity, it is a correctness requirement
  *
+ * WHAT THIS FILE MUST STILL MIRROR (not optional):
+ *   - Terminal transcribe persistence. Background owns `saveSessionTranscript`
+ *     + `SESSION_TRANSCRIPT_READY_KEY` on every COMPLETE (BUG-038). Rule 6 says
+ *     we must NOT re-broadcast COMPLETE on the loopback bus, but the Studio UI
+ *     still loads captions from IDB + the ready signal — without that side
+ *     effect Vosk can finish ("applied: true") while the panel stays Pending.
+ *
  * ADR-0011 WATCH: this file must stay a RELAY. The moment it starts making
  * policy decisions the extension's background does not make, that divergence
  * needs an ADR, not a quiet edit.
@@ -77,10 +84,107 @@ import {
   type TranscribeOffscreenRequest,
   type TranscribeStartRequest,
 } from '@/src/messaging/types';
+import { SESSION_TRANSCRIPT_READY_KEY } from '@/src/settings/user-preferences';
+import { saveSessionTranscript } from '@/src/storage/session-transcript-db';
+import { TRANSCRIBE_TIMEOUT_MS } from '@/src/transcription/constants';
+import { prepareTranscribeCompletionForPersistence } from '@/src/transcription/transcribe-completion';
 
 const LOG_PREFIX = '[web-pipeline-host]';
 
+// BUG FIX: hosted Vosk success never reached Design Studio transcript UI
+// Fix: mirror background's terminal IDB + ready-key side effect on COMPLETE
+//      without re-broadcasting COMPLETE (rule 6 / phantom-take guard).
+// Sync: entrypoints/background.ts persistTranscribeCompletion + startTranscribeJobContext.
+const TRANSCRIBE_COMPLETION_WATCHDOG_MS = TRANSCRIBE_TIMEOUT_MS + 5_000;
+
+interface TranscribeJobContext {
+  durationSeconds: number;
+  language?: string;
+  watchdog: ReturnType<typeof setTimeout>;
+}
+
+const transcribeContextByJobId = new Map<string, TranscribeJobContext>();
+
 let offscreenModule: Promise<unknown> | null = null;
+
+function normalizeTranscribeDuration(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function clearTranscribeJobContext(jobId: string): void {
+  const context = transcribeContextByJobId.get(jobId);
+  if (context) clearTimeout(context.watchdog);
+  transcribeContextByJobId.delete(jobId);
+}
+
+function takeTranscribeJobContext(jobId: string): Omit<TranscribeJobContext, 'watchdog'> | null {
+  const context = transcribeContextByJobId.get(jobId);
+  if (!context) return null;
+  clearTimeout(context.watchdog);
+  transcribeContextByJobId.delete(jobId);
+  return { durationSeconds: context.durationSeconds, language: context.language };
+}
+
+function startTranscribeJobContext(request: TranscribeStartRequest): void {
+  clearTranscribeJobContext(request.jobId);
+  const watchdog = setTimeout(() => {
+    if (!transcribeContextByJobId.has(request.jobId)) return;
+    // First delivery of a terminal COMPLETE (not a re-broadcast). Studio's
+    // forkTranscribe listener and our COMPLETE handler both see it once.
+    broadcastFailure({
+      type: MSG_TRANSCRIBE_COMPLETE,
+      jobId: request.jobId,
+      ok: false,
+      error: `Transcription timed out after ${Math.round(TRANSCRIBE_TIMEOUT_MS / 1000)}s`,
+    });
+    relayCancel(MSG_TRANSCRIBE_CANCEL, request.jobId);
+  }, TRANSCRIBE_COMPLETION_WATCHDOG_MS);
+  // Node test harness: don't keep the process alive for a 125 s idle timer.
+  // Browsers ignore unref; production Completes clear the timer via take/clear.
+  if (typeof (watchdog as { unref?: () => void }).unref === 'function') {
+    (watchdog as { unref: () => void }).unref();
+  }
+
+  transcribeContextByJobId.set(request.jobId, {
+    durationSeconds: normalizeTranscribeDuration(request.durationSeconds),
+    language: request.language,
+    watchdog,
+  });
+}
+
+/**
+ * Background's persistTranscribeCompletion, adapted for the single-context host.
+ * Does NOT re-send COMPLETE — the Studio's forkTranscribe listener already saw
+ * the offscreen broadcast on the loopback bus.
+ */
+async function persistTranscribeCompletion(
+  message: TranscribeCompleteMessage,
+  context: Omit<TranscribeJobContext, 'watchdog'>,
+): Promise<void> {
+  const prepared = prepareTranscribeCompletionForPersistence(
+    message,
+    context.durationSeconds,
+    context.language,
+  );
+  if (!prepared) return;
+
+  await saveSessionTranscript(prepared.result, message.jobId, prepared.meta);
+  await browser.storage.local.set({ [SESSION_TRANSCRIPT_READY_KEY]: Date.now() });
+}
+
+function handleTranscribeComplete(message: TranscribeCompleteMessage): void {
+  const context = takeTranscribeJobContext(message.jobId);
+  if (!context) {
+    console.warn(`${LOG_PREFIX} Ignoring stale transcribe completion`, { jobId: message.jobId });
+    return;
+  }
+  void persistTranscribeCompletion(message, context).catch((error) => {
+    console.warn(`${LOG_PREFIX} Terminal transcript persist failed`, {
+      jobId: message.jobId,
+      error,
+    });
+  });
+}
 
 /**
  * The web analogue of background.ts's ensureOffscreenDocument().
@@ -172,14 +276,21 @@ export function installWebPipelineHost(): void {
     const { type } = message as { type?: string };
 
     /*
-     * PROGRESS and COMPLETE are NOT relayed here, and that is load-bearing.
+     * PROGRESS and COMPLETE are NOT re-broadcast here, and that is load-bearing.
      * background.ts forwards them because the Studio lives in a different
      * context than the offscreen document. Here they are the same context, so
      * offscreen's broadcast already reaches the Studio's listener directly.
      * Forwarding would deliver every progress tick twice and every COMPLETE
      * twice — and a duplicate COMPLETE resolves a settled job, which is exactly
      * the class of bug that produces a phantom second take.
+     *
+     * Transcribe COMPLETE is still *handled* here for its terminal side effect
+     * (IDB snapshot + ready key). That is not a re-broadcast.
      */
+    if (type === MSG_TRANSCRIBE_COMPLETE) {
+      handleTranscribeComplete(message as TranscribeCompleteMessage);
+      return;
+    }
 
     if (type === MSG_TRANSCODE_CANCEL) {
       const { jobId } = message as TranscodeCancelRequest;
@@ -300,6 +411,11 @@ export function installWebPipelineHost(): void {
         let ackSent = false;
         try {
           validateTranscribeStartRequest(request);
+          // BUG FIX: hosted Vosk success never reached Design Studio transcript UI
+          // Fix: retain duration/language + watchdog before ACK so every accepted
+          //      COMPLETE can persist the IDB snapshot the Studio actually loads.
+          // Sync: entrypoints/background.ts startTranscribeJobContext.
+          startTranscribeJobContext(request);
 
           const ack: TranscribeAckResponse = {
             type: MSG_TRANSCRIBE_ACK,
@@ -320,6 +436,7 @@ export function installWebPipelineHost(): void {
           await dispatchToOffscreen(offscreenRequest);
         } catch (error) {
           if (!ackSent) {
+            clearTranscribeJobContext(request.jobId);
             sendResponse({
               type: MSG_TRANSCRIBE_ACK,
               jobId: request.jobId,
@@ -328,6 +445,8 @@ export function installWebPipelineHost(): void {
             } satisfies TranscribeAckResponse);
             return;
           }
+          // Post-ACK failure: broadcastFailure delivers COMPLETE once on the bus;
+          // our COMPLETE handler above owns persistence + context cleanup.
           broadcastFailure({
             type: MSG_TRANSCRIBE_COMPLETE,
             jobId: request.jobId,

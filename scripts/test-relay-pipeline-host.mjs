@@ -71,11 +71,46 @@ export * as MSG from '@/src/messaging/types';
 `,
 );
 
+// Fake session-transcript IDB so Node can exercise the terminal-persist path
+// without a real IndexedDB. Records every save for assertions.
+const fakeSessionTranscriptPath = join(cacheDir, 'fake-session-transcript-db.ts');
+writeFileSync(
+  fakeSessionTranscriptPath,
+  `const g = globalThis as any;
+g.__sessionTranscriptSaves ??= [];
+export async function saveSessionTranscript(result: unknown, jobId?: string, meta?: unknown): Promise<void> {
+  g.__sessionTranscriptSaves.push({ result, jobId, meta });
+}
+export async function loadSessionTranscript(): Promise<null> { return null; }
+export async function saveSessionTranscriptEdits(): Promise<void> {}
+export async function revertSessionTranscriptEdits(): Promise<void> {}
+export async function clearSessionTranscriptStore(): Promise<void> {}
+export function sessionTranscriptIsDirty(): boolean { return false; }
+export function sessionTranscriptIsConfirmed(): boolean { return false; }
+`,
+);
+
+// Thin stand-in for the ready-key constant so the host bundle does not pull the
+// full user-preferences graph into Node.
+const fakeUserPrefsPath = join(cacheDir, 'fake-user-preferences.ts');
+writeFileSync(
+  fakeUserPrefsPath,
+  `export const SESSION_TRANSCRIPT_READY_KEY = 'rvnSessionTranscriptReadyAt' as const;
+`,
+);
+
 const aliasPlugin = {
   name: 'rvn-relay-test-alias',
   setup(b) {
     // The relay host's dynamic import — swap the engine for the fake.
     b.onResolve({ filter: /^@\/entrypoints\/offscreen\/main$/ }, () => ({ path: fakeOffscreenPath }));
+    // Terminal-persist deps: keep the host's real logic, swap storage backends.
+    b.onResolve({ filter: /^@\/src\/storage\/session-transcript-db$/ }, () => ({
+      path: fakeSessionTranscriptPath,
+    }));
+    b.onResolve({ filter: /^@\/src\/settings\/user-preferences$/ }, () => ({
+      path: fakeUserPrefsPath,
+    }));
     // Repo-root `@/` alias, resolved explicitly so the temp entry does not depend
     // on esbuild finding a tsconfig for a file under node_modules/.cache.
     b.onResolve({ filter: /^@\// }, (args) => {
@@ -111,12 +146,41 @@ globalThis.location = { href: 'https://host.example/base/', origin: 'https://hos
 const { webRuntime, webTabs, installWebPipelineHost, MSG } = await import(
   pathToFileURL(bundlePath).href
 );
-globalThis.browser = { runtime: webRuntime, tabs: webTabs };
+
+// Minimal storage.local for the terminal ready-key write. The real hosted surface
+// uses web-storage.ts; the host under test only needs set/get of one key.
+const storageLocal = new Map();
+const storageLocalApi = {
+  async get(keys) {
+    const out = {};
+    const list = Array.isArray(keys) ? keys : keys == null ? [...storageLocal.keys()] : [keys];
+    for (const k of list) {
+      if (storageLocal.has(k)) out[k] = storageLocal.get(k);
+    }
+    return out;
+  },
+  async set(items) {
+    for (const [k, v] of Object.entries(items)) storageLocal.set(k, v);
+  },
+  async remove(keys) {
+    for (const k of Array.isArray(keys) ? keys : [keys]) storageLocal.delete(k);
+  },
+  async clear() {
+    storageLocal.clear();
+  },
+};
+
+globalThis.browser = {
+  runtime: webRuntime,
+  tabs: webTabs,
+  storage: { local: storageLocalApi },
+};
 
 // Pre-seed the offscreen record so assertions can read it before the fake module
 // is lazily imported on the first dispatch. The fake's `??=` keeps this object and
 // only its `loads += 1` runs on evaluation, so the single-evaluation check holds.
 globalThis.__offscreen = { loads: 0, received: [], ackOk: true };
+globalThis.__sessionTranscriptSaves = [];
 
 // A passive "Studio" observer: it never responds (returns undefined), so it never
 // wins the response race — it only counts what the bus delivers. A re-broadcast
@@ -344,6 +408,107 @@ await test('a CANCEL with no jobId relays nothing', async () => {
   await browser.runtime.sendMessage({ type: MSG.MSG_TRANSCODE_CANCEL });
   await settle();
   assert.equal(off().received.length, 0);
+});
+
+// ── F2. Terminal transcribe persistence (BUG: Vosk applied but UI stays Pending) ─
+// Rule 6 forbids re-broadcasting COMPLETE, but background's IDB + ready-key side
+// effect is still required: the Studio panel loads captions from that path, not
+// from the forkTranscribe in-memory result.
+await test('transcribe COMPLETE after START persists IDB snapshot + ready key once (no re-broadcast)', async () => {
+  globalThis.__sessionTranscriptSaves.length = 0;
+  storageLocal.clear();
+  resetReceived();
+  const jobId = 'ts-persist';
+  const transcript = {
+    text: 'hello world',
+    segments: [{ text: 'hello world', start: 0, end: 1.2 }],
+    source: 'vosk',
+  };
+  const ack = await browser.runtime.sendMessage({
+    type: MSG.MSG_TRANSCRIBE_START,
+    jobId,
+    webmBase64: payload(500),
+    webmByteLength: 500,
+    durationSeconds: 4,
+    language: 'en',
+  });
+  assert.equal(ack.ok, true);
+  await settle();
+
+  const before = studioSeen.length;
+  await browser.runtime.sendMessage({
+    type: MSG.MSG_TRANSCRIBE_COMPLETE,
+    jobId,
+    ok: true,
+    transcriptJson: JSON.stringify(transcript),
+  });
+  await settle(8);
+
+  const completes = studioSeen
+    .slice(before)
+    .filter((m) => m.type === MSG.MSG_TRANSCRIBE_COMPLETE && m.jobId === jobId);
+  assert.equal(completes.length, 1, 'exactly one COMPLETE delivery — no re-broadcast');
+
+  assert.equal(globalThis.__sessionTranscriptSaves.length, 1, 'one terminal IDB save');
+  assert.equal(globalThis.__sessionTranscriptSaves[0].jobId, jobId);
+  assert.equal(globalThis.__sessionTranscriptSaves[0].result.text, 'hello world');
+  assert.equal(
+    typeof storageLocal.get('rvnSessionTranscriptReadyAt'),
+    'number',
+    'ready key must fire so subtitle-controls reloads the snapshot',
+  );
+});
+
+await test('stale transcribe COMPLETE (no prior START) does not persist', async () => {
+  globalThis.__sessionTranscriptSaves.length = 0;
+  storageLocal.clear();
+  const before = studioSeen.length;
+  await browser.runtime.sendMessage({
+    type: MSG.MSG_TRANSCRIBE_COMPLETE,
+    jobId: 'ts-stale',
+    ok: true,
+    transcriptJson: JSON.stringify({ text: 'nope', segments: [], source: 'vosk' }),
+  });
+  await settle(4);
+  assert.equal(globalThis.__sessionTranscriptSaves.length, 0);
+  // Still delivered once on the bus (send itself); host must not re-broadcast.
+  const completes = studioSeen
+    .slice(before)
+    .filter((m) => m.type === MSG.MSG_TRANSCRIBE_COMPLETE && m.jobId === 'ts-stale');
+  assert.equal(completes.length, 1);
+  assert.equal(storageLocal.has('rvnSessionTranscriptReadyAt'), false);
+});
+
+await test('failed transcribe COMPLETE persists a timed scaffold (graceful failure)', async () => {
+  globalThis.__sessionTranscriptSaves.length = 0;
+  storageLocal.clear();
+  resetReceived();
+  const jobId = 'ts-scaffold';
+  const ack = await browser.runtime.sendMessage({
+    type: MSG.MSG_TRANSCRIBE_START,
+    jobId,
+    webmBase64: payload(500),
+    webmByteLength: 500,
+    durationSeconds: 6,
+    language: 'en',
+  });
+  assert.equal(ack.ok, true);
+  await settle();
+
+  await browser.runtime.sendMessage({
+    type: MSG.MSG_TRANSCRIBE_COMPLETE,
+    jobId,
+    ok: false,
+    error: 'no speech detected',
+  });
+  await settle(8);
+
+  assert.equal(globalThis.__sessionTranscriptSaves.length, 1);
+  const save = globalThis.__sessionTranscriptSaves[0];
+  assert.equal(save.jobId, jobId);
+  assert.ok(save.meta?.isScaffolded === true, 'scaffold flag required for graceful UI');
+  assert.ok(Array.isArray(save.result?.segments) && save.result.segments.length > 0);
+  assert.equal(typeof storageLocal.get('rvnSessionTranscriptReadyAt'), 'number');
 });
 
 // ── F. Post-ACK dispatch failure is SPOKEN as a terminal COMPLETE ─────────────
