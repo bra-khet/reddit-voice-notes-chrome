@@ -1,6 +1,6 @@
 # Track D — Hosted Design Studio (QA)
 
-**Status:** **OPEN · Phases 0–3 COMPLETE (operator QA PASS 2026-07-22) · Phase 4 next** · **Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`)
+**Status:** **COMPLETE · merge candidate (2026-07-23)** · Phases 0–4 closed · real Pages 5.7 operator PASS · **Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`)
 **Roadmap:** [`docs/v6.0.0-hosted-design-studio.md`](../../../docs/v6.0.0-hosted-design-studio.md) · **ADR:** none yet (0011 is next; trigger = the host boundary growing past a relay shim)
 **Checklist:** [`qa-checklist.md`](qa-checklist.md)
 
@@ -23,7 +23,7 @@ Unlike Tracks A/B/C, most of Track D's risk is **not** in new product behaviour 
 | 1 — record + take lifecycle | Record → base MP4 → download twice in a session; reload recovery | ■ COMPLETE |
 | 2 — visual system + bake | Track A/B/C surfaces appear without per-surface fixes; bake parity vs extension on an identical profile | ■ gate substantially MET (structural + operator rich bake) |
 | 3 — hub + chronos gate | Cold + warm runs observed; failure path shows Retry **and a warned Open anyway** under throttling | ■ **PASS operator 2026-07-22** (QA §4.1–4.10) |
-| 4 — polish / a11y / docs / optional captions | Production build + real Pages deploy verified from a clean profile; optional Vosk tier | ☐ **NEXT** |
+| 4 — polish / a11y / docs / optional captions | Production build + real Pages deploy verified from a clean profile; optional Vosk tier | ■ **COMPLETE** (5.1–5.8 · Pages 5.7 operator PASS 2026-07-23) |
 
 ## Open checks (all closed through Phase 3)
 

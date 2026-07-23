@@ -19,13 +19,13 @@ Trim keeps the voice: **Apply trim** also cuts the raw capture WebM (audio-only,
 
 **Shipped:** merged → `main` (`853d3d8`) + tagged **v5.11.0** (2026-07-13; push user-owned) · release notes [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md). **Next:** scope **v6.0**. Optional future: Import merge/union mode ([`docs/future-ideas.md`](docs/future-ideas.md)).
 
-## Current work — **v6.0 "Polish & Visual Maturity" · Tracks A/B/C merged · Track D open**
+## Current work — **v6.0 "Polish & Visual Maturity" · Tracks A/B/C/D code complete · package still 5.11.0**
 
-Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`); Track B merged at `7d1c649` after full operator QA PASS.
+Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Branch:** `main` (Track D merged from `feature/v6.0.0-hosted-design-studio`). Package remains **5.11.0** until the explicit v6.0.0 release sprint.
 
 | Track | Roadmap | ADR | Gist |
 |-------|---------|-----|------|
-| **D — hosted Design Studio** | [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) | none yet (0011 next) | Full Studio on GitHub Pages via a `browser` global shim — **OPEN · Phases 0–3 ✅ COMPLETE (operator QA PASS); Phase 4 next (captions / polish)** |
+| **D — hosted Design Studio** | [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) | none yet (0011 next) | Full Studio on GitHub Pages via a `browser` global shim — **COMPLETE · Phases 0–4 ✅ · real Pages 5.7 PASS · merged** |
 | **A — audio-reactive visuals** | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) | [0007](docs/architecture/adr/0007-audio-reactive-visualizer-core.md) + [0009](docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) + [0010](docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · governor — **confidence QA PASS (Pass E) · merged** |
 | **B — background layout** | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) | [0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** | Layout core + direct manipulation + presets + effects/GIF/eye-dropper + framing — **full checklist PASS · merged** |
 | **C — popup UI refresh** | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) | none (presentational, under 0007 tokens) | Popup Cividis skin + elevated restart caution — **agent QA gate PASS · merged** |
@@ -38,7 +38,7 @@ Roadmaps from `.ignore/prep-v6.0.0/` via `/architecture-hardening`. **Current br
 
 **Track C status:** ✅ popup-only Cividis skin + elevated restart caution · ✅ agent gate PASS · ✅ merged · §8 real-extension eyeball residual optional.
 
-**Track D status (OPEN · Phases 0–3 ✅ COMPLETE · Phase 3 operator QA ■ PASS 2026-07-22 · Phase 4 IN FLIGHT):** ✅ Phase 0–3 as above · ✅ **Phase 4 slice 1** Vosk vendored (H-2) · ✅ **slice 1b** terminal transcript delivery fix (web relay now persists IDB + ready key on COMPLETE without re-broadcast; relay suite **18/18**) · ✅ **slice 2** studio-side Cache-Storage wasm read (§3.5) — `loadFfmpeg` serves the warm 31 MB wasm blob from `rvn-ffmpeg-warm-v1` (`src/ffmpeg/ffmpeg-warm-cache.ts`); host-neutral clean-miss on the extension; real-runner-verified (0 wasm HTTP fetches) · **Operator re-check QA 5.6** still open after rebuild. Remaining Phase 4: a11y, multi-take memory, Pages clean-profile, docs. Package stays **5.11.0** until explicit v6 release.
+**Track D status (COMPLETE · merged 2026-07-23):** ✅ Phases 0–4 · ✅ Vosk captions working (H-2 + terminal IDB/ready-key persist; relay **18/18**) · ✅ studio-side Cache-Storage wasm read · ✅ gate a11y 5.1–5.4 · ✅ multi-take memory 5.5 · ✅ living-doc tidy 5.8 · ✅ Pages CI without `.wxt/` / root `node_modules` · ✅ **real Pages deploy 5.7 operator PASS**. **No merge blockers.** Package stays **5.11.0** until explicit v6 release.
 
 The seam is **one `browser` global shim**, not an interface — and it held: zero extension-source edits were needed *for the host boundary*. Record and the default browser-composite bake are already `browser.*`-free; transcode/burn-in/transcribe now **do** reuse `entrypoints/offscreen/main.ts` in-page over the loopback bus, with `demo/design-studio/host/web-pipeline-host.ts` playing `background.ts`'s relay slice and `src/messaging/relay-validate.ts` shared by both relays.
 
@@ -68,7 +68,7 @@ The seam is **one `browser` global shim**, not an interface — and it held: zer
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklists [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md) · [`track-d/qa-checklist.md`](qa/QA-6.0.0/track-d/qa-checklist.md)
 
-**NEXT:** Track D **Phase 4** — ✅ Vosk captions vendored (H-2) · ✅ studio-side Cache-Storage wasm read (§3.5) · ✅ gate a11y (QA 5.1–5.4) · ✅ multi-take memory (5.5, no leak) · ✅ captions working (5.6) · ✅ living-doc tidy (5.8) · ✅ Pages CI without `.wxt/` · ✅ **Pages CI without root `node_modules`** (`demo/tsconfig` + vite aliases for mediabunny/@ffmpeg; unref cast; CI-faithful full build green) — all 2026-07-23; **remaining:** real Pages clean-profile deploy (5.7, user-owned workflow re-run from Track D branch after push; `github-pages` env must allow that branch or wait for `main`). Then the explicit v6.0.0 package/version + release-notes/tag decision · final release build · user-owned push of `main`/tag · optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint.
+**NEXT (post Track D merge):** explicit **v6.0.0 release boundary** — package/manifest bump, release notes, tag, docs-archiving Refresh / HISTORY row. **Pre-ship polish (recommended after code freeze or as a short pre-tag pass):** Field Guide tutorial refresh (86 "Reddit" + 5 "Voice Studio"; settle two-copy duplication first). Optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint. Push of `main`/tags remains **user-owned**.
 
 **Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0. **Track D adds:** no new execution context/message family/store; no behavioural change to the extension Studio (additive optional options only); Voice Lab + Field Guide green at every phase exit.
 

@@ -19,13 +19,14 @@ This is the **living** progress file, focused on the current release boundary. T
 
 ## v6.0 “Polish & Visual Maturity” — all development tracks merged
 
-**Code/QA integration complete on `main` 2026-07-20 · package remains `5.11.0` until the explicit v6 release commit/tag · no push performed.**
+**Code/QA integration complete on `main` (Tracks A/B/C 2026-07-20 · Track D 2026-07-23) · package remains `5.11.0` until the explicit v6 release commit/tag · push user-owned.**
 
 | Track | Outcome | Canonical record |
 |-------|---------|------------------|
 | **A — audio-reactive visuals** | **Confidence QA PASS · merged.** Six spectra, seven atmospheres, seven ordered stackables, Style Control Center, shared bounded performance governor, caption-safe dim, Cividis tokens. Accepted residual: Conway can park in a dead-edge corner after a long run while other colonies remain active. | [`docs/v6.0.0-custom-styles-refactor.md`](docs/v6.0.0-custom-styles-refactor.md) · ADR-0007/0009/0010 |
 | **B — background layout** | **Full operator checklist PASS · merged at `7d1c649`.** Direct hero/precision manipulation, responsive jog console, presets, dim/blur/blends/plate/Holo/GIF, eye-dropper, framing aids, live Theme-only compare, keyboard/ARIA, and one session-only next-take A/B layout. | [`docs/v6.0.0-background-panel-refactor.md`](docs/v6.0.0-background-panel-refactor.md) · [ADR-0008](docs/architecture/adr/0008-background-direct-manipulation-layout.md) · [`qa/QA-6.0.0/track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md) |
 | **C — popup UI refresh** | **Agent QA gate PASS · merged.** Popup-only Cividis overlay and elevated restart caution; optional real-extension appearance eyeball remains non-blocking. | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) |
+| **D — hosted Design Studio** | **COMPLETE · Phases 0–4 · real Pages 5.7 operator PASS · merged 2026-07-23.** Full Studio on GitHub Pages via one `browser` global shim + in-page offscreen loopback; Vosk captions; chronos gate; host-neutrality CI gates. | [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) · [`qa/QA-6.0.0/track-d/`](qa/QA-6.0.0/track-d/) |
 
 ### Track B final evidence
 
@@ -44,11 +45,11 @@ This is the **living** progress file, focused on the current release boundary. T
 
 ---
 
-## v6.0 Track D — hosted Design Studio (IN FLIGHT · **Phase 0 LANDED 2026-07-22**)
+## v6.0 Track D — hosted Design Studio (**COMPLETE · merged 2026-07-23**)
 
-**Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`) · **Canonical:** [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) · **QA:** [`qa/QA-6.0.0/track-d/`](qa/QA-6.0.0/track-d/)
+**Branch:** `feature/v6.0.0-hosted-design-studio` → `main` · **Canonical:** [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) · **QA:** [`qa/QA-6.0.0/track-d/`](qa/QA-6.0.0/track-d/)
 
-Track D is a **delivery** surface, not a feature surface: the full Design Studio served as a static GitHub Pages site so people can record → style → caption → bake → download without installing anything. Package stays `5.11.0`.
+Track D is a **delivery** surface, not a feature surface: the full Design Studio served as a static GitHub Pages site so people can record → style → caption → bake → download without installing anything. Package stays `5.11.0` until the explicit v6 release.
 
 **The design document was redrafted on 2026-07-22** because the original draft's central architecture — a `StudioHost` interface threaded through the Studio tree — was wrong and would have required editing ~40 files, contradicting its own non-goals. Verified corrections that now drive the track:
 
@@ -111,16 +112,17 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
    - **Slice 5 — living-doc tidy (QA 5.8) — DONE 2026-07-23.** Swept all six `[?]` **claim** markers in `docs/v6.0.0-hosted-design-studio.md` → `[V]` with check results: max-age=600 (C3: confirmed, revalidation 304/0 → eviction is the risk), bandwidth/R4 (GitHub-published limit, softened), threading/C1 (zero long tasks; hidden-tab RAF clamp explains "5–6× faster minimized"), origin-sharing (IDB/mic origin-wide by browser rule, `rvn*`-namespaced + clean-profile QA note), budget resume-note. Top status + §10 next-actions reconciled to as-built. Two `[?]` remain by design (the evidence legend + the on-land instruction). Docs-only. (The whole-repo docs-archiving Refresh #2 stays separately tracked — NOT part of 5.8.)
    - **Slice 5b — Pages deploy CI build without `.wxt/` (2026-07-23).** Operator `workflow_dispatch` from `feature/v6.0.0-hosted-design-studio` (after env branch-policy allowlist) failed at `npm run build` exit 1: host-neutrality's esbuild metafile could not resolve `@/…` (63 errors), and even past that Vite's esbuild transform of root `src/` would load root `tsconfig.json` → missing gitignored `.wxt/tsconfig.json`. Local green only because a prior `wxt prepare` had left `.wxt/` on disk. **Fix:** (1) `scripts/test-host-neutrality.mjs` resolves `@/` with an explicit alias plugin to repo root (file-only; no dir `existsSync` traps) + points `tsconfig` at committed `demo/tsconfig.json`; (2) `demo/vite.config.ts` sets `esbuild.tsconfigRaw` as a **string** so Vite skips loading the broken root extend. **Verified:** full `cd demo && npm run build` with `.wxt` renamed away (CI-faithful) → host-neutrality 15/15 + tsc + vite 337 modules, exit 0. **Operator:** re-run the workflow from the Track D branch (must still be on the `github-pages` environment deployment-branch allowlist).
    - **Slice 5c — Pages CI tsc/vite without root `node_modules` (2026-07-23).** Next wall after 5b: `tsc --noEmit` exit 2 — looked like many TS2307/TS7006s (`mediabunny`, `@ffmpeg/*`, implicit-any callbacks). **Not** mass strictness debt: bare imports in pulled-in `../src/*` resolve from the **file** (repo root), so CI (demo-only `npm ci`) misses packages that live only under `demo/node_modules`; local green was accidental root deps. Cascading TS7006s vanish once modules resolve. Plus one real cast: `web-pipeline-host` `timer.unref` under DOM lib (`number`). **Fix (config-level, no `src/` surgery):** (1) `demo/tsconfig.json` paths map those packages → `./node_modules/…`; (2) matching `resolve.alias` in `demo/vite.config.ts` (Rollup hits the same wall after tsc); (3) unref via `unknown`. **Verified:** root `node_modules` renamed away → `tsc --noEmit` 0 + full `npm run build` (host-neutrality 15/15 + vite 328 modules) exit 0.
-   - **Remaining Phase 4:** real Pages clean-profile deploy (5.7, user-owned push) → then the explicit v6.0.0 release boundary.
+   - **Slice 5d — real Pages 5.7 operator PASS 2026-07-23.** Deploy + live site function end-to-end after CI 5b/5c. **Track D Phase 4 COMPLETE. No merge blockers.**
    - **Phase 2 residual (not blockers):** frame-wise eyeball, record-time hot-swap under RAF throttle, FFmpeg fallback tier, bake-size (3.8).
    - **Run `npm run test:host-neutrality` at every phase exit** — first step of the demo build, gates the Pages deploy.
-2. After Phase 4 (or in parallel if Track D is cut short of captions): explicit **v6.0.0 release boundary** — package/manifest bump, release notes, tag. Package stays **5.11.0** until then.
-3. User-owned push of `main` and tags remains deferred.
-4. ~~Minimized-window bake-speed mystery~~ **explained (C1 closed 2026-07-22):** a hidden tab throttles RAF to ~1.3 fps, so the preview stops competing with the worker-based bake for the main thread.
+2. **Track D MERGED to `main` 2026-07-23.** Explicit **v6.0.0 release boundary** next — package/manifest bump, release notes, tag, docs-archiving Refresh / HISTORY. Package stays **5.11.0** until that sprint.
+3. **Pre-ship polish (not a merge gate):** Field Guide tutorial refresh (§4.3 — 86 "Reddit" / 5 "Voice Studio"; settle two-copy duplication first). Optional Track C §8 eyeball.
+4. User-owned push of `main` and tags remains deferred.
+5. ~~Minimized-window bake-speed mystery~~ **explained (C1 closed 2026-07-22):** a hidden tab throttles RAF to ~1.3 fps, so the preview stops competing with the worker-based bake for the main thread.
 
 **Restore stable v5.11.0:** `git checkout v5.11.0 && npm install && npm run dev`
 **Develop current main:** `git checkout main && npm install && npm run dev`
-**Track D:** `git checkout feature/v6.0.0-hosted-design-studio && cd demo && npm install && npm run build && npm run preview` — QA the hosted surfaces against a **build**, never `vite dev`.
+**Hosted Studio (on main after merge):** `cd demo && npm install && npm run build && npm run preview` — QA against a **build**, never `vite dev`.
 
 ---
 
