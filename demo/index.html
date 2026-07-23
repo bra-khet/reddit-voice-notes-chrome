@@ -6,7 +6,7 @@
     <title>Reddit Voice Notes</title>
     <meta
       name="description"
-      content="Shape your voice, capture your story. Reddit Voice Notes adds expressive, character-driven audio to Reddit — a browser extension with a built-in Design Studio. No install required to try it."
+      content="Design, record, caption, edit, bake, and download expressive voice notes in your browser. Install Reddit Voice Notes only when you also want quick capture and Reddit attachment."
     />
     <link rel="icon" href="/favicon-mic-chip-32.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -21,18 +21,20 @@
           <img src="/favicon-mic-chip-32.svg" width="48" height="48" alt="Reddit Voice Notes" aria-hidden="true" />
         <span>
           <p class="hub__title">Reddit Voice Notes</p>
-          <p class="hub__sub">Design Studio · now in your browser</p>
+          <p class="hub__sub">Design · record · finish in your browser</p>
          </span>
       </header>
 
       <!-- Hero -->
       <div class="hub__hero">
-        <p class="hub__eyebrow">A Chromium browser extension</p>
+        <!-- CHANGED: The hero now identifies the no-install product surface before the optional extension.
+             WHY: "A Chromium browser extension" contradicted the hosted Studio's first-class entry role. -->
+        <p class="hub__eyebrow">A local-first voice-note studio</p>
         <h1>Give your voice<br><span class="hub__accent">a character.</span></h1>
         <p class="hub__lede">
-          Post expressive, private voice notes on Reddit — with a built-in
-          Design Studio for shaping pitch, timbre, and ambience before you post.
-          Everything runs on your machine; no audio ever leaves it.
+          Create expressive, private voice notes in the full Design Studio — record,
+          style, caption, edit, bake, and download without installing anything.
+          Add the extension only when you want quick capture and optional Reddit attachment.
         </p>
         <div class="hub__wave" aria-hidden="true">
           <span style="--d:0s"></span>
@@ -50,9 +52,9 @@
       <section class="hub__workflow" aria-labelledby="hub-workflow-h">
         <p class="hub__section-eyebrow" id="hub-workflow-h">3-Phase Creative Workflow</p>
         <div class="hub__phaserail">
-          <!-- CHANGED: phase rail now mirrors the Studio's own Design / Capture / Polish & Bake
+          <!-- CHANGED: phase rail mirrors the Studio's own Design / Capture / Polish & Bake
                labels instead of naming Reddit as phase 02.
-               WHY: the Design Studio has recorded natively since v5.4, so "On Reddit" described a
+               WHY: the Design Studio records natively, so "On Reddit" described a
                requirement that no longer exists. Posting to Reddit is the optional last step. -->
           <article class="hub__phasecard hub__phasecard--studio">
             <span class="hub__phase-n">01 · Design</span>
@@ -122,16 +124,21 @@
               </div>
             </header>
             <p class="hub__dest-desc">
-              The complete workflow from cold install to your first posted voice note.
-              Covers the Design Studio in depth, friction points, power-user techniques,
-              and the reasoning behind every design decision.
+              A no-install-first walkthrough of the real three-phase workflow.
+              Learn the Current Take deck, direct background framing, audio-reactive styles,
+              timeline editing, trim, bake, download, and optional attachment.
             </p>
             <ul class="hub__dest-features">
-              <li>Install paths — packed &amp; unpacked</li>
-              <li>Voice panel deep-dive</li>
-              <li>3-phase workflow mental model</li>
+              <li>Sticky phase context + saved progress</li>
+              <li>Recognition-first UI field notes</li>
+              <li>Hosted Studio + extension paths</li>
             </ul>
-            <a class="hub__dest-cta" href="tutorial/">Open Field Guide →</a>
+            <!-- CHANGED: Secondary destinations now use a full backer plate and the Studio's enter chevron.
+                 WHY: Field Guide and Voice Lab were visually easy to miss beside the flagship card. -->
+            <a class="hub__dest-cta" href="tutorial/">
+              <span>Open Field Guide</span>
+              <img src="/assets/design-studio-v4/icons/navigation/chevron-enter-double-16.svg" alt="" aria-hidden="true" />
+            </a>
           </article>
 
           <article class="hub__dest hub__dest--studio">
@@ -141,10 +148,6 @@
                 <path d="M6 8v8M10 5v14M14 9v6M18 7v10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
               <div>
-                <!-- CHANGED (D1): "Voice Studio" → "Voice Lab".
-                     WHY: the hub was about to carry three overlapping "Studio" names once the full
-                     hosted Design Studio lands. "Lab" names this page's real charter — a bounded
-                     experiment with one panel. The /studio/ URL is unchanged, so no link breaks. -->
                 <h2 class="hub__dest-name">Voice Lab</h2>
                 <p class="hub__dest-tag">No-install demo</p>
               </div>
@@ -159,7 +162,10 @@
               <li>Live FFmpeg render preview</li>
               <li>Copy / paste voice profiles</li>
             </ul>
-            <a class="hub__dest-cta" href="studio/">Open Voice Lab →</a>
+            <a class="hub__dest-cta" href="studio/">
+              <span>Open Voice Lab</span>
+              <img src="/assets/design-studio-v4/icons/navigation/chevron-enter-double-16.svg" alt="" aria-hidden="true" />
+            </a>
           </article>
 
         </div>

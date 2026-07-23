@@ -1,22 +1,24 @@
-# Voice Lab (`demo/`)
+# Hosted product surfaces (`demo/`)
 
-A **static, install-free** GitHub Pages companion for
-[reddit-voice-notes-chrome](../). It replicates the Design Studio's **Voice
-panel** (character chips, composer, intensity/Turbo, audition) and round-trips
-voices with the live extension via copy-paste.
+<!--
+CHANGED: Document demo/ as the complete Pages product, not only the original lightweight voice demo.
+WHY: The directory now owns the orientation hub, hosted Design Studio, Field Guide, and Voice Lab.
+-->
 
-It is **100% separate from the extension**: its own Vite build, its own origin,
-no shared storage, and it never modifies extension code — it *reuses* the
-extension's pure voice DSP modules. Full spec: [`../docs/static-voice-studio-design.md`](../docs/static-voice-studio-design.md).
+The GitHub Pages build now contains four install-free surfaces:
 
-> **Status: Phases 0–5 + 7 done; audio QA confirmed.** Verbatim DSP port, full
-> composer + voice panel (chips, intensity/Turbo, fork-to-custom, live summary +
-> filter-graph readout), audition via self-hosted ffmpeg.wasm (bundled "Tina"
-> sample chips + mic test + upload), copy/paste transfer + session restore, and
-> the self-hosted Chakra Petch display face (Phase 5). Render fidelity and the
-> copy-paste round-trip are hands-on verified. **Remaining: Phase 6 — the
-> Orientation index/hub content** (still a placeholder; the nav banner's `WIP:`
-> markers retire when it ships).
+- `/` — orientation hub
+- `/design-studio/` — the full hosted Design Studio
+- `/tutorial/` — the interactive Field Guide
+- `/studio/` — Voice Lab, the lightweight voice-only surface
+
+The hosted Studio reuses the extension's real source through a small browser-host shim; it does not
+fork the product UI or DSP. Browser-origin storage remains separate from extension-origin storage.
+Voice Lab still round-trips voice profiles with the extension through copy/paste.
+
+> **Status: Track D complete and merged.** Hosted record → style → caption → timeline edit → bake →
+> download passed real Pages QA. The orientation hub and Field Guide are live surfaces, not placeholders.
+> Package/release versioning remains owned by the repository root release sprint.
 
 ## Run locally
 
@@ -27,7 +29,9 @@ npm run dev        # http://localhost:5173/reddit-voice-notes-chrome/
 ```
 
 - Hub:    `…/reddit-voice-notes-chrome/`
-- Studio: `…/reddit-voice-notes-chrome/studio/`
+- Design Studio: `…/reddit-voice-notes-chrome/design-studio/`
+- Field Guide: `…/reddit-voice-notes-chrome/tutorial/`
+- Voice Lab: `…/reddit-voice-notes-chrome/studio/`
 
 ## Build & preview
 
@@ -53,7 +57,7 @@ branch, no publish script.**
 
 ## How it's wired (for the next developer)
 
-- **`vite.config.ts`** — multi-page (`index.html` hub + `studio/index.html`),
+- **`vite.config.ts`** — multi-page (hub + Design Studio + Voice Lab),
   `base: '/reddit-voice-notes-chrome/'`, and the key alias **`@` → the repo root**.
 - **The voice "brain" is the extension's own source — no longer a copy.** Since
   Track D Phase 0 (2026-07-22) the `@` alias points one level up, so
@@ -74,13 +78,10 @@ branch, no publish script.**
   clicked clip through the active graph, or plays it raw when no effect is on.
 - **Display font:** Chakra Petch **Bold only**, self-hosted in
   `src/styles/fonts.css` from `src/assets/fonts/` (Vite-processed → base-correct).
-- **Navigation banner is WIP** (`src/studio/nav-banner.ts`): it anticipates a
-  future Orientation index page (Phase 6). Search the repo for `WIP:` to find
-  everything that should be revisited when that page ships.
+- **Voice Lab navigation** (`src/studio/nav-banner.ts`) returns to the shipped Orientation hub.
 
-### Prompting the next phase
+### Working on a Pages surface
 
-> "Continue the static voice studio at `demo/` (Vite + TS, now on `main`). Read
-> `docs/static-voice-studio-design.md`, then do **Phase N**: <scope>. Keep
-> `demo/` 100% separate from the extension; never modify extension code or touch
-> extension storage."
+Start from the owning living document: `docs/v6.0.0-hosted-design-studio.md` for the full Studio,
+`docs/static-voice-studio-design.md` for Voice Lab, or `docs/tutorial/README.md` for Field Guide
+source ownership. QA the deployable build with `npm run build && npm run preview`, never `vite dev`.

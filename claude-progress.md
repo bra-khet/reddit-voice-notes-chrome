@@ -28,6 +28,21 @@ This is the **living** progress file, focused on the current release boundary. T
 | **C — popup UI refresh** | **Agent QA gate PASS · merged.** Popup-only Cividis overlay and elevated restart caution; optional real-extension appearance eyeball remains non-blocking. | [`docs/v6.0.0-popup-ui-refresh.md`](docs/v6.0.0-popup-ui-refresh.md) |
 | **D — hosted Design Studio** | **COMPLETE · Phases 0–4 · real Pages 5.7 operator PASS · merged 2026-07-23.** Full Studio on GitHub Pages via one `browser` global shim + in-page offscreen loopback; Vosk captions; chronos gate; host-neutrality CI gates. | [`docs/v6.0.0-hosted-design-studio.md`](docs/v6.0.0-hosted-design-studio.md) · [`qa/QA-6.0.0/track-d/`](qa/QA-6.0.0/track-d/) |
 
+### Field Guide + orientation pre-ship polish — complete 2026-07-23
+
+<!--
+CHANGED: Record the completed pre-ship tutorial/orientation pass and its single-source decision.
+WHY: The previous handoff still listed the Field Guide as deferred and duplicated.
+-->
+
+- **One source of truth:** [`demo/public/tutorial/index.html`](demo/public/tutorial/index.html) is the live and canonical Field Guide; the duplicate `docs/tutorial/tutorial.html` was removed. [`docs/tutorial/README.md`](docs/tutorial/README.md) is the stable governance pointer.
+- **Current product mental model:** the guide now opens with the full hosted, no-install Studio and teaches **Design → Capture → Polish & Bake**. The extension is the path for quick in-thread capture and optional Reddit attachment; Reddit is never a recording prerequisite.
+- **Post-track capabilities surfaced at progressive depth:** Current Take deck; Style Control Center signal order + governor; direct background drag/zoom/precision, presets, treatments, framing/A/B; popup restart caution; visual subtitle timeline; reversible trim intent vs atomic Apply trim; post-trim voice flexibility; bake/download.
+- **Product-native tutorial UI:** sticky phase chip, localStorage progress (existing `rvn-tutorial-progress-v1`), accessible route tabs, disclosures, UI-label chips, Current Take/recorder/timeline recognition mocks, reduced-motion handling, indigo/amber/Cividis tokens, Chakra Petch + Spline Sans Mono.
+- **Orientation tidy:** stronger Field Guide/Voice Lab entry plates reuse the v4 double-enter chevron; hub/README/demo handoff no longer call the hub unfinished or the lightweight page Voice Studio.
+- **Verification:** demo production build PASS — host-neutrality **15/15**, TypeScript clean, Vite **328 modules**. Rendered desktop/mobile in the in-app browser; no console warnings; 390 px has zero horizontal overflow after the long-status-chip fix. Route keyboard navigation, sticky phase updates, disclosures, progress save/reload/reset, unique IDs, accessible names/alts, one-H1 structure, and reduced-motion rule presence PASS.
+- **Release boundary untouched:** root package remains **5.11.0**; no manifest/version/tag/release/workflow or extension-source changes.
+
 ### Track B final evidence
 
 - Operator reports **all checklist items pass**, including enlarged Position Preview, next-take A/B, saved-profile load, identity hot-swap, Classic/default no-background, popup coherence, keyboard positioning/scaling/reset, High Contrast, reduced motion, and preview→record→bake parity.
@@ -88,7 +103,7 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 - **User-facing "Reddit" copy policy — landed repo-wide.** The UI still described Reddit as *where recording happens*, which has been false since v5.4. Only that **requirement** class was removed. **Kept:** provenance (`take.source === 'reddit'` → "Live on the Reddit recorder…"), optional attach (ordered after Download), Reddit-specific constraints ("Reddit video comments allow up to about 3:00"), and the product name. The hub's phase rail moved from `Design → On Reddit → Back in Studio` to the Studio's own `Design → Capture → Polish` (*Design Studio → Record → Bake & Share*), closing a long-standing divergence. The popup's hint now leads with the Design Studio instead of "Open a Reddit comment box…".
 - **Presentational only.** No identifier, storage key, message constant, CSS class, or architecture changed — `takeSource:'reddit'`, `attachToReddit`, `activateRedditTab`, `data-wf-switch-reddit`, `RecorderHostContext` all untouched. Verified: `npm run compile` reports only the two known pre-existing subtitle diagnostics; demo `tsc --noEmit` clean; hub + Voice Lab rendered console-clean on a live dev server.
 - **Rule recorded** in [`docs/design-studio.md`](docs/design-studio.md) §8.5 (four classes: requirement → remove; provenance / optional destination / real constraint / product name → keep), with the rationale in the Track D roadmap §4.2.
-- **Deferred:** the Field Guide refresh (**86** "Reddit" + **5** "Voice Studio" mentions), owner-scheduled before v6 ships. **Hazard:** the tutorial exists as two near-identical copies — `docs/tutorial/tutorial.html` and `demo/public/tutorial/index.html` — differing by exactly one favicon line. Settle that duplication before editing either.
+- **Completed 2026-07-23:** the Field Guide is refreshed for the hosted Studio + extension model. `demo/public/tutorial/index.html` is canonical; the duplicate docs HTML was removed and replaced by a pointer README.
 
 ---
 
@@ -103,7 +118,7 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ## Immediate next
 
-1. **Track D Phase 4 — IN FLIGHT.** Phases **0–3 COMPLETE** (Phase 3 operator QA **PASS 2026-07-22**, `2500c9c`: cold Slow 3G, warm path, blocked-wasm Retry/Open-anyway, first bake after gated cold load, deep-link cold, hosted banner — QA §4.1–4.10). Phase 3 code was three slices: `hostCapabilities.redditAttach`, primary hub card, chronos gate.
+1. **Track D Phase 4 — COMPLETE.** Phases **0–4 COMPLETE**, including real Pages 5.7 operator PASS on 2026-07-23. The completed slice record remains below for handoff evidence.
    - **Slice 1 — captions vendoring (H-2 / QA 5.6) — DONE 2026-07-23 (`6213f0e`).** Vosk model + sandbox vendored into `demo/` the way FFmpeg is. **Proven on a preview build:** sandbox READY in 381 ms + a real 16 s Hamlet clip transcribed accurately (`ok`, 4 segments, 0 console errors).
    - **Slice 1b — terminal transcript delivery fix (2026-07-23).** Operator bug: Vosk finished (`Transcribe complete {applied: true, segments: N}`) but Studio stayed **Pending / "No transcript yet"**. Root cause: rule 6 correctly forbids re-broadcasting COMPLETE on the loopback bus, but the web relay also omitted background's **terminal side effect** — `saveSessionTranscript` → IDB + `SESSION_TRANSCRIPT_READY_KEY`. The Studio panel only reloads captions from that path. Fix: `web-pipeline-host.ts` retains job context (duration/language + 125 s watchdog) on START and on COMPLETE persists via the shared `prepareTranscribeCompletionForPersistence` helper **without** re-sending COMPLETE. Relay suite **18/18** (was 15; +3 terminal-persist cases). **Operator re-check (QA 5.6 tail):** mic record → auto-caption appears in Generated transcript → bake.
    - **Slice 2 — studio-side Cache-Storage wasm read (§3.5) — DONE 2026-07-23 (`2416cd9`).** `loadFfmpeg()` now serves the 31 MB core wasm from the chronos gate's durable `rvn-ffmpeg-warm-v1` copy (new shared `src/ffmpeg/ffmpeg-warm-cache.ts` → `openWarmWasm()`; only the wasm is blob-ified — a module worker can't `import()` a blob core/worker), so a warmed hosted bake survives HTTP-cache eviction. **Host-neutral by construction:** a named-cache miss creates nothing → the extension path is byte-identical. **Real-runner-verified on a build:** drove a transcode through the loopback pipeline; the shipped `loadFfmpeg` logged *"FFmpeg core WASM served from warm Cache Storage"* + "FFmpeg WASM loaded", 0 `ffmpeg-core.wasm` HTTP requests during the load.
@@ -116,7 +131,7 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
    - **Phase 2 residual (not blockers):** frame-wise eyeball, record-time hot-swap under RAF throttle, FFmpeg fallback tier, bake-size (3.8).
    - **Run `npm run test:host-neutrality` at every phase exit** — first step of the demo build, gates the Pages deploy.
 2. **Track D MERGED to `main` 2026-07-23.** Explicit **v6.0.0 release boundary** next — package/manifest bump, release notes, tag, docs-archiving Refresh / HISTORY. Package stays **5.11.0** until that sprint.
-3. **Pre-ship polish (not a merge gate):** Field Guide tutorial refresh (§4.3 — 86 "Reddit" / 5 "Voice Studio"; settle two-copy duplication first). Optional Track C §8 eyeball.
+3. **Pre-ship polish COMPLETE:** Field Guide/orientation refresh landed locally; one canonical tutorial source, current hosted/extension mental model, and build/render/a11y interaction checks PASS. Optional Track C §8 eyeball remains.
 4. User-owned push of `main` and tags remains deferred.
 5. ~~Minimized-window bake-speed mystery~~ **explained (C1 closed 2026-07-22):** a hidden tab throttles RAF to ~1.3 fps, so the preview stops competing with the worker-based bake for the main thread.
 
@@ -129,8 +144,8 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 ## Resume in a new chat
 
 ```text
-Reddit Voice Notes: v6.0 Tracks A/B/C merged to main; package still 5.11.0 pending explicit v6 release/tag.
-CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phases 0-3 COMPLETE (Phase 3 operator QA PASS 2026-07-22), Phase 4 next (captions H-2 preferred when opened).
+Reddit Voice Notes: v6.0 Tracks A/B/C/D + Field Guide/orientation pre-ship polish complete; package still 5.11.0 pending the explicit v6 release/tag.
+CURRENT BRANCH: main at/after caef1ec. Track D is merged and real Pages 5.7 PASS. Field Guide source is demo/public/tutorial/index.html only; docs/tutorial/README.md is the pointer.
 Track B merged at 7d1c649 with full operator checklist PASS: responsive direct background layout, presets/effects/GIF/plate/Holo, framing/live compare, keyboard/ARIA, session-only A/B; focused 89/89 + build PASS; blur+GIF 23/29 MiB PASS.
 Architecture map v3.26, extension points v1.42, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
 Background is Design-phase and captured at record time (I1/I3/I22); no post-capture reposition or multi-format export.
@@ -185,8 +200,8 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   (take.source==='reddit'), optional attach after Download, real Reddit constraints, product name.
   Hub + Studio now share Design → Capture → Polish. ZERO identifier renames (takeSource:'reddit',
   attachToReddit, activateRedditTab, data-wf-switch-reddit untouched). Do NOT reintroduce the old phrasing.
-  DEFERRED: Field Guide refresh (86 Reddit + 5 "Voice Studio"); it exists as TWO near-identical copies
-  (docs/tutorial/tutorial.html vs demo/public/tutorial/index.html, one favicon line apart) — settle first.
+  COMPLETE 2026-07-23: Field Guide refreshed around hosted Studio + extension + optional Reddit attach.
+  SINGLE SOURCE: demo/public/tutorial/index.html; duplicate docs HTML removed; docs/tutorial/README.md points to it.
   PHASE 2 GATE SUBSTANTIALLY MET (operator 2026-07-22): rich bake with a scaffolded subtitle cue
   succeeded via the BROWSER-COMPOSITE tier (renderBrowserComposite, NOT a drawtext degrade), MP4 plays,
   dims/duration match. Parity is STRUCTURAL: src/composite/* has ZERO browser.*, so tier-1 output is a

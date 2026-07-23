@@ -68,7 +68,14 @@ The seam is **one `browser` global shim**, not an interface — and it held: zer
 
 **QA workspace:** [`qa/QA-6.0.0/`](qa/QA-6.0.0/) · [`TODO-6.0.0.md`](qa/QA-6.0.0/TODO-6.0.0.md) · [`progress-QA-6.0.0.md`](qa/QA-6.0.0/progress-QA-6.0.0.md) · checklists [`track-b/qa-checklist.md`](qa/QA-6.0.0/track-b/qa-checklist.md) · [`track-d/qa-checklist.md`](qa/QA-6.0.0/track-d/qa-checklist.md)
 
-**NEXT (post Track D merge):** explicit **v6.0.0 release boundary** — package/manifest bump, release notes, tag, docs-archiving Refresh / HISTORY row. **Pre-ship polish (recommended after code freeze or as a short pre-tag pass):** Field Guide tutorial refresh (86 "Reddit" + 5 "Voice Studio"; settle two-copy duplication first). Optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint. Push of `main`/tags remains **user-owned**.
+<!--
+CHANGED: Mark the Field Guide/orientation pre-ship pass complete.
+WHY: The duplicate source, stale mental model, and low-emphasis entry links are resolved and verified.
+-->
+
+**PRE-SHIP POLISH COMPLETE (2026-07-23):** Field Guide refreshed for the full hosted Studio + extension + optional Reddit attach model; live source is only `demo/public/tutorial/index.html`, with `docs/tutorial/README.md` as the governance pointer. Hub/README/Voice Lab orientation copy tidied; Field Guide/Voice Lab entry plates strengthened with existing v4 chevrons. Demo build PASS (host-neutrality 15/15 · tsc clean · Vite 328 modules); rendered desktop/mobile, 390 px no-overflow, console-clean; route keyboard, sticky phase, disclosure, progress persistence/reset, semantic/a11y spot-checks PASS.
+
+**NEXT:** explicit **v6.0.0 release boundary** — package/manifest bump, release notes, tag, docs-archiving Refresh / HISTORY row. Optional Track C §8 eyeball. Package remains **5.11.0** and `USER_PREFS_VERSION` remains **1** until that explicit release sprint. Push of `main`/tags remains **user-owned**.
 
 **Non-negotiables:** capture-time visuals; Design-phase bg layout only (I1/I3); `normalize*` guards / no `USER_PREFS_VERSION` bump; no new deps/WASM/compositing layer; no Classic regression vs v5.11.0. **Track D adds:** no new execution context/message family/store; no behavioural change to the extension Studio (additive optional options only); Voice Lab + Field Guide green at every phase exit.
 

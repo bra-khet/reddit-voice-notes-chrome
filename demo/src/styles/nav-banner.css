@@ -1,7 +1,8 @@
 /*
  * Themed navigation banner (studio header).
  *
- * WIP / FUTURE FEATURE (Phase 6): anticipates an Orientation index page.
+ * CHANGED: Navigation chrome now describes the shipped Orientation hub.
+ * WHY: The former Phase 6/WIP note outlived the completed hub.
  * See src/studio/nav-banner.ts and docs/static-voice-studio-design.md §7.
  *
  * Theming is pure CSS (gradients/colours on the indigo→amber axis); the only

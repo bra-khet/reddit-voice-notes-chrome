@@ -1,8 +1,17 @@
 # Reddit Voice Notes
 
-A privacy-first Chrome Manifest V3 extension that records short voice notes directly in Reddit comment boxes and exports them as MP4 videos with an animated waveform — ready for Reddit's video-in-comments feature.
+<!--
+CHANGED: Lead with the complete hosted authoring workflow and frame Reddit as an optional extension destination.
+WHY: The Design Studio now records, edits, bakes, and downloads without an install or Reddit prerequisite.
+-->
 
-All recording, visualization, transcoding, and voice effects happen **client-side** in the browser. The only data that leaves your machine is the final MP4 you choose to upload to Reddit.
+Reddit Voice Notes is a privacy-first voice-note studio for Chromium browsers. Design the look and
+voice, record with a WYSIWYG preview, edit captions and timing, bake, and download an MP4 entirely
+in your browser. The Chrome Manifest V3 extension adds quick capture and optional attachment inside
+eligible Reddit comment boxes.
+
+All recording, visualization, transcription, transcoding, editing, and voice effects happen
+**client-side**. Nothing leaves your machine until you choose to share the finished MP4.
 
 Works with:
 
@@ -20,16 +29,23 @@ Incompatible:
 
 ## Try it without installing
 
-Want to shape and test a character voice before installing anything? The
-**[Static Voice Studio demo](https://bra-khet.github.io/reddit-voice-notes-chrome/)**
-runs the Design Studio's Voice panel entirely in your browser — build a voice,
-audition it on bundled clips or your own mic, and copy it straight into the
-extension (or paste one back out). It's a self-contained Vite app in
-[`demo/`](demo/) that deploys automatically to GitHub Pages via
+The hosted **[Design Studio](https://bra-khet.github.io/reddit-voice-notes-chrome/design-studio/)**
+is the full product: record, style, caption, edit the timeline, bake, and download without installing
+the extension. The first visit warms the local media engines; later visits reuse the cached copy.
+
+Start at the **[Orientation hub](https://bra-khet.github.io/reddit-voice-notes-chrome/)**, follow the
+interactive **[Field Guide](https://bra-khet.github.io/reddit-voice-notes-chrome/tutorial/)**, or open
+the lightweight **[Voice Lab](https://bra-khet.github.io/reddit-voice-notes-chrome/studio/)** when you
+only want to audition and transfer a voice profile.
+
+These surfaces live in [`demo/`](demo/) and deploy automatically through
 [`.github/workflows/deploy-demo.yml`](.github/workflows/deploy-demo.yml).
-*(The full Orientation hub is still a work in progress.)*
 
 ## Status
+
+**Current `main` — v6.0 pre-ship code complete; package remains `5.11.0`.** Tracks A–D are merged:
+audio-reactive custom styles, direct background manipulation, popup polish, and the full hosted Design
+Studio. The package/version/tag boundary is intentionally deferred to its own release sprint.
 
 **Current `main` v5.11.0 — Preferences full-IDB migration** (code 2026-07-12 · **real-browser QA PASS 2026-07-13** · **tagged `v5.11.0`**, push deferred) — durable user preferences move from one large `chrome.storage.local` blob into extension-origin **IndexedDB** `rvnUserPrefs` (one `global` row + per-entity `profiles` / `customStyles`); the `rvnUserPrefs.v2` local key is a signal-only coordinator written *after* the IDB commit (persist-before-publish). **No caller changed** and the public `UserPreferencesV1` / `USER_PREFS_VERSION` contract stays v1. Reddit content scripts relay load/replace through background; Design Studio gains versioned JSON **Export / Import** and per-save size telemetry. Storage-hardening release — voice / subtitle / preview / bake semantics unchanged. Full release notes: [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md).
 
@@ -102,7 +118,7 @@ Previous: **v4.0.0** (Eloquent I — subtitles + v4 Studio), **v3.x** (voice + U
 
 1. Open **Design Studio** from the extension popup
 2. **Voice** section — enable effects, pick a preset, adjust intensity (or Turbo)
-3. **Play preview** uses your last Reddit recording (record first, then reopen Studio)
+3. Use **Last Voice Note** for the current saved recording, or **One-Time Test** to audition with your mic
 4. Voice settings save on clip profiles via **Update profile** / **Save to new**
 5. Next recording applies active voice config during transcode
 
@@ -144,9 +160,9 @@ in [`docs/dsp-foundation-design.md`](docs/dsp-foundation-design.md). Presets liv
 ## Subtitles (v4)
 
 1. Open **Design Studio** → **Subtitles** → enable transcription
-2. Record on Reddit → wait for transcript **Ready** badge in Studio
-3. Edit cues in the segment editor → **Confirm & save** → **Bake**
-4. Return to Reddit → **Attach** the baked MP4 (hard subs)
+2. Record in the **Current Take** deck → wait for the transcript to appear
+3. Edit words and timing in **List** or **Timeline** → **Confirm & save** → **Bake**
+4. Download the captioned MP4; with the extension, attachment on Reddit is an optional next step
 
 **Disabled path:** identical to v3 — no Vosk load, no burn-in pass, same `base.mp4` timing.
 

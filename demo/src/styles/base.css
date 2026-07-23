@@ -290,15 +290,45 @@ a {
 .hub__dest--studio  .hub__dest-features li::before { background: var(--studio-amber-dim);  opacity: 0.65; }
 .hub__dest-cta {
   display: inline-flex;
+  justify-content: space-between;
   align-items: center;
+  gap: 0.8rem;
+  min-height: 42px;
+  padding: 0.62rem 0.78rem 0.62rem 0.9rem;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 9px;
   text-decoration: none;
-  color: var(--studio-text-muted);
+  color: var(--studio-text);
+  background: rgba(10, 0, 20, 0.42);
   font-size: 0.84rem;
-  font-weight: 600;
-  transition: color 0.12s ease;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease, transform 0.08s ease;
 }
-.hub__dest-cta:hover { color: var(--studio-text); }
+.hub__dest-cta img {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  transition: transform 0.12s ease;
+}
+/* CHANGED: Field Guide and Voice Lab links now read as entry controls, not quiet inline links.
+   WHY: These routes need enough visual draw to remain discoverable beside the flagship Studio. */
+.hub__dest--tutorial .hub__dest-cta {
+  border-color: rgba(94, 200, 232, 0.38);
+  background: linear-gradient(90deg, rgba(94, 200, 232, 0.1), rgba(10, 0, 20, 0.38));
+}
+.hub__dest--studio .hub__dest-cta {
+  border-color: rgba(255, 213, 79, 0.34);
+  background: linear-gradient(90deg, rgba(255, 213, 79, 0.09), rgba(10, 0, 20, 0.38));
+}
+.hub__dest-cta:hover {
+  color: var(--studio-text);
+  border-color: var(--studio-amber-edge);
+  background: rgba(36, 26, 74, 0.78);
+  transform: translateY(-1px);
+}
 .hub__dest--tutorial .hub__dest-cta:hover { color: var(--studio-cyan-ready); }
+.hub__dest-cta:hover img { transform: translateX(3px); }
 .hub__dest-cta--primary {
   padding: 0.5rem 1.05rem;
   background: linear-gradient(180deg, var(--studio-amber) 0%, var(--studio-amber-action) 100%);
@@ -657,6 +687,8 @@ footer.foot {
 
 @media (prefers-reduced-motion: reduce) {
   .cta,
+  .hub__dest-cta,
+  .hub__dest-cta img,
   .hub__dest-cta--primary {
     transition: none;
   }
