@@ -105,7 +105,8 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 1. **Track D Phase 4 — IN FLIGHT.** Phases **0–3 COMPLETE** (Phase 3 operator QA **PASS 2026-07-22**, `2500c9c`: cold Slow 3G, warm path, blocked-wasm Retry/Open-anyway, first bake after gated cold load, deep-link cold, hosted banner — QA §4.1–4.10). Phase 3 code was three slices: `hostCapabilities.redditAttach`, primary hub card, chronos gate.
    - **Slice 1 — captions vendoring (H-2 / QA 5.6) — DONE 2026-07-23 (`6213f0e`).** Vosk model + sandbox vendored into `demo/` the way FFmpeg is. **Proven on a preview build:** sandbox READY in 381 ms + a real 16 s Hamlet clip transcribed accurately (`ok`, 4 segments, 0 console errors).
    - **Slice 1b — terminal transcript delivery fix (2026-07-23).** Operator bug: Vosk finished (`Transcribe complete {applied: true, segments: N}`) but Studio stayed **Pending / "No transcript yet"**. Root cause: rule 6 correctly forbids re-broadcasting COMPLETE on the loopback bus, but the web relay also omitted background's **terminal side effect** — `saveSessionTranscript` → IDB + `SESSION_TRANSCRIPT_READY_KEY`. The Studio panel only reloads captions from that path. Fix: `web-pipeline-host.ts` retains job context (duration/language + 125 s watchdog) on START and on COMPLETE persists via the shared `prepareTranscribeCompletionForPersistence` helper **without** re-sending COMPLETE. Relay suite **18/18** (was 15; +3 terminal-persist cases). **Operator re-check (QA 5.6 tail):** mic record → auto-caption appears in Generated transcript → bake.
-   - **Remaining Phase 4:** gate a11y (5.1–5.4), multi-take memory (5.5), studio-side Cache-Storage wasm read (§3.5), living-doc tidy (5.8), real Pages clean-profile deploy (5.7).
+   - **Slice 2 — studio-side Cache-Storage wasm read (§3.5) — DONE 2026-07-23 (`2416cd9`).** `loadFfmpeg()` now serves the 31 MB core wasm from the chronos gate's durable `rvn-ffmpeg-warm-v1` copy (new shared `src/ffmpeg/ffmpeg-warm-cache.ts` → `openWarmWasm()`; only the wasm is blob-ified — a module worker can't `import()` a blob core/worker), so a warmed hosted bake survives HTTP-cache eviction. **Host-neutral by construction:** a named-cache miss creates nothing → the extension path is byte-identical. **Real-runner-verified on a build:** drove a transcode through the loopback pipeline; the shipped `loadFfmpeg` logged *"FFmpeg core WASM served from warm Cache Storage"* + "FFmpeg WASM loaded", 0 `ffmpeg-core.wasm` HTTP requests during the load.
+   - **Remaining Phase 4:** gate a11y (5.1–5.4), multi-take memory (5.5), living-doc tidy (5.8), real Pages clean-profile deploy (5.7).
    - **Phase 2 residual (not blockers):** frame-wise eyeball, record-time hot-swap under RAF throttle, FFmpeg fallback tier, bake-size (3.8).
    - **Run `npm run test:host-neutrality` at every phase exit** — first step of the demo build, gates the Pages deploy.
 2. After Phase 4 (or in parallel if Track D is cut short of captions): explicit **v6.0.0 release boundary** — package/manifest bump, release notes, tag. Package stays **5.11.0** until then.
@@ -204,9 +205,12 @@ blocked ffmpeg-core.wasm → Retry + Open-anyway + adjacent warning; first bake 
 deep-link /design-studio/ cold no hang; hosted banner no dead Reddit CTA.
 PHASE 4 IN FLIGHT: slice 1 = Vosk captions VENDORED into demo (H-2 RESOLVED 2026-07-23, 6213f0e) —
 shared sandbox builder, demo fetch/build scripts, guard rule 8 15/15; PROVEN on a build (sandbox READY
-381ms + real Hamlet transcript, no mic). Operator tail = mic record→auto-caption→bake (QA 5.6).
-NEXT: remaining Phase 4 — a11y (5.1-5.4), multi-take memory (5.5), studio-side Cache Storage wasm read
-(3.5), Pages clean-profile deploy (5.7), living docs (5.8). Then explicit v6.0.0 version/notes/tag.
-Push is user-owned.
+381ms + real Hamlet transcript, no mic). slice 1b (USER, f09bdc2) = terminal transcript UI delivery fix
+(web relay persists IDB + ready-key on COMPLETE without re-broadcast; relay 18/18). slice 2 = studio-side
+Cache-Storage wasm READ (2416cd9, §3.5) — loadFfmpeg serves the 31MB wasm as a blob from rvn-ffmpeg-warm-v1
+(src/ffmpeg/ffmpeg-warm-cache.ts); host-neutral clean miss on extension; REAL-RUNNER-VERIFIED (0 wasm HTTP
+fetches). Operator tail = mic record→auto-caption→bake (QA 5.6).
+NEXT: remaining Phase 4 — a11y (5.1-5.4), multi-take memory (5.5), Pages clean-profile deploy (5.7),
+living docs (5.8). Then explicit v6.0.0 version/notes/tag. Push is user-owned.
 Run architecture-hardening resume if deeper context is needed.
 ```
