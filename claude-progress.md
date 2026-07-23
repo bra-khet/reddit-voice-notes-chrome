@@ -102,13 +102,14 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ## Immediate next
 
-1. **Track D Phase 2 — full visual system + bake parity.** Phases 0 and 1 are complete: the hosted Studio mounts, records, transcodes through the in-page loopback pipeline, keeps takes across a reload, and downloads a playable MP4 (`c3aad75`, `7400a57`). Phase 2's premise is that the Track A/B/C surfaces appear *for free*; anything that does not is a shim gap whose root cause gets recorded rather than patched locally. Gate: bake parity, extension vs hosted, compared frame-wise.
-   - Worth doing while it is fresh: a focused Node suite for the relay slice. Its two invariants — **never re-broadcast `PROGRESS`/`COMPLETE`**, **ignore `target:'offscreen'`** — fail *silently* (a duplicated `COMPLETE` reads as a phantom take, not an error), so nothing else in the tree would catch a regression.
-   - **Operator-owed from Phase 1:** real mic grant, the `window.confirm` discard dialog, and the visible-window half of C1 (preview smoothness during a bake). The automation pane blocks `getUserMedia`, auto-dismisses `confirm`, and pauses RAF while hidden.
-   - **Host-classification debt was swept proactively before Phase 2** (roadmap §7.2). No live hits remain in shared code; the residue is five registered hazards, each with an owning phase. The sweep's product is a command — `npm run test:host-neutrality`, graph-scoped and negative-tested — which replaces the old "grep `location.protocol` before each phase exit" mitigation. **Run it at every phase exit.** Phase 2 must also confirm **H-5**: personal and animated backgrounds load through direct IDB and never touch the port relay, which throws on the hosted host.
+1. **Track D Phase 3 — hub rework + chronos gate.** Phases 0 + 1 complete; **Phase 2 gate substantially met (operator 2026-07-22)**: a rich bake with a scaffolded subtitle cue succeeded via the **browser-composite tier** (not a drawtext degrade), MP4 plays, dims/duration match. Parity is **structural** — `src/composite/*` carries zero `browser.*`, so tier-1 output is a pure function of host-invariant inputs. Phase 3: add the Design-Studio hub card (primary), the amber chronos gate with warm-cache fast path, and the hosted narrative tail (`hostCapabilities.redditAttach: false`, §3.6). Gate: cold- and warm-cache runs both observed; failure + warned click-through with the network throttled.
+   - **Phase 2 residual (not blockers):** the frame-wise extension-vs-hosted eyeball (operator-owed, but a *confirmation* of the structural argument), the record-time hot-swap sweep under RAF throttle (operator-owed), and the never-entered FFmpeg fallback tier (optional — the default browser-composite path is what ships). Bake-size cap (3.8) is a quick operator measurement.
+   - **Captions are H-2 / Phase 4 and fail as-designed on the hosted surface** (Vosk model + sandbox unvendored; `vite preview` returns SPA HTML → *"Vosk sandbox failed to become ready"*). **Do NOT open a Vosk fix sprint unless Phase 4 captions are explicitly opened.** Manual subtitle scaffolding + rich bake works without STT.
+   - Still worth doing while it is fresh: a focused Node suite for the relay slice. Its two invariants — **never re-broadcast `PROGRESS`/`COMPLETE`**, **ignore `target:'offscreen'`** — fail *silently*, so nothing else in the tree would catch a regression.
+   - **Run `npm run test:host-neutrality` at every phase exit** — it is now the first step of the demo build and gates the Pages deploy, but the standalone run is the fast agent check. H-5 operator-confirmed.
 2. Decide and execute the explicit **v6.0.0 release boundary**: package/manifest version bump, release notes, final release build, and tag. Tracks A/B/C are complete; sequence the release relative to Track D deliberately.
 3. User-owned push of `main` and tags remains deferred.
-4. Treat the minimized-window bake-speed observation as a separate performance investigation, not a release blocker — Track D check C1 may shed light on it.
+4. ~~Minimized-window bake-speed mystery~~ **explained (C1 closed 2026-07-22):** a hidden tab throttles RAF to ~1.3 fps, so the preview stops competing with the worker-based bake for the main thread.
 
 **Restore stable v5.11.0:** `git checkout v5.11.0 && npm install && npm run dev`
 **Develop current main:** `git checkout main && npm install && npm run dev`
@@ -120,7 +121,7 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ```text
 Reddit Voice Notes: v6.0 Tracks A/B/C merged to main; package still 5.11.0 pending explicit v6 release/tag.
-CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phases 0 + 1 COMPLETE, Phase 2 next.
+CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phases 0 + 1 COMPLETE, Phase 2 gate substantially MET (operator 2026-07-22), Phase 3 next.
 Track B merged at 7d1c649 with full operator checklist PASS: responsive direct background layout, presets/effects/GIF/plate/Holo, framing/live compare, keyboard/ARIA, session-only A/B; focused 89/89 + build PASS; blur+GIF 23/29 MiB PASS.
 Architecture map v3.26, extension points v1.42, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
 Background is Design-phase and captured at record time (I1/I3/I22); no post-capture reposition or multi-format export.
@@ -177,10 +178,19 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   attachToReddit, activateRedditTab, data-wf-switch-reddit untouched). Do NOT reintroduce the old phrasing.
   DEFERRED: Field Guide refresh (86 Reddit + 5 "Voice Studio"); it exists as TWO near-identical copies
   (docs/tutorial/tutorial.html vs demo/public/tutorial/index.html, one favicon line apart) — settle first.
-  CHECKS: C2 closed (1.27 MB JS + 148 KB CSS). C3 closed (max-age=600 BUT revalidation is 304/0 bytes —
-  warm-path risk is HTTP-cache EVICTION of a 31 MB entry, not expiry). C1 PARTIAL: a full transcode
-  produced ZERO main-thread long tasks; the visible-window preview half is OPERATOR-OWED because RAF is
-  paused while the automation pane is hidden (also a live hypothesis for "5-6x faster while minimized").
+  PHASE 2 GATE SUBSTANTIALLY MET (operator 2026-07-22): rich bake with a scaffolded subtitle cue
+  succeeded via the BROWSER-COMPOSITE tier (renderBrowserComposite, NOT a drawtext degrade), MP4 plays,
+  dims/duration match. Parity is STRUCTURAL: src/composite/* has ZERO browser.*, so tier-1 output is a
+  pure function of host-invariant inputs (base MP4 bytes + style + segments + WebCodecs). Residual is
+  operator-owed (frame-wise eyeball = a confirmation, not a discovery; record-time hot-swap under RAF
+  throttle) or optional (FFmpeg fallback tier never entered — browser-composite is the shipped default).
+  CAPTIONS = H-2/Phase 4, FAIL AS-DESIGNED (Vosk unvendored; vite preview returns SPA HTML → "Vosk
+  sandbox failed to become ready") — do NOT fix outside an explicit Phase 4 captions sprint.
+  CHECKS ALL CLOSED: C2 (1.27 MB JS + 148 KB CSS). C3 (max-age=600 BUT revalidation 304/0 bytes —
+  warm-path risk is HTTP-cache EVICTION of a 31 MB entry, not expiry; Cache Storage still wanted).
+  C1 RESOLVED: a full transcode produced ZERO main-thread long tasks (worker-based bake → no contention
+  mechanism); operator confirmed a hidden tab throttles RAF to ~4/3s and that this is NOT a bake blocker
+  (this also explains the old "5-6x faster while minimized" note).
   HARNESS LIMITS (all operator-owed): the pane BLOCKS getUserMedia, AUTO-DISMISSES window.confirm
   (Discard is confirm-gated), PAUSES RAF while hidden, and screenshots fail. QA RECIPE that works:
   override ONLY navigator.mediaDevices.getUserMedia with an oscillator stream — everything below the mic
@@ -188,7 +198,8 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   QA hosted surfaces against a BUILD, never `vite dev`. Voice Lab + Field Guide green at EVERY phase exit.
 
 Full pre-closeout history: archive/progress/claude-progress-through-v6.0.0-tracks.md.
-NEXT: Track D Phase 2 (full visual system + bake parity; gate = frame-wise parity extension vs hosted).
+NEXT: Track D Phase 3 (hub card + amber chronos gate + hostCapabilities.redditAttach:false). Phase 2
+gate substantially met; residual is operator-owed/optional. Captions = Phase 4 (H-2, fails as-designed).
 Also wanted: a focused Node suite for the relay slice — rule 6's invariants fail SILENTLY.
 Then the explicit v6.0.0 version/release-notes/tag decision. Push is user-owned.
 Run architecture-hardening resume if deeper context is needed.
