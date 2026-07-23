@@ -102,16 +102,12 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ## Immediate next
 
-1. **Track D Phase 3 operator QA — then close v6.** Phases 0–2 done; **Phase 3 IMPLEMENTED 2026-07-22** across three slices (all committed, all agent-verified against the build):
-   - **Slice 1 — `hostCapabilities.redditAttach` (§3.6).** Additive `MountClipStudioOptions.hostCapabilities`; a tiny mount-time module `src/ui/design-studio/host-capabilities.ts` (`setStudioHostCapabilities`/`isRedditAttachEnabled`) suppresses the banner's `data-wf-switch-reddit` CTA and drops the "attach on Reddit" tail from the status strip, bake toast, and subtitle-controls message; hosted copy points at installing the extension. **Absent field ⇒ extension byte-identical.** `test:workflow-banner-host` 6/6 (QA 0.8).
-   - **Slice 2 — primary hub card (§4).** `demo/index.html` `.hub__flagship` "Start here" Design Studio card (amber pill, 35 MB + no-Reddit copy, `data-design-studio-cta`) before a "Prefer something lighter?" secondary row; Voice Lab demoted. Verified against the build (DOM order, computed styles, mobile stack).
-   - **Slice 3 — chronos gate (§5).** `demo/src/hub/chronos-gate.ts` warms the exact three ffmpeg URLs the studio requests (cross-page transfer = HTTP + WASM code cache, NOT the instance); streamed byte-progress fetch → `ffmpeg.load()` → navigate; §5.1 Retry/Open-anyway with adjacent warning; Cache Storage warm marker. **Cold run cached 30.7 MB + navigated; warm run 0 wasm fetches. 0 console errors.**
-   - Also landed: **relay-slice Node suite** `test:relay-pipeline-host` 15/15 (QA 0.7), negative-tested — the only thing that catches a silent rule-6 regression.
-   - **OPERATOR QA OWED (Phase 3 gate):** watch the chronos stages/bar on a genuinely cold + throttled cache (4.4); trigger the failure UI with a blocked/throttled engine fetch and exercise Retry + Open-anyway (4.6/4.7); confirm the first bake after a gated cold load completes inside `ABSOLUTE_MAX_MS` (4.9); deep-link straight to `/design-studio/` degrades honestly (4.10). Plus the standing operator eyeball on the hosted banner at capture/polish (4.8).
-   - **Phase 2 residual (not blockers):** frame-wise eyeball (a *confirmation* of the structural argument), record-time hot-swap under RAF throttle, never-entered FFmpeg fallback tier, bake-size cap (3.8).
-   - **Captions are H-2 / Phase 4, fail as-designed** (Vosk unvendored). **Do NOT open a Vosk sprint unless Phase 4 captions are explicitly opened.** Studio-side Cache-Storage read (survive HTTP eviction, §3.5) is also Phase 4.
-   - **Run `npm run test:host-neutrality` at every phase exit** — first step of the demo build, gates the Pages deploy; standalone run is the fast agent check. H-5 operator-confirmed.
-2. Decide and execute the explicit **v6.0.0 release boundary**: package/manifest version bump, release notes, final release build, and tag. Tracks A/B/C are complete; sequence the release relative to Track D deliberately.
+1. **Track D Phase 4 — NEXT.** Phases **0–3 COMPLETE** (Phase 3 operator QA **PASS 2026-07-22**: cold Slow 3G, warm path, blocked-wasm Retry/Open-anyway, first bake after gated cold load, deep-link cold, hosted banner — QA §4.1–4.10). Phase 3 code was three slices: `hostCapabilities.redditAttach`, primary hub card, chronos gate; relay suite 15/15.
+   - **Preferred product slice when opened:** **captions (H-2 / QA 5.6)** — vendor `public/vosk/*` + `vosk-sandbox.html/js` into the demo the same way FFmpeg is vendored; prove sandbox-ready + real transcript + bake. **Not cut** — only deferred until Phases 0–3 closed. Until then auto-Vosk still fails as-designed (SPA HTML for missing assets).
+   - **Also Phase 4:** gate a11y (5.1–5.4), multi-take memory (5.5), studio-side Cache-Storage wasm read (§3.5), living-doc tidy (5.8), real Pages clean-profile deploy (5.7).
+   - **Phase 2 residual (not blockers):** frame-wise eyeball, record-time hot-swap under RAF throttle, FFmpeg fallback tier, bake-size (3.8).
+   - **Run `npm run test:host-neutrality` at every phase exit** — first step of the demo build, gates the Pages deploy.
+2. After Phase 4 (or in parallel if Track D is cut short of captions): explicit **v6.0.0 release boundary** — package/manifest bump, release notes, tag. Package stays **5.11.0** until then.
 3. User-owned push of `main` and tags remains deferred.
 4. ~~Minimized-window bake-speed mystery~~ **explained (C1 closed 2026-07-22):** a hidden tab throttles RAF to ~1.3 fps, so the preview stops competing with the worker-based bake for the main thread.
 
@@ -125,7 +121,7 @@ Three sprints, sequenced so no failure could be attributed to two changes at onc
 
 ```text
 Reddit Voice Notes: v6.0 Tracks A/B/C merged to main; package still 5.11.0 pending explicit v6 release/tag.
-CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phases 0-2 done, Phase 3 IMPLEMENTED (3 slices, agent-verified 2026-07-22), Phase 3 operator QA next.
+CURRENT BRANCH: feature/v6.0.0-hosted-design-studio (from main@a4df9a1) — Track D open, Phases 0-3 COMPLETE (Phase 3 operator QA PASS 2026-07-22), Phase 4 next (captions H-2 preferred when opened).
 Track B merged at 7d1c649 with full operator checklist PASS: responsive direct background layout, presets/effects/GIF/plate/Holo, framing/live compare, keyboard/ARIA, session-only A/B; focused 89/89 + build PASS; blur+GIF 23/29 MiB PASS.
 Architecture map v3.26, extension points v1.42, ADR-0008 Accepted/final, 0011 unallocated. No new context/message/store/signal/layer/dependency/USER_PREFS_VERSION.
 Background is Design-phase and captured at record time (I1/I3/I22); no post-capture reposition or multi-format export.
@@ -202,10 +198,11 @@ TRACK D (docs/v6.0.0-hosted-design-studio.md — redrafted 2026-07-22; the earli
   QA hosted surfaces against a BUILD, never `vite dev`. Voice Lab + Field Guide green at EVERY phase exit.
 
 Full pre-closeout history: archive/progress/claude-progress-through-v6.0.0-tracks.md.
-NEXT: Track D Phase 3 OPERATOR QA (chronos cold/warm/throttle/failure timing + first-bake-after-cold
-timeout safety + hosted banner eyeball). Phase 3 code IMPLEMENTED across 3 slices (hostCapabilities.
-redditAttach, primary hub card, chronos gate), all agent-verified against the build. Relay-slice Node
-suite DONE (15/15, negative-tested). Captions = Phase 4 (H-2, fails as-designed); studio-side Cache-
-Storage read also Phase 4. Then the explicit v6.0.0 version/release-notes/tag decision. Push is user-owned.
+PHASE 3 OPERATOR QA PASS 2026-07-22 (QA §4.1–4.10): cold+Slow 3G chronos honest; warm path agent-verified;
+blocked ffmpeg-core.wasm → Retry + Open-anyway + adjacent warning; first bake after gated cold OK;
+deep-link /design-studio/ cold no hang; hosted banner no dead Reddit CTA.
+NEXT: Track D Phase 4 — preferred first engineering slice = Vosk vendor + sandbox for hosted captions
+(H-2 / QA 5.6; product wants this — not permanently cut). Also a11y, Cache Storage studio-side, Pages
+deploy clean-profile, living docs. Then explicit v6.0.0 version/release-notes/tag. Push is user-owned.
 Run architecture-hardening resume if deeper context is needed.
 ```

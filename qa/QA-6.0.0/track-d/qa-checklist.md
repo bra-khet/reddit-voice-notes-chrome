@@ -1,8 +1,8 @@
 # Track D — Hosted Design Studio · operator checklist
 
-**Status:** skeleton — populated per phase as implementation lands
+**Status:** Phases 0–3 closed (Phase 3 operator PASS 2026-07-22) · Phase 4 open
 **Roadmap:** [`docs/v6.0.0-hosted-design-studio.md`](../../../docs/v6.0.0-hosted-design-studio.md) · **Track README:** [`README.md`](README.md)
-**Operator:** _tbd_ · **Machine / browser:** _tbd_ · **Build under test:** _tbd_
+**Operator:** owner · **Machine / browser:** production Chrome + `vite preview` build · **Build under test:** `feature/v6.0.0-hosted-design-studio` demo build
 
 **Legend:** ■ PASS · ▲ PARTIAL (explain) · ✕ FAIL (blocker) · ☐ not yet run · — N/A this phase
 
@@ -131,13 +131,13 @@ All exercised in-page against a **build** on 2026-07-22 — 11/11 assertions tru
 | 4.1 | Naming reads correctly end to end: Voice Lab (light) vs Design Studio (full) — no stray "Voice Studio" | ✅ **agent 2026-07-22** — hub reads "Design Studio" (flagship) + "Voice Lab" + "Field Guide"; no "Voice Studio" on the hub (`read_page` against the build). Tutorial's 5 occurrences remain deferred (§4.3) |
 | 4.2 | Three destinations present; Design Studio is visually primary | ✅ **agent 2026-07-22** — new `.hub__flagship` "Start here" card sits **before** the secondary row (DOM-order verified) with the amber-pill CTA (dark text, 999px); Field Guide + Voice Lab demoted to a "Prefer something lighter?" row and Voice Lab's CTA is no longer `--primary`. No horizontal overflow at 1280 or 375; flagship stacks to column on mobile |
 | 4.3 | Card copy states the real first-load cost and the no-Reddit-posting limitation | ✅ **agent 2026-07-22** — flagship note: "Loads about 35 MB of media engines on your first visit, then caches them. It can't post to Reddit on its own — download your MP4, or install the extension…" |
-| 4.4 | Cold cache — stages advance on real milestones, with byte progress on the engine fetch | ◐ **agent 2026-07-22** — cold run end-to-end against the build: streamed-fetched + cached **30.7 MB**, `ffmpeg.load()` resolved, navigated to the studio, **0 console errors**. Byte progress is wired (streamed reader → `loaded/total`). **Operator-owed:** watch the stages/bar advance visually on a genuinely cold cache (and on a throttled link) |
+| 4.4 | Cold cache — stages advance on real milestones, with byte progress on the engine fetch | ■ **operator 2026-07-22** — genuinely cold + cleared site data + **Slow 3G**: stages and byte-progress bar advanced honestly, cold warm completed, navigated to Studio as expected. (Agent cold path already cached 30.7 MB + navigated with 0 console errors.) |
 | 4.5 | Warm cache — gate is brief or skipped | ✅ **agent 2026-07-22** — with `rvn-ffmpeg-warm-v1` seeded, the second run took the warm branch: **0 wasm fetches from the hub**, straight to "Opening…" and navigated fast |
-| 4.6 | Failure path — throttled/blocked fetch surfaces an error with **Retry** and **Open anyway**; the warning sits **adjacent to the button** (not a dismissible toast) and names the consequence, per §5.1 | ◐ **agent 2026-07-22** — UI verified: error box hidden initially, Retry + Open-anyway buttons, and the adjacent warning ("…baking may fail or time out. Retry is recommended."). **Operator-owed:** actually trigger it with a blocked/throttled engine fetch |
-| 4.7 | Click-through actually proceeds — the user is never trapped on the hub | ◐ **agent 2026-07-22** — "Open anyway" is wired to navigate to the studio un-warmed; **operator-owed** to exercise via a real failure |
-| 4.8 | Hosted narrative replaces the attach story; `hostCapabilities.redditAttach:false` suppresses the CTA rather than leaving a dead button | ◐ **implemented 2026-07-22** — additive `MountClipStudioOptions.hostCapabilities.redditAttach`, set once via `src/ui/design-studio/host-capabilities.ts`, suppresses the banner's `data-wf-switch-reddit` CTA and drops the "attach on Reddit" tail from the status strip, bake toast, and subtitle-controls message; hosted copy points at installing the extension. Absent field ⇒ extension byte-identical. Covered by `npm run test:workflow-banner-host` (6/6, both directions). **Operator eyeball owed** on the hosted Studio at capture/polish state |
-| 4.9 | **Timeout safety** — first bake after a gated cold load completes inside `ABSOLUTE_MAX_MS` | ☐ |
-| 4.10 | Deep link straight to `/design-studio/` on a cold cache degrades honestly (no hang) — the un-warmed state must be visible without ever passing the gate (§5.1) | ☐ |
+| 4.6 | Failure path — throttled/blocked fetch surfaces an error with **Retry** and **Open anyway**; the warning sits **adjacent to the button** (not a dismissible toast) and names the consequence, per §5.1 | ■ **operator 2026-07-22** — DevTools blocked `ffmpeg-core.wasm` mid-warm: error UI with **Retry** + **Open anyway**, adjacent warning naming the bake/timeout consequence (§5.1). |
+| 4.7 | Click-through actually proceeds — the user is never trapped on the hub | ■ **operator 2026-07-22** — with wasm blocked, **Open anyway** proceeded to the Studio un-warmed; user never trapped on the hub. |
+| 4.8 | Hosted narrative replaces the attach story; `hostCapabilities.redditAttach:false` suppresses the CTA rather than leaving a dead button | ■ **operator 2026-07-22** — capture/polish: no dead Reddit CTA; copy points at download / install the extension. (Also agent: `test:workflow-banner-host` 6/6; absent field ⇒ extension byte-identical.) |
+| 4.9 | **Timeout safety** — first bake after a gated cold load completes inside `ABSOLUTE_MAX_MS` | ■ **operator 2026-07-22** — first bake after a gated cold open completed normally (well inside the 90 s absolute max). |
+| 4.10 | Deep link straight to `/design-studio/` on a cold cache degrades honestly (no hang) — the un-warmed state must be visible without ever passing the gate (§5.1) | ■ **operator 2026-07-22** — direct `/design-studio/` (including under throttled cold conditions) loaded and worked without hanging; never required the hub gate. |
 
 ---
 
@@ -158,4 +158,8 @@ All exercised in-page against a **build** on 2026-07-22 — 11/11 assertions tru
 
 ## Verdict
 
-**Overall:** ☐ · **Blockers:** _tbd_ · **Accepted residuals:** _tbd_
+**Phase 3 (hub + chronos):** ■ **PASS 2026-07-22** — agent implementation + in-harness cold/warm, plus full operator closeout of 4.4–4.10 (cold Slow 3G, first bake after gate, deep-link cold, blocked-wasm failure UI, hosted banner).
+
+**Track overall:** ◐ **Phases 0–3 closed** · **Phase 4 open** (a11y polish, optional Vosk captions H-2, Pages deploy clean-profile, living-doc tidy).
+
+**Blockers:** none for Phase 3 · **Accepted residuals (not Phase 3 blockers):** Phase 2 frame-wise extension eyeball; record-time hot-swap under RAF throttle; FFmpeg fallback bake tier never entered; bake-size caps not re-measured (3.8); auto-Vosk fails as-designed until Phase 4 vendors assets (H-2 / 5.6).

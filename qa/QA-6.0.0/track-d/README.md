@@ -1,6 +1,6 @@
 # Track D — Hosted Design Studio (QA)
 
-**Status:** **OPEN · Phase 0 not started** · **Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`)
+**Status:** **OPEN · Phases 0–3 COMPLETE (operator QA PASS 2026-07-22) · Phase 4 next** · **Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`)
 **Roadmap:** [`docs/v6.0.0-hosted-design-studio.md`](../../../docs/v6.0.0-hosted-design-studio.md) · **ADR:** none yet (0011 is next; trigger = the host boundary growing past a relay shim)
 **Checklist:** [`qa-checklist.md`](qa-checklist.md)
 
@@ -19,19 +19,19 @@ Unlike Tracks A/B/C, most of Track D's risk is **not** in new product behaviour 
 
 | Phase | Gate | Status |
 |---|---|---|
-| 0 — alias flip + shim + scaffold | Voice Lab green **after the flip, before new code**; demo build clean; Studio mounts with no console errors; checks C1/C2/C3 run | ☐ |
-| 1 — record + take lifecycle | Record → base MP4 → download twice in a session; reload recovery | ☐ |
-| 2 — visual system + bake | Track A/B/C surfaces appear without per-surface fixes; bake parity vs extension on an identical profile | ☐ |
-| 3 — hub + chronos gate | Cold + warm runs observed; failure path shows Retry **and a warned Open anyway** under throttling | ☐ |
-| 4 — polish / a11y / docs | Production build + real Pages deploy verified from a clean profile | ☐ |
+| 0 — alias flip + shim + scaffold | Voice Lab green **after the flip, before new code**; demo build clean; Studio mounts with no console errors; checks C1/C2/C3 run | ■ COMPLETE |
+| 1 — record + take lifecycle | Record → base MP4 → download twice in a session; reload recovery | ■ COMPLETE |
+| 2 — visual system + bake | Track A/B/C surfaces appear without per-surface fixes; bake parity vs extension on an identical profile | ■ gate substantially MET (structural + operator rich bake) |
+| 3 — hub + chronos gate | Cold + warm runs observed; failure path shows Retry **and a warned Open anyway** under throttling | ■ **PASS operator 2026-07-22** (QA §4.1–4.10) |
+| 4 — polish / a11y / docs / optional captions | Production build + real Pages deploy verified from a clean profile; optional Vosk tier | ☐ **NEXT** |
 
-## Open checks (carried into Phase 0)
+## Open checks (all closed through Phase 3)
 
 | # | Check | Why it matters |
 |---|---|---|
-| **C1** | In-page bake vs live preview contention | Relates to the unexplained "5–6× faster while minimized" observation in `claude-progress.md` |
-| **C2** | App bundle weight (excluding vendored FFmpeg) | Completes the first-load budget in roadmap §3.5 |
-| **C3** | Actual `Cache-Control` on the live Pages origin | If `max-age=600` holds, "later visits are instant" needs a Cache Storage layer, not the HTTP cache |
+| **C1** | In-page bake vs live preview contention | ■ closed 2026-07-22 — zero main-thread long tasks (worker bake); hidden-tab RAF throttle is not a bake blocker |
+| **C2** | App bundle weight (excluding vendored FFmpeg) | ■ 1.27 MB JS + 148 KB CSS |
+| **C3** | Actual `Cache-Control` on the live Pages origin | ■ `max-age=600` + 304 revalidation; eviction risk still motivates Cache Storage (Phase 4 studio-side read) |
 
 ## Resolved decisions
 
