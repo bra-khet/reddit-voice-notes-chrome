@@ -141,8 +141,11 @@ function startTranscribeJobContext(request: TranscribeStartRequest): void {
   }, TRANSCRIBE_COMPLETION_WATCHDOG_MS);
   // Node test harness: don't keep the process alive for a 125 s idle timer.
   // Browsers ignore unref; production Completes clear the timer via take/clear.
-  if (typeof (watchdog as { unref?: () => void }).unref === 'function') {
-    (watchdog as { unref: () => void }).unref();
+  // BUG FIX: Pages CI tsc (DOM lib) — setTimeout is `number`, not a Node Timeout.
+  // Fix: widen via unknown before optional unref; avoids TS2352 number→object cast.
+  const nodeTimer = watchdog as unknown as { unref?: () => void };
+  if (typeof nodeTimer.unref === 'function') {
+    nodeTimer.unref();
   }
 
   transcribeContextByJobId.set(request.jobId, {

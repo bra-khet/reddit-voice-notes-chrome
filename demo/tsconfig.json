@@ -25,9 +25,22 @@
      * WHY: one source of truth — the Voice Lab and the hosted Design Studio both
      * compile the extension's real src/. Must stay in lockstep with the same
      * alias in vite.config.ts.
+     *
+     * BUG FIX: Pages CI tsc without root node_modules
+     * Fix: bare imports in pulled-in ../src/* (mediabunny, @ffmpeg/*) resolve by
+     * walking from the *file*, so CI (demo-only npm ci) never sees them and
+     * reports TS2307 + cascading TS7006. Map those packages to demo/node_modules
+     * where the workflow actually installs them. Local green-with-root-deps was
+     * accidental coverage.
+     * Sync: demo/package.json dependencies; deploy-demo.yml installs only demo/
      */
     "baseUrl": ".",
-    "paths": { "@/*": ["../*"] }
+    "paths": {
+      "@/*": ["../*"],
+      "mediabunny": ["./node_modules/mediabunny"],
+      "@ffmpeg/ffmpeg": ["./node_modules/@ffmpeg/ffmpeg"],
+      "@ffmpeg/util": ["./node_modules/@ffmpeg/util"]
+    }
   },
   /*
    * Only demo-owned entry roots are listed. Extension files reached through "@/"

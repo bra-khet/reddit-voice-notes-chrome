@@ -88,6 +88,14 @@ export default defineConfig({
       // real Studio tree. See docs/v6.0.0-hosted-design-studio.md §3.4.
       //   @  ->  <repo root>   ⇒   "@/src/voice/types"  resolves to  <root>/src/voice/types.ts
       '@': resolve(root, '..'),
+      // BUG FIX: Pages CI resolve without root node_modules
+      // Fix: shared ../src/* imports bare packages; Rollup walks from the file
+      // (repo root), misses demo/node_modules, and fails the build even after tsc
+      // is fixed. Same packages as demo/tsconfig.json paths — keep in lockstep.
+      // Sync: demo/tsconfig.json paths; demo/package.json dependencies
+      mediabunny: resolve(root, 'node_modules/mediabunny'),
+      '@ffmpeg/ffmpeg': resolve(root, 'node_modules/@ffmpeg/ffmpeg'),
+      '@ffmpeg/util': resolve(root, 'node_modules/@ffmpeg/util'),
     },
   },
   /*
