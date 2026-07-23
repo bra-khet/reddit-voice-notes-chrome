@@ -43,63 +43,40 @@ These surfaces live in [`demo/`](demo/) and deploy automatically through
 
 ## Status
 
-**Current `main` — v6.0 pre-ship code complete; package remains `5.11.0`.** Tracks A–D are merged:
-audio-reactive custom styles, direct background manipulation, popup polish, and the full hosted Design
-Studio. The package/version/tag boundary is intentionally deferred to its own release sprint.
+**Current stable — v6.0.0 Polish & Visual Maturity** (2026-07-23 · **tagged `v6.0.0`**, push user-owned).
 
-**Current `main` v5.11.0 — Preferences full-IDB migration** (code 2026-07-12 · **real-browser QA PASS 2026-07-13** · **tagged `v5.11.0`**, push deferred) — durable user preferences move from one large `chrome.storage.local` blob into extension-origin **IndexedDB** `rvnUserPrefs` (one `global` row + per-entity `profiles` / `customStyles`); the `rvnUserPrefs.v2` local key is a signal-only coordinator written *after* the IDB commit (persist-before-publish). **No caller changed** and the public `UserPreferencesV1` / `USER_PREFS_VERSION` contract stays v1. Reddit content scripts relay load/replace through background; Design Studio gains versioned JSON **Export / Import** and per-save size telemetry. Storage-hardening release — voice / subtitle / preview / bake semantics unchanged. Full release notes: [`docs/release-notes-v5.11.0.md`](docs/release-notes-v5.11.0.md).
+Four tracks ship together as a stable product checkpoint: audio-reactive Style Control Center,
+direct-manipulation Background Layout v2, Cividis popup refresh, and the **full Design Studio on
+GitHub Pages** (no install required). Field Guide and orientation hub teach
+**Design → Capture → Polish & Bake**. Full notes + GitHub-ready summary:
+[`docs/release-notes-v6.0.0.md`](docs/release-notes-v6.0.0.md).
 
-**v5.10.0 — Raw Trim Apply** (QA PASS 2026-07-12 · tagged) — **Apply trim** also cuts the raw capture WebM (audio-only, sample-accurate Opus) and re-stamps `baseRecording` in the same atomic write, so **post-trim voice re-apply / Change Voice work again**; raw-leg failure demotes honestly to the v5.9 voice lock. Completes the v5.6.0–v5.10.0 editing arc. Full release notes: [`docs/release-notes-v5.10.0.md`](docs/release-notes-v5.10.0.md).
-
-**v5.9.0** — Atomic trim apply: shorter base MP4, cue shift (preview=apply), H6 re-stamp; post-trim voice was locked until v5.10.  
-**v5.8.0** — Timeline visual subtitle editor with waveform, stage zoom, keyboard/undo/multi-select, smart suggestions, and trim preview.
-**v5.7.0** — Partial re-bake splice: cue edits re-encode only the changed keyframe-aligned regions (default-on).  
-**v5.6.0** — Audio decoupling + voice re-apply (visuals bit-exact) + editing/timeline backend.  
-**v5.5.0 / v5.5.1** — Browser-side full composite (mediabunny); FFmpeg alphamerge wall eliminated.  
-**v5.4.0** — Design Studio First: standalone recording suite + Take lifecycle.  
-**v5.0.0 — Dulcet II** — graph-native DSP voice engine.
-
-Previous: **v4.0.0** (Eloquent I — subtitles + v4 Studio), **v3.x** (voice + UX). See `docs/HISTORY.md`. Architecture: `docs/architecture/`.
-
-### What's new in v4.0 (Eloquent I)
+### What's new in v6.0
 
 | Area | Highlights |
 |------|------------|
-| **Subtitles** | Vosk WASM transcription; segment editor; bake hard subs into MP4 (repeatable) |
-| **Design Studio v4** | Hero preview + status cards + sub-panels; profile Subtitles? / Ready? strip |
-| **Workflow** | 3-phase guidance: Design → Capture → Polish & Bake (cross-tab stepper) |
-| **Fonts** | Bundled DejaVu family; WYSIWYG preview matches burn-in output |
-| **Profiles** | `transcriptConfig` on clip profiles; disable-subtitles confirm guard |
+| **Hosted Design Studio** | Full record → style → caption → bake → download on Pages; extension optional |
+| **Audio-reactive visuals** | 6 spectra · 7 atmospheres · 7 stackables · Style Control Center · performance governor |
+| **Background Layout v2** | Drag/zoom/precision · presets · dim/blur/blends/Holo/GIF · framing aids · A/B |
+| **Popup** | Cividis indigo→amber skin · elevated reload caution |
+| **Field Guide** | Single canonical tutorial matching hosted + extension workflow |
 
-### v3.1 recap
+### Recent line (v5)
 
-| Area | Highlights |
-|------|------------|
-| **Collapsible Studio** | Style, Background, Voice, and Subtitles roll-ups with live collapsed summaries |
-| **Style Control Center** | Registry-driven Spectrum, Atmosphere, and Accent pickers; shared tuning, contextual layout/readability controls, and a visible capture-performance governor |
-| **Background** | 3×3 corner alignment; sizing + position side-by-side |
-| **Voice tips** | Robot / Whisper / Slight mask show compensating hints when selected |
-| **Preview** | One master Live preview (secondary/tertiary previews removed) |
+| Version | Focus |
+|---------|--------|
+| **v5.11.0** | Preferences full-IDB migration · Export/Import · signal-only coordinator |
+| **v5.10.0** | Raw trim apply — post-trim voice re-apply works again |
+| **v5.9.0** | Atomic trim apply |
+| **v5.8.0** | Visual subtitle timeline editor |
+| **v5.7.0** | Partial re-bake splice (default-on) |
+| **v5.6.0** | Audio decoupling + voice re-apply |
+| **v5.5.0 / v5.5.1** | Browser-side full composite (default-on) |
+| **v5.4.0** | Design Studio First + Take lifecycle |
+| **v5.0.0** | Dulcet II graph-native voice DSP |
 
-### v3.0 recap
-
-| Area | Highlights |
-|------|------------|
-| **Voice effects** | Bundled presets (Deeper, Higher, Slight mask, Robot, Whisper, Custom); duration-preserving pitch; optional EQ/dynamics/reverb via FFmpeg |
-| **Intensity + Turbo** | Slider 0–10 modulates active preset strength; Turbo maps to magic 12; bundled preset stays selected while adjusting intensity |
-| **Design Studio Voice** | Preview last recording via Web Audio; no transcode needed to audition |
-| **Profile persistence** | `voiceEffectConfig` embedded on clip profiles; same Update / Clone / Save to new / exit guard as visual fields |
-| **Export** | Single-pass `-af` on WebM→MP4 transcode; silent fallback to raw audio + toast on filter failure |
-| **Popup summary** | One-line voice status (e.g. `Voice: Robot · 7/10`) |
-
-### v2.0 recap
-
-| Area | Highlights |
-|------|------------|
-| **Design Studio** | Clip appearance — colors, backgrounds, effects, live preview |
-| **Profiles & styles** | Up to 12 saved clip profiles and 12 custom color styles |
-| **Personal backgrounds** | IndexedDB + chunked relay to Reddit canvas (WYSIWYG) |
-| **Pipeline** | BUG-007 dup-storm fix, stall detection, 60s client ceiling, 2:00 cap |
+Previous: **v4.0.0** (Eloquent I — subtitles + v4 Studio), **v3.x** (voice + UX). See
+[`docs/HISTORY.md`](docs/HISTORY.md). Architecture: [`docs/architecture/`](docs/architecture/).
 
 ## Features
 

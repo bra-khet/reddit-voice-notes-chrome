@@ -1,6 +1,6 @@
 # Architecture docs — Reddit Voice Notes
 
-**Updated:** 2026-07-22 · **Reflects:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D Phases 0 + 1 complete, host-classification swept + guard gates the Pages build; release boundary pending** · **Map:** v3.26 · **Skill:** `/architecture-hardening`
+**Updated:** 2026-07-23 · **Reflects:** `main` @ package **`6.0.0`** / tag **`v6.0.0`** · **v6 Polish & Visual Maturity shipped** (Tracks A/B/C/D + Field Guide) · **Map:** v3.26 · **Skill:** `/architecture-hardening`
 
 This directory holds the **living, versioned** architecture index for the extension. It is the cross-cutting view — subsystem internals live in the canonical docs listed below.
 
@@ -37,9 +37,9 @@ This directory holds the **living, versioned** architecture index for the extens
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration + relay + Export/Import — **browser QA PASS 2026-07-13 · merge-ready** |
 | `docs/v6.0.0-custom-styles-refactor.md` | **v6 merged** — complete audio-reactive catalog + Style Control Center/governor (ADR-0007/0009/0010) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 merged · full QA PASS** — direct-manipulation Background Layout v2 (Design-phase; ADR-0008) |
-| `docs/v6.0.0-hosted-design-studio.md` | **v6 Track D · Phase 0 landed** — hosted GitHub Pages Design Studio: `browser` global shim, in-page pipeline host, first-load budget/chronos gate, hub positioning |
-| `docs/static-voice-studio-design.md` | The existing Pages demo (Voice Lab, formerly "Voice Studio") + GitHub Actions deploy pattern; hub/nav-banner WIP markers now Track D-owned |
-| `docs/release-notes-v5.11.0.md` | Latest tagged release notes (prior versions under `archive/docs/`); v6 release notes remain the next explicit release sprint |
+| `docs/v6.0.0-hosted-design-studio.md` | **v6 Track D · COMPLETE / shipped** — hosted GitHub Pages Design Studio: `browser` global shim, in-page pipeline host, Vosk captions, chronos gate, Cache Storage warm wasm |
+| `docs/static-voice-studio-design.md` | The existing Pages demo (Voice Lab) + GitHub Actions deploy pattern |
+| `docs/release-notes-v6.0.0.md` | Latest tagged release notes (full + GitHub summary); prior versions under `archive/docs/` |
 | `src/session/take-manager.ts` (header) | Take lifecycle contract |
 | `claude-progress.md` | Session timeline + release tags |
 

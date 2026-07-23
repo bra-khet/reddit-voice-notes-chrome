@@ -6,6 +6,7 @@
 > Extended **2026-07-11** (Refresh #2) after **v5.9.0 (Atomic Trim Apply)** shipped — added `progress/claude-progress-through-v5.9.0.md` and archived the v5.6.0 → v5.8.0 release notes.
 > Extended **2026-07-12** (Refresh #3) after **v5.10.0 (Raw Trim Apply)** shipped + real-browser QA PASS — added `progress/claude-progress-through-v5.10.0.md` and archived the v5.9.0 release notes.
 > Extended **2026-07-20** (Refresh #4) after all three **v6.0 Polish & Visual Maturity tracks** merged — added `progress/claude-progress-through-v6.0.0-tracks.md` and slimmed the living progress file to the release boundary.
+> Extended **2026-07-23** (Refresh #5) at the **v6.0.0** tag — living progress slimmed to shipped stable; archived `release-notes-v5.10.0.md` and `release-notes-v5.11.0.md`.
 
 This directory is the **raw/verbose history** tier of the project's two-tier documentation model:
 
@@ -23,7 +24,7 @@ Root-level session and branch progress logs, superseded by the slimmed living `c
 
 | File | What it is |
 |------|-----------|
-| `claude-progress-through-v6.0.0-tracks.md` | **Full** v5.11.0 + v6.0 Tracks A/B/C development log through the Track B full operator PASS and all-track merge. Added by the 2026-07-20 Refresh #4; package was still 5.11.0 pending the explicit v6 release. |
+| `claude-progress-through-v6.0.0-tracks.md` | **Full** v5.11.0 + v6.0 Tracks A/B/C (+ Track D development detail in the living file at ship time) development log through the Track B full operator PASS and all-track merge. Added by the 2026-07-20 Refresh #4; package was still 5.11.0 pending the explicit v6 release. |
 | `claude-progress-through-v5.10.0.md` | **Full** raw-trim-apply progress log (v5.9.0 → v5.10.0), including real-browser QA PASS and the accepted IDB-nuke observation. Added by the 2026-07-12 Refresh #3. |
 | `claude-progress-through-v5.9.0.md` | **Full** timeline-and-trim progress log (v5.8.0 → v5.9.0), including real-browser QA and post-QA fixes. Added by the 2026-07-11 Refresh #2. |
 | `claude-progress-pre-v5.8.0.md` | **Full** editing-suite-arc progress log (v5.7.0 → v5.4.0, incl. v5.5.x / v5.3.10 handoff) as it stood entering v5.8.0. Added by the 2026-07-10 Refresh. |
@@ -37,7 +38,7 @@ Shipped release notes and resolved handoff/checkpoint docs. **Design docs for sh
 
 | File(s) | What it is |
 |---------|-----------|
-| `release-notes-v3.1.0.md` … `release-notes-v5.9.0.md` (21) | Per-version release notes for shipped tags v3.1.0, v3.7.0, v4.0.0, v5.0.0, and v5.3.0 → v5.9.0. The latest **v5.10.0** notes remain living in `docs/`. |
+| `release-notes-v3.1.0.md` … `release-notes-v5.11.0.md` | Per-version release notes for shipped tags through v5.11.0. The latest **v6.0.0** notes remain living in `docs/release-notes-v6.0.0.md`. |
 | `eloquent-4-handoff.md` | Resolved v4 subtitle-bake QA handoff (BUG-025…032). |
 | `eloquent-profile-checkpoint.md` | **Historical** profile bug-cluster audit (superseded for semantics). |
 | `eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint. |

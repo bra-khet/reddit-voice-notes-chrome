@@ -1,6 +1,6 @@
 # Architecture Map — Reddit Voice Notes
 
-**Version:** v3.26 · **Reflects branch/tag:** `feature/v6.0.0-hosted-design-studio` from `main@a4df9a1` @ package `5.11.0` · **v6 Tracks A/B/C merged; Track D Phases 0 + 1 complete** · **Updated:** 2026-07-22
+**Version:** v3.26 · **Reflects branch/tag:** `main` / **`v6.0.0`** @ package **`6.0.0`** · **v6 Polish & Visual Maturity shipped (Tracks A/B/C/D)** · **Updated:** 2026-07-23
 **Status:** Canonical cross-cutting architecture index. Wins for *how subsystems fit together*;
 subsystem internals are owned by the canonical docs linked in §8.
 **Re-run:** `/architecture-hardening` (full) or a named phase.
@@ -425,7 +425,7 @@ Authoritative storage map: `docs/design-studio.md` §3.2 (now includes `rvn.take
 5. Host re-seeds every draft/baseline, clears undo, reloads the clip/waveform, and fits the shorter view. The Voice panel's `savedAt`-keyed poll picks up the trimmed recording and **"Apply voice to current take" re-enables** — Change Voice / re-apply run unchanged (`voice-reapply.ts` resolves the trimmed WebM through the same clean-audio H6 door; rendered audio matches the trimmed video duration, no desync).
 6. The next subtitle bake sees a duration change, so `computePartialRebakePlan` returns null and the full chain runs against the trimmed clean base (with whatever voice the user last applied). Download/attach resolve the trimmed base until that bake completes.
 
-**Code verified at:** `trim-apply.ts`, `trim.ts` (`applyTrimToWebM`, `planRawTrimLeg`), `last-recording-db.ts` bounds, `clean-audio-source.ts`, `voice-controls.ts` `refreshApplyAvailability`/`loadRecordingSource`, `session-transcript-db.ts` `replaceSessionTranscriptResults`, `subtitle-segment-editor.ts` `onApplyTrim`, `subtitle-bake.ts` duration guard. **Real-browser QA:** v5.9 leg in [`archive/docs/release-notes-v5.9.0.md`](../archive/docs/release-notes-v5.9.0.md); **v5.10 raw leg all PASS 2026-07-12** in [`docs/release-notes-v5.10.0.md`](../release-notes-v5.10.0.md) (gate = roadmap §7).
+**Code verified at:** `trim-apply.ts`, `trim.ts` (`applyTrimToWebM`, `planRawTrimLeg`), `last-recording-db.ts` bounds, `clean-audio-source.ts`, `voice-controls.ts` `refreshApplyAvailability`/`loadRecordingSource`, `session-transcript-db.ts` `replaceSessionTranscriptResults`, `subtitle-segment-editor.ts` `onApplyTrim`, `subtitle-bake.ts` duration guard. **Real-browser QA:** v5.9 leg in [`archive/docs/release-notes-v5.9.0.md`](../archive/docs/release-notes-v5.9.0.md); **v5.10 raw leg all PASS 2026-07-12** in [`archive/docs/release-notes-v5.10.0.md`](../archive/docs/release-notes-v5.10.0.md) (gate = roadmap §7).
 
 ### Trace F — close initiating tab after transcribe ACK → terminal transcript recovery (BUG-038)
 

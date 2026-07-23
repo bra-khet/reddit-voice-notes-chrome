@@ -957,7 +957,8 @@ reddit.com).
 | `docs/v5.11.0-prefs-storage-refactor.md` | Full-IDB preference migration, content-script relay, Export/Import, size telemetry |
 | `docs/v6.0.0-custom-styles-refactor.md` | **v6 merged** audio-reactive visuals: six spectra, seven overlay families, seven stackables, Style Control Center/governor (ADR-0007/0009/0010) |
 | `docs/v6.0.0-background-panel-refactor.md` | **v6 merged · full QA PASS** direct-manipulation Background Layout v2 — Design-phase; normalized positioning/treatments/framing (ADR-0008) |
-| `docs/release-notes-v5.10.0.md` | Latest ship notes (prior versions under `archive/docs/`) |
+| `docs/release-notes-v6.0.0.md` | Latest ship notes (full + GitHub summary; prior versions under `archive/docs/`) |
+| `docs/v6.0.0-hosted-design-studio.md` | **v6 Track D shipped** — hosted Pages Design Studio host adapter |
 | `docs/bug-archive.md` | Full bug write-ups |
 | `archive/docs/release-notes-v3.1.0.md` | v3.1 collapsible panels + single-preview UX change |
 | `archive/docs/release-notes-v3.7.0.md` | v3.7 v4 UI shell (hero, cards, sub-panels, preview bezel) |
@@ -1049,8 +1050,8 @@ src/workflow/
 ## Resume in a new chat (carry-forward)
 
 ```
-Design Studio canonical semantics refreshed through merged v6 Tracks A/B/C (package remains 5.11.0 pending explicit release).
-Primary surface: native capture + live canvas, voice audition/re-apply, List/Timeline cues,
+Design Studio canonical semantics through v6.0.0 (package 6.0.0): Tracks A/B/C/D + Field Guide shipped.
+Primary surface: native capture + live canvas (extension or hosted Pages), voice audition/re-apply, List/Timeline cues,
 browser-composite subtitle bake with verified partial splice, atomic trim + raw WebM cut, take deck/download.
 Preview=bake: shared painter; cue timing I17. Trim preview=APPLY: dual-copy shift I18; rawAudio tri-state.
 State: TakeManager owns rvn.take.current; prefs truth is rvnUserPrefs IDB global/profiles/customStyles;
