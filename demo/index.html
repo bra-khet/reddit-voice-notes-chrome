@@ -21,7 +21,7 @@
           <img src="/favicon-mic-chip-32.svg" width="48" height="48" alt="Reddit Voice Notes" aria-hidden="true" />
         <span>
           <p class="hub__title">Reddit Voice Notes</p>
-          <p class="hub__sub">v5.4.0 · Design Studio First</p>
+          <p class="hub__sub">Design Studio · now in your browser</p>
          </span>
       </header>
 
@@ -74,9 +74,40 @@
         </div>
       </section>
 
-      <!-- Two destinations -->
+      <!-- Primary destination — the full hosted Design Studio (Track D §4) -->
+      <section class="hub__primary" aria-labelledby="hub-primary-h">
+        <p class="hub__section-eyebrow" id="hub-primary-h">Start here</p>
+        <article class="hub__flagship">
+          <div class="hub__flagship-body">
+            <p class="hub__flagship-tag">Full product · no install</p>
+            <h2 class="hub__flagship-name">Design Studio</h2>
+            <p class="hub__flagship-desc">
+              The whole thing, in your browser: record with a live preview, style the look,
+              add captions, edit the timeline, bake to MP4, and manage your takes — the same
+              Design Studio the extension ships, running right on this page.
+            </p>
+            <ul class="hub__flagship-features">
+              <li>Record with a WYSIWYG live preview</li>
+              <li>Full style, background &amp; subtitle systems</li>
+              <li>Bake to a downloadable MP4</li>
+            </ul>
+            <p class="hub__flagship-note">
+              Loads about 35&nbsp;MB of media engines on your first visit, then caches them.
+              It can't post to Reddit on its own — download your MP4, or install the extension
+              to attach a take from any comment box.
+            </p>
+          </div>
+          <div class="hub__flagship-action">
+            <a class="hub__flagship-cta" href="design-studio/" data-design-studio-cta>Open Design Studio →</a>
+            <p class="hub__flagship-sub">Runs entirely on your machine.</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- Two lighter destinations (secondary) -->
       <section class="hub__destinations" aria-labelledby="hub-dest-h">
-        <p class="hub__section-eyebrow" id="hub-dest-h">Choose your starting point</p>
+        <p class="hub__section-eyebrow" id="hub-dest-h">Prefer something lighter?</p>
+        <p class="hub__dest-lede">Both are intentionally smaller and faster than the full Studio — that's the point.</p>
         <div class="hub__dest-grid">
 
           <article class="hub__dest hub__dest--tutorial">
@@ -128,7 +159,7 @@
               <li>Live FFmpeg render preview</li>
               <li>Copy / paste voice profiles</li>
             </ul>
-            <a class="hub__dest-cta hub__dest-cta--primary" href="studio/">Open Voice Lab →</a>
+            <a class="hub__dest-cta" href="studio/">Open Voice Lab →</a>
           </article>
 
         </div>

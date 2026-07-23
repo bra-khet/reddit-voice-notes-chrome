@@ -128,9 +128,9 @@ All exercised in-page against a **build** on 2026-07-22 — 11/11 assertions tru
 
 | # | Item | Result |
 |---|---|---|
-| 4.1 | Naming reads correctly end to end: Voice Lab (light) vs Design Studio (full) — no stray "Voice Studio" | ☐ |
-| 4.2 | Three destinations present; Design Studio is visually primary | ☐ |
-| 4.3 | Card copy states the real first-load cost and the no-Reddit-posting limitation | ☐ |
+| 4.1 | Naming reads correctly end to end: Voice Lab (light) vs Design Studio (full) — no stray "Voice Studio" | ✅ **agent 2026-07-22** — hub reads "Design Studio" (flagship) + "Voice Lab" + "Field Guide"; no "Voice Studio" on the hub (`read_page` against the build). Tutorial's 5 occurrences remain deferred (§4.3) |
+| 4.2 | Three destinations present; Design Studio is visually primary | ✅ **agent 2026-07-22** — new `.hub__flagship` "Start here" card sits **before** the secondary row (DOM-order verified) with the amber-pill CTA (dark text, 999px); Field Guide + Voice Lab demoted to a "Prefer something lighter?" row and Voice Lab's CTA is no longer `--primary`. No horizontal overflow at 1280 or 375; flagship stacks to column on mobile |
+| 4.3 | Card copy states the real first-load cost and the no-Reddit-posting limitation | ✅ **agent 2026-07-22** — flagship note: "Loads about 35 MB of media engines on your first visit, then caches them. It can't post to Reddit on its own — download your MP4, or install the extension…" |
 | 4.4 | Cold cache — stages advance on real milestones, with byte progress on the engine fetch | ☐ |
 | 4.5 | Warm cache — gate is brief or skipped | ☐ |
 | 4.6 | Failure path — throttled/blocked fetch surfaces an error with **Retry** and **Open anyway**; the warning sits **adjacent to the button** (not a dismissible toast) and names the consequence, per §5.1 | ☐ |
