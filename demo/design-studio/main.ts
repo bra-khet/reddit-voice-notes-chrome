@@ -38,10 +38,13 @@ async function bootDesignStudio(): Promise<void> {
   installWebPipelineHost();
   const [prefs, workflowPhase] = await Promise.all([loadUserPreferences(), getWorkflowPhase()]);
   const reconciled = await reconcileBackgroundPreferences(prefs);
-  // Phase 3 adds `hostCapabilities: { redditAttach: false }` here (roadmap §3.6).
-  // Until then the hosted Studio renders the extension's default affordances and
-  // the tabs stubs absorb the clicks.
-  unmount = mountClipStudio(app, { initialPrefs: reconciled, initialWorkflowPhase: workflowPhase });
+  // Track D §3.6: this host has no extension and no Reddit tab to reach, so the
+  // Reddit-attach affordances are suppressed rather than left as dead controls.
+  unmount = mountClipStudio(app, {
+    initialPrefs: reconciled,
+    initialWorkflowPhase: workflowPhase,
+    hostCapabilities: { redditAttach: false },
+  });
 }
 
 /*

@@ -1,4 +1,5 @@
 import type { TranscriptDeliveryStatus } from '@/src/ui/design-studio/subtitle-segment-editor';
+import { isRedditAttachEnabled } from '@/src/ui/design-studio/host-capabilities';
 import {
   activateRedditTab,
   onWorkflowPhaseChanged,
@@ -38,7 +39,11 @@ function ctaText(phase: WorkflowPhase, status: WorkflowBannerStatus): string {
     if (status.bakedForSession) {
       // v5.4.0: Download in the Current Take deck is the universal primary;
       // Reddit attach is the polished secondary.
-      return 'Captioned MP4 ready — download it from the Current Take deck, or attach it on Reddit.';
+      // Track D §3.6: on a host with no extension there is nothing to attach to,
+      // so the secondary points at installing the extension instead of a dead action.
+      return isRedditAttachEnabled()
+        ? 'Captioned MP4 ready — download it from the Current Take deck, or attach it on Reddit.'
+        : 'Captioned MP4 ready — download it from the Current Take deck. To post it to Reddit, install the extension.';
     }
     if (status.transcriptDelivery === 'pending') {
       return 'Recording ready — subtitles are loading. Edit & bake once they arrive.';
@@ -62,13 +67,20 @@ function ctaText(phase: WorkflowPhase, status: WorkflowBannerStatus): string {
   }
   // v5.4.0: the Studio records natively — the deck's Record button is the
   // primary path; Reddit stays as the quick in-context alternative.
+  // Track D §3.6: the "record on Reddit" alternative is extension-only.
   if (eff === 'capture') {
-    return 'Design saved — press Record in the Current Take deck, or record on your Reddit tab.';
+    return isRedditAttachEnabled()
+      ? 'Design saved — press Record in the Current Take deck, or record on your Reddit tab.'
+      : 'Design saved — press Record in the Current Take deck.';
   }
   return 'Design your clip style, then record right here in the Studio — live preview included.';
 }
 
 function ctaButtonLabel(phase: WorkflowPhase, status: WorkflowBannerStatus): string | null {
+  // Track D §3.6: suppress the Reddit CTA entirely on a host that cannot attach —
+  // a hidden-but-live button is what §3.6 rejected. The copy in ctaText carries
+  // the honest alternative (download, or install the extension).
+  if (!isRedditAttachEnabled()) return null;
   const eff = effectivePhase(phase, status);
   if (eff === 'polish' && status.bakedForSession) return 'Attach on Reddit';
   if (eff === 'polish') return null; // Primary CTA is the Bake button in Subtitles panel
@@ -127,7 +139,11 @@ function bannerHtml(phase: WorkflowPhase, status: WorkflowBannerStatus, isSwitch
       </div>
       <details class="wf-why">
         <summary class="wf-why__summary">How does Reddit fit in?</summary>
-        <p class="wf-why__body">Everything — recording, design, subtitles, baking, export — lives here in the Studio with a real-time WYSIWYG preview. Reddit is the polished output target: the voice-note button in any comment box attaches your current Studio take in one click, and can still record on the spot when you want a quick native capture.</p>
+        <p class="wf-why__body">${
+          isRedditAttachEnabled()
+            ? 'Everything — recording, design, subtitles, baking, export — lives here in the Studio with a real-time WYSIWYG preview. Reddit is the polished output target: the voice-note button in any comment box attaches your current Studio take in one click, and can still record on the spot when you want a quick native capture.'
+            : "Everything — recording, design, subtitles, baking, export — lives here in the Studio with a real-time WYSIWYG preview. This hosted Studio can't post to Reddit on its own: download your MP4, or install the Reddit Voice Notes extension to attach a take from any comment box in one click."
+        }</p>
       </details>
     </div>`;
 }

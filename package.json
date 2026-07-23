@@ -15,6 +15,7 @@
     "test:style-control-center": "node scripts/test-style-control-center.mjs",
     "test:host-neutrality": "node scripts/test-host-neutrality.mjs",
     "test:relay-pipeline-host": "node scripts/test-relay-pipeline-host.mjs",
+    "test:workflow-banner-host": "node scripts/test-workflow-banner-host.mjs",
     "qa:style-control-center": "vite --config scripts/fixtures/style-control-center-visual/vite.config.mjs",
     "qa:popup-visual": "vite --config scripts/fixtures/popup-visual/vite.config.mjs",
     "qa:visual-size": "node scripts/qa-visual-size.mjs",

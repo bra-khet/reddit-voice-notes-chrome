@@ -1,4 +1,5 @@
 import { burnInSubtitlesToMp4 } from '@/src/ffmpeg/burnin-client';
+import { isRedditAttachEnabled } from '@/src/ui/design-studio/host-capabilities';
 import { shouldPreferCanvasOverlay } from '@/src/ffmpeg/subtitle-burnin';
 import {
   BAKED_MP4_READY_KEY,
@@ -394,7 +395,10 @@ export async function bakeSubtitlesInStudio(options: SubtitleBakeOptions): Promi
   report({
     ratio: 1,
     stage: 'done',
-    message: 'Subtitles baked — download from the Current Take deck or attach on Reddit.',
+    // Track D §3.6: drop the Reddit clause on a host that cannot attach.
+    message: isRedditAttachEnabled()
+      ? 'Subtitles baked — download from the Current Take deck or attach on Reddit.'
+      : 'Subtitles baked — download it from the Current Take deck.',
   });
   return burned;
 }

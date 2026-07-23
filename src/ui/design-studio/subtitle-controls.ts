@@ -5,6 +5,7 @@ import {
   saveSessionTranscriptEdits,
   type SessionTranscriptSnapshot,
 } from '@/src/storage/session-transcript-db';
+import { isRedditAttachEnabled } from '@/src/ui/design-studio/host-capabilities';
 import {
   BAKED_MP4_READY_KEY,
   LAST_RECORDING_READY_KEY,
@@ -904,8 +905,10 @@ export function mountSubtitleControls(
           updateBakeChronosUi(progress);
         },
       });
-      bakeStatusEl.textContent =
-        'Subtitles baked. Download the MP4 from the Current Take deck — or attach it on Reddit.';
+      // Track D §3.6: drop the Reddit clause on a host that cannot attach.
+      bakeStatusEl.textContent = isRedditAttachEnabled()
+        ? 'Subtitles baked. Download the MP4 from the Current Take deck — or attach it on Reddit.'
+        : 'Subtitles baked. Download the MP4 from the Current Take deck.';
       await refreshSessionStatusCache();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

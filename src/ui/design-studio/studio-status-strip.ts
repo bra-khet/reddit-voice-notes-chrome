@@ -1,4 +1,5 @@
 import type { UserPreferencesV1 } from '@/src/settings/user-preferences';
+import { isRedditAttachEnabled } from '@/src/ui/design-studio/host-capabilities';
 import { clipProfileMatchesLiveState, getClipProfileById } from '@/src/settings/clip-profiles';
 import { isCustomStyleDirty } from '@/src/settings/custom-styles';
 import { isPresetProfileId } from '@/src/settings/preset-profiles';
@@ -171,7 +172,10 @@ export function buildProfileStatusSnapshot(input: StudioStatusStripInput): Profi
   const readyYes = blockers.length === 0;
   const readyHint = readyYes
     ? subtitlesEnabled
-      ? 'Subtitles baked — download from the deck or attach on Reddit'
+      ? // Track D §3.6: drop the Reddit clause on a host that cannot attach.
+        isRedditAttachEnabled()
+        ? 'Subtitles baked — download from the deck or attach on Reddit'
+        : 'Subtitles baked — download it from the Current Take deck'
       : 'Profile ready — changes apply live to the recorder'
     : blockers[0];
 

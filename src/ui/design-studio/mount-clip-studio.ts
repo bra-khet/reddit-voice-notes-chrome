@@ -91,6 +91,7 @@ import {
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
 import { renderStudioV4PanelCard } from '@/src/ui/design-studio/studio-v4-panel-summary';
 import { applyStudioV4ShellChrome } from '@/src/ui/design-studio/studio-v4-shell';
+import { setStudioHostCapabilities } from '@/src/ui/design-studio/host-capabilities';
 import {
   mountWorkflowBanner,
   type WorkflowBannerHandle,
@@ -149,9 +150,19 @@ export type MountClipStudioOptions = {
   initialPrefs?: UserPreferencesV1;
   /** Workflow phase from boot — avoids banner flash on first paint. */
   initialWorkflowPhase?: WorkflowPhase;
+  /**
+   * Web host: suppress Reddit-only affordances (Track D §3.6). Absent ⇒ today's
+   * extension behaviour, byte-identical. `redditAttach: false` on the hosted
+   * Studio removes the dead "attach on Reddit" CTA and its copy.
+   */
+  hostCapabilities?: { redditAttach?: boolean };
 };
 
 export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOptions): () => void {
+  // Apply host capabilities before any sub-surface renders, so the banner CTA and
+  // the bake copy read the right host from their first paint (Track D §3.6).
+  setStudioHostCapabilities(options?.hostCapabilities);
+
   root.innerHTML = `
     <main class="studio studio-v4">
       <header class="studio__header" data-studio-main-header>
