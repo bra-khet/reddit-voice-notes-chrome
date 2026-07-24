@@ -1,8 +1,8 @@
 # Design Studio — Current Product Contract
 
 <!--
-CHANGED: Replaced version-by-version shell plans and shipped refresh notes with the current Studio semantics.
-WHY: Post-v6 work needs one dense source for workflow, state ownership, panels, and preview/output behavior.
+CHANGED: Clarified the shipped Profile actions control deck and its dirty-save/storage semantics.
+WHY: Post-v6 work needs the current profile contract, not the menu's superseded multi-button chrome.
 -->
 
 ## Archive Notice (Living Document)
@@ -137,7 +137,7 @@ Keep four independent layers:
 | Transcript panel | Session transcript IDB | No | Yes |
 | Segment modal | Applies to transcript draft | No | No |
 
-Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. New profile actions should reuse one accessible menu/modal/confirmation system while keeping dirty **Save Changes** outside the menu.
+Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, full-replace Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot. Profile writes continue through the serialized preference coordinator and existing normalizers.
 
 ## Integration rules
 

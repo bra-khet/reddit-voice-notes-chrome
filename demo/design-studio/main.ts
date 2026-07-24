@@ -19,6 +19,9 @@ import '@/entrypoints/design-studio/studio-v4-chrome.css';
 import '@/entrypoints/design-studio/studio-v4-layout.css';
 import '@/entrypoints/design-studio/studio-v4-buttons.css';
 import '@/entrypoints/design-studio/style.css';
+// CHANGED: mirror the shared Profile actions menu stylesheet in the hosted shell.
+// WHY: shared markup and interaction must keep extension/Pages visual parity.
+import '@/entrypoints/design-studio/profile-actions.css';
 import '@/entrypoints/design-studio/studio-v4-controls.css';
 import '@/entrypoints/design-studio/style-control-center.css';
 

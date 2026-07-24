@@ -24,7 +24,7 @@ writeFileSync(
   entry,
   [
     "export * from '@/src/storage/user-prefs-db';",
-    "export { exportUserPreferencesAsJSON, importUserPreferencesFromJSON, loadUserPreferences } from '@/src/settings/user-preferences';",
+    "export { exportUserPreferencesAsJSON, importUserPreferencesFromJSON, loadUserPreferences, renameClipProfile, saveDefaultClipProfile } from '@/src/settings/user-preferences';",
     '',
   ].join('\n'),
 );
@@ -161,6 +161,8 @@ const {
   exportUserPreferencesAsJSON,
   importUserPreferencesFromJSON,
   loadUserPreferences,
+  renameClipProfile,
+  saveDefaultClipProfile,
 } = await import(pathToFileURL(outfile).href);
 
 let checks = 0;
@@ -339,6 +341,40 @@ await check('invalid import is rejected without publishing a new revision', asyn
     /not a Reddit Voice Notes preferences export/,
   );
   assert.equal(localValues.get('rvnUserPrefs.v2').revision, priorRevision);
+});
+
+// CHANGED: Profile action storage tests cover clean-default creation and identity-preserving rename.
+// WHY: the new menu must reuse the atomic IDB writer and never smuggle session text into profiles.
+await check('default profile creation starts clean and activates the new profile', async () => {
+  const created = await saveDefaultClipProfile('Fresh profile');
+  const activeId = created.appearance.activeProfileId;
+  const profile = created.appearance.savedProfiles.find((entry) => entry.id === activeId);
+  assert.ok(profile);
+  assert.equal(profile.name, 'Fresh profile');
+  assert.equal(profile.themeId, 'classic');
+  assert.equal(profile.customBackgroundId, null);
+  assert.equal(profile.customStyleId, null);
+  assert.equal(profile.voiceEffectConfig.enabled, false);
+  assert.equal(profile.transcriptConfig.result, null);
+  assert.equal(created.voiceEffect.enabled, false);
+  assert.equal(created.transcriptConfig.transcriptionEnabled, false);
+  assert.equal(localValues.get('rvnSubtitlesEnabled'), false);
+  assert.equal((await loadUserPrefsDbSnapshot()).profiles.length, 2);
+});
+
+await check('rename preserves profile identity and rejects duplicate names', async () => {
+  const before = await loadUserPreferences();
+  const profileId = before.appearance.activeProfileId;
+  const renamed = await renameClipProfile(profileId, 'Clean slate');
+  assert.equal(renamed.appearance.activeProfileId, profileId);
+  assert.equal(
+    renamed.appearance.savedProfiles.find((profile) => profile.id === profileId).name,
+    'Clean slate',
+  );
+  await assert.rejects(
+    renameClipProfile(profileId, 'Imported profile'),
+    /already exists/,
+  );
 });
 
 await check('Reddit-origin wrapper access relays through background-owned direct helpers', async () => {

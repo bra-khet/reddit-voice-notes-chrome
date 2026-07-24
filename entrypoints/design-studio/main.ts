@@ -4,6 +4,9 @@ import './studio-v4-chrome.css';
 import './studio-v4-layout.css';
 import './studio-v4-buttons.css';
 import './style.css';
+// CHANGED: profile action chrome is isolated so its popover/dialog specificity stays local.
+// WHY: the shared Studio menu must render identically in extension and hosted builds.
+import './profile-actions.css';
 import './studio-v4-controls.css';
 // CHANGED: Phase 4 Style Control Center owns a focused instrument-rack stylesheet.
 // WHY: keeping its dense responsive selectors isolated avoids specificity fights with subtitle timelines.

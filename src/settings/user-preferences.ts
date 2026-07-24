@@ -928,6 +928,123 @@ export async function saveCurrentAsClipProfile(
   });
 }
 
+// CHANGED: Profile actions can create a clean product-default profile without first mutating the live Studio draft.
+// WHY: "Add profile" needs an honest blank/default starting point alongside the existing current-setup snapshot.
+export async function saveDefaultClipProfile(name: string): Promise<UserPreferencesV1> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('Enter a profile name.');
+  }
+
+  return enqueuePrefsOp(async () => {
+    const current = await readUserPreferencesBlob();
+    const profiles = [...(current.appearance.savedProfiles ?? [])];
+    if (profiles.length >= MAX_CLIP_PROFILES) {
+      throw new Error(`You can save up to ${MAX_CLIP_PROFILES} profiles.`);
+    }
+    if (profiles.some((profile) => profile.name.toLowerCase() === trimmed.toLowerCase())) {
+      throw new Error('A profile with that name already exists.');
+    }
+
+    const defaultLayout = userBackgroundLayoutFromAppearance(
+      DEFAULT_USER_PREFERENCES.appearance,
+    );
+    const defaultTranscript = transcriptConfigForProfileStorage(DEFAULT_TRANSCRIPT_CONFIG);
+    const profile: ClipProfile = {
+      id: createClipProfileId(),
+      name: trimmed.slice(0, 40),
+      themeId: DEFAULT_THEME_ID,
+      barAlignment: DEFAULT_USER_PREFERENCES.appearance.barAlignment ?? 'center',
+      customBackgroundId: null,
+      backgroundScaleMode: defaultLayout.scaleMode,
+      backgroundPosition: defaultLayout.position,
+      backgroundLayout: defaultLayout,
+      customStyleId: null,
+      designOverrides: null,
+      voiceEffectConfig: normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG),
+      transcriptConfig: defaultTranscript,
+    };
+
+    const previousSubtitlesEnabled = normalizeTranscriptConfig(
+      current.transcriptConfig,
+    ).transcriptionEnabled;
+    await setSubtitlesEnabled(defaultTranscript.transcriptionEnabled);
+    try {
+      return await commitUserPreferences({
+        ...current,
+        appearance: mergeAppearancePreferences({
+          ...current.appearance,
+          activeThemeId: DEFAULT_THEME_ID,
+          barAlignment: profile.barAlignment,
+          customBackgroundId: null,
+          backgroundScaleMode: defaultLayout.scaleMode,
+          backgroundPosition: defaultLayout.position,
+          backgroundLayout: defaultLayout,
+          activeCustomStyleId: null,
+          designOverrides: null,
+          savedProfiles: [...profiles, profile],
+          activeProfileId: profile.id,
+        }),
+        voiceEffect: normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG),
+        transcriptConfig: defaultTranscript,
+      });
+    } catch (error) {
+      try {
+        await setSubtitlesEnabled(previousSubtitlesEnabled);
+      } catch (rollbackError) {
+        console.warn(
+          '[Reddit Voice Notes] Could not restore subtitle flag after default profile failure',
+          rollbackError,
+        );
+      }
+      throw error;
+    }
+  });
+}
+
+// CHANGED: Saved profiles can be renamed in place through the serialized preference writer.
+// WHY: the actions menu must preserve profile identity and references rather than clone/delete to rename.
+export async function renameClipProfile(
+  profileId: string,
+  name: string,
+): Promise<UserPreferencesV1> {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new Error('Enter a profile name.');
+  }
+  if (isPresetProfileId(profileId)) {
+    throw new Error('Built-in profiles cannot be renamed.');
+  }
+
+  return enqueuePrefsOp(async () => {
+    const current = await readUserPreferencesBlob();
+    const profiles = current.appearance.savedProfiles ?? [];
+    if (!profiles.some((profile) => profile.id === profileId)) {
+      throw new Error('Select a saved profile to rename.');
+    }
+    if (
+      profiles.some(
+        (profile) =>
+          profile.id !== profileId
+          && profile.name.toLowerCase() === trimmed.toLowerCase(),
+      )
+    ) {
+      throw new Error('A profile with that name already exists.');
+    }
+
+    const renamed = profiles.map((profile) =>
+      profile.id === profileId ? { ...profile, name: trimmed.slice(0, 40) } : profile,
+    );
+    return commitUserPreferences({
+      ...current,
+      appearance: mergeAppearancePreferences({
+        ...current.appearance,
+        savedProfiles: renamed,
+      }),
+    });
+  });
+}
+
 export async function updateActiveClipProfile(): Promise<UserPreferencesV1> {
   const current = await loadUserPreferences();
   const profileId = current.appearance.activeProfileId;

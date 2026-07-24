@@ -1,8 +1,8 @@
 # Future Ideas — Post-v6
 
 <!--
-CHANGED: Marked the adjacency rule implemented and recorded the hosted warm-up modal Back-navigation bug.
-WHY: The product register must preserve the fifth ordered polish item without turning it into the current sprint.
+CHANGED: Marked the Profile actions control deck implemented and advanced the active queue pointer.
+WHY: The product register should preserve context without presenting shipped profile work as an open idea.
 -->
 
 ## Archive Notice (Living Document)
@@ -18,7 +18,7 @@ These remain documented for product context; **execute from TODO**:
 | Idea | TODO # | Notes |
 |------|--------|--------|
 | Smart Adjust cue-adjacency gate for word-shift | **1 — Done** | Gap ≤ 0.2s for shift proposals; else prefer split/re-splice. **Not** the trust-UI presentation work below. |
-| Profile actions menu | **2** | Add / Import / Rename / Clone / Export / Delete + dirty Save outside menu. |
+| Profile actions menu | **2 — Done** | Responsive Add / Import / Rename / Clone-or-Save-as-new / Export / confirmed Delete; dirty Save stays outside. |
 | Reset to default / reset to blank | **3** | Inventory first; shared confirm; dirty + normalize. |
 | Preferences Import merge / union | **4** | Explicit merge beside full-replace; no CRDT. |
 | Hosted orientation sticky warm-up modal after Back | **5** | Clear restored launch state without moving hosted lifecycle policy into shared Studio code. |

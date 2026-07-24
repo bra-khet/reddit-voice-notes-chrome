@@ -17,6 +17,7 @@ import { getBackgroundAssetMeta } from '@/src/storage/image-db';
 import {
   clipProfileMatchesLiveState,
   getClipProfileById,
+  MAX_CLIP_PROFILES,
   PROFILE_SELECT_CUSTOM,
 } from '@/src/settings/clip-profiles';
 import { isPresetProfileId } from '@/src/settings/preset-profiles';
@@ -38,10 +39,12 @@ import {
   importUserPreferencesFromJSON,
   loadUserPreferences,
   onUserPreferencesChanged,
+  renameClipProfile,
   saveAppearancePreferences,
   saveCurrentAsClipProfile,
   saveCurrentAsCustomStyle,
   saveCustomStyleColors,
+  saveDefaultClipProfile,
   shouldReduceMotion,
   updateActiveClipProfile,
   updateActiveCustomStyle,
@@ -120,6 +123,11 @@ import {
   forkButtonLabel,
   promptNameForFork,
 } from '@/src/ui/design-studio/studio-save-pathways';
+import {
+  mountProfileActionsMenu,
+  renderProfileActionsMarkup,
+  type ProfileActionsHandle,
+} from '@/src/ui/design-studio/profile-actions-menu';
 import { getTakeManager } from '@/src/session/take-manager';
 import { reconcileStudioTakeAfterTabReturn } from '@/src/ui/design-studio/studio-take-recovery';
 import {
@@ -206,33 +214,16 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
               <h2 class="studio__profile-cluster-title">Profile &amp; status</h2>
             </div>
             <section class="studio__profile-bar">
-              <label class="studio__profile-bar-field">
-                <span class="studio__profile-bar-label">Profile</span>
-                <select class="popup__select studio__profile-bar-select" data-profile-select aria-label="Saved profile"></select>
-              </label>
-              <div class="studio__profile-bar-actions">
-                <button type="button" class="popup__profile-btn popup__profile-btn--save" data-save-profile>
-                  Save as profile
-                </button>
-                <button
-                  type="button"
-                  class="popup__profile-btn popup__profile-btn--save-new"
-                  data-save-profile-new
-                  hidden
-                >
-                  ${CLONE_LABEL}
-                </button>
-                <button type="button" class="popup__profile-btn popup__profile-btn--delete" data-delete-profile hidden>
-                  Delete
-                </button>
-                <!-- CHANGED: v5.11.0 adds first-class backup/restore beside profile management. -->
-                <!-- WHY: users no longer need to edit or copy a truncated DevTools preference blob. -->
-                <button type="button" class="popup__profile-btn popup__profile-btn--save-new" data-export-preferences>
-                  Export JSON
-                </button>
-                <button type="button" class="popup__profile-btn popup__profile-btn--save-new" data-import-preferences>
-                  Import JSON
-                </button>
+              <!-- CHANGED: profile operations collapse into one accessible control-deck menu. -->
+              <!-- WHY: selection stays primary while Save changes retains a stable, outside-the-menu slot. -->
+              <div class="studio__profile-control-row">
+                <label class="studio__profile-bar-field">
+                  <span class="studio__profile-bar-label">Profile</span>
+                  <select class="popup__select studio__profile-bar-select" data-profile-select aria-label="Saved profile"></select>
+                </label>
+                <div class="studio__profile-bar-actions">
+                  ${renderProfileActionsMarkup()}
+                </div>
                 <input type="file" accept="application/json,.json" data-import-preferences-file hidden />
               </div>
             </section>
@@ -373,10 +364,6 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const alignmentSelect = root.querySelector<HTMLSelectElement>('[data-alignment-select]')!;
   const customStylePanel = root.querySelector<HTMLElement>('[data-custom-style-panel]')!;
   const saveProfileBtn = root.querySelector<HTMLButtonElement>('[data-save-profile]')!;
-  const saveProfileNewBtn = root.querySelector<HTMLButtonElement>('[data-save-profile-new]')!;
-  const deleteProfileBtn = root.querySelector<HTMLButtonElement>('[data-delete-profile]')!;
-  const exportPreferencesBtn = root.querySelector<HTMLButtonElement>('[data-export-preferences]')!;
-  const importPreferencesBtn = root.querySelector<HTMLButtonElement>('[data-import-preferences]')!;
   const importPreferencesFile = root.querySelector<HTMLInputElement>('[data-import-preferences-file]')!;
   const saveStyleBtn = root.querySelector<HTMLButtonElement>('[data-save-style]')!;
   const saveStyleNewBtn = root.querySelector<HTMLButtonElement>('[data-save-style-new]')!;
@@ -418,6 +405,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let backgroundHistoryRestoring = false;
   let subpanelShell!: StudioSubpanelShellHandle;
   let workflowBanner!: WorkflowBannerHandle;
+  let profileActions: ProfileActionsHandle | null = null;
   const PREVIEW_ANIM_FPS = 12;
 
   function cancelPendingColorSave(): void {
@@ -634,23 +622,22 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   function syncProfileButton(prefs: UserPreferencesV1): void {
     const profileId = prefs.appearance.activeProfileId;
     const dirty = isProfileDirty();
+    const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
 
-    if (!profileId || isPresetProfileId(profileId)) {
-      saveProfileBtn.textContent = 'Save as profile';
-      saveProfileBtn.disabled = false;
+    if (!hasSavedProfile || (!dirty && !profileUpdateConfirmPending)) {
+      saveProfileBtn.hidden = true;
+      saveProfileBtn.textContent = 'Save changes';
+      saveProfileBtn.disabled = true;
       saveProfileBtn.classList.remove('popup__profile-btn--muted', 'popup__profile-btn--confirm');
-      saveProfileNewBtn.hidden = true;
       resetProfileUpdateConfirm();
       return;
     }
 
-    saveProfileBtn.textContent = profileUpdateConfirmPending ? 'Sure?' : 'Update profile';
-    saveProfileBtn.disabled = !dirty && !profileUpdateConfirmPending;
-    saveProfileBtn.classList.toggle('popup__profile-btn--muted', !dirty && !profileUpdateConfirmPending);
+    saveProfileBtn.hidden = false;
+    saveProfileBtn.textContent = profileUpdateConfirmPending ? 'Confirm save' : 'Save changes';
+    saveProfileBtn.disabled = false;
+    saveProfileBtn.classList.remove('popup__profile-btn--muted');
     saveProfileBtn.classList.toggle('popup__profile-btn--confirm', profileUpdateConfirmPending);
-    saveProfileNewBtn.hidden = false;
-    saveProfileNewBtn.disabled = false;
-    saveProfileNewBtn.textContent = forkButtonLabel(dirty);
   }
 
   function syncStyleButton(prefs: UserPreferencesV1): void {
@@ -808,9 +795,14 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   function syncProfileActions(prefs: UserPreferencesV1): void {
     const profileId = prefs.appearance.activeProfileId;
     const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
-    deleteProfileBtn.hidden = !hasSavedProfile;
-    deleteProfileBtn.disabled = !hasSavedProfile;
     syncProfileButton(prefs);
+    profileActions?.sync({
+      activeProfileName: hasSavedProfile ? activeProfile()?.name ?? null : null,
+      profileNames: (prefs.appearance.savedProfiles ?? []).map((profile) => profile.name),
+      hasSavedProfile,
+      profileDirty: isProfileDirty(),
+      canAddProfile: (prefs.appearance.savedProfiles?.length ?? 0) < MAX_CLIP_PROFILES,
+    });
   }
 
   function syncSelectControls(prefs: UserPreferencesV1): void {
@@ -887,7 +879,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     };
     resetProfileUpdateConfirm();
     resetStyleUpdateConfirm();
-    syncProfileButton(activePrefs);
+    syncProfileActions(activePrefs);
     syncStyleButton(activePrefs);
     styleControls?.sync(overrides, resolvedTheme());
     stopPreviewLoop();
@@ -919,7 +911,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     backgroundPrecisionDirect?.sync(backgroundId, layout);
     studioRecorder.setCustomBackgroundId(backgroundId);
     studioRecorder.setUserBackgroundLayout(layout);
-    syncProfileButton(activePrefs);
+    syncProfileActions(activePrefs);
     refreshHeroPreview(layout);
     refreshPrecisionPreview(layout);
     // CHANGED: layout toggles can start or stop the holo animation without a full preference refresh.
@@ -1325,6 +1317,76 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     },
   });
 
+  // CHANGED: the profile control deck owns create/rename/clone/delete dialogs and menu mechanics.
+  // WHY: storage stays in the existing serialized pathways while both Studio hosts share one accessible UI.
+  profileActions = mountProfileActionsMenu(root, {
+    async onCreate(name, source) {
+      await flushPendingDesignPersist();
+      resetProfileUpdateConfirm();
+      resetStyleUpdateConfirm();
+      invalidateInFlightSaves();
+      await studioPersist(() =>
+        source === 'defaults'
+          ? saveDefaultClipProfile(name)
+          : saveCurrentAsClipProfile(name),
+      );
+    },
+    async onRename(name) {
+      const profileId = activePrefs?.appearance.activeProfileId;
+      if (!profileId || isPresetProfileId(profileId)) {
+        throw new Error('Select a saved profile to rename.');
+      }
+      resetProfileUpdateConfirm();
+      invalidateInFlightSaves();
+      await studioPersist(() => renameClipProfile(profileId, name));
+    },
+    async onClone(name) {
+      if (!activePrefs || !canForkActiveProfile(activePrefs)) {
+        throw new Error('Select a saved profile to clone.');
+      }
+      const dirty = isProfileDirty();
+      await flushPendingDesignPersist();
+      resetProfileUpdateConfirm();
+      resetStyleUpdateConfirm();
+      invalidateInFlightSaves();
+      await studioPersist(() =>
+        forkActiveClipProfileFromStudio(activePrefs!, name, dirty),
+      );
+    },
+    async onDelete() {
+      const profileId = activePrefs?.appearance.activeProfileId;
+      if (!profileId || isPresetProfileId(profileId)) {
+        throw new Error('Select a saved profile to delete.');
+      }
+      resetProfileUpdateConfirm();
+      invalidateInFlightSaves();
+      await studioPersist(() => deleteClipProfile(profileId));
+    },
+    async onExport() {
+      try {
+        await flushPendingDesignPersist();
+        await subtitleControls.flushPersist();
+        await voiceControls.flushPersist();
+        const json = await exportUserPreferencesAsJSON();
+        const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `reddit-voice-notes-preferences-${new Date().toISOString().slice(0, 10)}.json`;
+        link.hidden = true;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not export preferences.';
+        window.alert(message);
+      }
+    },
+    onImport() {
+      importPreferencesFile.click();
+    },
+  });
+
   profileSelect.addEventListener('change', () => {
     invalidateInFlightSaves();
     resetProfileUpdateConfirm();
@@ -1366,98 +1428,32 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
   saveProfileBtn.addEventListener('click', () => {
     const profileId = activePrefs?.appearance.activeProfileId;
-    if (profileId) {
-      if (!isProfileDirty() && !profileUpdateConfirmPending) return;
-      if (!profileUpdateConfirmPending) {
-        profileUpdateConfirmPending = true;
-        syncProfileButton(activePrefs!);
-        return;
-      }
-      resetProfileUpdateConfirm();
-      invalidateInFlightSaves();
-
-      let saveStyleFirst = false;
-      if (activePrefs && shouldPromptStyleSaveWithProfileUpdate(activePrefs)) {
-        const styleName = activeCustomStyle()?.name ?? 'This style';
-        saveStyleFirst = window.confirm(
-          `"${styleName}" has unsaved color edits. Save the style changes too, then update this profile?`,
-        );
-      }
-
-      void studioPersist(() => updateActiveClipProfileWithStyleOption(saveStyleFirst))
-        .then((prefs) => {
-          if (prefs) resetStyleUpdateConfirm();
-        })
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : 'Could not update profile.';
-          window.alert(message);
-        });
+    if (!profileId || isPresetProfileId(profileId)) return;
+    if (!isProfileDirty() && !profileUpdateConfirmPending) return;
+    if (!profileUpdateConfirmPending) {
+      profileUpdateConfirmPending = true;
+      syncProfileButton(activePrefs!);
       return;
     }
-
-    const name = window.prompt('Name this profile (style, alignment, and background):');
-    if (name === null) return;
-    invalidateInFlightSaves();
-    void studioPersist(() => saveCurrentAsClipProfile(name)).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Could not save profile.';
-      window.alert(message);
-    });
-  });
-
-  saveProfileNewBtn.addEventListener('click', () => {
-    if (!activePrefs || !canForkActiveProfile(activePrefs)) return;
-    const dirty = isProfileDirty();
-    void flushPendingDesignPersist().then(async () => {
-      resetProfileUpdateConfirm();
-      resetStyleUpdateConfirm();
-      invalidateInFlightSaves();
-
-      const profileName = promptNameForFork('profile', !dirty);
-      if (profileName === null) return;
-
-      await studioPersist(() => forkActiveClipProfileFromStudio(activePrefs!, profileName, dirty));
-    }).catch((error: unknown) => {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      const message = error instanceof Error ? error.message : 'Could not save profile.';
-      window.alert(message);
-    });
-  });
-
-  deleteProfileBtn.addEventListener('click', () => {
     resetProfileUpdateConfirm();
     invalidateInFlightSaves();
-    const profileId = activePrefs?.appearance.activeProfileId;
-    if (!profileId) return;
-    const profileName = activeProfile()?.name ?? 'this profile';
-    if (!window.confirm(`Delete "${profileName}"?`)) return;
-    void studioPersist(() => deleteClipProfile(profileId));
-  });
 
-  // CHANGED: v5.11.0 exposes versioned preference backup/restore through the Studio UI.
-  // WHY: this is the safe user workflow for rich IDB-backed profiles and custom styles.
-  exportPreferencesBtn.addEventListener('click', () => {
-    void (async () => {
-      await flushPendingDesignPersist();
-      await subtitleControls.flushPersist();
-      await voiceControls.flushPersist();
-      const json = await exportUserPreferencesAsJSON();
-      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `reddit-voice-notes-preferences-${new Date().toISOString().slice(0, 10)}.json`;
-      link.hidden = true;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
-    })().catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Could not export preferences.';
-      window.alert(message);
-    });
-  });
+    let saveStyleFirst = false;
+    if (activePrefs && shouldPromptStyleSaveWithProfileUpdate(activePrefs)) {
+      const styleName = activeCustomStyle()?.name ?? 'This style';
+      saveStyleFirst = window.confirm(
+        `"${styleName}" has unsaved color edits. Save the style changes too, then update this profile?`,
+      );
+    }
 
-  importPreferencesBtn.addEventListener('click', () => {
-    importPreferencesFile.click();
+    void studioPersist(() => updateActiveClipProfileWithStyleOption(saveStyleFirst))
+      .then((prefs) => {
+        if (prefs) resetStyleUpdateConfirm();
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Could not update profile.';
+        window.alert(message);
+      });
   });
 
   importPreferencesFile.addEventListener('change', () => {
@@ -1631,6 +1627,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     takeDeck?.dispose();
     workflowBanner.dispose();
     subpanelShell.dispose();
+    profileActions?.dispose();
     styleControls?.dispose();
     voiceControls.dispose();
     subtitleControls.dispose();

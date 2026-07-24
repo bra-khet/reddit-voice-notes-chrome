@@ -1,8 +1,8 @@
 # TODO — Post-v6.0.0
 
 <!--
-CHANGED: Marked the Smart Adjust adjacency gate complete and recorded the fifth ordered polish item.
-WHY: Current handoff should advance to profile actions without losing the hosted Back-navigation warm-up bug.
+CHANGED: Marked the Profile actions control deck complete and advanced the ordered queue to reset semantics.
+WHY: Current handoff must preserve the delivered profile UI/storage contract while keeping the next sprint bounded.
 -->
 
 ## Archive Notice (Living Document)
@@ -16,8 +16,8 @@ Work **one bounded slice at a time**. Order is intentional; completed items stay
 | # | Status | Item | Priority | Effort | Why this order |
 |---|--------|------|----------|--------|----------------|
 | **1** | ✅ Done | **Smart Adjust — cue-adjacency gate for word-shift** | High | Small | Shipped in the post-v6 polish sprint; details and proof below. |
-| **2** | **Next** | **Profile actions menu** | Medium | Medium | Consolidates Add / Import / Rename / Clone / Export / Delete; establishes menu + modal primitives. |
-| **3** | Queued | **Reset to default / reset to blank** | Medium | Medium | Needs field inventory; benefits from menu/modal reuse from #2. |
+| **2** | ✅ Done | **Profile actions menu** | Medium | Medium | Shipped as a responsive control deck with one accessible dialog primitive; details and proof below. |
+| **3** | **Next** | **Reset to default / reset to blank** | Medium | Medium | Needs field inventory; can now reuse the menu/modal language established by #2. |
 | **4** | Queued | **Preferences Import merge / union** | Low | Small–Medium | Storage-careful; ship after profile Import UX is settled (#2). |
 | **5** | Queued | **Hosted orientation — sticky “Warming up” modal after Back** | Medium | Small–Medium | Separate hosted lifecycle bug; preserve queue order and diagnose only after #2–#4. |
 
@@ -53,6 +53,8 @@ Detail and acceptance criteria: sections below. Living design notes: [`docs/futu
 
 **Area:** Design Studio profile chrome (Cividis-aligned)
 
+**Status:** ✅ Complete — 2026-07-23
+
 Consolidate profile management into one accessible actions menu:
 
 - Add blank/default profile
@@ -67,6 +69,10 @@ Rename and Clone share one modal primitive. Clone pre-fills `<name> (copy N)` wi
 Keep **Save Changes** outside the menu; reveal only while dirty; second-step confirmation language consistent with other updates; reserve layout space so the UI does not jump.
 
 **Sprint contract example:** “Ship the profile actions menu shell + Rename/Clone/Delete confirm; leave Import merge strategy to item #4.”
+
+**Delivered:** The Profile selector now has a responsive Cividis control-deck menu for Add, Import, Rename, Clone / dirty Save as new, Export, and Delete. Add can snapshot the current setup or create and activate a clean Classic/default profile. Rename preserves profile identity; Clone uses the first free `<name> (copy N)`; Delete uses an emphasized in-app second step. Dirty **Save changes** remains outside the menu in a reserved slot. The host-neutral controller provides grouped menu semantics, arrow/Home/End/Escape handling, focus return, a trapped shared dialog, phone bottom sheets, and short-viewport containment. Full-replace Import remains unchanged pending item #4.
+
+**Proof:** `npm run test:profile-actions` **6/6**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, and `npm run compile` zero errors. Desktop and 390 × 844 hosted Studio interaction checks covered Add, dynamic Clone/Save-as-new, confirmed Delete, keyboard focus, dirty Save visibility, and responsive containment with no console errors.
 
 ---
 
