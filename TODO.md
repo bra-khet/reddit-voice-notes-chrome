@@ -1,8 +1,8 @@
 # TODO — Post-v6.0.0
 
 <!--
-CHANGED: Marked the Profile actions control deck complete and advanced the ordered queue to reset semantics.
-WHY: Current handoff must preserve the delivered profile UI/storage contract while keeping the next sprint bounded.
+CHANGED: Marked the Background/Style reset semantics complete and advanced the ordered queue to import merge/union.
+WHY: Current handoff must preserve the delivered reset contract while keeping the next sprint bounded.
 -->
 
 ## Archive Notice (Living Document)
@@ -17,8 +17,8 @@ Work **one bounded slice at a time**. Order is intentional; completed items stay
 |---|--------|------|----------|--------|----------------|
 | **1** | ✅ Done | **Smart Adjust — cue-adjacency gate for word-shift** | High | Small | Shipped in the post-v6 polish sprint; details and proof below. |
 | **2** | ✅ Done | **Profile actions menu** | Medium | Medium | Shipped as a responsive control deck with one accessible dialog primitive; details and proof below. |
-| **3** | **In progress** | **Reset to default / reset to blank** | Medium | Medium | Field inventory + Background vertical slice shipped; Style is the next honest inherit-vs-default family. |
-| **4** | Queued | **Preferences Import merge / union** | Low | Small–Medium | Storage-careful; ship after profile Import UX is settled (#2). |
+| **3** | ✅ Done | **Reset to default / reset to blank** | Medium | Medium | The two distinct families—Background and Style—now share normalized, scope-preserving return paths. |
+| **4** | **Next** | **Preferences Import merge / union** | Low | Small–Medium | Storage-careful; profile Import UX and reset semantics are now settled. |
 | **5** | Queued | **Hosted orientation — sticky “Warming up” modal after Back** | Medium | Small–Medium | Separate hosted lifecycle bug; preserve queue order and diagnose only after #2–#4. |
 
 Detail and acceptance criteria: sections below. Living design notes: [`docs/future-ideas.md`](docs/future-ideas.md). Handoff seed: [`claude-progress.md`](claude-progress.md).
@@ -72,7 +72,7 @@ Keep **Save Changes** outside the menu; reveal only while dirty; second-step con
 
 **Delivered:** The Profile selector now has a responsive Cividis control-deck menu for Add, Import, Rename, Clone / dirty Save as new, Export, and Delete. Add can snapshot the current setup or create and activate a clean Classic/default profile. Rename preserves profile identity; Clone uses the first free `<name> (copy N)`; Delete uses an emphasized in-app second step. Dirty **Save changes** remains outside the menu in a reserved slot. The host-neutral controller provides grouped menu semantics, arrow/Home/End/Escape handling, focus return, a trapped shared dialog, phone bottom sheets, and short-viewport containment. Full-replace Import remains unchanged pending item #4.
 
-**Proof:** `npm run test:profile-actions` **6/6**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, and `npm run compile` zero errors. Desktop and 390 × 844 hosted Studio interaction checks covered Add, dynamic Clone/Save-as-new, confirmed Delete, keyboard focus, dirty Save visibility, and responsive containment with no console errors.
+**Proof:** `npm run test:profile-actions` **7/7**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, and `npm run compile` zero errors. Desktop and 390 × 844 hosted Studio interaction checks covered Add, dynamic Clone/Save-as-new, confirmed Delete, keyboard focus, dirty Save visibility, and responsive containment with no console errors.
 
 ---
 
@@ -80,7 +80,7 @@ Keep **Save Changes** outside the menu; reveal only while dirty; second-step con
 
 **Area:** Cross-panel usability
 
-**Status:** In progress — Background vertical slice delivered 2026-07-23
+**Status:** ✅ Complete — 2026-07-23
 
 Two explicit operations where both meanings apply:
 
@@ -93,9 +93,14 @@ Requirements: central semantics and copy; one reusable confirmation/modal patter
 
 **Sprint contract example:** “Inventory blank-vs-default fields; implement reset on one panel family with shared modal + dirty integration.”
 
-**Delivered slice:** [`docs/reset-semantics.md`](docs/reset-semantics.md) now defines the shared vocabulary and inventories Background, Style, Voice, Subtitle appearance, transcript, and media-library ownership. Background ships the first reusable choice sheet: **Product layout** keeps selected media while restoring the normalized product layout; **Theme background** clears only `customBackgroundId` and leaves the upload in ImageDB. Both paths use the normal appearance persistence/dirty seam and do not reset profile identity, transcript, take, or unrelated settings.
+**Delivered:** [`docs/reset-semantics.md`](docs/reset-semantics.md) defines the shared vocabulary and inventories Background, Style, Voice, Subtitle appearance, transcript, and media-library ownership.
 
-**Proof:** `npm run test:settings-reset` **3/3**, `npm run test:profile-actions` **7/7**, `node scripts/test-background-control-ui.mjs` **16/16**, `npm run test:host-neutrality` **15/15**, and `npm run compile`.
+- Background: **Product layout** keeps selected media while restoring normalized layout; **Theme background** clears only `customBackgroundId` and leaves the upload in ImageDB.
+- Style: **Style source** restores the selected saved snapshot or unsaved Custom starter; **Base preset** detaches the custom layer and clears `designOverrides` without deleting the saved Style.
+- Both panels use the same native top-layer choice sheet, normalizer, and appearance persistence/dirty seam. Identity-bound Style preview state resets when its source changes; clearing Style returns focus to the collection selector.
+- Voice and Subtitle appearance do not receive a misleading two-choice sheet because their blank forms normalize to the same effective defaults. Transcript clearing and uploaded-media deletion remain separate guarded domains.
+
+**Proof:** `npm run test:settings-reset` **7/7**, `npm run test:style-control-center` **6/6**, `npm run test:profile-actions` **7/7**, `node scripts/test-background-control-ui.mjs` **16/16**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, and `npm run compile`. Hosted interaction QA covered an edited Custom Style → authored source, Custom Style → base preset, conditional dock visibility, confirmation copy, and keyboard focus return.
 
 ---
 

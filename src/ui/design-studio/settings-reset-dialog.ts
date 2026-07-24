@@ -1,7 +1,14 @@
 import {
+  CUSTOM_STYLE_BASE_THEME_ID,
+  DEFAULT_CUSTOM_STYLE_OVERRIDES,
+  normalizeDesignOverrides,
+  type DesignOverrides,
+} from '@/src/theme/design-overrides';
+import {
   DEFAULT_USER_BACKGROUND_LAYOUT,
   normalizeUserBackgroundLayout,
 } from '@/src/theme/background-layout';
+import type { AppearancePreferences } from '@/src/settings/user-preferences';
 import type {
   BackgroundImagePosition,
   BackgroundScaleMode,
@@ -15,6 +22,12 @@ export interface BackgroundResetTarget {
   backgroundScaleMode: BackgroundScaleMode;
   backgroundPosition: BackgroundImagePosition;
   backgroundLayout: NormalizedUserBackgroundLayout;
+}
+
+export interface StyleResetTarget {
+  activeThemeId: string;
+  activeCustomStyleId: string | null;
+  designOverrides: DesignOverrides | null;
 }
 
 export interface SettingsResetChoice {
@@ -37,6 +50,10 @@ export interface SettingsResetDialogCopy {
 
 export interface SettingsResetDialogHandle {
   dispose(): void;
+}
+
+export interface SettingsResetDialogOptions {
+  fallbackFocus?: () => HTMLElement | null;
 }
 
 export const BACKGROUND_RESET_COPY: SettingsResetDialogCopy = {
@@ -66,6 +83,33 @@ export const BACKGROUND_RESET_COPY: SettingsResetDialogCopy = {
   ],
 };
 
+export const STYLE_RESET_COPY: SettingsResetDialogCopy = {
+  id: 'style',
+  eyebrow: 'Style only',
+  title: 'Reset this Style?',
+  description:
+    'Choose the source to return to. Your saved Style, profile name, Background, Voice, Subtitles, transcript, and current take stay untouched.',
+  triggerLabel: 'Reset Style…',
+  dockTitle: 'Return path',
+  dockDescription: 'Rewind this instrument or drop back to its bundled stage.',
+  choices: [
+    {
+      mode: 'default',
+      label: 'Style source',
+      description:
+        'Restore the selected saved Style snapshot. An unsaved Custom Style returns to the starter color and visual controls.',
+      confirmLabel: 'Restore Style',
+    },
+    {
+      mode: 'blank',
+      label: 'Base preset',
+      description:
+        'Detach the custom Style and clear its optional overrides. Saved Styles remain available in your collection.',
+      confirmLabel: 'Use base preset',
+    },
+  ],
+};
+
 /**
  * CHANGED: Reset targets are resolved at one normalized seam before UI or storage sees them.
  * WHY: "default" must retain the selected media while "blank" removes only its optional reference.
@@ -80,6 +124,39 @@ export function resolveBackgroundResetTarget(
     backgroundScaleMode: backgroundLayout.scaleMode,
     backgroundPosition: backgroundLayout.position,
     backgroundLayout,
+  };
+}
+
+/**
+ * CHANGED: Style reset resolves either the authored source or the normal bundled-theme fallback.
+ * WHY: restoring a saved snapshot and detaching its optional overrides are distinct, non-destructive actions.
+ */
+export function resolveStyleResetTarget(
+  mode: SettingsResetMode,
+  appearance: Pick<
+    AppearancePreferences,
+    'activeThemeId' | 'activeCustomStyleId' | 'designOverrides' | 'savedCustomStyles'
+  >,
+): StyleResetTarget {
+  const savedStyle = appearance.activeCustomStyleId
+    ? appearance.savedCustomStyles?.find((style) => style.id === appearance.activeCustomStyleId)
+    : undefined;
+
+  if (mode === 'blank') {
+    return {
+      activeThemeId: savedStyle?.baseThemeId ?? appearance.activeThemeId,
+      activeCustomStyleId: null,
+      designOverrides: null,
+    };
+  }
+
+  const sourceOverrides = normalizeDesignOverrides(
+    savedStyle?.designOverrides ?? DEFAULT_CUSTOM_STYLE_OVERRIDES,
+  );
+  return {
+    activeThemeId: savedStyle?.baseThemeId ?? CUSTOM_STYLE_BASE_THEME_ID,
+    activeCustomStyleId: savedStyle?.id ?? null,
+    designOverrides: sourceOverrides ?? { ...DEFAULT_CUSTOM_STYLE_OVERRIDES },
   };
 }
 
@@ -161,6 +238,7 @@ export function mountSettingsResetDialog(
   root: HTMLElement,
   copy: SettingsResetDialogCopy,
   onConfirm: (mode: SettingsResetMode) => void | Promise<void>,
+  options: SettingsResetDialogOptions = {},
 ): SettingsResetDialogHandle {
   const trigger = root.querySelector<HTMLButtonElement>(
     `[data-settings-reset-trigger="${copy.id}"]`,
@@ -238,7 +316,10 @@ export function mountSettingsResetDialog(
   };
 
   const onClose = (): void => {
-    trigger.focus();
+    // CHANGED: conditional reset docks return focus to their panel's primary selector when a reset hides the trigger.
+    // WHY: clearing Style overrides removes its reset dock, so focusing the departed control would strand keyboard users.
+    const triggerIsVisible = !trigger.hidden && !trigger.closest<HTMLElement>('[hidden]');
+    (triggerIsVisible ? trigger : options.fallbackFocus?.())?.focus();
   };
 
   trigger.addEventListener('click', onTrigger);

@@ -1,8 +1,8 @@
 # Design Studio — Current Product Contract
 
 <!--
-CHANGED: Clarified the shipped Profile actions control deck and its dirty-save/storage semantics.
-WHY: Post-v6 work needs the current profile contract, not the menu's superseded multi-button chrome.
+CHANGED: Added the completed Background/Style reset contract to the current Studio surface.
+WHY: Post-v6 work needs exact restore-vs-inherit behavior without reopening historical panel plans.
 -->
 
 ## Archive Notice (Living Document)
@@ -92,6 +92,7 @@ There is no fourth visual layer. Reduced motion, High Contrast, caption-safe dim
 
 - Six spectrum presets, seven atmosphere overlays plus Clean, and up to three ordered accents.
 - `DesignOverrides` is the persisted customization surface; saved styles are named snapshots.
+- **Return path** restores the selected saved snapshot (or unsaved Custom starter), or detaches the custom layer to reveal its bundled base preset; saved Style entities are never deleted by reset.
 - The registry-backed governor reports Comfortable, Elevated, or Guarded cost. Guarded may suspend the costliest active accent without rewriting the saved list.
 - Identity changes reset per-canvas runtime state; tuning changes preserve bounded smoothing/history.
 
@@ -139,7 +140,7 @@ Keep four independent layers:
 
 Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, full-replace Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot. Profile writes continue through the serialized preference coordinator and existing normalizers.
 
-Reset operations distinguish **Restore defaults** from **Clear override** only when both destinations are real. The first shipped slice is Background: restore the normalized product layout while keeping selected media, or clear only the personal-background reference to reveal the active theme. The upload remains in ImageDB; profile identity, transcript, take, and unrelated settings remain untouched. Canonical inventory and copy: [`reset-semantics.md`](reset-semantics.md).
+Reset operations distinguish **Restore defaults** from **Clear override** only when both destinations are real. Background restores normalized layout while retaining selected media, or reveals the active theme without deleting the upload. Style restores its authored source, or detaches the custom layer and resolves the bundled base preset without deleting the saved Style. Both use the shared top-layer choice sheet and normal appearance writer; profile identity, transcript, take, and unrelated settings remain untouched. Canonical inventory and copy: [`reset-semantics.md`](reset-semantics.md).
 
 ## Integration rules
 

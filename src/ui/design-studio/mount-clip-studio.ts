@@ -128,6 +128,13 @@ import {
   renderProfileActionsMarkup,
   type ProfileActionsHandle,
 } from '@/src/ui/design-studio/profile-actions-menu';
+import {
+  mountSettingsResetDialog,
+  renderSettingsResetControl,
+  resolveStyleResetTarget,
+  STYLE_RESET_COPY,
+  type SettingsResetDialogHandle,
+} from '@/src/ui/design-studio/settings-reset-dialog';
 import { getTakeManager } from '@/src/session/take-manager';
 import { reconcileStudioTakeAfterTabReturn } from '@/src/ui/design-studio/studio-take-recovery';
 import {
@@ -273,6 +280,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
             </div>
           </div>
           ${renderStyleControlCenterFields()}
+          <!-- CHANGED: Style shares the Background reset choice sheet instead of adding panel-specific reset chrome. -->
+          <!-- WHY: the two honest destinations need identical scope, confirmation, and keyboard behavior. -->
+          <div data-style-reset-control hidden>
+            ${renderSettingsResetControl(STYLE_RESET_COPY)}
+          </div>
         </div>
       </section>
       <section class="studio__panel studio-v4__status-card" data-studio-panel="background">
@@ -363,6 +375,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   const themeSelect = root.querySelector<HTMLSelectElement>('[data-theme-select]')!;
   const alignmentSelect = root.querySelector<HTMLSelectElement>('[data-alignment-select]')!;
   const customStylePanel = root.querySelector<HTMLElement>('[data-custom-style-panel]')!;
+  const styleResetControl = root.querySelector<HTMLElement>('[data-style-reset-control]')!;
   const saveProfileBtn = root.querySelector<HTMLButtonElement>('[data-save-profile]')!;
   const importPreferencesFile = root.querySelector<HTMLInputElement>('[data-import-preferences-file]')!;
   const saveStyleBtn = root.querySelector<HTMLButtonElement>('[data-save-style]')!;
@@ -397,6 +410,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let voiceControls!: ReturnType<typeof mountVoiceControls>;
   let subtitleControls!: ReturnType<typeof mountSubtitleControls>;
   let styleControls: StyleControlsHandle | null = null;
+  let styleResetDialog: SettingsResetDialogHandle | null = null;
   let backgroundDirect: BackgroundDirectManipulationHandle | null = null;
   let backgroundPrecisionDirect: BackgroundDirectManipulationHandle | null = null;
   let backgroundUndoStack: NormalizedUserBackgroundLayout[] = [];
@@ -646,6 +660,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     const showPanel = isStylePanelVisible(prefs);
 
     customStylePanel.hidden = !showPanel;
+    styleResetControl.hidden = !showPanel;
     if (!showPanel) {
       saveStyleNewBtn.hidden = true;
       resetStyleUpdateConfirm();
@@ -1066,6 +1081,27 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     syncSectionSummaries();
     scheduleDesignPersist(merged);
   });
+
+  // CHANGED: Style now completes the shared reset-semantics sweep for fields with two real destinations.
+  // WHY: a saved/unsaved authored source must remain distinct from clearing overrides back to the bundled preset.
+  styleResetDialog = mountSettingsResetDialog(
+    root,
+    STYLE_RESET_COPY,
+    async (mode) => {
+      if (!activePrefs) throw new Error('Style preferences are still loading.');
+      const target = resolveStyleResetTarget(mode, activePrefs.appearance);
+      invalidateInFlightSaves();
+      colorPicker.endInteraction();
+      resetProfileUpdateConfirm();
+      resetStyleUpdateConfirm();
+      for (const canvas of previewCanvases()) {
+        resetAudioVisualCanvas(canvas);
+        resetStackableEffectsCanvas(canvas);
+      }
+      await studioPersist(() => saveAppearancePreferences(target));
+    },
+    { fallbackFocus: () => themeSelect },
+  );
 
   const personalBackground = mountPersonalBackgroundControls(root, (prefs) => {
     invalidateInFlightSaves();
@@ -1628,6 +1664,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     workflowBanner.dispose();
     subpanelShell.dispose();
     profileActions?.dispose();
+    styleResetDialog?.dispose();
     styleControls?.dispose();
     voiceControls.dispose();
     subtitleControls.dispose();
