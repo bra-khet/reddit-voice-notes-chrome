@@ -14,10 +14,10 @@
 **Globals (pointers only):** root [`TODO.md`](../../TODO.md) · [`claude-progress.md`](../../claude-progress.md)
 
 **Current branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`); Tracks A/B/C merged<br>
-**Open D:** [`docs/v6.0.0-hosted-design-studio.md`](../../docs/v6.0.0-hosted-design-studio.md) · ADR none yet (0011 next)  
-**Closed B:** [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) · ADR [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
-**Closed A:** [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md)  
-**Closed C:** [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md)
+**Closed D:** [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md) · ADR none (0011 next)
+**Closed B:** [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md) · ADR [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)
+**Closed A:** [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md)
+**Closed C:** [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-popup-ui-refresh.md)
 
 ## Directory map
 

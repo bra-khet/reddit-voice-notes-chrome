@@ -38,4 +38,4 @@ Keep the stable registry IDs and labels `sparkle` / `bokeh`, delete the placehol
 
 - Code: `src/theme/audio-reactive/index.ts`; `src/theme/audio-reactive/overlays/sparkle.ts`; `src/theme/audio-reactive/overlays/bokeh.ts`; `src/theme/backgrounds.ts`; `src/theme/design-overrides.ts`
 - Tests: `scripts/test-audio-frame.mjs`; `scripts/test-overlay-visuals.mjs`; `scripts/test-design-overrides-v6.mjs`
-- Docs: `docs/v6.0.0-custom-styles-refactor.md`; architecture map §3.1/§3.2/I22; ADR-0007
+- Docs: `archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md`; architecture map I22; ADR-0007

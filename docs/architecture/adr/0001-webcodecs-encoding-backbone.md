@@ -107,7 +107,7 @@ never re-encoded and never grow a second encoder).
   `src/ffmpeg/overlay-alphamerge-args.ts`,
   `src/ffmpeg/subtitle-burnin.ts` `buildWebCodecsOverlayStrategies`,
   `src/ui/design-studio/subtitle-canvas-bake.ts` encoder branch.
-- Docs: `docs/5.3.10-webcodecs-per-chunk-encoding.md` §0 (as-built),
-  `docs/5.3.9-worker-and-chunked-parallelization-design.md` §0 (seam contract).
+- Docs: `archive/docs/pre-v6.0.0/designs/5.3.10-webcodecs-per-chunk-encoding.md` §0 (as-built),
+  `archive/docs/pre-v6.0.0/designs/5.3.9-worker-and-chunked-parallelization-design.md` §0 (seam contract).
 - Bugs: v5.3.9.1 concat regression (design doc 5.3.9 §0.4) — the failure mode
   this ADR's guards exist to prevent recurring.

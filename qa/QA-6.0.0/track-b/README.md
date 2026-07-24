@@ -4,7 +4,7 @@
 **Branch:** `feature/v6.0.0-background-panel-refactor` (merged; final implementation `bdae9ab`)
 **Commits:** Phase 0 `08a2de5` · Phase 1 `1e3118f` · Phase 2 `b129713` · Phase 3 `844a81f` · Phase 4 `1166d51` · Phase 5 `16e3dd0` · Phase 6 `e7346ca` · Phase 7 `3c18b42` · final presentation `7095452` / `bdae9ab`<br>
 **Baseline package:** v5.11.0 · Track A confidence PASS · Track C agent gate PASS  
-**Roadmap:** [`docs/v6.0.0-background-panel-refactor.md`](../../../docs/v6.0.0-background-panel-refactor.md)  
+**Roadmap:** [archived Track B roadmap](../../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md)
 **ADR:** [0008 — background direct-manipulation layout](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Checklist:** [`qa-checklist.md`](qa-checklist.md) · evidence under `logs/` · `screenshot/` · `artifacts/`
 

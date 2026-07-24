@@ -90,7 +90,7 @@ never enter the snapshot — they stay in the existing IDB stores, referenced by
   `src/recorder/voice-recorder.ts` (transitions), `entrypoints/background.ts`
   (`recordArtifact`, orphan adoption), `src/ui/design-studio/studio-take-recovery.ts`,
   `src/ui/recorder-panel.ts` (attach mode, `maybePromoteNewerTake`).
-- Docs: `docs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`
+- Docs: `archive/docs/pre-v6.0.0/designs/5.4.0-design-studio-first-standalone-voice-notes-suite-roadmap.md`
   §3.1 / Phase 0 as-built; `docs/design-studio.md` §3.2 (storage map);
   `docs/architecture/architecture-map.md` v2.0 §2.3 (take lifecycle diagram).
 - Bugs: BUG-032 (the relay fragility this decision routes around); v5.4.0 QA #4

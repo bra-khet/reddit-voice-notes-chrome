@@ -1,53 +1,38 @@
 # Archive — Reddit Voice Notes
 
-> **Immutable historical layer. Do not edit files in here.**
-> Initialized **2026-07-06** at the **v5.4.0 (Design Studio First)** milestone via the `/docs-archiving` skill.
-> Extended **2026-07-10** (first Refresh) at the **v5.8.0 (Timeline Visual Subtitle Editor)** milestone — added `progress/claude-progress-pre-v5.8.0.md` and archived the v5.3.9 → v5.5.1 release notes.
-> Extended **2026-07-11** (Refresh #2) after **v5.9.0 (Atomic Trim Apply)** shipped — added `progress/claude-progress-through-v5.9.0.md` and archived the v5.6.0 → v5.8.0 release notes.
-> Extended **2026-07-12** (Refresh #3) after **v5.10.0 (Raw Trim Apply)** shipped + real-browser QA PASS — added `progress/claude-progress-through-v5.10.0.md` and archived the v5.9.0 release notes.
-> Extended **2026-07-20** (Refresh #4) after all three **v6.0 Polish & Visual Maturity tracks** merged — added `progress/claude-progress-through-v6.0.0-tracks.md` and slimmed the living progress file to the release boundary.
-> Extended **2026-07-23** (Refresh #5) at the **v6.0.0** tag — living progress slimmed to shipped stable; archived `release-notes-v5.10.0.md` and `release-notes-v5.11.0.md`.
+<!--
+CHANGED: Documented the full v6.0.0 baseline refresh and the new navigable archive structure.
+WHY: The archive now owns shipped design history as well as progress and release-note history.
+-->
 
-This directory is the **raw/verbose history** tier of the project's two-tier documentation model:
+> **Historical layer. Archived payload files are immutable.**
+> Start with [`docs/HISTORY.md`](../docs/HISTORY.md); use [`docs/MANIFEST.md`](docs/MANIFEST.md) only when deeper history is needed.
 
-- **Living layer** (repo root + `docs/`): slim, actively maintained — `claude-progress.md`, the canonical reference docs, `docs/architecture/`, and the milestone index `docs/HISTORY.md`.
-- **Archive layer** (here): full, point-in-time history that never gets edited. Living docs link in only when deeper history is actually needed (*conditional disclosure*).
+## Structure
 
-If you're getting oriented, start at [`docs/HISTORY.md`](../docs/HISTORY.md) — it indexes every milestone and points here only where the detail lives.
+| Path | Contents |
+|------|----------|
+| [`docs/MANIFEST.md`](docs/MANIFEST.md) | Source-to-archive map and provenance index |
+| [`docs/pre-v6.0.0/`](docs/pre-v6.0.0/) | Completed pre-v6 design, roadmap, handoff, and review-gate documents moved from `docs/` |
+| [`docs/v6.0.0-checkpoint/track-roadmaps/`](docs/v6.0.0-checkpoint/track-roadmaps/) | Completed v6 Tracks A/B/C/D roadmaps |
+| [`docs/v6.0.0-checkpoint/living-snapshots/`](docs/v6.0.0-checkpoint/living-snapshots/) | Full pre-condensation copies of living reference docs |
+| [`docs/release-notes-v*.md`](docs/) | Release notes through v5.11.0; v6.0.0 remains living |
+| [`progress/`](progress/) | Root progress/TODO snapshots and historical branch logs |
 
----
+## Refresh ledger
 
-## Contents
+| Refresh | Boundary | Added |
+|---------|----------|-------|
+| Initialize | v5.4.0 · 2026-07-06 | Archive structure, early progress, release notes, handoffs |
+| #1–#3 | v5.8.0–v5.10.0 · 2026-07-10–12 | Editing-suite progress and shipped release notes |
+| #4 | merged v6 tracks · 2026-07-20 | Full v6 development progress |
+| #5 | v6.0.0 tag · 2026-07-23 | Light ship refresh and v5.10/v5.11 notes |
+| **#6** | **v6.0.0 full baseline · 2026-07-23** | **38 moved docs, 13 living-doc snapshots, root progress/TODO snapshots, manifest, and compact post-v6 canon** |
 
-### `progress/`
-Root-level session and branch progress logs, superseded by the slimmed living `claude-progress.md`.
+## Rules
 
-| File | What it is |
-|------|-----------|
-| `claude-progress-through-v6.0.0-tracks.md` | **Full** v5.11.0 + v6.0 Tracks A/B/C (+ Track D development detail in the living file at ship time) development log through the Track B full operator PASS and all-track merge. Added by the 2026-07-20 Refresh #4; package was still 5.11.0 pending the explicit v6 release. |
-| `claude-progress-through-v5.10.0.md` | **Full** raw-trim-apply progress log (v5.9.0 → v5.10.0), including real-browser QA PASS and the accepted IDB-nuke observation. Added by the 2026-07-12 Refresh #3. |
-| `claude-progress-through-v5.9.0.md` | **Full** timeline-and-trim progress log (v5.8.0 → v5.9.0), including real-browser QA and post-QA fixes. Added by the 2026-07-11 Refresh #2. |
-| `claude-progress-pre-v5.8.0.md` | **Full** editing-suite-arc progress log (v5.7.0 → v5.4.0, incl. v5.5.x / v5.3.10 handoff) as it stood entering v5.8.0. Added by the 2026-07-10 Refresh. |
-| `claude-progress-pre-v5.4.0.md` | **Full** session progress log (v5.3.10 → v1.0.0 MVP) as it stood at v5.4.0. Together, the five snapshots preserve complete history through the merged v6 development tracks; the living root `claude-progress.md` keeps only current release-boundary state. |
-| `dulcet-branch.md` | v3 voice-effects (Dulcet) branch phase plan. |
-| `eloquent-branch.md` | v4 subtitle (Eloquent) branch phase plan. |
-| `pretty-branch.md` | v2 personalization (pretty) branch phase plan — bar style / background origin. |
-
-### `docs/`
-Shipped release notes and resolved handoff/checkpoint docs. **Design docs for shipped features stayed in the living `docs/`** because the architecture docs cite them as active canon — only inert records live here.
-
-| File(s) | What it is |
-|---------|-----------|
-| `release-notes-v3.1.0.md` … `release-notes-v5.11.0.md` | Per-version release notes for shipped tags through v5.11.0. The latest **v6.0.0** notes remain living in `docs/release-notes-v6.0.0.md`. |
-| `eloquent-4-handoff.md` | Resolved v4 subtitle-bake QA handoff (BUG-025…032). |
-| `eloquent-profile-checkpoint.md` | **Historical** profile bug-cluster audit (superseded for semantics). |
-| `eloquent-profile-checkpoint-hydrated.md` | **Historical** BUG-023 checkpoint. |
-| `5.3.x-version-swapping-log.md` | Ops log of v5.3.x version-swap testing. |
-
----
-
-## Rules for this archive
-
-- **Never edit** an archived file — it is a point-in-time capture. New work goes in the living layer.
-- **Internal cross-references reflect archive-time state.** An archived file may still say `docs/…` for a doc that has since moved or changed; that is intentional (it records what was true then). Living docs, by contrast, are kept link-correct.
-- **Extending the archive:** future `/docs-archiving` **Refresh** runs add new dated snapshots here (e.g. `progress/claude-progress-through-<next-milestone>.md`) and never overwrite existing ones.
+- Do not edit archived payloads after their provenance header is established.
+- Append new snapshots or manifest rows; never overwrite a prior capture.
+- Archived internal links may reflect their original location and date. Living docs must remain link-correct.
+- Keep source decisions intact. Condense only after the original content has a verified archive copy.
+- Do not use the archive as default agent context. Follow a living-document pointer only when current canon is insufficient.

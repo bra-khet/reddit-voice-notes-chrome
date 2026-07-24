@@ -1,7 +1,7 @@
 # Track D — Hosted Design Studio (QA)
 
 **Status:** **COMPLETE · merge candidate (2026-07-23)** · Phases 0–4 closed · real Pages 5.7 operator PASS · **Branch:** `feature/v6.0.0-hosted-design-studio` (cut from `main@a4df9a1`)
-**Roadmap:** [`docs/v6.0.0-hosted-design-studio.md`](../../../docs/v6.0.0-hosted-design-studio.md) · **ADR:** none yet (0011 is next; trigger = the host boundary growing past a relay shim)
+**Roadmap:** [archived Track D roadmap](../../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md) · **ADR:** none yet (0011 is next; trigger = the host boundary growing past a relay shim)
 **Checklist:** [`qa-checklist.md`](qa-checklist.md)
 
 Track D ships the full Design Studio as a static GitHub Pages surface via a **`browser` global shim** — no new extension context, no new message family, no new preference version. Package stays `5.11.0`.

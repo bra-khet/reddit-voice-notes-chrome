@@ -7,7 +7,7 @@
 
 ## Context
 
-v6 "Polish & Visual Maturity" replaces the ad-hoc waveform bar loop and the two hard-coded overlays (`sparkle`, `bokeh`) with a generalized, audio-reactive visual system: six curated spectrum presets + a simulation backbone (spatial grid, agents, stackables). Trigger: `docs/v6.0.0-custom-styles-refactor.md` (synthesized from supplemental-A + supplemental-B); README update-trigger "new visual effect touching preview=bake."
+v6 "Polish & Visual Maturity" replaces the ad-hoc waveform bar loop and the two hard-coded overlays (`sparkle`, `bokeh`) with a generalized, audio-reactive visual system: six curated spectrum presets + a simulation backbone (spatial grid, agents, stackables). Trigger: `archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md` (synthesized from supplemental-A + supplemental-B); README update-trigger "new visual effect touching preview=bake."
 
 Constraints (honest): MV3, Canvas 2D only (no WebGL/WASM/new deps), and — the binding one — visuals are **captured into the WebM at record time** and transcoded, so high-entropy effects inflate the encoded MP4 toward `LAST_BASE_MP4_MAX_BYTES` (25 MB) / `LAST_BAKED_MP4_MAX_BYTES` (30 MB) on 120 s clips. The audio pipeline needed already exists: `WaveformRenderer`'s `AnalyserNode` + `computeBandValues` (32 bands) + `smoothedAudioEnergy` (`src/recorder/waveform.ts`).
 
@@ -38,5 +38,5 @@ Introduce `src/theme/audio-reactive/` with a preset **registry** and a shared `A
 ## References
 
 - Code: `src/recorder/waveform.ts:363,418`, `src/theme/backgrounds.ts:336`, `src/theme/design-overrides.ts:19,45,100`, `src/theme/sparkle.ts`, `src/theme/bokeh.ts`, `src/storage/last-base-mp4-db.ts:12`, `src/storage/last-baked-mp4-db.ts:12`
-- Docs: `docs/v6.0.0-custom-styles-refactor.md`; architecture-map §3.2, I1/I3; `docs/engineering-principles.md` § pipeline-native; ADR-0006 (prefs normalize precedent)
+- Docs: `archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md`; architecture map I1/I3/I22; `docs/engineering-principles.md` Preview must equal output; ADR-0006 (prefs normalize precedent)
 - Bugs: R18 prefs-gate class (normalize footgun)

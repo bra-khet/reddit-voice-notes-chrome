@@ -14,8 +14,8 @@ Do not dump long QA narrative into the global progress file — update a short v
 |--|--|
 | **Current branch** | `main`; Track B merge `7d1c649` · final implementation `bdae9ab` |
 | **Stable baseline** | v5.11.0 package · Tracks A/B/C merged · push deferred |
-| **Track B roadmap** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
-| **Track A** | Closed · confidence PASS · [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) |
+| **Track B roadmap** | [Archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md) §7 phases · §8 QA |
+| **Track A** | Closed · confidence PASS · [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md) |
 | **Track C** | Closed · agent gate PASS · merged |
 | **ADRs** | 0008 **Accepted** (Track B) · 0007 / 0009 / 0010 (Track A, landed) |
 | **Architecture** | map **v3.22** / I22 · seams **v1.37** · Track B registered as Background Layout v2 |

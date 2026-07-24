@@ -1,140 +1,119 @@
-# Engineering Principles — Reddit Voice Notes
+# Engineering Principles — Post-v6 Baseline
 
-Project-wide design rules. Read before changing pipelines, health signals, timeouts, or user-facing quality settings.
+<!--
+CHANGED: Replaced pre-v6 branch examples with the durable engineering constraints of the shipped product.
+WHY: This file should guide new work without requiring agents to reconstruct lessons from old sprints.
+-->
 
----
+## Archive Notice (Living Document)
 
-## Semantic health checking (required)
+The full pre-v6 examples and original review-gate document are preserved at:
 
-Health and progress signals must reflect **actual work-state**, not merely that a process is still running.
+- [`archive/docs/v6.0.0-checkpoint/living-snapshots/engineering-principles.md`](../archive/docs/v6.0.0-checkpoint/living-snapshots/engineering-principles.md)
+- [`archive/docs/pre-v6.0.0/operations/code-review.md`](../archive/docs/pre-v6.0.0/operations/code-review.md)
 
-### Syntactic vs semantic
+Milestone context is indexed by [`HISTORY.md`](HISTORY.md).
 
-| Kind | What it checks | Example anti-pattern |
-|------|----------------|----------------------|
-| **Syntactic** | Something responded recently | Offscreen `*-heartbeat` progress every 8s while FFmpeg is stuck at 20% |
-| **Semantic** | Meaningful state advanced toward completion | Ratio increased, stage changed to `transcoding-done`, bytes written, phase exited |
+## Permanent constraints
 
-**Rule:** Timeouts, stall detectors, and UI progress must use **semantic** signals. Syntactic liveness may be logged or shown separately but must **not** reset failure timers or imply success.
+### 1. Verify semantic health
 
-### Checklist for new health/progress code
+Success means the expected artifact or state exists and is usable—not merely that an API resolved.
 
-1. **What invariant does “healthy” mean?** Name the concrete state change (e.g. “FFmpeg ratio increased”, “ACK received”, “MP4 ftyp validated”).
-2. **Can this signal fire without that invariant?** If yes, it is syntactic — do not wire it to stall/timeout recovery.
-3. **Does cancel propagate to the layer doing real work?** Client abort must reach workers/queues, not only drop listeners.
-4. **Does supersession drain zombies?** A replaced job must not block the next one.
-5. **Review question:** “If this signal fires forever, is the user still stuck?” If yes, fix the signal or add a wall-clock ceiling on the real operation.
+- Validate blobs, decoded media, model readiness, frame/packet counts, duration, and terminal state.
+- Heartbeats prove liveness, not progress.
+- Record an explicit reason when falling back or degrading.
+- Timeouts must be owned by a context that survives the initiating UI.
 
-### Reference implementation
+Reference classes: BUG-001–007, BUG-025, BUG-034, BUG-038 in [`bug-archive.md`](bug-archive.md).
 
-- `src/ffmpeg/transcoder.ts` — `isMeaningfulProgress()`; heartbeats excluded from stall reset (BUG-006).
-- `src/messaging/relay-registry.ts` + `entrypoints/background.ts` — offscreen→content tab relay survives MV3 SW restart; never delete relay maps before failure broadcast (BUG-032).
-- `entrypoints/offscreen/main.ts` — heartbeats tagged `*-heartbeat`; wall-clock job timeout independent of heartbeat traffic.
-- `src/ffmpeg/transcode-cancel.ts` — cancel reaches FFmpeg dispose.
+### 2. Keep one owner per durable truth
 
----
+| Truth | Owner |
+|-------|-------|
+| Normalized preferences | `rvnUserPrefs` IndexedDB through `user-preferences.ts` |
+| Preference publication | `rvnUserPrefs.v2` signal after IDB commit |
+| Current take snapshot | `TakeManager` / `rvn.take.current` |
+| Media artifacts | Single-slot artifact stores, referenced by verified stamps |
+| Session transcript | `rvnSessionTranscript` IndexedDB |
+| Pipeline wire contract | `src/messaging/types.ts` |
 
-## Ideally constrained user settings (audio and beyond)
+Do not create a second cache, store, message family, or writer to avoid using an existing seam.
 
-When exposing quality toggles, prefer **`ideal` MediaTrackConstraints** (and similar APIs) over hard `exact` requirements so devices can negotiate down without failing.
+### 3. Persist before publishing
 
-### Audio capture defaults (pretty-3 target)
+Artifact and preference commits complete before stamps, readiness keys, or revision signals are emitted. Never let a consumer observe a durable-state signal for bytes that are still in flight. H13 and ADR-0006 are the precedents.
 
-| Setting | Default | User opt-in |
-|---------|---------|-------------|
-| Browser DSP (`echoCancellation`, `noiseSuppression`, `autoGainControl`) | **On** (economy / speech-friendly) | Off via “raw microphone capture” |
-| Sample rate / channels | Browser default (economy) | Ideal 48 kHz + ideal stereo via “enhanced capture” |
+### 4. Preview must equal output
 
-### Graceful degradation ladder
+- Record-time visuals use the same resolve/draw functions in Studio preview and capture.
+- Background layout is Design-phase and becomes base-video pixels at capture.
+- Subtitle preview/bake share the painter and frame grid; trim ghost math equals Apply math.
+- Voice audition and export resolve the same graph and render through the same FFmpeg graph builder.
 
-1. Try the fullest constraint set implied by prefs.
-2. On `OverconstrainedError`, peel back ideals (stereo → mono, drop sampleRate ideal, processing flags only).
-3. Final fallback: `{ audio: true }` — recording must still work.
+Any deliberate fidelity gap must be named, bounded, and visible in the UI.
 
-### Migration
+### 5. Normalize at every persisted boundary
 
-- New prefs fields merge with defaults in `loadUserPreferences()`; never require a storage version bump for additive audio keys.
-- UI placeholders in the settings shell may ship before behavior is enabled; pipeline reads prefs through `src/recorder/mic-constraints.ts` only.
+Preference and profile input is untrusted even when it came from this extension.
 
-### Reference implementation
+- Use existing `normalize*` functions.
+- Treat unknown IDs as fallbacks, not fatal states.
+- Additive optional fields are preferred.
+- Do not bump `USER_PREFS_VERSION` unless an old reader cannot safely ignore or normalize the change.
+- Keep profile payloads free of session transcript text and binary media.
 
-- `src/recorder/mic-constraints.ts` — constraint builders + `acquireMicStream()` fallback ladder.
-- `src/settings/user-preferences.ts` — `AudioPreferences` schema + normalization.
+### 6. Shared Studio code is host-neutral
 
-### Personal backgrounds — ImageDB (pretty-7)
+The extension and Pages host execute the same Studio source.
 
-User background blobs are **too large for `chrome.storage.local`** (multi‑MB images; future lightweight video/loops may reach ~15 MB). Split storage by responsibility:
+- Use `isOwnStorageOrigin()`; never infer ownership from protocol or pathname.
+- Resolve packaged assets with `browser.runtime.getURL()`.
+- Keep `browser.*` calls inside function bodies in shared modules.
+- Vendor multi-file runtime assets as complete trees.
+- Do not rely on a faithfully resolving shim to prove that a background handler performed work.
+- Run the host-neutrality gate before a hosted build.
 
-| Layer | Holds | Rationale |
-|-------|--------|-----------|
-| **`chrome.storage.local` (`rvnUserPrefs`)** | `customBackgroundId` (`bg-…` refs) + profile metadata | Small, cross-context, hot-swappable like theme ids |
-| **IndexedDB (`rvnImageDb`)** | Blob + mime, dimensions, `mediaKind` | Large binary store; shared across popup, content script, service worker |
+The authoritative seam is [`architecture/extension-points.md`](architecture/extension-points.md).
 
-**Rules:**
+### 7. Bound expensive work
 
-1. **Never put blobs in prefs** — only normalized `bg-` ids; invalid ids strip on `reconcileBackgroundPreferences()`.
-2. **Import gates** — static images **and animated GIFs** are importable (JPEG/PNG/WebP/GIF); video MIME types are schema-ready but rejected until a dedicated video path ships. Animated GIFs loop on the canvas (preview = recorder = MP4, no fidelity gap); see `docs/gif-animation-design-implementation.md`.
-3. **Quota ladder** — per-file cap (8 MB images / 15 MB reserved video), max asset count, max total bytes; fail with typed `BackgroundImportError` before write.
-4. **Orphan hygiene** — `pruneUnreferencedBackgrounds()` after deletes; prefs refs are the source of truth for retention.
-5. **Canvas path (7b)** — Design Studio (extension page) reads ImageDB directly; **recorder content script** relays blob bytes via `BACKGROUND_BLOB_PORT` → `FileReader` data-URL decode → canvas draw. Personal image overrides theme background (fill + dim).
-6. **Fallback** — missing/decode failure → theme gradient letterbox; never block recording.
+Every visual or media feature needs explicit cost bounds: element count, queue depth, duration, memory, retries, or time.
 
-### Reference implementation
+- Prefer fixed-cap pools and deterministic reuse.
+- Keep reduced-motion and High Contrast behavior explicit.
+- Preserve the fallback ladder.
+- Never make a hidden “quality” feature unbounded on the 2:00 recording cap.
 
-- `src/storage/image-db.ts` — IndexedDB CRUD, import validation, object-URL cache.
-- `src/storage/animated-background.ts` — animated GIF frame decode (`ImageDecoder`) + `frameAt` loop timing; canvas-native, captured into the export (no FFmpeg). See `docs/gif-animation-design-implementation.md`.
-- `src/storage/background-refs.ts` — ref collection, reconcile, prune.
-- `src/settings/user-preferences.ts` — `customBackgroundId` normalization on merge.
+### 8. Degrade honestly
 
-### Branching save pathways (required for user customization)
+The user should see a usable lower-fidelity result or a specific failure—not a silent success.
 
-Named user entities (profiles, custom styles, and future ImageDB-backed assets) must expose **multiple persistence paths** so edits never dead-end.
+Examples: browser composite → WebCodecs/FFmpeg → MediaRecorder/FFmpeg → drawtext; missing personal background → theme; failed transcription → classified scaffold.
 
-| Path | When | Example |
-|------|------|---------|
-| **Update in place** | A saved entity is selected and dirty | Design Studio **Update profile** / **Update style** (two-step **Sure?** confirm) |
-| **Clone** | A saved entity is selected and clean | Green **Clone** button (always visible) → copy, then edit → **Update** |
-| **Save as new** | A saved entity is selected and dirty | Same green button, label **Save to new** → fork with edits (equivalent to edit-then-clone) |
-| **First save** | No saved entity selected yet | **Save as profile** / **Save as style** |
+### 9. Preserve branching save pathways
 
-**Path equivalence:** Clone → edit → Update and edit → Save to new must both reach the same forked entity without dead ends.
+Named profiles/styles distinguish first save, update-with-confirmation, clean clone, and dirty fork. Session text and profile style are separate dirty layers. New UI must reuse the Studio’s modal/save primitives instead of adding isolated `window.confirm` flows.
 
-**Nested dirty state (roll-up):** When a profile references a custom style and **both** are dirty, never silently “update profile” and leave colors inconsistent. Prompt whether to bundle style changes (update existing style, save style as new, or embed overrides on the profile). Same pattern applies when adding new customization layers (e.g. background libraries, effect packs).
+### 10. Change one bounded seam at a time
 
-**Rules:**
+- Name the stable fallback tag before high-risk work.
+- Keep compile and focused tests green after each slice.
+- Update the architecture map only when topology/ownership changes; update extension points when a seam or sync point changes.
+- Add an ADR only for a durable structural decision.
+- Prefer an archive pointer over copying shipped rationale into a living doc.
 
-1. **No false-success** — if storage would still disagree with the canvas after an action, keep the entity dirty or block with a clear prompt.
-2. **Offer forks** — green **Clone** / **Save to new** stays visible for every saved entity; label reflects clean vs dirty (unless quota-full).
-3. **Dependency order** — persist depended-on entities first (style → profile) when the user opts in to roll-up.
-4. **Reuse helpers** — new studio surfaces should call `studio-save-pathways.ts` / `studio-exit.ts`, not one-off confirm logic.
+## Review gate
 
-### Reference implementation
+Before merging a meaningful change, answer:
 
-- `src/ui/design-studio/studio-save-pathways.ts` — save-as-new + style roll-up prompts
-- `src/ui/design-studio/studio-exit.ts` — exit guard, update-with-style option
-- `src/ui/design-studio/mount-clip-studio.ts` — Update vs Save to new buttons
+1. Which living contract owns this area?
+2. Which state owner, execution context, and message/storage seams are touched?
+3. Does preview still equal output?
+4. Is persistence acknowledged before publication?
+5. Are prefs normalized without a casual schema bump?
+6. Does shared Studio code still build on both hosts?
+7. What is the bounded cost and fallback?
+8. Which focused tests and one real money-path check prove the change?
 
-### Pipeline-native solutions (required for new effects)
-
-When a feature “should” vary over time or depend on expressive filter math, **start from what the export path can actually do** — then find the closest faithful approximation. Do not expand scope (new renderers, libass revival, frame pre-bakes) until a pipeline-native workaround is understood and documented.
-
-**Process:**
-
-1. **Name the real constraint** — e.g. FFmpeg `drawtext` `fontcolor` is static per filter instance in our wasm burn-in path.
-2. **Map preview vs bake** — canvas/RAF can be fully expressive; export may need quantization, duplicate layers, or a different subsystem.
-3. **Ship the closest working analogue** — time-sliced static colors, stacked drawtext duplicates for glow/border, `textfile=` for escaping (BUG-031).
-4. **Document the fidelity gap** — e.g. rainbow: **slice rate** (`RAINBOW_BAKE_SLICE_SECONDS`) fixes step frequency; **cycle speed** only changes hue delta per step (faster rotation can look choppier). See `docs/design-studio.md` §7.4.
-5. **Only escalate pipeline** when the workaround’s cost or quality ceiling blocks the product goal.
-
-**Reference:** `specialHueRainbow` — `temporalizeDrawtextColor()` in `subtitle-effects.ts` / `subtitle-burnin.ts`; live hue via `previewTimeMs` in `subtitle-preview.ts`. Canonical Studio notes: `docs/design-studio.md` §7.4.
-
----
-
-### Canvas personalization (pretty-8 design studio)
-
-**Canonical Studio reference:** `docs/design-studio.md` — four sections (Bar style, Background, Voice, Subtitles), dirty-state taxonomy, storage map, and UI refresh guardrails.
-
-- **Theme = data driving draw calls** — user overrides merge onto a base preset; do not fork parallel recorders.
-- **Layout constants stay fixed** in the studio v1 scope (no bar count/spacing/width sliders) — reduces risk to `waveform.ts` aggregation and preview=WYSIWYG guarantees.
-- **Cheap per-frame flairs only** — bokeh, sparkle/twinkle presets reuse existing background draw patterns; profile at 24 fps before merge.
-- **Separate studio popup** for HSV/HEX and effect toggles; main popup remains the quick settings hub. See `archive/progress/pretty-branch.md` § Light design studio.
+If any answer is unclear, stop at the seam and update the design before widening the patch.

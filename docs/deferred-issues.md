@@ -1,65 +1,32 @@
 # Deferred Issues
 
-Consciously-deferred issues — reproducible problems we have **decided not to fix (yet)**
-because the cost/risk outweighs the value, the trigger is not a real use case, or the root
-cause is outside our code. This is distinct from:
+<!--
+CHANGED: Reduced the register to active deferrals and current un-deferral triggers.
+WHY: Full original evidence is archived; this file should answer only whether work is presently justified.
+-->
 
-- **`docs/bug-archive.md`** — *fixed* bugs + their root-cause forensics (and a "Deferred
-  architectural rework" section for BUG-001-class transport work).
-- **`docs/architecture/hardening-backlog.md`** — architecture hardening items (H1–H5).
-- **`docs/design-studio.md` §11 / "Out of scope"** — Studio UI polish open items
-  (font picker, slider vertical drop-off, card icon tint).
+## Archive Notice (Living Document)
 
-Each entry records: what it is, how to reproduce, why it's deferred, what would un-defer it,
-and the blast-radius of attempting a fix now.
+The full v6-checkpoint version is preserved at [`archive/docs/v6.0.0-checkpoint/living-snapshots/deferred-issues.md`](../archive/docs/v6.0.0-checkpoint/living-snapshots/deferred-issues.md). Fixed-bug forensics are indexed by [`bug-archive.md`](bug-archive.md); architecture deferrals live in [`architecture/hardening-backlog.md`](architecture/hardening-backlog.md); milestones live in [`HISTORY.md`](HISTORY.md).
 
----
+## DEF-001 — Cold-start inference error under record/stop spam
 
-## DEF-001 — Cold-start "inference-error" under record/stop spam (MV3 offscreen boot)
+**Status:** Accepted / deferred
+**Normal-use impact:** None reproduced after BUG-034
+**Trigger:** Cold offscreen boot plus deliberately rapid record → stop → record or repeated sub-two-second silent clips.
 
-**Status:** Deferred (accepted) — 2026-06-27
-**Related:** `docs/bug-archive.md` BUG-034 (the *common-path* version of this race, **fixed**)
+The common first-recording race is fixed by serialized offscreen creation/dispatch, prewarm, and readiness checks. An adversarial boot-window storm can still yield one classified inference-error scaffold.
 
-### What it is
+### Why it remains deferred
 
-The same offscreen **dispatch race** that BUG-034 fixed for the normal first-recording path
-can still be forced at the extreme edge: when the offscreen document is **cold** (just booting)
-and the user **spams record → stop → record** rapidly, a transcribe dispatch can still lose the
-race against the booting document and surface as a single `inference-error` scaffold.
+- It is not a normal workflow.
+- MV3 offscreen and worker startup latency is part of the trigger.
+- Stronger global locking or record blocking would widen a historically race-prone choke point.
+- The current failure is explicit and recoverable, not silent.
 
-### How to reproduce (deliberately adversarial)
+### Un-defer only when
 
-- Fully cold start (fresh extension load, no prior offscreen doc), **then**
-- Spam start/stop recording rapidly during the first ~1–2 s of offscreen boot, **or**
-- Sub-2-second **silent** clips fired back-to-back from cold.
-- Split-tab mode appears to **widen** the window (more contention during boot), though this was
-  judged *not necessarily* diagnostic of our code specifically.
+- a normal-use report reproduces it, or
+- a cheap boot-complete gate can be proven without regressing BUG-032/034/038 behavior.
 
-It does **not** reproduce in normal single-recording use: BUG-034's mutex + ping guard + eager
-prewarm cover the real first-fire path. The QA pass confirmed normal cold-start speech clips and
-the no-speech/failure path now behave correctly and surface in the Profile Status modal.
-
-### Why it's deferred
-
-- **Not a real use case.** A user only hits it by intentionally spamming the recorder during the
-  boot window — "just messing around." No organic workflow surfaces it.
-- **Root cause is partly outside our code.** This is in large part a **Manifest V3 offscreen
-  document boot characteristic** — `chrome.offscreen.createDocument` + worker spin-up has inherent
-  latency the page can't fully serialize away during a contention storm.
-- **A fix risks net-negative stability.** Forcing the pipeline to absorb spam-like behavior
-  (e.g. queuing/locking harder, or blocking record during boot) would add complexity to the
-  hot dispatch path and risks re-introducing a BUG-032/033/034-class race elsewhere. It is not a
-  sharp edge for real users; hardening it further is poor ROI.
-
-### What would un-defer it
-
-- A reproducible report from **normal** (non-spam) use, or
-- A clean way to make the offscreen boot atomically claim its dispatch slot **without** widening
-  the hot path — e.g. a boot-complete gate the recorder can await cheaply before the first
-  dispatch, proven not to regress the BUG-034 fix.
-
-### Blast radius if attempted now
-
-Touches the same `entrypoints/background.ts` dispatch choke point as BUG-032/033/034. Any change
-there is high-surface and race-prone; mitigations have historically spawned sibling races. Defer
-until there is real-use evidence.
+Any attempted fix must re-run cold start, tab close, explicit cancel/supersession, and terminal persistence QA.

@@ -1,7 +1,7 @@
 # Track D — Hosted Design Studio · operator checklist
 
 **Status:** **COMPLETE · merge candidate** — Phases 0–4 closed (Phase 3 operator PASS 2026-07-22 · Phase 4 + real Pages 5.7 operator PASS 2026-07-23)
-**Roadmap:** [`docs/v6.0.0-hosted-design-studio.md`](../../../docs/v6.0.0-hosted-design-studio.md) · **Track README:** [`README.md`](README.md)
+**Roadmap:** [archived Track D roadmap](../../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md) · **Track README:** [`README.md`](README.md)
 **Operator:** owner · **Machine / browser:** production Chrome + `vite preview` build · **Build under test:** `feature/v6.0.0-hosted-design-studio` demo build
 
 **Legend:** ■ PASS · ▲ PARTIAL (explain) · ✕ FAIL (blocker) · ☐ not yet run · — N/A this phase

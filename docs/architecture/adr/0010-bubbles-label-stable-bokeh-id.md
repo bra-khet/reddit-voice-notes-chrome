@@ -37,5 +37,5 @@ Present the effect everywhere as **Bubbles**, centralized through `BUBBLES_OVERL
 ## References
 
 - Code: `src/theme/audio-reactive/catalog.ts`; `src/theme/audio-reactive/overlays/bokeh.ts`; `src/ui/design-studio/effect-controls.ts`; `src/ui/design-studio/studio-section-summaries.ts`; `src/theme/presets.ts`
-- Docs: `docs/v6.0.0-custom-styles-refactor.md`; ADR-0007; ADR-0009
+- Docs: `archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md`; ADR-0007; ADR-0009
 - Bugs: none — user-facing naming amendment after Phase 1 browser QA

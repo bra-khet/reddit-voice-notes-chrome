@@ -49,5 +49,5 @@ The pipeline's baked MP4s are 1 packet/frame with strictly increasing PTS in dec
 ## References
 
 - Code: `src/editing/splice-plan.ts` (pure; `scanKeyframes`, `planSplice`, `selectSpliceFidelityAnchors`, `validateSplicePlan`, `validateSpliceOutput`), `src/composite/composite-splice.ts` (`renderCompositeSplice`), `src/composite/composite-fidelity.ts` (`verifySpliceKeptFrames`), `src/editing/partial-rebake-coordinator.ts` (`coordinateRebake`), `src/ui/design-studio/subtitle-bake.ts` (`bakeWithOptionalSplice`), `src/settings/user-preferences.ts` (`partialRebakeSplice` flag)
-- Docs: `docs/v5.6.0-audio-decoupling.md` §4.2 (+ §12 as-built + QA checklist), ADR-0004 (voice re-apply; the sibling remux primitive), ADR-0003 (browser composite; painter/audio-passthrough patterns reused), ADR-0001 (encoding backbone; honesty lesson)
+- Docs: `archive/docs/pre-v6.0.0/designs/v5.6.0-audio-decoupling.md` §4.2 (+ §12 as-built + QA checklist), ADR-0004 (voice re-apply; the sibling remux primitive), ADR-0003 (browser composite; painter/audio-passthrough patterns reused), ADR-0001 (encoding backbone; honesty lesson)
 - Tests: `scripts/test-splice-plan.mjs` (33), `scripts/test-partial-rebake-plan.mjs` (13)

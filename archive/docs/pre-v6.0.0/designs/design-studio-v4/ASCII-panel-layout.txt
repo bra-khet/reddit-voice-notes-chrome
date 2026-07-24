@@ -1,0 +1,25 @@
+ARCHIVE PROVENANCE
+Archived after the v6.0.0 stable checkpoint — 2026-07-23.
+Original living path: docs/design-studio-v4/ASCII-panel-layout.txt.
+Preserved as Design Studio v4 layout history; current Studio canon lives in docs/design-studio.md.
+
+Panel layout with titles/Purpose:
+
++----------------------------+  +-------------------+
+|       LIVE PREVIEW         |  |     PROFILE       |
+|                            |  |      STATUS       |
+|                            |  |      +---+        |
+|                            |  |      |   |        |
+|                            |  |      +---+        |
++----------------------------+  +-------------------+
+
++--------+  +--------+  +--------+  +--------+ 
+|BARSTYLE|  |BACKGRND|  | VOICE  |  |SUBTITLE| 
+|        |  |        |  |        |  |        | 
+|        |  |        |  |        |  |        |
++--------+  +--------+  +--------+  +--------+
+
+Also:
+
+Vector assets: simple silhouettes at 24–32px (bars, frame, mic/wave, caption lines)
+

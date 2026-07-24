@@ -9,7 +9,7 @@
 
 The v5.6.0 mission: make voice effects re-applicable after capture ("Change Voice" without re-recording), as the keystone of turning the Design Studio into a contained A/V + subtitles editing-suite backend.
 
-Code-verified ground truth reframed the problem (docs/v5.6.0-audio-decoupling.md §1): the "clean audio" the initial draft wanted to start storing **already persists** — the capture WebM in `rvnLastRecording` carries raw mic audio (voice is applied by the offscreen FFmpeg *transcode*, `voice-recorder.ts` → `transcodeWebmToMp4(…, prefs.voiceEffect)`), is stamped on the take as `baseRecording`, and is H6-verifiable. What was actually missing:
+Code-verified ground truth reframed the problem (`archive/docs/pre-v6.0.0/designs/v5.6.0-audio-decoupling.md` §1): the "clean audio" the initial draft wanted to start storing **already persists** — the capture WebM in `rvnLastRecording` carries raw mic audio (voice is applied by the offscreen FFmpeg *transcode*, `voice-recorder.ts` → `transcodeWebmToMp4(…, prefs.voiceEffect)`), is stamped on the take as `baseRecording`, and is H6-verifiable. What was actually missing:
 
 1. **Provenance** — nothing records which voice a take's `baseMp4` audio carries (`prefs.voiceEffect` is global and mutable).
 2. **A re-application mechanism** — no path from raw audio + intent → updated artifacts.
@@ -46,5 +46,5 @@ Constraints: single-slot take model (ADR-0002), H6 stamp verification mandatory,
 ## References
 
 - Code: `src/audio/voice-reapply.ts`, `src/audio/audio-remux.ts`, `src/audio/voice-reapply-plan.ts`, `src/audio/clean-audio-source.ts`, `src/session/take-manager.ts` (TakeVoiceStamp/TakeEdits), `src/recorder/voice-recorder.ts` (capture stamp), `src/voice/process-audio.ts` (`forceRender`), `src/editing/*`, `src/timeline/timeline.ts`
-- Docs: `docs/v5.6.0-audio-decoupling.md` (living contract; §12 as-built), ADR-0001 §painter seam, ADR-0002 §writers, ADR-0003 §audio passthrough
+- Docs: `archive/docs/pre-v6.0.0/designs/v5.6.0-audio-decoupling.md` (§12 as-built), `docs/dsp-foundation-design.md` (living voice contract), ADR-0001 §painter seam, ADR-0002 §writers, ADR-0003 §audio passthrough
 - Tests: `scripts/test-voice-reapply-plan.mjs`, `test-take-manager.mjs` (v5.6.0 block), `test-timeline.mjs`, `test-segment-dirty-tracker.mjs`, `test-partial-rebake-plan.mjs`

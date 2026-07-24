@@ -66,7 +66,9 @@ branch, no publish script.**
   than merely discouraged. The 12 modules that used to live under `demo/src/voice`
   and `demo/src/settings` were verified byte-identical before deletion.
   **Consequence:** an extension change can now break this build, which is why the
-  Pages workflow also watches `src/**`. (See `docs/v6.0.0-hosted-design-studio.md` §3.4.)
+  Pages workflow also watches `src/**`. See the living hosted-surface contract at
+  `docs/static-voice-studio-design.md`; the completed Track D roadmap is indexed by
+  `archive/docs/MANIFEST.md`.
 - **Fidelity = preview/export call the same code:** `resolveVoiceGraph` →
   `buildStylizedGraph(graph, ffmpegRenderer)` → the identical
   `-af` / `-filter_complex` run through ffmpeg.wasm.
@@ -82,6 +84,6 @@ branch, no publish script.**
 
 ### Working on a Pages surface
 
-Start from the owning living document: `docs/v6.0.0-hosted-design-studio.md` for the full Studio,
-`docs/static-voice-studio-design.md` for Voice Lab, or `docs/tutorial/README.md` for Field Guide
-source ownership. QA the deployable build with `npm run build && npm run preview`, never `vite dev`.
+Start from `docs/static-voice-studio-design.md` for both hosted product surfaces or
+`docs/tutorial/README.md` for Field Guide source ownership. QA the deployable build with
+`npm run build && npm run preview`, never `vite dev`.

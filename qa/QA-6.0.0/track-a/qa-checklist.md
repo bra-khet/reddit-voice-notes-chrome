@@ -2,7 +2,7 @@
 
 **Sprint:** v6.0.0 Track A — audio-reactive Style / governor confidence close  
 **Branch:** `feature/v6.0.0-custom-styles-refactor`  
-**Roadmap:** [`docs/v6.0.0-custom-styles-refactor.md`](../../../docs/v6.0.0-custom-styles-refactor.md) §9 · §11 item 23  
+**Roadmap:** [archived Track A roadmap](../../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md) §9 · §11 item 23
 **ADRs:** [0007](../../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Interactive guide (primary fill-in surface):** [`qa-checklist.html`](qa-checklist.html) — open in a browser; autosaves; export JSON for agents  

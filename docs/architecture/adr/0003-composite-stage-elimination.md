@@ -151,7 +151,7 @@ The MediaRecorder + drawtext full chain must continue to produce correct artifac
 ## References
 
 - Code (current): `src/encoding/*` (encoded-segment, ivf, overlay-webcodecs-encoder, webcodecs-support), `src/transcription/subtitle-overlay-webcodecs.ts` + `subtitle-overlay-renderer.ts` (createOverlayFramePainter + global frame), `src/ui/design-studio/subtitle-canvas-bake.ts` + `subtitle-bake.ts`, `src/ffmpeg/subtitle-burnin.ts` (buildWebCodecsOverlayStrategies), `src/ffmpeg/overlay-alphamerge-args.ts`, `src/ffmpeg/burnin-client.ts` + `ffmpeg-runner.ts` (the hop being removed for primary path), `src/storage/last-baked-mp4-db.ts`, `src/session/take-manager.ts`.
-- Docs: ADR-0001 (option 4 + follow-ups + "this ADR's segment backbone is the prerequisite"), `docs/5.3.10-webcodecs-per-chunk-encoding.md` (esp. §0 as-built and design principles), `docs/architecture/hardening-backlog.md` (H9 + R8), this map, `docs/transcription-architecture.md`, `docs/engineering-principles.md` (semantic progress), `docs/design-studio.md` §3.3 (preview↔bake).
+- Docs: ADR-0001 (option 4 + follow-ups + "this ADR's segment backbone is the prerequisite"), `archive/docs/pre-v6.0.0/designs/5.3.10-webcodecs-per-chunk-encoding.md` (esp. §0 as-built and design principles), `docs/architecture/hardening-backlog.md`, this map, `docs/transcription-architecture.md`, `docs/engineering-principles.md` (semantic progress), `docs/design-studio.md` (preview↔bake).
 - QA artifacts: `.ignore/sub-QA-5.3.10/` (composite timing breakdown), Overlay Lab, `scripts/test-*.mjs` (ivf, overlay-alphamerge-args, encoded-segment, bake chronos helpers).
 - Future dep: mediabunny (for demux/mux + WebCodecs interop).
 

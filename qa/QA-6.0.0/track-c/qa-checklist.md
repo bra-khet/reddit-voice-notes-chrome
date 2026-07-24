@@ -2,7 +2,7 @@
 
 **Sprint:** v6.0.0 Track C — browser-action popup Cividis unification  
 **Branch:** `feature/v6.0.0-popup-ui-refresh`  
-**Roadmap:** [`docs/v6.0.0-popup-ui-refresh.md`](../../../docs/v6.0.0-popup-ui-refresh.md) §6 QA matrix  
+**Roadmap:** [archived Track C roadmap](../../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-popup-ui-refresh.md) §6 QA matrix
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Fixture:** `npm run qa:popup-visual` → http://127.0.0.1:4175/ (production render builders + production CSS; no extension load needed)  
 **Real-extension smoke:** load `.output/chrome-mv3-dev/` from this branch for the regression row only  

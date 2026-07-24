@@ -1,5 +1,12 @@
 # Release notes — v6.0.0 **Polish & Visual Maturity**
 
+<!--
+CHANGED: Repointed completed v6 track designs to their post-checkpoint archive locations.
+WHY: Release notes remain living, while implementation roadmaps are now historical evidence.
+-->
+
+> **Archive notice:** Completed Track A/B/C/D roadmaps moved to [`archive/docs/v6.0.0-checkpoint/track-roadmaps/`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/). Current technical canon lives in [`docs/architecture/`](architecture/); milestone context lives in [`docs/HISTORY.md`](HISTORY.md).
+
 **Tag:** `v6.0.0` · **Date:** 2026-07-23  
 **Prior stable:** `v5.11.0` (Preferences full-IDB migration)  
 **Codename:** Polish & Visual Maturity  
@@ -122,7 +129,7 @@ The complete Design Studio is available as a **static GitHub Pages site** that c
 - **Host-neutrality CI gate** (`npm run test:host-neutrality`) is the first step of the demo build and blocks bad Pages deploys.
 - **Naming:** lightweight Pages page is **Voice Lab**; “Design Studio” means the full product. User-facing copy no longer presents Reddit as a recording *requirement* (provenance, optional attach, real constraints, and the product name remain).
 
-**Canonical design:** [`v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) · **QA:** [`qa/QA-6.0.0/track-d/`](../qa/QA-6.0.0/track-d/) (real Pages 5.7 operator PASS 2026-07-23).
+**Archived design:** [`v6.0.0-hosted-design-studio.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md) · **QA:** [`qa/QA-6.0.0/track-d/`](../qa/QA-6.0.0/track-d/) (real Pages 5.7 operator PASS 2026-07-23).
 
 ### Track A — Audio-reactive visuals + Style Control Center
 
@@ -140,7 +147,7 @@ Replaces ad-hoc bars and two hard-coded overlays with a registry-driven system p
 - **Cividis token system** shared across Studio, popup, and guides.
 - **Accepted residual:** Conway can park in a dead-edge corner after a long run.
 
-**Canonical design:** [`v6.0.0-custom-styles-refactor.md`](v6.0.0-custom-styles-refactor.md) · ADRs [0007](architecture/adr/0007-audio-reactive-visualizer-core.md), [0009](architecture/adr/0009-registry-native-sparkle-bokeh.md), [0010](architecture/adr/0010-bubbles-label-stable-bokeh-id.md).
+**Archived design:** [`v6.0.0-custom-styles-refactor.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md) · ADRs [0007](architecture/adr/0007-audio-reactive-visualizer-core.md), [0009](architecture/adr/0009-registry-native-sparkle-bokeh.md), [0010](architecture/adr/0010-bubbles-label-stable-bokeh-id.md).
 
 ### Track B — Background Layout v2
 
@@ -154,7 +161,7 @@ Design-phase direct manipulation of personal backgrounds (still **I1/I3**: layou
 - Migration-compatible: discrete `position` / `scaleMode` still normalize and emit.
 - Size gate: blur+GIF **23 / 29 MiB** PASS against 25 / 30 MiB caps.
 
-**Canonical design:** [`v6.0.0-background-panel-refactor.md`](v6.0.0-background-panel-refactor.md) · [ADR-0008](architecture/adr/0008-background-direct-manipulation-layout.md) · QA checklist PASS.
+**Archived design:** [`v6.0.0-background-panel-refactor.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md) · [ADR-0008](architecture/adr/0008-background-direct-manipulation-layout.md) · QA checklist PASS.
 
 ### Track C — Popup UI refresh
 
@@ -162,7 +169,7 @@ Design-phase direct manipulation of personal backgrounds (still **I1/I3**: layou
 - Amber “on” toggles, amber-action **Open Design Studio** CTA, elevated **restart caution** bar with inline **Reload now**.
 - Agent visual gate PASS; optional real-extension eyeball remains non-blocking.
 
-**Canonical design:** [`v6.0.0-popup-ui-refresh.md`](v6.0.0-popup-ui-refresh.md).
+**Archived design:** [`v6.0.0-popup-ui-refresh.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-popup-ui-refresh.md).
 
 ### Field Guide & orientation (pre-ship polish)
 
@@ -287,10 +294,10 @@ Evidence workspaces: [`qa/QA-6.0.0/`](../qa/QA-6.0.0/).
 | Doc | Role |
 |-----|------|
 | This file | Release notes + GitHub summary |
-| [`v6.0.0-custom-styles-refactor.md`](v6.0.0-custom-styles-refactor.md) | Track A as-built |
-| [`v6.0.0-background-panel-refactor.md`](v6.0.0-background-panel-refactor.md) | Track B as-built |
-| [`v6.0.0-popup-ui-refresh.md`](v6.0.0-popup-ui-refresh.md) | Track C as-built |
-| [`v6.0.0-hosted-design-studio.md`](v6.0.0-hosted-design-studio.md) | Track D as-built |
+| [`v6.0.0-custom-styles-refactor.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md) | Track A as-built |
+| [`v6.0.0-background-panel-refactor.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md) | Track B as-built |
+| [`v6.0.0-popup-ui-refresh.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-popup-ui-refresh.md) | Track C as-built |
+| [`v6.0.0-hosted-design-studio.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md) | Track D as-built |
 | [`HISTORY.md`](HISTORY.md) | Milestone index |
 | Prior notes | [`release-notes-v5.11.0.md`](../archive/docs/release-notes-v5.11.0.md) *(archived at this ship)* · [`release-notes-v5.10.0.md`](../archive/docs/release-notes-v5.10.0.md) *(archived)* |
 

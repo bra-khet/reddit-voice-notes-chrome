@@ -38,5 +38,5 @@ Store the full preference snapshot in a dedicated `rvnUserPrefs` IndexedDB with 
 ## References
 
 - Code: `src/settings/user-preferences.ts`; `src/storage/user-prefs-db.ts`; `src/messaging/types.ts`; `entrypoints/background.ts`
-- Docs: `docs/v5.11.0-prefs-storage-refactor.md`; `docs/design-studio.md` §3.2; `docs/architecture/extension-points.md` Storage
+- Docs: `archive/docs/pre-v6.0.0/designs/v5.11.0-prefs-storage-refactor.md`; `docs/design-studio.md` Durable state ownership; `docs/architecture/extension-points.md` Preference storage
 - Bugs/invariants: BUG-023; architecture invariant I6; H13 persist-before-publish

@@ -11,10 +11,10 @@
 
 | Track | Status | Roadmap | ADR |
 |-------|--------|---------|-----|
-| **D — hosted Design Studio** | **COMPLETE · merged 2026-07-23** ([`track-d/`](track-d/)) | [`docs/v6.0.0-hosted-design-studio.md`](../../docs/v6.0.0-hosted-design-studio.md) | none yet — 0011 next |
-| **A — audio-reactive visuals** | **Confidence PASS (Pass E) · merged** | [`docs/v6.0.0-custom-styles-refactor.md`](../../docs/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
-| **B — background layout** | **Full checklist PASS · merged to `main`** | [`docs/v6.0.0-background-panel-refactor.md`](../../docs/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
-| **C — popup UI refresh** | **Agent QA gate PASS · merged to `main`** · §8 residual optional ([`track-c/qa-checklist.md`](track-c/qa-checklist.md)) | [`docs/v6.0.0-popup-ui-refresh.md`](../../docs/v6.0.0-popup-ui-refresh.md) | none — presentational under 0007 tokens |
+| **D — hosted Design Studio** | **COMPLETE · merged 2026-07-23** ([`track-d/`](track-d/)) | [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md) | none yet — 0011 next |
+| **A — audio-reactive visuals** | **Confidence PASS (Pass E) · merged** | [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-custom-styles-refactor.md) | [0007](../../docs/architecture/adr/0007-audio-reactive-visualizer-core.md) · [0009](../../docs/architecture/adr/0009-registry-native-sparkle-bokeh.md) · [0010](../../docs/architecture/adr/0010-bubbles-label-stable-bokeh-id.md) |
+| **B — background layout** | **Full checklist PASS · merged to `main`** | [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md) | [0008](../../docs/architecture/adr/0008-background-direct-manipulation-layout.md) **Accepted** |
+| **C — popup UI refresh** | **Agent QA gate PASS · merged to `main`** · §8 residual optional ([`track-c/qa-checklist.md`](track-c/qa-checklist.md)) | [archived roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-popup-ui-refresh.md) | none — presentational under 0007 tokens |
 
 **Automated (Track B final):** focused layout/interaction/UI set **89/89** · UI tokens PASS · visual-size gate logic 5/5 · `npm run build` **PASS** · compile only the same 2 pre-existing subtitle diagnostics. Real blur/GIF gate **23/29 MiB PASS**.
 
@@ -29,7 +29,7 @@
 ### Scaffold + implementation — **DONE**
 
 - [x] Cut `feature/v6.0.0-hosted-design-studio` from `main`
-- [x] Redraft [`docs/v6.0.0-hosted-design-studio.md`](../../docs/v6.0.0-hosted-design-studio.md) against the verified tree (the draft's `StudioHost` interface was wrong — see §0)
+- [x] Redraft the [archived Track D roadmap](../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md) against the verified tree (the draft's `StudioHost` interface was wrong — see §0)
 - [x] Open `track-d/` (README + phase-staged checklist)
 - [x] Register the **Host adapter — v1** seam (extension-points v1.38) + map v3.23 (no new context)
 - [x] **D1** (Voice Lab) · chronos failure policy · §4.2 copy policy

@@ -7,7 +7,7 @@
 
 ## Context
 
-v6 elevates the personal-background control from a 9-direction grid + fit/fill (`src/ui/design-studio/background-layout-controls.ts`) into a tactile direct-manipulation system (drag, precision widget, magnetic snapping, zoom, presets, effects). Trigger: `docs/v6.0.0-background-panel-refactor.md` (from supplemental-A).
+v6 elevates the personal-background control from a 9-direction grid + fit/fill (`src/ui/design-studio/background-layout-controls.ts`) into a tactile direct-manipulation system (drag, precision widget, magnetic snapping, zoom, presets, effects). Trigger: `archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md` (from supplemental-A).
 
 The load-bearing constraint the source doc glosses: the background is **captured into the WebM at record time** (`drawImageBackground`, `backgrounds.ts:134` → `captureStream` → `baseRecording`); the bake never re-renders it (I3). So "drag the image and edit the clip" is not a post-capture operation here. Additional facts: dim is currently a **constant** (`USER_BACKGROUND_DIM_OVERLAY`), not a field; the pipeline is **16:9-only**; `timeline-geometry.ts` is pure but 1-D/time-domain; undo is host-owned; `interaction-utils.ts` does not exist; cividis tokens do not exist as CSS vars.
 
@@ -38,5 +38,5 @@ Ship direct manipulation as a **Design-phase, pre-capture surface** on the Studi
 ## References
 
 - Code: `src/theme/backgrounds.ts:134,180,216`, `src/theme/background-layout.ts:39,58`, `src/theme/types.ts:34`, `src/ui/design-studio/background-layout-controls.ts`, `src/ui/design-studio/timeline-geometry.ts` (pure zoom/snap), `src/ui/design-studio/subtitle-timeline-editor.ts:30,1854` (host-undo, wheel), `src/transcription/subtitle-cue-measurement.ts`, `src/settings/user-preferences.ts:105,353`
-- Docs: `docs/v6.0.0-background-panel-refactor.md`; architecture-map §3.2/§3.3, I1/I3/I17; `docs/gif-animation-design-implementation.md`; ADR-0006
+- Docs: `archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md`; architecture map I1/I3/I23; `archive/docs/pre-v6.0.0/designs/gif-animation-design-implementation.md`; ADR-0006
 - Bugs: R18 prefs-gate class (normalize footgun)

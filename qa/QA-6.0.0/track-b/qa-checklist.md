@@ -2,7 +2,7 @@
 
 **Sprint:** v6.0.0 Track B — Design-phase direct-manipulation background layout  
 **Branch:** merged from `feature/v6.0.0-background-panel-refactor` to `main` (`7d1c649`)
-**Roadmap:** [`docs/v6.0.0-background-panel-refactor.md`](../../../docs/v6.0.0-background-panel-refactor.md) §8  
+**Roadmap:** [archived Track B roadmap](../../../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-background-panel-refactor.md) §8
 **ADR:** [0008](../../../docs/architecture/adr/0008-background-direct-manipulation-layout.md)  
 **Workspace TODO / progress:** [`../TODO-6.0.0.md`](../TODO-6.0.0.md) · [`../progress-QA-6.0.0.md`](../progress-QA-6.0.0.md)  
 **Machine / browser:** operator workstation (Phase 1 UI)  
