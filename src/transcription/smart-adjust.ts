@@ -17,6 +17,8 @@ import {
 import { groupWordsByWidth } from '@/src/utils/text-metrics';
 import type { TranscriptResult, TranscriptSegment } from '@/src/transcription/types';
 
+const WORD_SHIFT_MAX_GAP_SECONDS = 0.2;
+
 export type SmartAdjustProposalKind =
   | 'shift-word-next'
   | 'shift-word-prev'
@@ -50,6 +52,16 @@ function cloneSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
   return segments.map((segment) => ({ ...segment }));
 }
 
+// BUG FIX: Smart Adjust word-shift cue adjacency
+// Fix: Reject word shifts when the neighboring cue starts more than 0.2 seconds after the source cue ends.
+// Sync: scripts/test-smart-adjust.mjs
+function cuesAreCloseEnoughForWordShift(
+  earlier: TranscriptSegment,
+  later: TranscriptSegment,
+): boolean {
+  return later.start <= earlier.end + WORD_SHIFT_MAX_GAP_SECONDS;
+}
+
 export function proposeShiftLastWordToNext(
   segments: TranscriptSegment[],
   cueIndex: number,
@@ -58,6 +70,7 @@ export function proposeShiftLastWordToNext(
   const current = segments[cueIndex];
   const next = segments[cueIndex + 1];
   if (!current || !next) return null;
+  if (!cuesAreCloseEnoughForWordShift(current, next)) return null;
 
   const words = splitWords(stripScaffoldPlaceholder(current.text));
   if (words.length < 2) return null;
@@ -77,7 +90,7 @@ export function proposeShiftLastWordToNext(
     id: `shift-next-${cueIndex}`,
     kind: 'shift-word-next',
     title: `Cue ${cueIndex + 1}: move “${shiftedWord}” to next cue`,
-    description: 'Shifts one word to the following cue when both sides still fit.',
+    description: 'Shifts one word to the nearby following cue when both sides still fit.',
     cueIndex,
     segments: nextSegments,
   };
@@ -91,6 +104,7 @@ export function proposeShiftFirstWordToPrevious(
   const current = segments[cueIndex];
   const prev = segments[cueIndex - 1];
   if (!current || !prev) return null;
+  if (!cuesAreCloseEnoughForWordShift(prev, current)) return null;
 
   const words = splitWords(stripScaffoldPlaceholder(current.text));
   if (words.length < 2) return null;
@@ -110,7 +124,7 @@ export function proposeShiftFirstWordToPrevious(
     id: `shift-prev-${cueIndex}`,
     kind: 'shift-word-prev',
     title: `Cue ${cueIndex + 1}: move “${shiftedWord}” to previous cue`,
-    description: 'Shifts one word to the prior cue when both sides still fit.',
+    description: 'Shifts one word to the nearby prior cue when both sides still fit.',
     cueIndex,
     segments: nextSegments,
   };

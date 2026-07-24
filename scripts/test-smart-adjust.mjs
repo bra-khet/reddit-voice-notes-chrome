@@ -29,6 +29,7 @@ async function bundle(entry, name) {
 const {
   proposeShiftLastWordToNext,
   proposeShiftFirstWordToPrevious,
+  collectMinimalFixProposals,
   proposeGlobalFontReduction,
   buildReSpliceProposal,
   findOverflowingCueIndices,
@@ -60,10 +61,13 @@ metrics.splitBudget = 20;
 
 console.log('word-shift proposals\n');
 
-check('shift last word to next when both cues fit', () => {
+// BUG FIX: Smart Adjust word-shift cue adjacency
+// Fix: Cover the inclusive 0.2-second boundary, larger-gap suppression, and re-splice availability.
+// Sync: src/transcription/smart-adjust.ts
+check('shift last word to next at the 0.2-second gap boundary', () => {
   const segments = [
     { start: 0, end: 3, text: 'one two three' },
-    { start: 3, end: 6, text: 'four' },
+    { start: 3.2, end: 6, text: 'four' },
   ];
   const proposal = proposeShiftLastWordToNext(segments, 0, metrics);
   assert.ok(proposal);
@@ -71,15 +75,51 @@ check('shift last word to next when both cues fit', () => {
   assert.equal(proposal.segments[1].text, 'three four');
 });
 
-check('shift first word to previous when both cues fit', () => {
+check('shift first word to previous at the 0.2-second gap boundary', () => {
   const segments = [
     { start: 0, end: 3, text: 'aa' },
-    { start: 3, end: 6, text: 'bb cc dd' },
+    { start: 3.2, end: 6, text: 'bb cc dd' },
   ];
   const proposal = proposeShiftFirstWordToPrevious(segments, 1, metrics);
   assert.ok(proposal);
   assert.equal(proposal.segments[0].text, 'aa bb');
   assert.equal(proposal.segments[1].text, 'cc dd');
+});
+
+check('word shifts allow zero-gap and overlapping cues', () => {
+  const zeroGapSegments = [
+    { start: 0, end: 3, text: 'one two three' },
+    { start: 3, end: 6, text: 'four five six' },
+  ];
+  const overlappingSegments = [
+    { start: 0, end: 3.1, text: 'one two three' },
+    { start: 3, end: 6, text: 'four five six' },
+  ];
+  for (const segments of [zeroGapSegments, overlappingSegments]) {
+    assert.ok(proposeShiftLastWordToNext(segments, 0, metrics));
+    assert.ok(proposeShiftFirstWordToPrevious(segments, 1, metrics));
+  }
+});
+
+check('word shifts are suppressed when the cue gap exceeds 0.2 seconds', () => {
+  const segments = [
+    { start: 0, end: 3, text: 'one two three' },
+    { start: 3.201, end: 6, text: 'four five six' },
+  ];
+  assert.equal(proposeShiftLastWordToNext(segments, 0, metrics), null);
+  assert.equal(proposeShiftFirstWordToPrevious(segments, 1, metrics), null);
+});
+
+check('large-gap word shifts are absent from minimal-fix proposals', () => {
+  const segments = [
+    { start: 0, end: 3, text: 'one two three' },
+    { start: 4, end: 6, text: 'four five six' },
+  ];
+  const proposals = collectMinimalFixProposals(segments, [0, 1], metrics, metrics.fontSize);
+  assert.equal(
+    proposals.some(({ kind }) => kind === 'shift-word-next' || kind === 'shift-word-prev'),
+    false,
+  );
 });
 
 console.log('\nre-splice proposals\n');
@@ -99,6 +139,26 @@ check('full re-splice splits long original segment', () => {
   };
   const proposal = buildReSpliceProposal(original, edited, tightMetrics, 'full');
   assert.ok(proposal.segments.length > 1);
+});
+
+check('full re-splice remains available across a large inter-cue gap', () => {
+  const tightMetrics = { ...metrics, splitBudget: 12 };
+  const original = {
+    text: 'alpha beta gamma delta second cue',
+    source: 'vosk',
+    segments: [
+      { start: 0, end: 3, text: 'alpha beta gamma delta' },
+      { start: 4, end: 6, text: 'second cue' },
+    ],
+  };
+  const edited = {
+    ...original,
+    source: 'manual',
+    segments: original.segments.map((segment) => ({ ...segment })),
+  };
+  const proposal = buildReSpliceProposal(original, edited, tightMetrics, 'full');
+  assert.equal(proposal.kind, 're-splice-full');
+  assert.ok(proposal.segments.length > original.segments.length);
 });
 
 check('preserve mode keeps hand-edited cue', () => {
