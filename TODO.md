@@ -71,9 +71,14 @@ Keep **Save Changes** outside the menu; reveal only while dirty; second-step con
 
 **Sprint contract example:** “Ship the profile actions menu shell + Rename/Clone/Delete confirm; leave Import merge strategy to item #4.”
 
-**Delivered:** The Profile selector now has a responsive Cividis control-deck menu for Add, Import, Rename, Clone / dirty Save as new, Export, and Delete. Add can snapshot the current setup or create and activate a clean Classic/default profile. Rename preserves profile identity; Clone uses the first free `<name> (copy N)`; Delete uses an emphasized in-app second step. Dirty **Save changes** remains outside the menu in a reserved slot. The host-neutral controller provides grouped menu semantics, arrow/Home/End/Escape handling, focus return, a trapped shared dialog, phone bottom sheets, and short-viewport containment. Full-replace Import remains unchanged pending item #4.
+<!--
+BUG FIX: Custom (unsaved) profile edits had no primary save action
+Fix: Recorded the follow-up that routes the reserved Save changes key to Add-current while preserving saved-profile confirmation.
+Sync: docs/design-studio.md; docs/bug-archive.md; claude-progress.md
+-->
+**Delivered:** The Profile selector now has a responsive Cividis control-deck menu for Add, Import, Rename, Clone / dirty Save as new, Export, and Delete. Add can snapshot the current setup or create and activate a clean Classic/default profile. Rename preserves profile identity; Clone uses the first free `<name> (copy N)`; Delete uses an emphasized in-app second step. **Save changes** remains outside the menu in a reserved slot: it performs the confirmed update for dirty saved profiles and, after the BUG-039 follow-up, appears for a changed `Custom (unsaved)` setup and opens the existing Add dialog with **Current setup** selected. The host-neutral controller provides grouped menu semantics, arrow/Home/End/Escape handling, origin-aware focus return, a trapped shared dialog, phone bottom sheets, and short-viewport containment.
 
-**Proof:** `npm run test:profile-actions` **9/9**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, and `npm run compile` zero errors. Desktop and 390 × 844 hosted Studio interaction checks covered Add, dynamic Clone/Save-as-new, confirmed Delete, keyboard focus, dirty Save visibility, and responsive containment with no console errors.
+**Proof:** `npm run test:profile-actions` **11/11**, `node scripts/test-user-prefs-storage.mjs` **16/16**, `npm run test:host-neutrality` **15/15**, and `npm run compile` zero errors. Hosted QA now additionally covers clean Custom hiding Save, Custom Style edits revealing it, direct Add-current naming, successful activation, cancel focus return, cleanup, and one-row geometry at desktop / 800 px / 390 px with no console errors.
 
 ---
 

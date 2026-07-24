@@ -37,7 +37,12 @@ Full acceptance criteria: [`TODO.md`](TODO.md). Product background: [`docs/futur
 
 ### Profile actions control deck (delivered)
 
-The Profile/Status selector now anchors one host-neutral, responsive Cividis menu: Add current/default, Import full-replace JSON, identity-preserving Rename, clean Clone or dirty Save as new, Export full preferences, and confirmed Delete. Add/Rename/Clone/Delete share an accessible dialog; copy names choose the first free positive integer. Dirty **Save changes** stays outside the menu in a reserved slot. New default creation and rename serialize through the existing preference writer. Proof: `npm run test:profile-actions` **9/9**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, `npm run compile` zero errors, plus desktop/800 px/390 px hosted interaction checks with no console errors.
+<!--
+BUG FIX: Custom (unsaved) profile edits had no primary save action
+Fix: The handoff now records the shared primary Save slot and its Add-current first-save pathway.
+Sync: docs/design-studio.md; docs/bug-archive.md; TODO.md
+-->
+The Profile/Status selector now anchors one host-neutral, responsive Cividis menu: Add current/default, strategy-based Import, identity-preserving Rename, clean Clone or dirty Save as new, Export full preferences, and confirmed Delete. Add/Rename/Clone/Delete share an accessible dialog; copy names choose the first free positive integer. **Save changes** stays outside the menu in a reserved slot: dirty saved profiles retain confirmed update, while a changed `Custom (unsaved)` setup opens the existing Add dialog with **Current setup** selected. Clean Custom remains quiet; the 12-profile cap disables but does not hide a saveable unsaved setup. Proof: `npm run test:profile-actions` **11/11**, `node scripts/test-user-prefs-storage.mjs` **16/16**, `npm run test:host-neutrality` **15/15**, `npm run compile` zero errors, plus desktop/800 px/390 px hosted interaction checks with no console errors.
 
 ### Dirty profile recovery (delivered)
 

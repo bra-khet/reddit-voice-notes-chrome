@@ -19,6 +19,7 @@ import {
   getClipProfileById,
   MAX_CLIP_PROFILES,
   PROFILE_SELECT_CUSTOM,
+  type ClipProfile,
 } from '@/src/settings/clip-profiles';
 import { isPresetProfileId } from '@/src/settings/preset-profiles';
 import {
@@ -32,6 +33,7 @@ import {
   applyClipProfile,
   applyCustomClipStyle,
   applyPresetClipStyle,
+  DEFAULT_USER_PREFERENCES,
   deleteClipProfile,
   deleteCustomClipStyle,
   enterCustomStyleMode,
@@ -128,6 +130,7 @@ import {
   mountProfileActionsMenu,
   renderProfileActionsMarkup,
   type ProfileActionsHandle,
+  resolveProfileSaveButtonView,
 } from '@/src/ui/design-studio/profile-actions-menu';
 import {
   mountSettingsResetDialog,
@@ -160,6 +163,27 @@ const ALIGNMENT_OPTIONS: { value: BarAlignment; label: string }[] = [
 
 const COLOR_SAVE_DEBOUNCE_MS = 200;
 const BACKGROUND_LAYOUT_HISTORY_LIMIT = 20;
+const DEFAULT_PROFILE_LAYOUT = userBackgroundLayoutFromAppearance(
+  DEFAULT_USER_PREFERENCES.appearance,
+);
+
+// BUG FIX: Custom (unsaved) profile edits had no primary Save changes action
+// Fix: Give the unsaved setup a complete product-default comparison baseline, including Voice and Subtitle fields.
+// Sync: profile-actions-menu.ts; scripts/test-profile-actions.mjs
+const CUSTOM_PROFILE_SAVE_BASELINE: ClipProfile = {
+  id: 'custom-profile-save-baseline',
+  name: 'Custom profile baseline',
+  themeId: DEFAULT_USER_PREFERENCES.appearance.activeThemeId,
+  barAlignment: DEFAULT_USER_PREFERENCES.appearance.barAlignment ?? 'center',
+  customBackgroundId: null,
+  backgroundScaleMode: DEFAULT_PROFILE_LAYOUT.scaleMode,
+  backgroundPosition: DEFAULT_PROFILE_LAYOUT.position,
+  backgroundLayout: DEFAULT_PROFILE_LAYOUT,
+  customStyleId: null,
+  designOverrides: null,
+  voiceEffectConfig: DEFAULT_USER_PREFERENCES.voiceEffect,
+  transcriptConfig: DEFAULT_USER_PREFERENCES.transcriptConfig,
+};
 
 export type MountClipStudioOptions = {
   /** Reconciled prefs from boot — avoids racing storage listeners before first paint (BUG-023). */
@@ -608,6 +632,11 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   function isProfileDirty(): boolean {
     const profile = activeProfile();
     if (!profile || !activePrefs) return false;
+    return !profileMatchesLiveDraft(profile);
+  }
+
+  function profileMatchesLiveDraft(profile: ClipProfile): boolean {
+    if (!activePrefs) return true;
     const transcriptForMatch =
       typeof subtitleControls?.getProfileSnapshotConfig === 'function'
         ? subtitleControls.getProfileSnapshotConfig()
@@ -619,12 +648,29 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       typeof voiceControls?.getDraftConfig === 'function'
         ? voiceControls.getDraftConfig()
         : activePrefs.voiceEffect;
-    return !clipProfileMatchesLiveState(
+    return clipProfileMatchesLiveState(
       activePrefs.appearance,
       voiceForMatch,
       transcriptForMatch,
       profile,
     );
+  }
+
+  function hasUnsavedCustomProfileSetup(): boolean {
+    if (!activePrefs) return false;
+    const profileId = activePrefs.appearance.activeProfileId;
+    if (profileId && !isPresetProfileId(profileId)) return false;
+
+    const preset = profileId ? activeProfile() : undefined;
+    const baseline = preset
+      ? {
+          ...preset,
+          id: CUSTOM_PROFILE_SAVE_BASELINE.id,
+          voiceEffectConfig: CUSTOM_PROFILE_SAVE_BASELINE.voiceEffectConfig,
+          transcriptConfig: CUSTOM_PROFILE_SAVE_BASELINE.transcriptConfig,
+        }
+      : CUSTOM_PROFILE_SAVE_BASELINE;
+    return !profileMatchesLiveDraft(baseline);
   }
 
   function resetProfileUpdateConfirm(): void {
@@ -637,23 +683,36 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
   function syncProfileButton(prefs: UserPreferencesV1): void {
     const profileId = prefs.appearance.activeProfileId;
-    const dirty = isProfileDirty();
     const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
+    const dirty = hasSavedProfile ? isProfileDirty() : hasUnsavedCustomProfileSetup();
+    const canAddProfile = (prefs.appearance.savedProfiles?.length ?? 0) < MAX_CLIP_PROFILES;
+    const view = resolveProfileSaveButtonView({
+      hasSavedProfile,
+      profileDirty: dirty,
+      canAddProfile,
+      confirmationPending: profileUpdateConfirmPending,
+    });
 
-    if (!hasSavedProfile || (!dirty && !profileUpdateConfirmPending)) {
+    if (!view.visible) {
       saveProfileBtn.hidden = true;
       saveProfileBtn.textContent = 'Save changes';
       saveProfileBtn.disabled = true;
+      saveProfileBtn.removeAttribute('title');
       saveProfileBtn.classList.remove('popup__profile-btn--muted', 'popup__profile-btn--confirm');
       resetProfileUpdateConfirm();
       return;
     }
 
     saveProfileBtn.hidden = false;
-    saveProfileBtn.textContent = profileUpdateConfirmPending ? 'Confirm save' : 'Save changes';
-    saveProfileBtn.disabled = false;
+    saveProfileBtn.textContent = view.confirmationPending ? 'Confirm save' : 'Save changes';
+    saveProfileBtn.disabled = view.disabled;
+    if (view.disabled) {
+      saveProfileBtn.title = `Profile limit reached — delete one to save this setup`;
+    } else {
+      saveProfileBtn.removeAttribute('title');
+    }
     saveProfileBtn.classList.remove('popup__profile-btn--muted');
-    saveProfileBtn.classList.toggle('popup__profile-btn--confirm', profileUpdateConfirmPending);
+    saveProfileBtn.classList.toggle('popup__profile-btn--confirm', view.confirmationPending);
   }
 
   function syncStyleButton(prefs: UserPreferencesV1): void {
@@ -1479,7 +1538,17 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
 
   saveProfileBtn.addEventListener('click', () => {
     const profileId = activePrefs?.appearance.activeProfileId;
-    if (!profileId || isPresetProfileId(profileId)) return;
+    const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
+    if (!hasSavedProfile) {
+      // BUG FIX: Custom (unsaved) edits could only be saved through the hamburger menu
+      // Fix: Route the adjacent Save changes key into the existing current-setup naming dialog.
+      // Sync: profile-actions-menu.ts; scripts/test-profile-actions.mjs
+      if (!activePrefs || !hasUnsavedCustomProfileSetup()) return;
+      if ((activePrefs.appearance.savedProfiles?.length ?? 0) >= MAX_CLIP_PROFILES) return;
+      resetProfileUpdateConfirm();
+      profileActions?.openCreateFromCurrent();
+      return;
+    }
     if (!isProfileDirty() && !profileUpdateConfirmPending) return;
     if (!profileUpdateConfirmPending) {
       profileUpdateConfirmPending = true;

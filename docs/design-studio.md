@@ -138,7 +138,12 @@ Keep four independent layers:
 | Transcript panel | Session transcript IDB | No | Yes |
 | Segment modal | Applies to transcript draft | No | No |
 
-Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, strategy-based Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot; a neighboring semantic reset key reapplies the selected saved profile through `applyClipProfile()` and then returns focus to the selector. The four-column row never wraps. Profile writes continue through the serialized preference coordinator and existing normalizers.
+<!--
+BUG FIX: Custom (unsaved) profile edits had no primary save action
+Fix: The reserved Save changes key now opens the existing Add-current dialog for a changed unsaved setup; saved profiles retain confirmed in-place updates.
+Sync: mount-clip-studio.ts; profile-actions-menu.ts; TODO.md; claude-progress.md
+-->
+Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, strategy-based Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. **Save changes** stays outside the menu in a reserved slot: for a changed `Custom (unsaved)` setup it opens the Add dialog with **Current setup** selected; for a dirty saved profile it retains the confirmed in-place update. The neighboring semantic reset key remains saved-profile-only and reapplies the selected snapshot through `applyClipProfile()`. The four-column row never wraps. Profile writes continue through the serialized preference coordinator and existing normalizers.
 
 Reset operations distinguish **Restore defaults** from **Clear override** only when both destinations are real. Background restores normalized layout while retaining selected media, or reveals the active theme without deleting the upload. Style restores its authored source, or detaches the custom layer and resolves the bundled base preset without deleting the saved Style. Both use the shared top-layer choice sheet and normal appearance writer; profile identity, transcript, take, and unrelated settings remain untouched. Canonical inventory and copy: [`reset-semantics.md`](reset-semantics.md).
 

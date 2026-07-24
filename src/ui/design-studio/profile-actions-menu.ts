@@ -25,8 +25,22 @@ export interface ProfileActionsCallbacks {
 
 export interface ProfileActionsHandle {
   sync(state: ProfileActionsState): void;
+  openCreateFromCurrent(): void;
   close(): void;
   dispose(): void;
+}
+
+export interface ProfileSaveButtonState {
+  hasSavedProfile: boolean;
+  profileDirty: boolean;
+  canAddProfile: boolean;
+  confirmationPending: boolean;
+}
+
+export interface ProfileSaveButtonView {
+  visible: boolean;
+  disabled: boolean;
+  confirmationPending: boolean;
 }
 
 export interface ProfileActionsView {
@@ -89,6 +103,35 @@ export function resolveProfileActionsView(
     manageDisabled: !state.hasSavedProfile,
     addDisabled: !state.canAddProfile,
     resetVisible: state.hasSavedProfile && state.profileDirty,
+  };
+}
+
+// BUG FIX: Custom (unsaved) profiles had no discoverable primary save action
+// Fix: Unsaved setups now share the reserved Save slot and use the existing Add-current flow; only the profile cap disables them.
+// Sync: mount-clip-studio.ts; scripts/test-profile-actions.mjs
+export function resolveProfileSaveButtonView(
+  state: ProfileSaveButtonState,
+): ProfileSaveButtonView {
+  if (!state.profileDirty && !state.confirmationPending) {
+    return {
+      visible: false,
+      disabled: true,
+      confirmationPending: false,
+    };
+  }
+
+  if (!state.hasSavedProfile) {
+    return {
+      visible: state.profileDirty,
+      disabled: !state.canAddProfile,
+      confirmationPending: false,
+    };
+  }
+
+  return {
+    visible: true,
+    disabled: false,
+    confirmationPending: state.confirmationPending,
   };
 }
 
@@ -304,6 +347,7 @@ export function mountProfileActionsMenu(
   callbacks: ProfileActionsCallbacks,
 ): ProfileActionsHandle {
   const profileSelect = root.querySelector<HTMLSelectElement>('[data-profile-select]');
+  const saveButton = root.querySelector<HTMLButtonElement>('[data-save-profile]')!;
   const resetButton = root.querySelector<HTMLButtonElement>('[data-reset-profile]')!;
   const shell = root.querySelector<HTMLElement>('[data-profile-actions-shell]')!;
   const trigger = root.querySelector<HTMLButtonElement>('[data-profile-actions-trigger]')!;
@@ -333,6 +377,7 @@ export function mountProfileActionsMenu(
     canAddProfile: true,
   };
   let dialogMode: ProfileDialogMode | null = null;
+  let dialogReturnFocus: HTMLElement = trigger;
   let resetBusy = false;
   let disposed = false;
 
@@ -368,12 +413,22 @@ export function mountProfileActionsMenu(
     dialogSubmit.disabled = false;
     dialogCancel.disabled = false;
     dialogClose.disabled = false;
-    if (restoreFocus && !disposed) trigger.focus();
+    if (restoreFocus && !disposed) {
+      const returnButton =
+        dialogReturnFocus instanceof HTMLButtonElement ? dialogReturnFocus : null;
+      if (!dialogReturnFocus.hidden && !returnButton?.disabled) {
+        dialogReturnFocus.focus();
+      } else {
+        (profileSelect ?? trigger).focus();
+      }
+    }
+    dialogReturnFocus = trigger;
   }
 
-  function openDialog(mode: ProfileDialogMode): void {
+  function openDialog(mode: ProfileDialogMode, returnFocus: HTMLElement = trigger): void {
     closeMenu();
     dialogMode = mode;
+    dialogReturnFocus = returnFocus;
     dialogError.hidden = true;
     nameField.hidden = mode === 'delete' || mode === 'import';
     sourceOptions.hidden = mode !== 'create';
@@ -662,6 +717,12 @@ export function mountProfileActionsMenu(
       )!;
       cloneLabel.textContent = view.cloneLabel;
       cloneDescription.textContent = view.cloneDescription;
+    },
+    openCreateFromCurrent() {
+      // BUG FIX: Custom (unsaved) Save changes previously required menu discovery
+      // Fix: Open the established Add-current dialog directly and return focus to the initiating Save key when cancelled.
+      // Sync: mount-clip-studio.ts; scripts/test-profile-actions.mjs
+      openDialog('create', saveButton);
     },
     close() {
       closeMenu();

@@ -28,6 +28,7 @@ const {
   nextAvailableProfileName,
   renderProfileActionsMarkup,
   resolveProfileActionsView,
+  resolveProfileSaveButtonView,
 } = await import(pathToFileURL(outfile).href);
 
 let checks = 0;
@@ -84,6 +85,66 @@ check('dirty state turns Clone into the existing Save-as-new pathway', () => {
       addDisabled: false,
       resetVisible: true,
     },
+  );
+});
+
+// BUG FIX: Custom (unsaved) profile edits lacked a primary Save changes route
+// Fix: Pin the unsaved-state visibility/cap policy and the direct reuse of the Add-current dialog.
+// Sync: src/ui/design-studio/profile-actions-menu.ts; src/ui/design-studio/mount-clip-studio.ts
+check('custom unsaved edits reveal Save changes and use the Add-current dialog', () => {
+  assert.deepEqual(
+    resolveProfileSaveButtonView({
+      hasSavedProfile: false,
+      profileDirty: true,
+      canAddProfile: true,
+      confirmationPending: false,
+    }),
+    {
+      visible: true,
+      disabled: false,
+      confirmationPending: false,
+    },
+  );
+  assert.equal(
+    resolveProfileSaveButtonView({
+      hasSavedProfile: false,
+      profileDirty: false,
+      canAddProfile: true,
+      confirmationPending: false,
+    }).visible,
+    false,
+  );
+  assert.equal(
+    resolveProfileSaveButtonView({
+      hasSavedProfile: false,
+      profileDirty: true,
+      canAddProfile: false,
+      confirmationPending: false,
+    }).disabled,
+    true,
+  );
+  assert.deepEqual(
+    resolveProfileSaveButtonView({
+      hasSavedProfile: true,
+      profileDirty: true,
+      canAddProfile: false,
+      confirmationPending: true,
+    }),
+    {
+      visible: true,
+      disabled: false,
+      confirmationPending: true,
+    },
+  );
+
+  const mountSource = readFileSync(
+    join(root, 'src/ui/design-studio/mount-clip-studio.ts'),
+    'utf8',
+  );
+  assert.match(mountSource, /function hasUnsavedCustomProfileSetup\(\)/);
+  assert.match(
+    mountSource,
+    /if \(!hasSavedProfile\)[\s\S]*hasUnsavedCustomProfileSetup\(\)[\s\S]*openCreateFromCurrent\(\)/,
   );
 });
 
