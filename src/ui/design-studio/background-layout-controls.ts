@@ -47,6 +47,12 @@ import {
 } from '@/src/ui/design-studio/interaction-utils';
 import { renderPreviewBlock } from '@/src/ui/design-studio/preview-block';
 import { sampleCanvasColorAtClient } from '@/src/ui/design-studio/background-color-sampler';
+import {
+  BACKGROUND_RESET_COPY,
+  mountSettingsResetDialog,
+  renderSettingsResetControl,
+  resolveBackgroundResetTarget,
+} from '@/src/ui/design-studio/settings-reset-dialog';
 
 export interface BackgroundLayoutControlsHandle {
   sync(prefs: UserPreferencesV1): void;
@@ -553,6 +559,7 @@ export function renderBackgroundLayoutFields(): string {
       ${renderPrecisionInstrument()}
       ${renderBackgroundTreatment()}
       ${renderBackgroundFraming()}
+      ${renderSettingsResetControl(BACKGROUND_RESET_COPY)}
     </div>
   `;
 }
@@ -1343,6 +1350,36 @@ export function mountBackgroundLayoutControls(
   syncFramingUi();
   syncVariantUi();
 
+  // CHANGED: Background is the first reset-semantics vertical slice.
+  // WHY: it has an honest default-vs-blank distinction without touching profile, transcript, take, or uploaded-media ownership.
+  const resetDialog = mountSettingsResetDialog(
+    panel,
+    BACKGROUND_RESET_COPY,
+    (mode) => {
+      // BUG FIX: Background reset left a stale "sampling ended" message after later image picks
+      // Fix: Retire sampler listeners and restore its standing instruction before applying the reset.
+      finishColorSampling();
+      sampleStatus.value = 'Pick a clear background pixel to color the bars.';
+      finishCompare(undefined, false);
+      restorePresetPreview();
+      clearLayoutVariant('Alternate framing cleared by background reset.');
+      const target = resolveBackgroundResetTarget(mode, committedBackgroundId);
+      committedBackgroundId = target.customBackgroundId;
+      backgroundAvailable = Boolean(target.customBackgroundId);
+      syncLayout(target.backgroundLayout, true);
+      syncFramingUi(
+        mode === 'blank'
+          ? 'Personal background cleared; the active theme is visible.'
+          : 'Product background layout restored.',
+      );
+      onLayoutChange(target, { persist: true });
+      announceLayout(
+        target.backgroundLayout,
+        mode === 'blank' ? 'Theme background restored' : 'Product layout restored',
+      );
+    },
+  );
+
   return {
     sync(prefs) {
       // BUG FIX: authoritative preference sync could clear compare outside its restore owner
@@ -1388,6 +1425,7 @@ export function mountBackgroundLayoutControls(
       blendPlatePicker.endInteraction();
       finishColorSampling();
       root.removeEventListener('keydown', onSamplerKeydown, true);
+      resetDialog.dispose();
       disposeSliders();
     },
   };

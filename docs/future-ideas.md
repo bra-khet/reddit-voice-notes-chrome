@@ -19,7 +19,7 @@ These remain documented for product context; **execute from TODO**:
 |------|--------|--------|
 | Smart Adjust cue-adjacency gate for word-shift | **1 — Done** | Gap ≤ 0.2s for shift proposals; else prefer split/re-splice. **Not** the trust-UI presentation work below. |
 | Profile actions menu | **2 — Done** | Responsive Add / Import / Rename / Clone-or-Save-as-new / Export / confirmed Delete; dirty Save stays outside. |
-| Reset to default / reset to blank | **3** | Inventory first; shared confirm; dirty + normalize. |
+| Reset to default / reset to blank | **3 — In progress** | Inventory + Background slice shipped; Style remains the next true default-vs-inherit family. |
 | Preferences Import merge / union | **4** | Explicit merge beside full-replace; no CRDT. |
 | Hosted orientation sticky warm-up modal after Back | **5** | Clear restored launch state without moving hosted lifecycle policy into shared Studio code. |
 

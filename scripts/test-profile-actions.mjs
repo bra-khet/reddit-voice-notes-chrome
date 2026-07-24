@@ -4,7 +4,7 @@
 
 import { build } from 'esbuild';
 import { pathToFileURL } from 'node:url';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
@@ -99,6 +99,19 @@ check('markup preserves grouped action order and dialog accessibility', () => {
   assert.match(markup, /value="current"/);
   assert.match(markup, /value="defaults"/);
   assert.match(markup, /data-save-profile[\s\S]*hidden/);
+});
+
+check('dirty save remains a non-wrapping right-hand control at every breakpoint', () => {
+  // BUG FIX: Save changes collapsed or moved below the Profile selector
+  // Fix: Pin the three-column row, minimum action width, and removal of the former second grid row.
+  const css = readFileSync(join(root, 'entrypoints/design-studio/profile-actions.css'), 'utf8');
+  assert.match(
+    css,
+    /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(124px,\s*auto\)\s+38px/,
+  );
+  assert.match(css, /\.studio__profile-save-slot\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1;/s);
+  assert.match(css, /\.studio__profile-save-btn\s*\{[^}]*min-width:\s*124px;[^}]*white-space:\s*nowrap;/s);
+  assert.doesNotMatch(css, /\.studio__profile-save-slot\s*\{[^}]*grid-row:\s*2;/s);
 });
 
 rmSync(outdir, { recursive: true, force: true });

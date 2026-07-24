@@ -139,6 +139,8 @@ Keep four independent layers:
 
 Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, full-replace Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot. Profile writes continue through the serialized preference coordinator and existing normalizers.
 
+Reset operations distinguish **Restore defaults** from **Clear override** only when both destinations are real. The first shipped slice is Background: restore the normalized product layout while keeping selected media, or clear only the personal-background reference to reveal the active theme. The upload remains in ImageDB; profile identity, transcript, take, and unrelated settings remain untouched. Canonical inventory and copy: [`reset-semantics.md`](reset-semantics.md).
+
 ## Integration rules
 
 - Before changing a panel seam, read [`architecture/extension-points.md`](architecture/extension-points.md).

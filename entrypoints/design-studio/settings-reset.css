@@ -1,0 +1,342 @@
+/* CHANGED: Reset operations use one compact "return path" dock and a native top-layer choice sheet.
+   WHY: defaults and blanks need unmistakable scope without adding another generic button row or risking transformed-container clipping. */
+
+.studio-v4 .studio__settings-reset-dock {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--studio-indigo-accent) 76%, transparent);
+  border-radius: 11px;
+  background:
+    linear-gradient(100deg, rgba(34, 61, 108, 0.28), rgba(166, 156, 117, 0.055) 72%),
+    var(--studio-surface-raised);
+  box-shadow: inset 3px 0 0 rgba(43, 113, 142, 0.72);
+}
+
+.studio-v4 .studio__settings-reset-glyph {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(143, 147, 230, 0.34);
+  border-radius: 50%;
+  color: var(--studio-cyan-ready);
+  background: rgba(18, 0, 31, 0.42);
+}
+
+.studio-v4 .studio__settings-reset-glyph svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.studio-v4 .studio__settings-reset-dock-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.studio-v4 .studio__settings-reset-dock-copy strong {
+  color: var(--studio-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+.studio-v4 .studio__settings-reset-dock-copy small {
+  overflow: hidden;
+  color: var(--studio-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-v4 .studio__settings-reset-trigger {
+  min-width: 132px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--studio-indigo-accent);
+  border-radius: 8px;
+  color: var(--studio-text);
+  background: rgba(18, 0, 31, 0.5);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.studio-v4 .studio__settings-reset-trigger:hover {
+  border-color: var(--studio-amber-dim);
+  background: rgba(34, 61, 108, 0.45);
+}
+
+.studio-v4 .studio__settings-reset-trigger:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__settings-reset-dialog {
+  width: min(540px, calc(100vw - 28px));
+  max-width: none;
+  max-height: min(720px, calc(100vh - 28px));
+  margin: auto;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid var(--studio-hairline-strong);
+  border-radius: 15px;
+  color: var(--studio-text);
+  background: transparent;
+  box-shadow: 0 24px 68px rgba(5, 0, 14, 0.78);
+}
+
+.studio-v4 .studio__settings-reset-dialog::backdrop {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(34, 61, 108, 0.2), transparent 42%),
+    rgba(5, 0, 14, 0.76);
+  backdrop-filter: blur(3px);
+}
+
+.studio-v4 .studio__settings-reset-sheet {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  max-height: min(720px, calc(100vh - 28px));
+  padding: 22px 22px 18px 28px;
+  overflow-y: auto;
+  border-radius: inherit;
+  background:
+    linear-gradient(145deg, rgba(36, 26, 74, 0.99), rgba(18, 0, 31, 0.995) 72%);
+}
+
+.studio-v4 .studio__settings-reset-rail {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 6px;
+  width: 4px;
+  border-radius: 4px;
+  background: linear-gradient(
+    180deg,
+    #00204c 0%,
+    #2b718e 45%,
+    #a69c75 74%,
+    #ffd54f 100%
+  );
+  box-shadow: 0 0 10px rgba(43, 113, 142, 0.28);
+}
+
+.studio-v4 .studio__settings-reset-head {
+  display: grid;
+  gap: 5px;
+}
+
+.studio-v4 .studio__settings-reset-eyebrow {
+  color: var(--studio-amber);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.studio-v4 .studio__settings-reset-head h3 {
+  margin: 0;
+  font-family: var(--studio-font-display, inherit);
+  font-size: clamp(1.18rem, 4vw, 1.5rem);
+  letter-spacing: -0.025em;
+}
+
+.studio-v4 .studio__settings-reset-head p {
+  max-width: 48ch;
+  margin: 0;
+  color: var(--studio-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.studio-v4 .studio__settings-reset-choices {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.studio-v4 .studio__settings-reset-choice {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(143, 147, 230, 0.22);
+  border-radius: 10px;
+  background: rgba(18, 0, 31, 0.38);
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.studio-v4 .studio__settings-reset-choice:hover {
+  border-color: rgba(166, 156, 117, 0.56);
+  background: rgba(34, 61, 108, 0.3);
+}
+
+.studio-v4 .studio__settings-reset-choice:has(input:checked) {
+  border-color: var(--studio-amber-dim);
+  background:
+    linear-gradient(100deg, rgba(34, 61, 108, 0.46), rgba(166, 156, 117, 0.12));
+  box-shadow: inset 3px 0 0 var(--studio-amber);
+}
+
+.studio-v4 .studio__settings-reset-choice input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+}
+
+.studio-v4 .studio__settings-reset-choice-mark {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1px solid var(--studio-indigo-accent);
+  border-radius: 50%;
+  background: rgba(5, 0, 14, 0.52);
+}
+
+.studio-v4 .studio__settings-reset-choice:has(input:checked) .studio__settings-reset-choice-mark {
+  border-color: var(--studio-amber);
+  box-shadow: inset 0 0 0 4px rgba(18, 0, 31, 0.95);
+  background: var(--studio-amber);
+}
+
+.studio-v4 .studio__settings-reset-choice:has(input:focus-visible) {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.studio-v4 .studio__settings-reset-choice-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.studio-v4 .studio__settings-reset-choice-copy strong {
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.studio-v4 .studio__settings-reset-choice-copy small {
+  color: var(--studio-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.studio-v4 .studio__settings-reset-status {
+  min-height: 1em;
+  color: var(--studio-danger);
+  font-size: 0.72rem;
+}
+
+.studio-v4 .studio__settings-reset-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.studio-v4 .studio__settings-reset-actions .popup__button,
+.studio-v4 .studio__settings-reset-actions .popup__profile-btn {
+  width: auto;
+  min-width: 128px;
+  min-height: 36px;
+}
+
+@media (max-width: 560px) {
+  .studio-v4 .studio__settings-reset-dock {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .studio-v4 .studio__settings-reset-trigger {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .studio-v4 .studio__settings-reset-dialog {
+    width: calc(100vw - 20px);
+    max-height: min(86vh, 680px);
+    margin: auto 10px 10px;
+    border-radius: 15px 15px 10px 10px;
+  }
+
+  .studio-v4 .studio__settings-reset-sheet {
+    max-height: min(86vh, 680px);
+    padding: 19px 15px 14px 22px;
+  }
+
+  .studio-v4 .studio__settings-reset-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .studio-v4 .studio__settings-reset-actions .popup__button,
+  .studio-v4 .studio__settings-reset-actions .popup__profile-btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-v4 .studio__settings-reset-dialog[open] {
+    animation: studio-settings-reset-dialog-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@keyframes studio-settings-reset-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-v4 .studio__settings-reset-trigger,
+  .studio-v4 .studio__settings-reset-choice {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .studio-v4 .studio__settings-reset-dock,
+  .studio-v4 .studio__settings-reset-sheet,
+  .studio-v4 .studio__settings-reset-choice,
+  .studio-v4 .studio__settings-reset-trigger {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  .studio-v4 .studio__settings-reset-rail,
+  .studio-v4 .studio__settings-reset-choice:has(input:checked) .studio__settings-reset-choice-mark {
+    background: Highlight;
+  }
+}

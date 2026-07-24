@@ -1,13 +1,13 @@
 /* CHANGED: Profile management is a responsive Cividis control-deck popover + shared dialog.
    WHY: six actions need compact hierarchy, native keyboard behavior, and a bespoke Studio identity. */
 
+/* BUG FIX: Dirty Save changes collapsed into a narrow two-line pill or dropped below the selector
+   Fix: Keep selector, a genuinely usable 124px save slot, and the menu trigger in one non-wrapping instrument row at every breakpoint. */
 .studio-v4 .studio__profile-control-row {
-  container-type: inline-size;
-  container-name: profile-control;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 38px;
+  grid-template-columns: minmax(0, 1fr) minmax(124px, auto) 38px;
   align-items: end;
-  gap: 6px 8px;
+  gap: 8px;
   width: 100%;
   min-width: 0;
 }
@@ -23,40 +23,39 @@
 }
 
 .studio-v4 .studio__profile-save-slot {
-  grid-column: 1 / -1;
-  grid-row: 2;
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  min-height: 32px;
+  min-width: 124px;
+  min-height: 38px;
 }
 
 .studio-v4 .studio__profile-save-btn {
   width: 100%;
-  min-height: 30px;
-  padding-inline: 12px;
+  min-width: 124px;
+  min-height: 38px;
+  padding-inline: 14px;
+  white-space: nowrap;
 }
 
 .studio-v4 .studio__profile-actions-shell {
   position: relative;
-  grid-column: 2;
+  grid-column: 3;
   grid-row: 1;
   align-self: end;
 }
 
-@container profile-control (min-width: 430px) {
+@media (max-width: 350px) {
   .studio-v4 .studio__profile-control-row {
     grid-template-columns: minmax(0, 1fr) minmax(112px, auto) 38px;
+    gap: 6px;
   }
 
-  .studio-v4 .studio__profile-save-slot {
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 38px;
-  }
-
-  .studio-v4 .studio__profile-actions-shell {
-    grid-column: 3;
+  .studio-v4 .studio__profile-save-slot,
+  .studio-v4 .studio__profile-save-btn {
+    min-width: 112px;
   }
 }
 

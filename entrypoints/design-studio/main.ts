@@ -7,6 +7,9 @@ import './style.css';
 // CHANGED: profile action chrome is isolated so its popover/dialog specificity stays local.
 // WHY: the shared Studio menu must render identically in extension and hosted builds.
 import './profile-actions.css';
+// CHANGED: settings reset UI shares one native-dialog treatment across Studio hosts.
+// WHY: extension and hosted builds must keep identical reset scope, copy, and responsive geometry.
+import './settings-reset.css';
 import './studio-v4-controls.css';
 // CHANGED: Phase 4 Style Control Center owns a focused instrument-rack stylesheet.
 // WHY: keeping its dense responsive selectors isolated avoids specificity fights with subtitle timelines.

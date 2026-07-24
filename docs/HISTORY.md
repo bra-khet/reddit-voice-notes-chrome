@@ -51,6 +51,7 @@ Newest first. Release notes through v5.11 and all completed design/roadmap docum
 | Open resilience work and current risk | [`architecture/hardening-backlog.md`](architecture/hardening-backlog.md) |
 | Accepted architecture decisions | [`architecture/adr/`](architecture/adr/) |
 | Studio workflow, panels, storage, preview/capture contract | [`design-studio.md`](design-studio.md) |
+| Reset-to-default / clear-override semantics and field inventory | [`reset-semantics.md`](reset-semantics.md) |
 | Voice graph and preview/bake parity | [`dsp-foundation-design.md`](dsp-foundation-design.md) |
 | Vosk and subtitle-bake pipeline | [`transcription-architecture.md`](transcription-architecture.md) |
 | Hosted Voice Lab / Design Studio deployment contract | [`static-voice-studio-design.md`](static-voice-studio-design.md) |

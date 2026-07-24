@@ -17,7 +17,7 @@ Work **one bounded slice at a time**. Order is intentional; completed items stay
 |---|--------|------|----------|--------|----------------|
 | **1** | ✅ Done | **Smart Adjust — cue-adjacency gate for word-shift** | High | Small | Shipped in the post-v6 polish sprint; details and proof below. |
 | **2** | ✅ Done | **Profile actions menu** | Medium | Medium | Shipped as a responsive control deck with one accessible dialog primitive; details and proof below. |
-| **3** | **Next** | **Reset to default / reset to blank** | Medium | Medium | Needs field inventory; can now reuse the menu/modal language established by #2. |
+| **3** | **In progress** | **Reset to default / reset to blank** | Medium | Medium | Field inventory + Background vertical slice shipped; Style is the next honest inherit-vs-default family. |
 | **4** | Queued | **Preferences Import merge / union** | Low | Small–Medium | Storage-careful; ship after profile Import UX is settled (#2). |
 | **5** | Queued | **Hosted orientation — sticky “Warming up” modal after Back** | Medium | Small–Medium | Separate hosted lifecycle bug; preserve queue order and diagnose only after #2–#4. |
 
@@ -80,6 +80,8 @@ Keep **Save Changes** outside the menu; reveal only while dirty; second-step con
 
 **Area:** Cross-panel usability
 
+**Status:** In progress — Background vertical slice delivered 2026-07-23
+
 Two explicit operations where both meanings apply:
 
 - **Reset to default:** restore the product/preset-derived value.
@@ -90,6 +92,10 @@ Requirements: central semantics and copy; one reusable confirmation/modal patter
 **Start with** an inventory of fields where “blank” and “default” are distinct, then implement a thin vertical slice (one panel or control family) before sweeping the product.
 
 **Sprint contract example:** “Inventory blank-vs-default fields; implement reset on one panel family with shared modal + dirty integration.”
+
+**Delivered slice:** [`docs/reset-semantics.md`](docs/reset-semantics.md) now defines the shared vocabulary and inventories Background, Style, Voice, Subtitle appearance, transcript, and media-library ownership. Background ships the first reusable choice sheet: **Product layout** keeps selected media while restoring the normalized product layout; **Theme background** clears only `customBackgroundId` and leaves the upload in ImageDB. Both paths use the normal appearance persistence/dirty seam and do not reset profile identity, transcript, take, or unrelated settings.
+
+**Proof:** `npm run test:settings-reset` **3/3**, `npm run test:profile-actions` **7/7**, `node scripts/test-background-control-ui.mjs` **16/16**, `npm run test:host-neutrality` **15/15**, and `npm run compile`.
 
 ---
 

@@ -22,6 +22,9 @@ import '@/entrypoints/design-studio/style.css';
 // CHANGED: mirror the shared Profile actions menu stylesheet in the hosted shell.
 // WHY: shared markup and interaction must keep extension/Pages visual parity.
 import '@/entrypoints/design-studio/profile-actions.css';
+// CHANGED: mirror the host-neutral reset dialog stylesheet after the shared profile chrome.
+// WHY: the hosted Studio mounts the same reset control and must preserve visual parity.
+import '@/entrypoints/design-studio/settings-reset.css';
 import '@/entrypoints/design-studio/studio-v4-controls.css';
 import '@/entrypoints/design-studio/style-control-center.css';
 
