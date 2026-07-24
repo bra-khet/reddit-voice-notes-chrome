@@ -10,6 +10,7 @@ export interface ProfileActionsState {
   profileNames: readonly string[];
   hasSavedProfile: boolean;
   profileDirty: boolean;
+  hasResettableChanges: boolean;
   canAddProfile: boolean;
 }
 
@@ -48,7 +49,9 @@ export interface ProfileActionsView {
   cloneDescription: string;
   manageDisabled: boolean;
   addDisabled: boolean;
-  resetVisible: boolean;
+  resetDisabled: boolean;
+  resetLabel: string;
+  resetTitle: string;
 }
 
 type ProfileAction = 'add' | 'import' | 'rename' | 'clone' | 'export' | 'delete';
@@ -92,9 +95,13 @@ export function nextAvailableProfileName(
   return nameWithSuffix(trimmed, ` ${Date.now()}`);
 }
 
+// BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+// Fix: Keep the reserved reset key visible, expose an honest disabled state, and describe its saved-snapshot or product-default target.
+// Sync: mount-clip-studio.ts; profile-actions.css; scripts/test-profile-actions.mjs
 export function resolveProfileActionsView(
   state: ProfileActionsState,
 ): ProfileActionsView {
+  const resetDisabled = !state.hasResettableChanges;
   return {
     cloneLabel: state.profileDirty ? 'Save as new profile' : 'Clone profile',
     cloneDescription: state.profileDirty
@@ -102,7 +109,17 @@ export function resolveProfileActionsView(
       : 'Create an independent copy of this profile',
     manageDisabled: !state.hasSavedProfile,
     addDisabled: !state.canAddProfile,
-    resetVisible: state.hasSavedProfile && state.profileDirty,
+    resetDisabled,
+    resetLabel: state.hasSavedProfile
+      ? 'Reset unsaved profile changes'
+      : 'Restore Custom profile defaults',
+    resetTitle: resetDisabled
+      ? state.hasSavedProfile
+        ? 'Profile matches saved settings'
+        : 'Custom profile already uses product defaults'
+      : state.hasSavedProfile
+        ? 'Reset to saved profile'
+        : 'Restore product defaults',
   };
 }
 
@@ -190,8 +207,9 @@ export function renderProfileActionsMarkup(): string {
         Save changes
       </button>
     </div>
-    <!-- CHANGED: dirty profiles expose one immediate return-to-snapshot key beside Save. -->
-    <!-- WHY: reset is a peer decision, not a buried management action, and its reserved slot prevents layout shift. -->
+    <!-- BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults. -->
+    <!-- Fix: Keep one visibly dormant reset key that activates for either saved-snapshot reversion or Custom product defaults. -->
+    <!-- Sync: mount-clip-studio.ts; profile-actions.css; scripts/test-profile-actions.mjs -->
     <div class="studio__profile-reset-slot">
       <button
         type="button"
@@ -199,7 +217,7 @@ export function renderProfileActionsMarkup(): string {
         data-reset-profile
         aria-label="Reset unsaved profile changes"
         title="Reset profile changes"
-        hidden
+        disabled
       >
         <span class="studio__settings-reset-glyph studio__profile-reset-glyph" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -374,6 +392,7 @@ export function mountProfileActionsMenu(
     profileNames: [],
     hasSavedProfile: false,
     profileDirty: false,
+    hasResettableChanges: false,
     canAddProfile: true,
   };
   let dialogMode: ProfileDialogMode | null = null;
@@ -573,10 +592,11 @@ export function mountProfileActionsMenu(
     return error instanceof Error ? error.message : 'Could not complete the profile action.';
   }
 
-  // CHANGED: snapshot reset owns a short busy state and deterministic focus return.
-  // WHY: the successful action hides its own trigger, so keyboard focus must land on the updated Profile selector.
+  // BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+  // Fix: Only a genuinely resettable state enters busy mode; clean states remain inert and focus returns after either reset destination.
+  // Sync: mount-clip-studio.ts; profile-actions.css; scripts/test-profile-actions.mjs
   const onResetClick = (): void => {
-    if (resetBusy || resetButton.hidden || resetButton.disabled) return;
+    if (resetBusy || resetButton.disabled) return;
     resetBusy = true;
     resetButton.disabled = true;
     resetButton.setAttribute('aria-busy', 'true');
@@ -591,7 +611,7 @@ export function mountProfileActionsMenu(
       .finally(() => {
         resetBusy = false;
         resetButton.removeAttribute('aria-busy');
-        resetButton.disabled = !resolveProfileActionsView(state).resetVisible;
+        resetButton.disabled = resolveProfileActionsView(state).resetDisabled;
       });
   };
 
@@ -700,8 +720,9 @@ export function mountProfileActionsMenu(
       setActionDisabled('rename', view.manageDisabled);
       setActionDisabled('clone', view.manageDisabled);
       setActionDisabled('delete', view.manageDisabled);
-      resetButton.hidden = !view.resetVisible;
-      resetButton.disabled = resetBusy || !view.resetVisible;
+      resetButton.disabled = resetBusy || view.resetDisabled;
+      resetButton.setAttribute('aria-label', view.resetLabel);
+      resetButton.title = view.resetTitle;
 
       const addDescription = menu.querySelector<HTMLElement>(
         '[data-profile-action-description="add"]',

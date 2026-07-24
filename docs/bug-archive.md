@@ -12,15 +12,15 @@ The complete symptoms, evidence, fixes, file lists, and postmortems are preserve
 ## Prevention rules by bug class
 
 <!--
-BUG FIX: Custom (unsaved) profile edits had no primary save action
-Fix: Added BUG-039 and made save-action visibility depend on saveable state, not only saved identity.
-Sync: design-studio.md; TODO.md; claude-progress.md
+BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+Fix: Added BUG-040 and made reset enablement derive from a real saved-snapshot or Custom-default destination.
+Sync: design-studio.md; reset-semantics.md; TODO.md; claude-progress.md
 -->
 
 | Class | BUG IDs | Rule that remains active |
 |-------|---------|--------------------------|
 | Media validation, jobs, progress | 001–007 | Validate semantic artifacts; serialize jobs; distinguish liveness from progress; cancel/supersede explicitly; keep fallback tiers honest |
-| Preference/UI save races | 008–009, 016–024, 027, 039 | Hydrate before mounting; serialize preference writes; keep session transcript separate from profiles; preserve branching save pathways; derive primary actions from saveable state rather than saved identity alone |
+| Preference/UI save races | 008–009, 016–024, 027, 039–040 | Hydrate before mounting; serialize preference writes; keep session transcript separate from profiles; preserve branching save/reset pathways; derive action state from a real destination rather than saved identity alone |
 | Vosk/CSP/terminal lifecycle | 010–015, 018, 026, 032, 034, 038 | Keep Vosk in the manifest sandbox; validate each origin boundary; serialize boot; let background own terminal persistence/watchdog |
 | Subtitle composite fidelity | 025, 028, 030–031, 035–036 | Prefer shared canvas painter; bound drawtext layers; use punctuation-safe text files; preserve frame pacing and explicit fallback |
 | Development tooling | 037 | Keep ignored bulk artifacts outside WXT watch paths on Windows |
@@ -66,6 +66,7 @@ Sync: design-studio.md; TODO.md; claude-progress.md
 | BUG-037 | WXT dev crash watching ignored bulk files | Watch-scope hygiene |
 | BUG-038 | Transcript lost after initiating tab closes | Background terminal owner |
 | BUG-039 | Custom profile Save changes action hidden | Profile save-action policy |
+| BUG-040 | Profile Reset busy while clean / inert for Custom | Profile reset destination policy |
 
 BUG-029 and BUG-033 were never assigned in the preserved ledger.
 

@@ -16,8 +16,8 @@ The complete prior log—including shipped-state analysis and the user’s origi
 These remain documented for product context; **execute from TODO**:
 
 <!--
-BUG FIX: Custom (unsaved) profile edits had no primary save action
-Fix: The completed-item summary now includes the direct first-save route from the reserved Save changes key.
+BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+Fix: The completed-item summary now distinguishes the dormant clean key, saved-snapshot reset, and Custom product-default reset.
 Sync: TODO.md; docs/design-studio.md; claude-progress.md
 -->
 
@@ -26,7 +26,7 @@ Sync: TODO.md; docs/design-studio.md; claude-progress.md
 | Smart Adjust cue-adjacency gate for word-shift | **1 — Done** | Gap ≤ 0.2s for shift proposals; else prefer split/re-splice. **Not** the trust-UI presentation work below. |
 | Profile actions menu | **2 — Done** | Responsive Add / Import / Rename / Clone-or-Save-as-new / Export / confirmed Delete; the outside Save key handles both first-save Custom setups and confirmed saved-profile updates. |
 | Reset to default / reset to blank | **3 — Done** | Background and Style share one normalized, scope-preserving choice sheet; false two-destination families remain intentionally single-action. |
-| Reset dirty profile | **3.5 — Done** | A reserved lavender recovery key beside Save reapplies the selected profile snapshot and preserves unrelated session/media state. |
+| Reset dirty profile | **3.5 — Done** | The reserved lavender key is dormant while clean, reapplies a dirty saved snapshot, or restores a dirty Custom setup to complete product Profile defaults; libraries and session/media state remain. |
 | Preferences Import merge / union | **4 — Done** | Recommended merge preserves unmatched local libraries; incoming ID/name conflicts win; over-cap unions reject. Full replace remains explicit; no CRDT. |
 | Hosted orientation sticky warm-up modal after Back | **5 — Next** | Clear restored launch state without moving hosted lifecycle policy into shared Studio code. |
 

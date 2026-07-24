@@ -42,6 +42,7 @@ import {
   loadUserPreferences,
   onUserPreferencesChanged,
   renameClipProfile,
+  resetCustomClipProfileToDefaults,
   saveAppearancePreferences,
   saveCurrentAsClipProfile,
   saveCurrentAsCustomStyle,
@@ -871,12 +872,19 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   function syncProfileActions(prefs: UserPreferencesV1): void {
     const profileId = prefs.appearance.activeProfileId;
     const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
+    // BUG FIX: Profile Reset treated Custom edits as permanently non-resettable
+    // Fix: Derive the reset key from the saved-profile dirty comparator or the complete Custom-default comparator.
+    // Sync: profile-actions-menu.ts; scripts/test-profile-actions.mjs
+    const hasResettableChanges = hasSavedProfile
+      ? isProfileDirty()
+      : hasUnsavedCustomProfileSetup();
     syncProfileButton(prefs);
     profileActions?.sync({
       activeProfileName: hasSavedProfile ? activeProfile()?.name ?? null : null,
       profileNames: (prefs.appearance.savedProfiles ?? []).map((profile) => profile.name),
       hasSavedProfile,
       profileDirty: isProfileDirty(),
+      hasResettableChanges,
       canAddProfile: (prefs.appearance.savedProfiles?.length ?? 0) < MAX_CLIP_PROFILES,
     });
   }
@@ -1452,15 +1460,24 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
     },
     async onReset() {
       const profileId = activePrefs?.appearance.activeProfileId;
-      if (!profileId || isPresetProfileId(profileId) || !isProfileDirty()) {
-        throw new Error('Select a saved profile with unsaved changes to reset.');
+      const hasSavedProfile = Boolean(profileId && !isPresetProfileId(profileId));
+      const hasResettableChanges = hasSavedProfile
+        ? isProfileDirty()
+        : hasUnsavedCustomProfileSetup();
+      if (!hasResettableChanges) {
+        throw new Error('This profile already matches its reset destination.');
       }
-      // CHANGED: the compact reset key reapplies the selected profile through its normal resolver.
-      // WHY: all profile-owned Style, Background, Voice, and Subtitle fields must return together without creating a second reset policy.
+      // BUG FIX: Custom (unsaved) Profile Reset did nothing
+      // Fix: Saved profiles still reapply their snapshot; Custom now uses the atomic product-default preference pathway.
+      // Sync: user-preferences.ts; profile-actions-menu.ts; scripts/test-profile-actions.mjs
       resetProfileUpdateConfirm();
       resetStyleUpdateConfirm();
       invalidateInFlightSaves();
-      await studioPersist(() => applyClipProfile(profileId));
+      await studioPersist(() =>
+        hasSavedProfile
+          ? applyClipProfile(profileId!)
+          : resetCustomClipProfileToDefaults(),
+      );
     },
     async onDelete() {
       const profileId = activePrefs?.appearance.activeProfileId;

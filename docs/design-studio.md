@@ -1,8 +1,9 @@
 # Design Studio — Current Product Contract
 
 <!--
-CHANGED: Added the explicit merge/replace Preferences Import contract to the current Profile control surface.
-WHY: Post-v6 work needs deterministic transfer rules without reopening storage ownership or schema decisions.
+BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+Fix: Recorded the dormant clean key and the atomic product-default destination for Custom setups.
+Sync: reset-semantics.md; TODO.md; claude-progress.md
 -->
 
 ## Archive Notice (Living Document)
@@ -143,7 +144,14 @@ BUG FIX: Custom (unsaved) profile edits had no primary save action
 Fix: The reserved Save changes key now opens the existing Add-current dialog for a changed unsaved setup; saved profiles retain confirmed in-place updates.
 Sync: mount-clip-studio.ts; profile-actions-menu.ts; TODO.md; claude-progress.md
 -->
-Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, strategy-based Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. **Save changes** stays outside the menu in a reserved slot: for a changed `Custom (unsaved)` setup it opens the Add dialog with **Current setup** selected; for a dirty saved profile it retains the confirmed in-place update. The neighboring semantic reset key remains saved-profile-only and reapplies the selected snapshot through `applyClipProfile()`. The four-column row never wraps. Profile writes continue through the serialized preference coordinator and existing normalizers.
+Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, strategy-based Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. **Save changes** stays outside the menu in a reserved slot: for a changed `Custom (unsaved)` setup it opens the Add dialog with **Current setup** selected; for a dirty saved profile it retains the confirmed in-place update.
+
+<!--
+BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+Fix: The reset key is now native-disabled while clean, restores saved snapshots when named, and restores all product-default Profile fields when Custom.
+Sync: reset-semantics.md; profile-actions-menu.ts; mount-clip-studio.ts
+-->
+The neighboring reset key always occupies its reserved column but becomes active only when the selected setup has changes to discard. A dirty saved profile reapplies its snapshot through `applyClipProfile()`; a dirty `Custom (unsaved)` setup atomically restores product-default Style, Background, Voice, and Subtitle settings without deleting saved libraries or uploaded media. The four-column row never wraps. Profile writes continue through the serialized preference coordinator and existing normalizers.
 
 Reset operations distinguish **Restore defaults** from **Clear override** only when both destinations are real. Background restores normalized layout while retaining selected media, or reveals the active theme without deleting the upload. Style restores its authored source, or detaches the custom layer and resolves the bundled base preset without deleting the saved Style. Both use the shared top-layer choice sheet and normal appearance writer; profile identity, transcript, take, and unrelated settings remain untouched. Canonical inventory and copy: [`reset-semantics.md`](reset-semantics.md).
 

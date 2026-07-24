@@ -76,6 +76,7 @@ check('dirty state turns Clone into the existing Save-as-new pathway', () => {
       profileNames: ['Ad hoc'],
       hasSavedProfile: true,
       profileDirty: true,
+      hasResettableChanges: true,
       canAddProfile: true,
     }),
     {
@@ -83,7 +84,9 @@ check('dirty state turns Clone into the existing Save-as-new pathway', () => {
       cloneDescription: 'Keep the original and save these edits separately',
       manageDisabled: false,
       addDisabled: false,
-      resetVisible: true,
+      resetDisabled: false,
+      resetLabel: 'Reset unsaved profile changes',
+      resetTitle: 'Reset to saved profile',
     },
   );
 });
@@ -189,6 +192,9 @@ check('import strategy sheet defaults to merge and keeps replacement explicit', 
 });
 
 check('semantic profile reset sits between Save and the control deck', () => {
+  // BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+  // Fix: Pin one always-rendered native-disabled key plus distinct saved/Custom activation copy.
+  // Sync: src/ui/design-studio/profile-actions-menu.ts; entrypoints/design-studio/profile-actions.css
   const markup = renderProfileActionsMarkup();
   const saveIndex = markup.indexOf('data-save-profile');
   const resetIndex = markup.indexOf('data-reset-profile');
@@ -196,7 +202,37 @@ check('semantic profile reset sits between Save and the control deck', () => {
   assert.ok(saveIndex < resetIndex && resetIndex < menuIndex);
   assert.match(markup, /data-reset-profile[\s\S]*aria-label="Reset unsaved profile changes"/);
   assert.match(markup, /studio__settings-reset-glyph studio__profile-reset-glyph/);
-  assert.match(markup, /data-reset-profile[\s\S]*hidden/);
+  assert.match(markup, /data-reset-profile[\s\S]*disabled/);
+
+  const cleanSaved = resolveProfileActionsView({
+    activeProfileName: 'Ad hoc',
+    profileNames: ['Ad hoc'],
+    hasSavedProfile: true,
+    profileDirty: false,
+    hasResettableChanges: false,
+    canAddProfile: true,
+  });
+  assert.equal(cleanSaved.resetDisabled, true);
+  assert.equal(cleanSaved.resetTitle, 'Profile matches saved settings');
+
+  const dirtyCustom = resolveProfileActionsView({
+    activeProfileName: null,
+    profileNames: ['Ad hoc'],
+    hasSavedProfile: false,
+    profileDirty: false,
+    hasResettableChanges: true,
+    canAddProfile: true,
+  });
+  assert.equal(dirtyCustom.resetDisabled, false);
+  assert.equal(dirtyCustom.resetLabel, 'Restore Custom profile defaults');
+
+  const css = readFileSync(join(root, 'entrypoints/design-studio/profile-actions.css'), 'utf8');
+  assert.match(css, /\.studio__profile-reset-btn:disabled\s*\{[^}]*cursor:\s*not-allowed;/s);
+  assert.match(
+    css,
+    /\.studio__profile-reset-btn\[aria-busy='true'\]\s*\{[^}]*cursor:\s*progress;/s,
+  );
+  assert.doesNotMatch(css, /\.studio__profile-reset-btn:disabled\s*\{[^}]*cursor:\s*wait;/s);
 });
 
 check('dirty save and reset remain a non-wrapping right-hand control group', () => {
@@ -215,14 +251,14 @@ check('dirty save and reset remain a non-wrapping right-hand control group', () 
   assert.doesNotMatch(css, /\.studio__profile-save-slot\s*\{[^}]*grid-row:\s*2;/s);
 });
 
-check('reset callback reapplies the selected profile through the existing pathway', () => {
+check('reset callback chooses saved snapshot or Custom product defaults', () => {
   const mountSource = readFileSync(
     join(root, 'src/ui/design-studio/mount-clip-studio.ts'),
     'utf8',
   );
   assert.match(
     mountSource,
-    /async onReset\(\)[\s\S]*invalidateInFlightSaves\(\);[\s\S]*studioPersist\(\(\) => applyClipProfile\(profileId\)\)/,
+    /async onReset\(\)[\s\S]*hasUnsavedCustomProfileSetup\(\)[\s\S]*invalidateInFlightSaves\(\);[\s\S]*applyClipProfile\(profileId!\)[\s\S]*resetCustomClipProfileToDefaults\(\)/,
   );
 });
 

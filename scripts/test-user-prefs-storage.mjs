@@ -24,7 +24,7 @@ writeFileSync(
   entry,
   [
     "export * from '@/src/storage/user-prefs-db';",
-    "export { exportUserPreferencesAsJSON, importUserPreferencesFromJSON, loadUserPreferences, renameClipProfile, saveDefaultClipProfile } from '@/src/settings/user-preferences';",
+    "export { exportUserPreferencesAsJSON, importUserPreferencesFromJSON, loadUserPreferences, renameClipProfile, resetCustomClipProfileToDefaults, saveDefaultClipProfile } from '@/src/settings/user-preferences';",
     '',
   ].join('\n'),
 );
@@ -162,6 +162,7 @@ const {
   importUserPreferencesFromJSON,
   loadUserPreferences,
   renameClipProfile,
+  resetCustomClipProfileToDefaults,
   saveDefaultClipProfile,
 } = await import(pathToFileURL(outfile).href);
 
@@ -528,6 +529,74 @@ await check('Reddit-origin wrapper access relays through background-owned direct
   assert.equal((await loadUserPrefsDbSnapshotDirect()).customStyles.length, 0);
   assert.equal(relayCalls, 2);
   delete globalThis.location;
+});
+
+// BUG FIX: Custom (unsaved) Profile Reset did not restore product defaults
+// Fix: Verify the atomic reset clears every profile-owned draft field while retaining saved profile/style libraries.
+// Sync: src/settings/user-preferences.ts; src/ui/design-studio/mount-clip-studio.ts
+await check('Custom profile reset restores complete defaults without deleting libraries', async () => {
+  const dirtyEnvelope = JSON.parse(await exportUserPreferencesAsJSON());
+  const appearance = dirtyEnvelope.preferences.appearance;
+  appearance.savedCustomStyles = [
+    {
+      id: 'style-reset-retained',
+      name: 'Reset retention',
+      baseThemeId: 'neon-glow',
+      designOverrides: { barColor: '#ff4fd8', glowColor: '#67e8f9' },
+    },
+  ];
+  const savedProfileCount = appearance.savedProfiles.length;
+  const savedStyleCount = appearance.savedCustomStyles.length;
+  const activeStyleId = appearance.savedCustomStyles[0]?.id ?? null;
+  dirtyEnvelope.preferences.appearance = {
+    ...appearance,
+    activeProfileId: null,
+    activeThemeId: 'neon-glow',
+    barAlignment: 'top',
+    customBackgroundId: 'custom-background-test',
+    backgroundScaleMode: 'fit',
+    backgroundPosition: 'top',
+    backgroundLayout: {
+      ...appearance.backgroundLayout,
+      scaleMode: 'fit',
+      position: 'top',
+      dim: 0.72,
+      blur: 4,
+    },
+    activeCustomStyleId: activeStyleId,
+    designOverrides: { barColor: '#ff4fd8', glowColor: '#67e8f9' },
+  };
+  dirtyEnvelope.preferences.voiceEffect = {
+    ...dirtyEnvelope.preferences.voiceEffect,
+    enabled: true,
+    intensity: 86,
+  };
+  dirtyEnvelope.preferences.transcriptConfig = {
+    ...dirtyEnvelope.preferences.transcriptConfig,
+    transcriptionEnabled: true,
+    style: {
+      ...dirtyEnvelope.preferences.transcriptConfig.style,
+      enabled: true,
+    },
+  };
+
+  await importUserPreferencesFromJSON(JSON.stringify(dirtyEnvelope));
+  const reset = await resetCustomClipProfileToDefaults();
+  assert.equal(reset.appearance.activeProfileId, null);
+  assert.equal(reset.appearance.activeThemeId, 'classic');
+  assert.equal(reset.appearance.barAlignment, 'center');
+  assert.equal(reset.appearance.customBackgroundId, null);
+  assert.equal(reset.appearance.backgroundScaleMode, 'fill');
+  assert.equal(reset.appearance.backgroundPosition, 'center');
+  assert.equal(reset.appearance.backgroundLayout.scaleMode, 'fill');
+  assert.equal(reset.appearance.backgroundLayout.position, 'center');
+  assert.equal(reset.appearance.activeCustomStyleId, null);
+  assert.equal(reset.appearance.designOverrides, null);
+  assert.equal(reset.voiceEffect.enabled, false);
+  assert.equal(reset.transcriptConfig.transcriptionEnabled, false);
+  assert.equal(localValues.get('rvnSubtitlesEnabled'), false);
+  assert.equal(reset.appearance.savedProfiles.length, savedProfileCount);
+  assert.equal(reset.appearance.savedCustomStyles.length, savedStyleCount);
 });
 
 rmSync(outdir, { recursive: true, force: true });

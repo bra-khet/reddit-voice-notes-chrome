@@ -1018,6 +1018,53 @@ export async function applyClipProfile(profileId: string): Promise<UserPreferenc
   });
 }
 
+// BUG FIX: Custom (unsaved) Profile Reset had no product-default persistence path
+// Fix: Restore every profile-owned field in one serialized commit while preserving saved libraries, media blobs, and global preferences.
+// Sync: mount-clip-studio.ts; profile-actions-menu.ts; scripts/test-user-prefs-storage.mjs
+export async function resetCustomClipProfileToDefaults(): Promise<UserPreferencesV1> {
+  return enqueuePrefsOp(async () => {
+    const current = await readUserPreferencesBlob();
+    const defaultLayout = userBackgroundLayoutFromAppearance(
+      DEFAULT_USER_PREFERENCES.appearance,
+    );
+    const defaultTranscript = transcriptConfigForProfileStorage(DEFAULT_TRANSCRIPT_CONFIG);
+    const previousSubtitlesEnabled = normalizeTranscriptConfig(
+      current.transcriptConfig,
+    ).transcriptionEnabled;
+
+    await setSubtitlesEnabled(defaultTranscript.transcriptionEnabled);
+    try {
+      return await commitUserPreferences({
+        ...current,
+        appearance: mergeAppearancePreferences({
+          ...current.appearance,
+          activeThemeId: DEFAULT_THEME_ID,
+          barAlignment: DEFAULT_USER_PREFERENCES.appearance.barAlignment ?? 'center',
+          customBackgroundId: null,
+          backgroundScaleMode: defaultLayout.scaleMode,
+          backgroundPosition: defaultLayout.position,
+          backgroundLayout: defaultLayout,
+          activeCustomStyleId: null,
+          designOverrides: null,
+          activeProfileId: null,
+        }),
+        voiceEffect: normalizeVoiceEffectConfig(DEFAULT_VOICE_EFFECT_CONFIG),
+        transcriptConfig: defaultTranscript,
+      });
+    } catch (error) {
+      try {
+        await setSubtitlesEnabled(previousSubtitlesEnabled);
+      } catch (rollbackError) {
+        console.warn(
+          '[Reddit Voice Notes] Could not restore subtitle flag after Custom profile reset failure',
+          rollbackError,
+        );
+      }
+      throw error;
+    }
+  });
+}
+
 export type SaveClipProfileOptions = {
   /** Snapshot live color edits on the profile instead of linking a dirty saved style. */
   embedDirtyStyleOverrides?: boolean;

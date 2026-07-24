@@ -1,8 +1,9 @@
 # Reddit Voice Notes — Current Handoff
 
 <!--
-CHANGED: Recorded the completed Preferences Import merge/union sprint and advanced the next lifecycle bug.
-WHY: Fresh sessions need exact transfer conflict rules and should not reopen settled storage/UI policy.
+BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+Fix: Updated the handoff with the dormant clean state and complete Custom product-default recovery path.
+Sync: TODO.md; docs/reset-semantics.md; docs/design-studio.md
 -->
 
 ## Archive Notice (Living Document)
@@ -46,7 +47,12 @@ The Profile/Status selector now anchors one host-neutral, responsive Cividis men
 
 ### Dirty profile recovery (delivered)
 
-A compact lavender reset key now occupies a reserved slot between dirty **Save changes** and the Profile Control Deck. It appears only for a dirty saved profile, reuses `studio__settings-reset-glyph`, and reapplies the selected profile through `applyClipProfile()` so Style, Background, Voice, and Subtitle preferences return as one snapshot. It preserves profile identity, session transcript text, take, and media stores; success hides both dirty actions and returns focus to the selector. The row remains one four-column grid—fluid selector, `124px` Save, `38px` reset, `38px` menu—with the existing `112px` narrowest Save fallback.
+<!--
+BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+Fix: The handoff now records disabled clean semantics and the atomic Custom default destination.
+Sync: TODO.md; docs/reset-semantics.md; docs/design-studio.md
+-->
+A compact lavender reset key occupies a reserved slot between dirty **Save changes** and the Profile Control Deck. It remains visibly dormant and native-disabled for clean saved/Custom setups; progress feedback appears only during a real reset. Dirty saved profiles reapply their snapshot through `applyClipProfile()`. Dirty `Custom (unsaved)` setups atomically restore product-default Style, Background, Voice, and Subtitle settings through the existing preference coordinator. Both preserve saved libraries, uploaded media, session transcript text, the current take, and global settings; success deactivates Reset, hides Save, and returns focus to the selector. The row remains one four-column grid—fluid selector, `124px` Save, `38px` reset, `38px` menu—with the existing `112px` narrowest Save fallback. Proof: profile actions **11/11**, preference storage **17/17**, host neutrality **15/15**, compile zero errors, plus hosted interaction QA with no console errors.
 
 ### Reset semantics (delivered)
 

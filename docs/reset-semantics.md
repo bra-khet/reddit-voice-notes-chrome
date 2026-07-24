@@ -1,8 +1,9 @@
 # Settings Reset Semantics
 
 <!--
-CHANGED: Distinguished dirty-profile snapshot reversion from Background/Style default-vs-blank resets.
-WHY: reset copy must identify the real source being restored and never imply that a saved profile is being cleared or replaced.
+BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
+Fix: Defined one dormant clean state plus distinct saved-snapshot and Custom product-default destinations.
+Sync: design-studio.md; TODO.md; claude-progress.md
 -->
 
 ## Archive Notice (Living Document)
@@ -26,7 +27,12 @@ Every reset must:
 - preserve unrelated profile identity, transcript/session text, current take, and media blobs;
 - use the shared accessible choice-sheet pattern when both destinations are real.
 
-The compact Profile/Status reset key is a separate **snapshot reversion**, not a default/blank choice. It appears only for a dirty saved profile and reapplies that profile through `applyClipProfile()`. The saved profile and its identity remain; only unsaved profile-owned settings on screen are discarded.
+The compact Profile/Status reset key is a separate **profile reversion**, not a default/blank choice. Its reserved slot remains visible but natively disabled whenever the selected setup is clean.
+
+- A dirty saved profile reapplies its snapshot through `applyClipProfile()`.
+- A dirty `Custom (unsaved)` setup restores the complete product-default Profile state through `resetCustomClipProfileToDefaults()`: Classic Style, product Background layout with no selected media, default Voice, and default Subtitle settings.
+
+Both destinations use the serialized preference writer and preserve saved profile/style libraries, uploaded media blobs, global preferences, the current take, and session transcript text.
 
 ## Field inventory
 
