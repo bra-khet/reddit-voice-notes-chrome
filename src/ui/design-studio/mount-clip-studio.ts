@@ -1389,6 +1389,18 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         forkActiveClipProfileFromStudio(activePrefs!, name, dirty),
       );
     },
+    async onReset() {
+      const profileId = activePrefs?.appearance.activeProfileId;
+      if (!profileId || isPresetProfileId(profileId) || !isProfileDirty()) {
+        throw new Error('Select a saved profile with unsaved changes to reset.');
+      }
+      // CHANGED: the compact reset key reapplies the selected profile through its normal resolver.
+      // WHY: all profile-owned Style, Background, Voice, and Subtitle fields must return together without creating a second reset policy.
+      resetProfileUpdateConfirm();
+      resetStyleUpdateConfirm();
+      invalidateInFlightSaves();
+      await studioPersist(() => applyClipProfile(profileId));
+    },
     async onDelete() {
       const profileId = activePrefs?.appearance.activeProfileId;
       if (!profileId || isPresetProfileId(profileId)) {

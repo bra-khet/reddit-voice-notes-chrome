@@ -1,8 +1,8 @@
 # Settings Reset Semantics
 
 <!--
-CHANGED: Completed the two-destination reset pattern for Background and Style.
-WHY: reset copy must reflect real fallback behavior, preserve authored sources, and never erase adjacent profile, transcript, take, or media state.
+CHANGED: Distinguished dirty-profile snapshot reversion from Background/Style default-vs-blank resets.
+WHY: reset copy must identify the real source being restored and never imply that a saved profile is being cleared or replaced.
 -->
 
 ## Archive Notice (Living Document)
@@ -25,6 +25,8 @@ Every reset must:
 - update profile dirty state without saving the profile automatically;
 - preserve unrelated profile identity, transcript/session text, current take, and media blobs;
 - use the shared accessible choice-sheet pattern when both destinations are real.
+
+The compact Profile/Status reset key is a separate **snapshot reversion**, not a default/blank choice. It appears only for a dirty saved profile and reapplies that profile through `applyClipProfile()`. The saved profile and its identity remain; only unsaved profile-owned settings on screen are discarded.
 
 ## Field inventory
 

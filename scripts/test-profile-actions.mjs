@@ -82,6 +82,7 @@ check('dirty state turns Clone into the existing Save-as-new pathway', () => {
       cloneDescription: 'Keep the original and save these edits separately',
       manageDisabled: false,
       addDisabled: false,
+      resetVisible: true,
     },
   );
 });
@@ -101,17 +102,42 @@ check('markup preserves grouped action order and dialog accessibility', () => {
   assert.match(markup, /data-save-profile[\s\S]*hidden/);
 });
 
-check('dirty save remains a non-wrapping right-hand control at every breakpoint', () => {
-  // BUG FIX: Save changes collapsed or moved below the Profile selector
-  // Fix: Pin the three-column row, minimum action width, and removal of the former second grid row.
+check('semantic profile reset sits between Save and the control deck', () => {
+  const markup = renderProfileActionsMarkup();
+  const saveIndex = markup.indexOf('data-save-profile');
+  const resetIndex = markup.indexOf('data-reset-profile');
+  const menuIndex = markup.indexOf('data-profile-actions-shell');
+  assert.ok(saveIndex < resetIndex && resetIndex < menuIndex);
+  assert.match(markup, /data-reset-profile[\s\S]*aria-label="Reset unsaved profile changes"/);
+  assert.match(markup, /studio__settings-reset-glyph studio__profile-reset-glyph/);
+  assert.match(markup, /data-reset-profile[\s\S]*hidden/);
+});
+
+check('dirty save and reset remain a non-wrapping right-hand control group', () => {
+  // BUG FIX: Profile actions collapsed or wrapped at intermediate widths
+  // Fix: Pin the four-column row, usable Save width, fixed reset/menu keys, and removal of any second grid row.
+  // Sync: entrypoints/design-studio/profile-actions.css
   const css = readFileSync(join(root, 'entrypoints/design-studio/profile-actions.css'), 'utf8');
   assert.match(
     css,
-    /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(124px,\s*auto\)\s+38px/,
+    /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(124px,\s*auto\)\s+38px\s+38px/,
   );
   assert.match(css, /\.studio__profile-save-slot\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1;/s);
   assert.match(css, /\.studio__profile-save-btn\s*\{[^}]*min-width:\s*124px;[^}]*white-space:\s*nowrap;/s);
+  assert.match(css, /\.studio__profile-reset-slot\s*\{[^}]*grid-column:\s*3;[^}]*grid-row:\s*1;/s);
+  assert.match(css, /\.studio__profile-actions-shell\s*\{[^}]*grid-column:\s*4;[^}]*grid-row:\s*1;/s);
   assert.doesNotMatch(css, /\.studio__profile-save-slot\s*\{[^}]*grid-row:\s*2;/s);
+});
+
+check('reset callback reapplies the selected profile through the existing pathway', () => {
+  const mountSource = readFileSync(
+    join(root, 'src/ui/design-studio/mount-clip-studio.ts'),
+    'utf8',
+  );
+  assert.match(
+    mountSource,
+    /async onReset\(\)[\s\S]*invalidateInFlightSaves\(\);[\s\S]*studioPersist\(\(\) => applyClipProfile\(profileId\)\)/,
+  );
 });
 
 rmSync(outdir, { recursive: true, force: true });

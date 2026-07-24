@@ -1,8 +1,8 @@
 # Reddit Voice Notes — Current Handoff
 
 <!--
-CHANGED: Recorded the completed Background/Style reset semantics and advanced the ordered queue to import merge/union.
-WHY: Fresh sessions need the verified reset/storage baseline, its proof, and the exact next bounded slice.
+CHANGED: Recorded the completed #3.5 dirty-profile reset key while keeping import merge/union next.
+WHY: Fresh sessions need the exact snapshot-revert and responsive Profile deck contract before extending Import.
 -->
 
 ## Archive Notice (Living Document)
@@ -11,7 +11,7 @@ This file describes only the current stable baseline and the next open choices. 
 
 ## Stable baseline
 
-- post-`v6.0.0` main with Smart Adjust adjacency, Profile actions, and Background/Style reset polish complete
+- post-`v6.0.0` main with Smart Adjust adjacency, Profile actions, Background/Style resets, and dirty-profile recovery complete
 - package/tag `6.0.0` / `v6.0.0`
 - v6 Tracks A/B/C/D and the Field Guide are shipped
 - six extension execution contexts remain; hosted Design Studio is a second host, not a seventh context
@@ -25,6 +25,7 @@ This file describes only the current stable baseline and the next open choices. 
 | **1** | ✅ Done | Smart Adjust word-shift **cue-adjacency gate** |
 | **2** | ✅ Done | **Profile actions menu** |
 | **3** | ✅ Done | **Reset to default / blank** — Background + Style |
+| **3.5** | ✅ Done | **Reset dirty profile** |
 | **4** | **Next** | **Prefs Import merge/union** |
 | **5** | Queued | Hosted orientation sticky **Warming up** modal after Back |
 
@@ -36,7 +37,11 @@ Full acceptance criteria: [`TODO.md`](TODO.md). Product background: [`docs/futur
 
 ### Profile actions control deck (delivered)
 
-The Profile/Status selector now anchors one host-neutral, responsive Cividis menu: Add current/default, Import full-replace JSON, identity-preserving Rename, clean Clone or dirty Save as new, Export full preferences, and confirmed Delete. Add/Rename/Clone/Delete share an accessible dialog; copy names choose the first free positive integer. Dirty **Save changes** stays outside the menu in a reserved slot. New default creation and rename serialize through the existing preference writer. Proof: `npm run test:profile-actions` **7/7**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, `npm run compile` zero errors, plus desktop/800 px/390 px hosted interaction checks with no console errors.
+The Profile/Status selector now anchors one host-neutral, responsive Cividis menu: Add current/default, Import full-replace JSON, identity-preserving Rename, clean Clone or dirty Save as new, Export full preferences, and confirmed Delete. Add/Rename/Clone/Delete share an accessible dialog; copy names choose the first free positive integer. Dirty **Save changes** stays outside the menu in a reserved slot. New default creation and rename serialize through the existing preference writer. Proof: `npm run test:profile-actions` **9/9**, `node scripts/test-user-prefs-storage.mjs` **14/14**, `npm run test:host-neutrality` **15/15**, `npm run compile` zero errors, plus desktop/800 px/390 px hosted interaction checks with no console errors.
+
+### Dirty profile recovery (delivered)
+
+A compact lavender reset key now occupies a reserved slot between dirty **Save changes** and the Profile Control Deck. It appears only for a dirty saved profile, reuses `studio__settings-reset-glyph`, and reapplies the selected profile through `applyClipProfile()` so Style, Background, Voice, and Subtitle preferences return as one snapshot. It preserves profile identity, session transcript text, take, and media stores; success hides both dirty actions and returns focus to the selector. The row remains one four-column grid—fluid selector, `124px` Save, `38px` reset, `38px` menu—with the existing `112px` narrowest Save fallback.
 
 ### Reset semantics (delivered)
 
@@ -65,6 +70,7 @@ Reddit Voice Notes is stable at v6.0.0 (docs baseline main@044327c).
 Start with docs/HISTORY.md and TODO.md ordered polish queue.
 Smart Adjust cue-adjacency and the responsive Profile actions control deck are complete.
 Background/Style reset semantics are complete; saved sources, unrelated state, and keyboard return paths are preserved.
+Dirty saved profiles now expose adjacent Save and snapshot-reset choices without wrapping the control deck.
 Next implementable slice: Preferences Import merge/union with explicit conflict rules beside full replace.
 Treat completed pre-v6 and v6 track roadmaps as archive history, not active plans.
 ```

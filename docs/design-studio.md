@@ -1,8 +1,8 @@
 # Design Studio — Current Product Contract
 
 <!--
-CHANGED: Added the completed Background/Style reset contract to the current Studio surface.
-WHY: Post-v6 work needs exact restore-vs-inherit behavior without reopening historical panel plans.
+CHANGED: Added the dirty-profile snapshot reset to the current Profile control contract.
+WHY: Post-v6 work must distinguish reverting a saved profile from default/blank field resets.
 -->
 
 ## Archive Notice (Living Document)
@@ -138,7 +138,7 @@ Keep four independent layers:
 | Transcript panel | Session transcript IDB | No | Yes |
 | Segment modal | Applies to transcript draft | No | No |
 
-Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, full-replace Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot. Profile writes continue through the serialized preference coordinator and existing normalizers.
+Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, full-replace Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot; a neighboring semantic reset key reapplies the selected saved profile through `applyClipProfile()` and then returns focus to the selector. The four-column row never wraps. Profile writes continue through the serialized preference coordinator and existing normalizers.
 
 Reset operations distinguish **Restore defaults** from **Clear override** only when both destinations are real. Background restores normalized layout while retaining selected media, or reveals the active theme without deleting the upload. Style restores its authored source, or detaches the custom layer and resolves the bundled base preset without deleting the saved Style. Both use the shared top-layer choice sheet and normal appearance writer; profile identity, transcript, take, and unrelated settings remain untouched. Canonical inventory and copy: [`reset-semantics.md`](reset-semantics.md).
 

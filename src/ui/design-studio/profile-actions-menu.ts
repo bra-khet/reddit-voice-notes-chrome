@@ -1,5 +1,5 @@
-// CHANGED: Profile management now uses one host-neutral menu and dialog controller.
-// WHY: the Studio needs a compact, keyboard-complete action surface without duplicating storage policy.
+// CHANGED: Profile management uses one host-neutral menu/dialog controller plus an adjacent dirty-reset key.
+// WHY: the Studio needs compact Save/recover choices and keyboard-complete management without duplicating storage policy.
 
 export type CreateProfileSource = 'current' | 'defaults';
 
@@ -15,6 +15,7 @@ export interface ProfileActionsCallbacks {
   onCreate(name: string, source: CreateProfileSource): Promise<void>;
   onRename(name: string): Promise<void>;
   onClone(name: string): Promise<void>;
+  onReset(): Promise<void>;
   onDelete(): Promise<void>;
   onExport(): void | Promise<void>;
   onImport(): void;
@@ -31,6 +32,7 @@ export interface ProfileActionsView {
   cloneDescription: string;
   manageDisabled: boolean;
   addDisabled: boolean;
+  resetVisible: boolean;
 }
 
 type ProfileAction = 'add' | 'import' | 'rename' | 'clone' | 'export' | 'delete';
@@ -84,6 +86,7 @@ export function resolveProfileActionsView(
       : 'Create an independent copy of this profile',
     manageDisabled: !state.hasSavedProfile,
     addDisabled: !state.canAddProfile,
+    resetVisible: state.hasSavedProfile && state.profileDirty,
   };
 }
 
@@ -140,6 +143,25 @@ export function renderProfileActionsMarkup(): string {
         hidden
       >
         Save changes
+      </button>
+    </div>
+    <!-- CHANGED: dirty profiles expose one immediate return-to-snapshot key beside Save. -->
+    <!-- WHY: reset is a peer decision, not a buried management action, and its reserved slot prevents layout shift. -->
+    <div class="studio__profile-reset-slot">
+      <button
+        type="button"
+        class="studio__profile-reset-btn"
+        data-reset-profile
+        aria-label="Reset unsaved profile changes"
+        title="Reset profile changes"
+        hidden
+      >
+        <span class="studio__settings-reset-glyph studio__profile-reset-glyph" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M5.2 8.4A8 8 0 1 1 4 14.7" />
+            <path d="M4.8 3.8v5h5" />
+          </svg>
+        </span>
       </button>
     </div>
     <div class="studio__profile-actions-shell" data-profile-actions-shell>
@@ -257,6 +279,8 @@ export function mountProfileActionsMenu(
   root: HTMLElement,
   callbacks: ProfileActionsCallbacks,
 ): ProfileActionsHandle {
+  const profileSelect = root.querySelector<HTMLSelectElement>('[data-profile-select]');
+  const resetButton = root.querySelector<HTMLButtonElement>('[data-reset-profile]')!;
   const shell = root.querySelector<HTMLElement>('[data-profile-actions-shell]')!;
   const trigger = root.querySelector<HTMLButtonElement>('[data-profile-actions-trigger]')!;
   const menu = root.querySelector<HTMLElement>('[data-profile-actions-menu]')!;
@@ -284,6 +308,7 @@ export function mountProfileActionsMenu(
     canAddProfile: true,
   };
   let dialogMode: ProfileDialogMode | null = null;
+  let resetBusy = false;
   let disposed = false;
 
   function menuItems(): HTMLButtonElement[] {
@@ -457,6 +482,29 @@ export function mountProfileActionsMenu(
     return error instanceof Error ? error.message : 'Could not complete the profile action.';
   }
 
+  // CHANGED: snapshot reset owns a short busy state and deterministic focus return.
+  // WHY: the successful action hides its own trigger, so keyboard focus must land on the updated Profile selector.
+  const onResetClick = (): void => {
+    if (resetBusy || resetButton.hidden || resetButton.disabled) return;
+    resetBusy = true;
+    resetButton.disabled = true;
+    resetButton.setAttribute('aria-busy', 'true');
+    void callbacks.onReset()
+      .then(() => {
+        if (!disposed) (profileSelect ?? trigger).focus();
+      })
+      .catch((error: unknown) => {
+        console.error('[Reddit Voice Notes] Could not reset profile changes', error);
+        window.alert(errorMessage(error));
+      })
+      .finally(() => {
+        resetBusy = false;
+        resetButton.removeAttribute('aria-busy');
+        resetButton.disabled = !resolveProfileActionsView(state).resetVisible;
+      });
+  };
+
+  resetButton.addEventListener('click', onResetClick);
   trigger.addEventListener('click', () => {
     if (menu.hidden) openMenu();
     else closeMenu();
@@ -549,6 +597,8 @@ export function mountProfileActionsMenu(
       setActionDisabled('rename', view.manageDisabled);
       setActionDisabled('clone', view.manageDisabled);
       setActionDisabled('delete', view.manageDisabled);
+      resetButton.hidden = !view.resetVisible;
+      resetButton.disabled = resetBusy || !view.resetVisible;
 
       const addDescription = menu.querySelector<HTMLElement>(
         '[data-profile-action-description="add"]',
@@ -574,6 +624,7 @@ export function mountProfileActionsMenu(
       closeMenu();
       closeDialog(false);
       document.removeEventListener('pointerdown', onDocumentPointerDown);
+      resetButton.removeEventListener('click', onResetClick);
     },
   };
 }
