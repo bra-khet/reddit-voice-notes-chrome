@@ -99,7 +99,32 @@ check('markup preserves grouped action order and dialog accessibility', () => {
   assert.match(markup, /aria-modal="true"/);
   assert.match(markup, /value="current"/);
   assert.match(markup, /value="defaults"/);
+  assert.match(markup, /name="profile-import-strategy" value="merge" checked/);
+  assert.match(markup, /name="profile-import-strategy" value="replace"/);
+  assert.match(markup, /Merge with this Studio/);
+  assert.match(markup, /Replace all preferences/);
   assert.match(markup, /data-save-profile[\s\S]*hidden/);
+});
+
+check('import strategy sheet defaults to merge and keeps replacement explicit', () => {
+  const markup = renderProfileActionsMarkup();
+  const mergeIndex = markup.indexOf('value="merge"');
+  const replaceIndex = markup.indexOf('value="replace"');
+  assert.ok(mergeIndex >= 0 && mergeIndex < replaceIndex);
+  assert.match(markup, /studio__profile-import-badge">Recommended/);
+  assert.match(markup, /keep unmatched local profiles and styles/i);
+  assert.match(markup, /local profiles and styles missing from it are removed/i);
+
+  const mountSource = readFileSync(
+    join(root, 'src/ui/design-studio/mount-clip-studio.ts'),
+    'utf8',
+  );
+  assert.match(mountSource, /importUserPreferencesFromJSON\(json,\s*strategy\)/);
+  assert.match(mountSource, /strategy === 'replace'[\s\S]*window\.confirm/);
+  const css = readFileSync(join(root, 'entrypoints/design-studio/profile-actions.css'), 'utf8');
+  assert.match(css, /\.studio__profile-import-option--merge:has\(input:checked\)/);
+  assert.match(css, /\.studio__profile-import-option--replace:has\(input:checked\)/);
+  assert.match(css, /\[data-profile-import-options\]\[hidden\]/);
 });
 
 check('semantic profile reset sits between Save and the control deck', () => {

@@ -334,6 +334,124 @@ await check('export emits a versioned full snapshot and import replaces it once'
   assert.ok(localValues.get('rvnUserPrefs.v2').revision > priorRevision);
 });
 
+// CHANGED: Merge import tests pin incoming-wins identity/name rules, link repair, and cap safety.
+// WHY: union must preserve unmatched local libraries without silently dropping records or bypassing the atomic writer.
+await check('merge import unions libraries and overwrites incoming ID/name conflicts', async () => {
+  const localEnvelope = JSON.parse(await exportUserPreferencesAsJSON());
+  localEnvelope.preferences.appearance.savedProfiles.push(
+    {
+      ...localEnvelope.preferences.appearance.savedProfiles[0],
+      id: 'clip-local-keep',
+      name: 'Local keep',
+      customStyleId: 'style-one',
+    },
+    {
+      ...localEnvelope.preferences.appearance.savedProfiles[0],
+      id: 'clip-id-conflict',
+      name: 'Local by id',
+      customStyleId: 'style-id-conflict',
+    },
+  );
+  localEnvelope.preferences.appearance.savedCustomStyles.push(
+    {
+      ...localEnvelope.preferences.appearance.savedCustomStyles[0],
+      id: 'style-id-conflict',
+      name: 'Local style by id',
+    },
+    {
+      ...localEnvelope.preferences.appearance.savedCustomStyles[0],
+      id: 'style-local-only',
+      name: 'Local only',
+    },
+  );
+  await importUserPreferencesFromJSON(JSON.stringify(localEnvelope));
+
+  const incoming = structuredClone(localEnvelope);
+  incoming.preferences.audio.rawMicCapture = true;
+  incoming.preferences.appearance.activeProfileId = 'clip-remote-name';
+  incoming.preferences.appearance.activeCustomStyleId = 'style-remote-warm';
+  incoming.preferences.appearance.savedCustomStyles = [
+    {
+      ...localEnvelope.preferences.appearance.savedCustomStyles[0],
+      id: 'style-remote-warm',
+      name: 'WARM',
+      designOverrides: { barColor: '#00ccff' },
+    },
+    {
+      ...localEnvelope.preferences.appearance.savedCustomStyles[0],
+      id: 'style-id-conflict',
+      name: 'Remote by id',
+      designOverrides: { barColor: '#cc00ff' },
+    },
+    {
+      ...localEnvelope.preferences.appearance.savedCustomStyles[0],
+      id: 'style-remote-only',
+      name: 'Remote only',
+    },
+  ];
+  incoming.preferences.appearance.savedProfiles = [
+    {
+      ...localEnvelope.preferences.appearance.savedProfiles[0],
+      id: 'clip-remote-name',
+      name: 'IMPORTED PROFILE',
+      customStyleId: 'style-remote-warm',
+    },
+    {
+      ...localEnvelope.preferences.appearance.savedProfiles[0],
+      id: 'clip-id-conflict',
+      name: 'Remote profile by id',
+      customStyleId: 'style-id-conflict',
+    },
+    {
+      ...localEnvelope.preferences.appearance.savedProfiles[0],
+      id: 'clip-remote-only',
+      name: 'Remote only',
+      customStyleId: 'style-remote-only',
+    },
+  ];
+
+  const merged = await importUserPreferencesFromJSON(JSON.stringify(incoming), 'merge');
+  assert.equal(merged.audio.rawMicCapture, true, 'incoming global settings become active');
+  assert.deepEqual(
+    merged.appearance.savedCustomStyles.map((style) => style.id),
+    ['style-remote-warm', 'style-id-conflict', 'style-local-only', 'style-remote-only'],
+  );
+  assert.deepEqual(
+    merged.appearance.savedProfiles.map((profile) => profile.id),
+    ['clip-remote-name', 'clip-local-keep', 'clip-id-conflict', 'clip-remote-only'],
+  );
+  assert.equal(
+    merged.appearance.savedProfiles.find((profile) => profile.id === 'clip-local-keep')
+      .customStyleId,
+    'style-remote-warm',
+    'retained local profiles follow a same-name style replacement',
+  );
+  assert.equal(merged.appearance.activeProfileId, 'clip-remote-name');
+  assert.equal(merged.appearance.activeCustomStyleId, 'style-remote-warm');
+  assert.equal((await loadUserPrefsDbSnapshot()).profiles.length, 4);
+});
+
+await check('over-cap merge rejects before changing preferences or revision', async () => {
+  const before = await loadUserPrefsDbSnapshot();
+  const priorRevision = localValues.get('rvnUserPrefs.v2').revision;
+  const incoming = JSON.parse(await exportUserPreferencesAsJSON());
+  const template = incoming.preferences.appearance.savedProfiles[0];
+  incoming.preferences.appearance.savedProfiles = Array.from({ length: 9 }, (_, index) => ({
+    ...template,
+    id: `clip-over-cap-${index}`,
+    name: `Over cap ${index}`,
+    customStyleId: null,
+  }));
+  incoming.preferences.appearance.savedCustomStyles = [];
+
+  await assert.rejects(
+    importUserPreferencesFromJSON(JSON.stringify(incoming), 'merge'),
+    /13 profiles, above the limit of 12/,
+  );
+  assert.equal(localValues.get('rvnUserPrefs.v2').revision, priorRevision);
+  assert.deepEqual(await loadUserPrefsDbSnapshot(), before);
+});
+
 await check('invalid import is rejected without publishing a new revision', async () => {
   const priorRevision = localValues.get('rvnUserPrefs.v2').revision;
   await assert.rejects(
@@ -346,6 +464,7 @@ await check('invalid import is rejected without publishing a new revision', asyn
 // CHANGED: Profile action storage tests cover clean-default creation and identity-preserving rename.
 // WHY: the new menu must reuse the atomic IDB writer and never smuggle session text into profiles.
 await check('default profile creation starts clean and activates the new profile', async () => {
+  const priorProfileCount = (await loadUserPrefsDbSnapshot()).profiles.length;
   const created = await saveDefaultClipProfile('Fresh profile');
   const activeId = created.appearance.activeProfileId;
   const profile = created.appearance.savedProfiles.find((entry) => entry.id === activeId);
@@ -359,7 +478,7 @@ await check('default profile creation starts clean and activates the new profile
   assert.equal(created.voiceEffect.enabled, false);
   assert.equal(created.transcriptConfig.transcriptionEnabled, false);
   assert.equal(localValues.get('rvnSubtitlesEnabled'), false);
-  assert.equal((await loadUserPrefsDbSnapshot()).profiles.length, 2);
+  assert.equal((await loadUserPrefsDbSnapshot()).profiles.length, priorProfileCount + 1);
 });
 
 await check('rename preserves profile identity and rejects duplicate names', async () => {
@@ -399,7 +518,12 @@ await check('Reddit-origin wrapper access relays through background-owned direct
   };
 
   const current = await loadUserPrefsDbSnapshot();
-  assert.equal(current.profiles[0].name, 'Imported profile');
+  assert.equal(
+    current.profiles.find(
+      (profile) => profile.id === current.global.appearance.activeProfileId,
+    ).name,
+    'Clean slate',
+  );
   await replaceUserPrefsDbSnapshot({ ...current, customStyles: [] });
   assert.equal((await loadUserPrefsDbSnapshotDirect()).customStyles.length, 0);
   assert.equal(relayCalls, 2);

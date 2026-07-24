@@ -48,6 +48,7 @@ import {
   shouldReduceMotion,
   updateActiveClipProfile,
   updateActiveCustomStyle,
+  type UserPreferencesImportStrategy,
   type UserPreferencesV1,
 } from '@/src/settings/user-preferences';
 import type { DesignOverrides } from '@/src/theme/design-overrides';
@@ -401,6 +402,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   let lastPreviewFrame = 0;
   let profileUpdateConfirmPending = false;
   let styleUpdateConfirmPending = false;
+  let pendingImportStrategy: UserPreferencesImportStrategy = 'merge';
   let studioSaveGeneration = 0;
   let ignoreStoragePrefs = false;
   let colorSaveTimer = 0;
@@ -1430,7 +1432,8 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
         window.alert(message);
       }
     },
-    onImport() {
+    onImport(strategy) {
+      pendingImportStrategy = strategy;
       importPreferencesFile.click();
     },
   });
@@ -1507,19 +1510,37 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
   importPreferencesFile.addEventListener('change', () => {
     const file = importPreferencesFile.files?.[0];
     if (!file) return;
-    if (!window.confirm('Replace all current Reddit Voice Notes preferences with this backup?')) {
+    const strategy = pendingImportStrategy;
+    if (
+      strategy === 'replace' &&
+      !window.confirm(
+        'Replace all current Reddit Voice Notes preferences with this backup? ' +
+          'Local profiles and styles missing from the file will be removed.',
+      )
+    ) {
       importPreferencesFile.value = '';
+      pendingImportStrategy = 'merge';
       return;
     }
 
+    // CHANGED: the chosen transfer strategy flows through the existing serialized import writer.
+    // WHY: merge must preserve unmatched libraries without creating a second storage or refresh path.
     invalidateInFlightSaves();
     void (async () => {
       await flushPendingDesignPersist();
       await subtitleControls.flushPersist();
       await voiceControls.flushPersist();
       const json = await file.text();
-      const prefs = await studioPersist(() => importUserPreferencesFromJSON(json));
-      if (prefs) window.alert('Preferences imported successfully.');
+      const prefs = await studioPersist(() =>
+        importUserPreferencesFromJSON(json, strategy),
+      );
+      if (prefs) {
+        window.alert(
+          strategy === 'merge'
+            ? 'Preferences merged. Imported settings now apply; unmatched local profiles and styles were kept.'
+            : 'Preferences replaced successfully.',
+        );
+      }
     })()
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : 'Could not import preferences.';
@@ -1527,6 +1548,7 @@ export function mountClipStudio(root: HTMLElement, options?: MountClipStudioOpti
       })
       .finally(() => {
         importPreferencesFile.value = '';
+        pendingImportStrategy = 'merge';
       });
   });
 

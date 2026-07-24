@@ -1,8 +1,8 @@
 # TODO — Post-v6.0.0
 
 <!--
-CHANGED: Recorded the shipped #3.5 dirty-profile reset key without disturbing the ordered import queue.
-WHY: Current handoff must distinguish snapshot reversion from default/blank resets and preserve the responsive Profile deck contract.
+CHANGED: Recorded the shipped Preferences Import merge/union path and advanced the ordered queue.
+WHY: Current handoff must preserve deterministic transfer rules and identify the hosted warm-up lifecycle bug as next.
 -->
 
 ## Archive Notice (Living Document)
@@ -19,8 +19,8 @@ Work **one bounded slice at a time**. Order is intentional; completed items stay
 | **2** | ✅ Done | **Profile actions menu** | Medium | Medium | Shipped as a responsive control deck with one accessible dialog primitive; details and proof below. |
 | **3** | ✅ Done | **Reset to default / reset to blank** | Medium | Medium | The two distinct families—Background and Style—now share normalized, scope-preserving return paths. |
 | **3.5** | ✅ Done | **Reset dirty profile** | Medium | Small | A compact recovery key now reapplies the selected saved snapshot beside Save without wrapping the deck. |
-| **4** | **Next** | **Preferences Import merge / union** | Low | Small–Medium | Storage-careful; profile Import UX and reset semantics are now settled. |
-| **5** | Queued | **Hosted orientation — sticky “Warming up” modal after Back** | Medium | Small–Medium | Separate hosted lifecycle bug; preserve queue order and diagnose only after #2–#4. |
+| **4** | ✅ Done | **Preferences Import merge / union** | Low | Small–Medium | Shipped with explicit conflict rules, cap-safe atomicity, and full-replace preservation. |
+| **5** | **Next** | **Hosted orientation — sticky “Warming up” modal after Back** | Medium | Small–Medium | Separate hosted lifecycle bug; profile/preferences polish is now settled. |
 
 Detail and acceptance criteria: sections below. Living design notes: [`docs/future-ideas.md`](docs/future-ideas.md). Handoff seed: [`claude-progress.md`](claude-progress.md).
 
@@ -127,6 +127,8 @@ When a selected saved profile becomes dirty, a compact round reset key appears b
 
 **Area:** Prefs import path (IndexedDB / `enqueuePrefsOp`)
 
+**Status:** ✅ Complete — 2026-07-23
+
 Beside today’s verified **full-replace** import, add an explicit **merge** strategy: keep existing profiles/styles not present in the import; add or overwrite incoming entities under documented conflict rules.
 
 Keep: versioned envelope, normalizers, entity caps, atomic IDB replace path. **Not** cloud sync or CRDT.
@@ -134,6 +136,12 @@ Keep: versioned envelope, normalizers, entity caps, atomic IDB replace path. **N
 Historical contract: [`archive/docs/pre-v6.0.0/designs/v5.11.0-prefs-storage-refactor.md`](archive/docs/pre-v6.0.0/designs/v5.11.0-prefs-storage-refactor.md).
 
 **Sprint contract example:** “Add merge import strategy + conflict rules + tests; full-replace remains default or explicit choice.”
+
+**Delivered:** Import now opens one accessible strategy sheet before the file picker. **Merge with this Studio** is the recommended UI choice: imported global and active settings apply, unmatched local profiles/styles remain, and incoming entities overwrite a stable-ID or trimmed case-insensitive-name match. Styles resolve first; if a same-name imported style changes identity, retained local profile links follow it. **Replace all preferences** remains the default API behavior and an explicit destructive UI path with its existing second confirmation.
+
+Both strategies share the v1 envelope validator, normalizers, session-text stripping, subtitle atomic key, Studio refresh, and one `enqueuePrefsOp`/IDB commit. Unions above 12 profiles or 12 styles reject before any flag, snapshot, or revision changes instead of truncating data. No schema bump, store, cloud sync, or CRDT was added.
+
+**Proof:** `node scripts/test-user-prefs-storage.mjs` **16/16**, `npm run test:profile-actions` **10/10**, `npm run test:host-neutrality` **15/15**, and `npm run compile` zero errors. Hosted interaction QA covered visual hierarchy, keyboard/Escape behavior, strategy selection, and cancel/reopen defaulting; source tests pin the explicit Replace confirmation.
 
 ---
 

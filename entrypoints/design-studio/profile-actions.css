@@ -580,6 +580,28 @@
   box-shadow: inset 3px 0 0 var(--studio-amber-action);
 }
 
+/* CHANGED: Merge and replace read as distinct transfer instruments inside the shared sheet.
+   WHY: the safe union path should feel inviting while destructive replacement remains unmistakable without relying on copy alone. */
+.studio-v4 .studio__profile-import-option--merge:has(input:checked) {
+  border-color: color-mix(in srgb, var(--studio-cyan-ready) 70%, white 8%);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--rvn-cividis-33) 48%, transparent),
+    color-mix(in srgb, var(--rvn-cividis-67) 12%, transparent)
+  );
+  box-shadow: inset 3px 0 0 var(--studio-cyan-ready);
+}
+
+.studio-v4 .studio__profile-import-option--replace:has(input:checked) {
+  border-color: color-mix(in srgb, var(--studio-negate-edge) 52%, transparent);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--studio-negate-bg) 86%, transparent),
+    rgba(34, 61, 108, 0.08)
+  );
+  box-shadow: inset 3px 0 0 var(--studio-negate-edge);
+}
+
 .studio-v4 .studio__profile-source-option input {
   width: 16px;
   height: 16px;
@@ -601,6 +623,28 @@
 .studio-v4 .studio__profile-source-option strong {
   font-size: var(--studio-font-body);
   color: var(--studio-text);
+}
+
+.studio-v4 .studio__profile-import-option--merge strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.studio-v4 .studio__profile-import-badge {
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--studio-cyan-ready) 46%, transparent);
+  border-radius: 999px;
+  color: var(--studio-cyan-ready);
+  background: color-mix(in srgb, var(--rvn-cividis-33) 38%, transparent);
+  font-family: var(--studio-font-mono);
+  font-size: 0.5rem;
+  font-style: normal;
+  font-weight: var(--studio-font-weight-label);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .studio-v4 .studio__profile-source-option small {
@@ -650,6 +694,7 @@
 .studio-v4 .studio__profile-dialog-error[hidden],
 .studio-v4 [data-profile-name-field][hidden],
 .studio-v4 [data-profile-source-options][hidden],
+.studio-v4 [data-profile-import-options][hidden],
 .studio-v4 [data-profile-delete-summary][hidden] {
   display: none;
 }
@@ -809,7 +854,8 @@
   .studio-v4 .studio__profile-reset-btn,
   .studio-v4 .studio__profile-menu-trigger,
   .studio-v4 .studio__profile-menu-item,
-  .studio-v4 .studio__profile-source-option {
+  .studio-v4 .studio__profile-source-option,
+  .studio-v4 .studio__profile-import-badge {
     border: 1px solid CanvasText;
     background: Canvas;
     color: CanvasText;

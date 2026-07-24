@@ -1,8 +1,8 @@
 # Reddit Voice Notes — Current Handoff
 
 <!--
-CHANGED: Recorded the completed #3.5 dirty-profile reset key while keeping import merge/union next.
-WHY: Fresh sessions need the exact snapshot-revert and responsive Profile deck contract before extending Import.
+CHANGED: Recorded the completed Preferences Import merge/union sprint and advanced the next lifecycle bug.
+WHY: Fresh sessions need exact transfer conflict rules and should not reopen settled storage/UI policy.
 -->
 
 ## Archive Notice (Living Document)
@@ -11,7 +11,7 @@ This file describes only the current stable baseline and the next open choices. 
 
 ## Stable baseline
 
-- post-`v6.0.0` main with Smart Adjust adjacency, Profile actions, Background/Style resets, and dirty-profile recovery complete
+- post-`v6.0.0` main with Smart Adjust adjacency, Profile actions, resets, dirty recovery, and merge/replace Preferences Import complete
 - package/tag `6.0.0` / `v6.0.0`
 - v6 Tracks A/B/C/D and the Field Guide are shipped
 - six extension execution contexts remain; hosted Design Studio is a second host, not a seventh context
@@ -26,8 +26,8 @@ This file describes only the current stable baseline and the next open choices. 
 | **2** | ✅ Done | **Profile actions menu** |
 | **3** | ✅ Done | **Reset to default / blank** — Background + Style |
 | **3.5** | ✅ Done | **Reset dirty profile** |
-| **4** | **Next** | **Prefs Import merge/union** |
-| **5** | Queued | Hosted orientation sticky **Warming up** modal after Back |
+| **4** | ✅ Done | **Prefs Import merge/union** |
+| **5** | **Next** | Hosted orientation sticky **Warming up** modal after Back |
 
 Full acceptance criteria: [`TODO.md`](TODO.md). Product background: [`docs/future-ideas.md`](docs/future-ideas.md).
 
@@ -49,10 +49,14 @@ The canonical inventory in `docs/reset-semantics.md` now covers both families wi
 
 The Profile row compression defect remains fixed: dirty **Save changes** stays to the selector’s right with a 124 px minimum (112 px only in the narrowest container).
 
+### Preferences Import merge/union (delivered)
+
+Profile Import now opens one keyboard-complete strategy sheet. **Merge with this Studio** applies the imported global/active setup while preserving unmatched local profiles and styles; incoming entities win on stable ID or trimmed case-insensitive name. Styles merge first and retained profile links follow same-name style identity replacement. **Replace all preferences** preserves the original API default and an explicit second-confirmed UI path. Either strategy validates/normalizes the v1 envelope and commits once through `enqueuePrefsOp`; an over-cap union rejects without changing subtitle flags, IDB state, or revision.
+
 ## Continue from here
 
-1. Open [`TODO.md`](TODO.md) and continue **only queue item #4** unless the user names another.
-2. Read [`docs/HISTORY.md`](docs/HISTORY.md), [`docs/design-studio.md`](docs/design-studio.md), and the archived prefs-storage contract linked from TODO; define merge conflict rules before changing Import UI.
+1. Open [`TODO.md`](TODO.md) and continue **only queue item #5** unless the user names another.
+2. Reproduce the hosted Back-navigation warm-up defect and keep the fix in the hosted orientation/launch lifecycle owner, not shared Studio modules.
 3. Check [`docs/architecture/extension-points.md`](docs/architecture/extension-points.md) before changing a pipeline, context, store, preference, visual renderer, or host seam.
 4. Keep `npm run compile` at zero errors and preserve host-neutrality for shared Studio code.
 5. After a meaningful slice: commit as `Sprint: <brief description>`; leave optional residuals documented, not expanded mid-sprint.
@@ -71,6 +75,7 @@ Start with docs/HISTORY.md and TODO.md ordered polish queue.
 Smart Adjust cue-adjacency and the responsive Profile actions control deck are complete.
 Background/Style reset semantics are complete; saved sources, unrelated state, and keyboard return paths are preserved.
 Dirty saved profiles now expose adjacent Save and snapshot-reset choices without wrapping the control deck.
-Next implementable slice: Preferences Import merge/union with explicit conflict rules beside full replace.
+Preferences Import now offers deterministic merge beside explicit full replace without changing storage ownership.
+Next implementable slice: clear the hosted orientation's stale Warming up modal after Back navigation.
 Treat completed pre-v6 and v6 track roadmaps as archive history, not active plans.
 ```

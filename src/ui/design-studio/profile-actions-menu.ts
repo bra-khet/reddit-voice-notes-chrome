@@ -1,5 +1,7 @@
-// CHANGED: Profile management uses one host-neutral menu/dialog controller plus an adjacent dirty-reset key.
-// WHY: the Studio needs compact Save/recover choices and keyboard-complete management without duplicating storage policy.
+// CHANGED: Profile management uses one host-neutral menu/dialog controller, import strategy sheet, and adjacent dirty-reset key.
+// WHY: the Studio needs compact Save/recover/transfer choices and keyboard-complete management without duplicating storage policy.
+
+import type { UserPreferencesImportStrategy } from '@/src/settings/user-preferences';
 
 export type CreateProfileSource = 'current' | 'defaults';
 
@@ -18,7 +20,7 @@ export interface ProfileActionsCallbacks {
   onReset(): Promise<void>;
   onDelete(): Promise<void>;
   onExport(): void | Promise<void>;
-  onImport(): void;
+  onImport(strategy: UserPreferencesImportStrategy): void;
 }
 
 export interface ProfileActionsHandle {
@@ -36,7 +38,7 @@ export interface ProfileActionsView {
 }
 
 type ProfileAction = 'add' | 'import' | 'rename' | 'clone' | 'export' | 'delete';
-type ProfileDialogMode = 'create' | 'rename' | 'clone' | 'delete';
+type ProfileDialogMode = 'create' | 'rename' | 'clone' | 'delete' | 'import';
 
 const PROFILE_NAME_MAX_LENGTH = 40;
 
@@ -194,7 +196,7 @@ export function renderProfileActionsMarkup(): string {
         </header>
         <div class="studio__profile-menu-group" role="group" aria-label="Create and transfer">
           ${renderMenuItem('add', 'Add profile', 'Start from this setup or product defaults')}
-          ${renderMenuItem('import', 'Import JSON', 'Replace preferences from a verified backup')}
+          ${renderMenuItem('import', 'Import JSON', 'Merge libraries or replace from a verified backup')}
         </div>
         <div class="studio__profile-menu-group" role="group" aria-label="Manage selected profile">
           ${renderMenuItem('rename', 'Rename profile', 'Change the selected profile name')}
@@ -256,6 +258,28 @@ export function renderProfileActionsMarkup(): string {
             </span>
           </label>
         </fieldset>
+        <!-- CHANGED: Import strategy is chosen before the native file picker opens. -->
+        <!-- WHY: merge and full replacement must be explicit, comparable decisions instead of a destructive afterthought. -->
+        <fieldset class="studio__profile-source-options studio__profile-import-options" data-profile-import-options hidden>
+          <legend>Import strategy</legend>
+          <label class="studio__profile-source-option studio__profile-import-option--merge">
+            <input type="radio" name="profile-import-strategy" value="merge" checked />
+            <span>
+              <strong>
+                Merge with this Studio
+                <em class="studio__profile-import-badge">Recommended</em>
+              </strong>
+              <small>Apply the backup’s settings, keep unmatched local profiles and styles, and update matching names or IDs</small>
+            </span>
+          </label>
+          <label class="studio__profile-source-option studio__profile-import-option--replace">
+            <input type="radio" name="profile-import-strategy" value="replace" />
+            <span>
+              <strong>Replace all preferences</strong>
+              <small>Restore the backup exactly; local profiles and styles missing from it are removed</small>
+            </span>
+          </label>
+        </fieldset>
         <div class="studio__profile-delete-summary" data-profile-delete-summary hidden>
           <span>Selected profile</span>
           <strong data-profile-delete-name></strong>
@@ -293,6 +317,7 @@ export function mountProfileActionsMenu(
   const nameField = root.querySelector<HTMLElement>('[data-profile-name-field]')!;
   const nameInput = root.querySelector<HTMLInputElement>('[data-profile-name-input]')!;
   const sourceOptions = root.querySelector<HTMLFieldSetElement>('[data-profile-source-options]')!;
+  const importOptions = root.querySelector<HTMLFieldSetElement>('[data-profile-import-options]')!;
   const deleteSummary = root.querySelector<HTMLElement>('[data-profile-delete-summary]')!;
   const deleteName = root.querySelector<HTMLElement>('[data-profile-delete-name]')!;
   const dialogError = root.querySelector<HTMLElement>('[data-profile-dialog-error]')!;
@@ -350,8 +375,9 @@ export function mountProfileActionsMenu(
     closeMenu();
     dialogMode = mode;
     dialogError.hidden = true;
-    nameField.hidden = mode === 'delete';
+    nameField.hidden = mode === 'delete' || mode === 'import';
     sourceOptions.hidden = mode !== 'create';
+    importOptions.hidden = mode !== 'import';
     deleteSummary.hidden = mode !== 'delete';
     dialogSubmit.classList.toggle('popup__profile-btn--delete', mode === 'delete');
     dialogSubmit.classList.toggle('popup__profile-btn--save', mode !== 'delete');
@@ -381,18 +407,29 @@ export function mountProfileActionsMenu(
         state.profileNames,
       );
       dialogSubmit.textContent = state.profileDirty ? 'Save as new' : 'Clone profile';
-    } else {
+    } else if (mode === 'delete') {
       dialogTitle.textContent = 'Delete profile?';
       dialogCopy.textContent =
         'This is a permanent profile action and needs one explicit confirmation.';
       deleteName.textContent = state.activeProfileName ?? 'Selected profile';
       dialogSubmit.textContent = 'Delete profile';
+    } else {
+      dialogTitle.textContent = 'Import preferences';
+      dialogCopy.textContent =
+        'Choose how this verified backup joins the Studio. Both paths normalize first and save once.';
+      dialogSubmit.textContent = 'Choose JSON file';
+      const mergeStrategy = importOptions.querySelector<HTMLInputElement>(
+        'input[value="merge"]',
+      );
+      if (mergeStrategy) mergeStrategy.checked = true;
     }
 
     modal.hidden = false;
     requestAnimationFrame(() => {
       if (mode === 'delete') {
         dialogCancel.focus();
+      } else if (mode === 'import') {
+        importOptions.querySelector<HTMLInputElement>('input:checked')?.focus();
       } else {
         nameInput.focus();
         nameInput.select();
@@ -413,8 +450,7 @@ export function mountProfileActionsMenu(
     } else if (action === 'delete') {
       openDialog('delete');
     } else if (action === 'import') {
-      closeMenu();
-      callbacks.onImport();
+      openDialog('import');
     } else {
       closeMenu();
       await callbacks.onExport();
@@ -535,7 +571,7 @@ export function mountProfileActionsMenu(
     if (!dialogMode) return;
     const mode = dialogMode;
     const name = nameInput.value.trim();
-    if (mode !== 'delete' && !name) {
+    if (mode !== 'delete' && mode !== 'import' && !name) {
       dialogError.textContent = 'Enter a profile name.';
       dialogError.hidden = false;
       nameInput.focus();
@@ -559,8 +595,16 @@ export function mountProfileActionsMenu(
         await callbacks.onRename(name);
       } else if (mode === 'clone') {
         await callbacks.onClone(name);
-      } else {
+      } else if (mode === 'delete') {
         await callbacks.onDelete();
+      } else {
+        const strategy =
+          importOptions.querySelector<HTMLInputElement>(
+            'input[name="profile-import-strategy"]:checked',
+          )?.value === 'replace'
+            ? 'replace'
+            : 'merge';
+        callbacks.onImport(strategy);
       }
       closeDialog();
     })().catch((error: unknown) => {
@@ -574,7 +618,11 @@ export function mountProfileActionsMenu(
       dialogSubmit.disabled = false;
       dialogCancel.disabled = false;
       dialogClose.disabled = false;
-      if (mode !== 'delete') nameInput.focus();
+      if (mode === 'import') {
+        importOptions.querySelector<HTMLInputElement>('input:checked')?.focus();
+      } else if (mode !== 'delete') {
+        nameInput.focus();
+      }
     });
   });
 

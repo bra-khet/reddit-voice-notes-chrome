@@ -85,6 +85,8 @@ interface UserPreferencesExportPayload {
   exportedAt: string;
   preferences: UserPreferencesV1;
 }
+
+export type UserPreferencesImportStrategy = 'replace' | 'merge';
 /** One-time marker — flips stored v5.3.10 rollout `webCodecsBake: false` to true. */
 export const WEBCODECS_BAKE_ROLLOUT_MIGRATED_KEY = 'rvnWebCodecsBakeRolloutMigrated' as const;
 /** One-time marker — flips stored v5.5.0 rollout `browserComposite: false` to true. */
@@ -705,10 +707,154 @@ export async function exportUserPreferencesAsJSON(): Promise<string> {
   return JSON.stringify(payload, null, 2);
 }
 
-/** Validate, normalize, and atomically replace the live preference snapshot. */
+interface ImportEntity {
+  id: string;
+  name: string;
+}
+
+interface MergedImportEntities<T extends ImportEntity> {
+  items: T[];
+  idAliases: Map<string, string>;
+}
+
+function importEntityNameKey(name: string): string {
+  return name.trim().toLocaleLowerCase();
+}
+
+/**
+ * Incoming records win by stable id or case-insensitive display name.
+ * Existing order is retained where possible; genuinely new imports append.
+ */
+function mergeImportedEntities<T extends ImportEntity>(
+  current: readonly T[],
+  incoming: readonly T[],
+  limit: number,
+  label: 'profiles' | 'styles',
+): MergedImportEntities<T> {
+  let items = [...current];
+  const idAliases = new Map<string, string>();
+
+  for (const imported of incoming) {
+    const importedName = importEntityNameKey(imported.name);
+    const conflictIndexes: number[] = [];
+    items.forEach((candidate, index) => {
+      if (
+        candidate.id === imported.id ||
+        importEntityNameKey(candidate.name) === importedName
+      ) {
+        conflictIndexes.push(index);
+        if (candidate.id !== imported.id) idAliases.set(candidate.id, imported.id);
+      }
+    });
+
+    const insertAt =
+      conflictIndexes.length > 0 ? Math.min(...conflictIndexes) : items.length;
+    const conflicts = new Set(conflictIndexes);
+    items = items.filter((_, index) => !conflicts.has(index));
+    items.splice(Math.min(insertAt, items.length), 0, imported);
+  }
+
+  if (items.length > limit) {
+    throw new Error(
+      `Merge would create ${items.length} ${label}, above the limit of ${limit}. ` +
+        `Delete ${label} first or choose Replace all.`,
+    );
+  }
+
+  return { items, idAliases };
+}
+
+function resolveImportedEntityId(
+  id: string | null | undefined,
+  aliases: ReadonlyMap<string, string>,
+  survivingIds?: ReadonlySet<string>,
+): string | null {
+  if (!id) return null;
+  let resolved = id;
+  const visited = new Set<string>();
+  while (
+    !survivingIds?.has(resolved) &&
+    aliases.has(resolved) &&
+    !visited.has(resolved)
+  ) {
+    visited.add(resolved);
+    resolved = aliases.get(resolved)!;
+  }
+  return resolved;
+}
+
+function mergeImportedPreferenceCollections(
+  current: UserPreferencesV1,
+  imported: UserPreferencesV1,
+): UserPreferencesV1 {
+  // CHANGED: merge imports reconcile styles before profiles and preserve incoming identity.
+  // WHY: profiles can link to styles whose case-insensitive name collision replaces a local id.
+  const styles = mergeImportedEntities(
+    current.appearance.savedCustomStyles ?? [],
+    imported.appearance.savedCustomStyles ?? [],
+    MAX_CUSTOM_STYLES,
+    'styles',
+  );
+  const validStyleIds = new Set(styles.items.map((style) => style.id));
+  const relinkProfiles = (profiles: readonly ClipProfile[]): ClipProfile[] =>
+    profiles.map((profile) => {
+      const customStyleId = resolveImportedEntityId(
+        profile.customStyleId,
+        styles.idAliases,
+        validStyleIds,
+      );
+      return {
+        ...profile,
+        customStyleId: customStyleId && validStyleIds.has(customStyleId)
+          ? customStyleId
+          : null,
+      };
+    });
+  const profiles = mergeImportedEntities(
+    relinkProfiles(current.appearance.savedProfiles ?? []),
+    relinkProfiles(imported.appearance.savedProfiles ?? []),
+    MAX_CLIP_PROFILES,
+    'profiles',
+  );
+  const savedProfiles = normalizeClipProfiles(profiles.items, styles.items);
+  const activeCustomStyleId = resolveImportedEntityId(
+    imported.appearance.activeCustomStyleId,
+    styles.idAliases,
+    validStyleIds,
+  );
+  const survivingProfileIds = new Set(savedProfiles.map((profile) => profile.id));
+  const activeProfileId = resolveImportedEntityId(
+    imported.appearance.activeProfileId,
+    profiles.idAliases,
+    survivingProfileIds,
+  );
+
+  return {
+    ...imported,
+    appearance: {
+      ...imported.appearance,
+      savedCustomStyles: styles.items,
+      savedProfiles,
+      activeCustomStyleId: normalizeActiveCustomStyleId(
+        activeCustomStyleId,
+        styles.items,
+      ),
+      activeProfileId: normalizeActiveProfileId(activeProfileId, savedProfiles),
+    },
+  };
+}
+
+/**
+ * Validate, normalize, and atomically import a preference snapshot.
+ * `replace` preserves the original v5.11 behavior; `merge` unions profile/style libraries.
+ */
 export async function importUserPreferencesFromJSON(
   json: string,
+  strategy: UserPreferencesImportStrategy = 'replace',
 ): Promise<UserPreferencesV1> {
+  if (strategy !== 'replace' && strategy !== 'merge') {
+    throw new Error('Choose a supported preferences import strategy.');
+  }
   const imported = mergePreferences(importedPreferencesFromJson(json));
   const normalized: UserPreferencesV1 = {
     ...imported,
@@ -727,18 +873,21 @@ export async function importUserPreferencesFromJSON(
 
   return enqueuePrefsOp(async () => {
     const current = await readUserPreferencesBlob();
+    const next = strategy === 'merge'
+      ? mergeImportedPreferenceCollections(current, normalized)
+      : normalized;
     const previousSubtitlesEnabled = normalizeTranscriptConfig(
       current.transcriptConfig,
     ).transcriptionEnabled;
     const importedSubtitlesEnabled = normalizeTranscriptConfig(
-      normalized.transcriptConfig,
+      next.transcriptConfig,
     ).transcriptionEnabled;
 
-    // CHANGED: imported subtitle enablement follows the existing BUG-019 atomic-key pathway.
+    // CHANGED: both import strategies follow the existing BUG-019 atomic-key pathway.
     // WHY: a later prefs merge must not overwrite the toggle selected by the imported snapshot.
     await setSubtitlesEnabled(importedSubtitlesEnabled);
     try {
-      return await commitUserPreferences(normalized);
+      return await commitUserPreferences(next);
     } catch (error) {
       try {
         await setSubtitlesEnabled(previousSubtitlesEnabled);

@@ -1,8 +1,8 @@
 # Design Studio — Current Product Contract
 
 <!--
-CHANGED: Added the dirty-profile snapshot reset to the current Profile control contract.
-WHY: Post-v6 work must distinguish reverting a saved profile from default/blank field resets.
+CHANGED: Added the explicit merge/replace Preferences Import contract to the current Profile control surface.
+WHY: Post-v6 work needs deterministic transfer rules without reopening storage ownership or schema decisions.
 -->
 
 ## Archive Notice (Living Document)
@@ -138,9 +138,18 @@ Keep four independent layers:
 | Transcript panel | Session transcript IDB | No | Yes |
 | Segment modal | Applies to transcript draft | No | No |
 
-Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, full-replace Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot; a neighboring semantic reset key reapplies the selected saved profile through `applyClipProfile()` and then returns focus to the selector. The four-column row never wraps. Profile writes continue through the serialized preference coordinator and existing normalizers.
+Named profiles/styles preserve four actions: first save, confirmed update, clean clone, and dirty fork/save-to-new. The Profile control deck groups Add, strategy-based Import, Rename, Clone / dirty Save as new, Export, and Delete in one accessible menu. Add can snapshot the current setup or start from clean product defaults. Add/Rename/Clone/Delete share one dialog primitive; Delete receives an emphasized second step. Dirty **Save changes** stays outside the menu in a reserved slot; a neighboring semantic reset key reapplies the selected saved profile through `applyClipProfile()` and then returns focus to the selector. The four-column row never wraps. Profile writes continue through the serialized preference coordinator and existing normalizers.
 
 Reset operations distinguish **Restore defaults** from **Clear override** only when both destinations are real. Background restores normalized layout while retaining selected media, or reveals the active theme without deleting the upload. Style restores its authored source, or detaches the custom layer and resolves the bundled base preset without deleting the saved Style. Both use the shared top-layer choice sheet and normal appearance writer; profile identity, transcript, take, and unrelated settings remain untouched. Canonical inventory and copy: [`reset-semantics.md`](reset-semantics.md).
+
+## Preferences transfer
+
+Export remains one complete, versioned, normalized preferences snapshot. Import presents two explicit strategies before the native file picker:
+
+- **Merge with this Studio** (recommended): imported global/active settings take effect; unmatched local profiles and custom styles remain. An incoming entity replaces a local entity when either its stable ID or its trimmed, case-insensitive name matches. Style conflicts resolve before profiles, and retained local profiles are relinked if a same-name incoming style has a different ID.
+- **Replace all preferences:** restore the imported snapshot exactly. Profiles and styles absent from the file are removed after an additional destructive confirmation.
+
+Both paths validate the same v1 envelope, strip session transcript content, normalize styles before profiles, preserve the 12-profile/12-style caps, and commit once through `enqueuePrefsOp`. A merge that would exceed either cap fails before subtitle flags, IDB records, or the revision signal change; the user must delete entities or choose Replace. This is local deterministic union—not cloud sync, history reconciliation, or a CRDT.
 
 ## Integration rules
 

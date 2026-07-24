@@ -1,8 +1,8 @@
 # Future Ideas — Post-v6
 
 <!--
-CHANGED: Recorded the shipped #3.5 dirty-profile reset key without moving the active queue pointer.
-WHY: The product register should preserve the added recovery behavior without presenting it as an open idea.
+CHANGED: Recorded the shipped Preferences Import merge/union behavior and advanced the queue pointer.
+WHY: The product register should preserve the settled conflict rules without presenting transfer work as open.
 -->
 
 ## Archive Notice (Living Document)
@@ -21,8 +21,8 @@ These remain documented for product context; **execute from TODO**:
 | Profile actions menu | **2 — Done** | Responsive Add / Import / Rename / Clone-or-Save-as-new / Export / confirmed Delete; dirty Save stays outside. |
 | Reset to default / reset to blank | **3 — Done** | Background and Style share one normalized, scope-preserving choice sheet; false two-destination families remain intentionally single-action. |
 | Reset dirty profile | **3.5 — Done** | A reserved lavender recovery key beside Save reapplies the selected profile snapshot and preserves unrelated session/media state. |
-| Preferences Import merge / union | **4 — Next** | Explicit merge beside full-replace; no CRDT. |
-| Hosted orientation sticky warm-up modal after Back | **5** | Clear restored launch state without moving hosted lifecycle policy into shared Studio code. |
+| Preferences Import merge / union | **4 — Done** | Recommended merge preserves unmatched local libraries; incoming ID/name conflicts win; over-cap unions reject. Full replace remains explicit; no CRDT. |
+| Hosted orientation sticky warm-up modal after Back | **5 — Next** | Clear restored launch state without moving hosted lifecycle policy into shared Studio code. |
 
 ---
 

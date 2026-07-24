@@ -1,11 +1,11 @@
 # Extension Points — Reddit Voice Notes
 
 <!--
-CHANGED: Rebuilt the registry around current seams and sync requirements, removing the pre-release changelog and carry-forward diary.
-WHY: New work needs exact files/contracts without reading every historical addition to the seam.
+CHANGED: Added the merge/replace transfer contract to the existing preference seam.
+WHY: Future import work must preserve deterministic entity conflicts, cap safety, and the single serialized writer.
 -->
 
-**Version:** v1.44 · **Baseline:** `v6.0.0` · **Updated:** 2026-07-23
+**Version:** v1.45 · **Baseline:** `v6.0.0` · **Updated:** 2026-07-23
 
 ## Archive Notice (Living Document)
 
@@ -60,6 +60,9 @@ A new lifecycle-bearing family requires an architecture-map update and likely an
 - Truth is `rvnUserPrefs` IDB (`global`, `profiles`, `customStyles`).
 - Serialize RMW through `enqueuePrefsOp`.
 - Normalize reads/imports/migration and every new field.
+- Import `replace` remains the default API behavior; `merge` applies incoming global settings and unions only profile/style collections.
+- Merge conflicts resolve incoming-first by stable ID or trimmed case-insensitive name; styles resolve before profiles so displaced style IDs can be relinked.
+- Reject an over-cap union before changing subtitle flags, IDB records, or the coordinator revision. Never truncate retained entities silently.
 - Commit the full transaction before publishing `rvnUserPrefs.v2`.
 - Reddit content scripts load/replace through background helpers.
 - Hosted Studio owns its HTTPS-origin DB via `isOwnStorageOrigin()`.
