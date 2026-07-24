@@ -15,6 +15,7 @@
     "test:style-control-center": "node scripts/test-style-control-center.mjs",
     "test:profile-actions": "node scripts/test-profile-actions.mjs",
     "test:settings-reset": "node scripts/test-settings-reset.mjs",
+    "test:chronos-gate": "node scripts/test-chronos-gate.mjs",
     "test:host-neutrality": "node scripts/test-host-neutrality.mjs",
     "test:relay-pipeline-host": "node scripts/test-relay-pipeline-host.mjs",
     "test:workflow-banner-host": "node scripts/test-workflow-banner-host.mjs",

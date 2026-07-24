@@ -1,8 +1,9 @@
 # Bug Archive — Prevention Index
 
 <!--
-CHANGED: Condensed full BUG-001–038 forensics into a current prevention and lookup index.
-WHY: Root-cause narratives remain available in the archive, while the living layer should expose durable lessons and open risk.
+BUG FIX: hosted orientation restored a stale Warming up modal after Back navigation
+Fix: Added BUG-041 and the host-shell lifecycle rule that clears cached modal state and invalidates stale async runs.
+Sync: static-voice-studio-design.md; architecture/extension-points.md; ../TODO.md; ../claude-progress.md
 -->
 
 ## Archive Notice (Living Document)
@@ -24,6 +25,7 @@ Sync: design-studio.md; reset-semantics.md; TODO.md; claude-progress.md
 | Vosk/CSP/terminal lifecycle | 010–015, 018, 026, 032, 034, 038 | Keep Vosk in the manifest sandbox; validate each origin boundary; serialize boot; let background own terminal persistence/watchdog |
 | Subtitle composite fidelity | 025, 028, 030–031, 035–036 | Prefer shared canvas painter; bound drawtext layers; use punctuation-safe text files; preserve frame pacing and explicit fallback |
 | Development tooling | 037 | Keep ignored bulk artifacts outside WXT watch paths on Windows |
+| Hosted shell/navigation lifecycle | 041 | Give temporary overlays one host-owned lifecycle; clear cached DOM/guards on navigation restoration and invalidate stale async completions |
 
 ## Bug lookup
 
@@ -67,6 +69,7 @@ Sync: design-studio.md; reset-semantics.md; TODO.md; claude-progress.md
 | BUG-038 | Transcript lost after initiating tab closes | Background terminal owner |
 | BUG-039 | Custom profile Save changes action hidden | Profile save-action policy |
 | BUG-040 | Profile Reset busy while clean / inert for Custom | Profile reset destination policy |
+| BUG-041 | Hosted Warming up modal restored after Back | Hosted orientation gate lifecycle |
 
 BUG-029 and BUG-033 were never assigned in the preserved ledger.
 

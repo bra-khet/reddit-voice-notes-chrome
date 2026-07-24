@@ -1,9 +1,9 @@
 # Reddit Voice Notes — Current Handoff
 
 <!--
-BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
-Fix: Updated the handoff with the dormant clean state and complete Custom product-default recovery path.
-Sync: TODO.md; docs/reset-semantics.md; docs/design-studio.md
+BUG FIX: hosted orientation restored a stale Warming up modal after Back navigation
+Fix: Updated the handoff with the BFCache-safe gate lifecycle and completed post-v6 polish queue.
+Sync: TODO.md; docs/static-voice-studio-design.md; docs/architecture/extension-points.md
 -->
 
 ## Archive Notice (Living Document)
@@ -12,7 +12,7 @@ This file describes only the current stable baseline and the next open choices. 
 
 ## Stable baseline
 
-- post-`v6.0.0` main with Smart Adjust adjacency, Profile actions, resets, dirty recovery, and merge/replace Preferences Import complete
+- post-`v6.0.0` main with the full ordered polish queue complete, including BFCache-safe hosted orientation restoration
 - package/tag `6.0.0` / `v6.0.0`
 - v6 Tracks A/B/C/D and the Field Guide are shipped
 - six extension execution contexts remain; hosted Design Studio is a second host, not a seventh context
@@ -28,7 +28,7 @@ This file describes only the current stable baseline and the next open choices. 
 | **3** | ✅ Done | **Reset to default / blank** — Background + Style |
 | **3.5** | ✅ Done | **Reset dirty profile** |
 | **4** | ✅ Done | **Prefs Import merge/union** |
-| **5** | **Next** | Hosted orientation sticky **Warming up** modal after Back |
+| **5** | ✅ Done | Hosted orientation sticky **Warming up** modal after Back |
 
 Full acceptance criteria: [`TODO.md`](TODO.md). Product background: [`docs/future-ideas.md`](docs/future-ideas.md).
 
@@ -64,10 +64,19 @@ The Profile row compression defect remains fixed: dirty **Save changes** stays t
 
 Profile Import now opens one keyboard-complete strategy sheet. **Merge with this Studio** applies the imported global/active setup while preserving unmatched local profiles and styles; incoming entities win on stable ID or trimmed case-insensitive name. Styles merge first and retained profile links follow same-name style identity replacement. **Replace all preferences** preserves the original API default and an explicit second-confirmed UI path. Either strategy validates/normalizes the v1 envelope and commits once through `enqueuePrefsOp`; an over-cap union rejects without changing subtitle flags, IDB state, or revision.
 
+### Hosted orientation restoration (delivered)
+
+<!--
+BUG FIX: hosted orientation restored a stale Warming up modal after Back navigation
+Fix: The hub now owns and clears its chronos overlay/guard before successful navigation and on persisted pageshow, while invalidating stale async warm attempts.
+Sync: TODO.md; docs/static-voice-studio-design.md; docs/bug-archive.md
+-->
+The hosted orientation’s chronos gate now has an explicit lifecycle owner. Successful launch clears its overlay and re-entry guard before the page can be cached; a persisted `pageshow` defensively clears any restored gate state and invalidates the old async run so it cannot redirect later. A normal pending launch remains visible, failure keeps its Retry / Open anyway recovery, and a restored orientation can immediately launch again. Proof: `npm run test:chronos-gate` **7/7**, demo TypeScript zero errors, host neutrality **15/15**, root compile zero errors, and hosted orientation → usable Studio → Back → relaunch browser QA with no console errors.
+
 ## Continue from here
 
-1. Open [`TODO.md`](TODO.md) and continue **only queue item #5** unless the user names another.
-2. Reproduce the hosted Back-navigation warm-up defect and keep the fix in the hosted orientation/launch lifecycle owner, not shared Studio modules.
+1. The ordered post-v6 polish queue is complete; take only the next user-selected slice rather than promoting an unscheduled residual implicitly.
+2. Keep hosted orientation/launch policy in `demo/src/hub/chronos-gate.ts`, not shared Studio modules.
 3. Check [`docs/architecture/extension-points.md`](docs/architecture/extension-points.md) before changing a pipeline, context, store, preference, visual renderer, or host seam.
 4. Keep `npm run compile` at zero errors and preserve host-neutrality for shared Studio code.
 5. After a meaningful slice: commit as `Sprint: <brief description>`; leave optional residuals documented, not expanded mid-sprint.
@@ -87,6 +96,7 @@ Smart Adjust cue-adjacency and the responsive Profile actions control deck are c
 Background/Style reset semantics are complete; saved sources, unrelated state, and keyboard return paths are preserved.
 Dirty saved profiles now expose adjacent Save and snapshot-reset choices without wrapping the control deck.
 Preferences Import now offers deterministic merge beside explicit full replace without changing storage ownership.
-Next implementable slice: clear the hosted orientation's stale Warming up modal after Back navigation.
+The hosted orientation now restores cleanly after Back and can immediately relaunch the Studio.
+The ordered post-v6 polish queue is complete; wait for the next user-selected slice.
 Treat completed pre-v6 and v6 track roadmaps as archive history, not active plans.
 ```

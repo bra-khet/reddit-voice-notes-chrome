@@ -323,16 +323,35 @@ function buildOverlay(): Overlay {
 // ── Public entry ─────────────────────────────────────────────────────────────
 
 let gateOpen = false;
+let gateRunId = 0;
+let activeOverlay: Overlay | null = null;
+
+// BUG FIX: hosted orientation restored a stale warm-up modal from the back-forward cache
+// Fix: Clear the owned overlay/guard on successful navigation and on BFCache restoration,
+// then invalidate any older async warm attempt so it cannot re-open or redirect the hub.
+function clearGateState(): void {
+  gateOpen = false;
+  gateRunId += 1;
+  activeOverlay?.remove();
+  activeOverlay = null;
+}
+
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) clearGateState();
+});
 
 function goToStudio(): void {
   window.location.assign(STUDIO_URL);
+  clearGateState();
 }
 
 async function runGate(): Promise<void> {
   if (gateOpen) return;
   gateOpen = true;
+  const runId = ++gateRunId;
 
   const overlay = buildOverlay();
+  activeOverlay = overlay;
   document.body.appendChild(overlay.el);
   overlay.el.querySelector<HTMLElement>('.chronos__card')?.focus();
 
@@ -342,9 +361,11 @@ async function runGate(): Promise<void> {
     if (errorBox) errorBox.hidden = true;
     try {
       await withTimeout(warmEngines((event) => overlay.update(event)), GATE_TIMEOUT_MS);
+      if (runId !== gateRunId) return;
       overlay.update({ key: 'opening' });
       goToStudio();
     } catch (error) {
+      if (runId !== gateRunId) return;
       const message = error instanceof Error ? error.message : String(error);
       // §5.1: never trap the user. Retry re-warms; Open anyway proceeds un-warmed,
       // with the warning that names the real, invisible consequence (first-bake

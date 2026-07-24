@@ -5,6 +5,12 @@ CHANGED: Replaced the original static Voice Studio implementation plan with the 
 WHY: The same path is already referenced by demo documentation, while the old phase plan is now archive history.
 -->
 
+<!--
+BUG FIX: hosted orientation restored a stale Warming up modal after Back navigation
+Fix: Added the hub-owned chronos lifecycle contract for successful navigation and BFCache restoration.
+Sync: architecture/extension-points.md; ../TODO.md; bug-archive.md
+-->
+
 ## Archive Notice (Living Document)
 
 The original Voice Lab design/phase plan is preserved at [`archive/docs/v6.0.0-checkpoint/living-snapshots/static-voice-studio-design.md`](../archive/docs/v6.0.0-checkpoint/living-snapshots/static-voice-studio-design.md). The completed full-Studio roadmap is at [`archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md`](../archive/docs/v6.0.0-checkpoint/track-roadmaps/v6.0.0-hosted-design-studio.md); milestone context lives in [`HISTORY.md`](HISTORY.md).
@@ -22,6 +28,16 @@ Base URL: `/reddit-voice-notes-chrome/`
 | `/studio/` | Lightweight Voice Lab |
 
 The canonical Field Guide source is documented by [`tutorial/README.md`](tutorial/README.md).
+
+## Orientation launch gate
+
+The orientation hub owns the first-load chronos gate in `demo/src/hub/chronos-gate.ts`. It warms the same FFmpeg asset URLs the hosted Studio consumes, while preserving explicit Retry and Open anyway recovery on failure.
+
+- A genuine pending launch owns one modal and one run token.
+- Successful navigation clears the modal and re-entry guard before the orientation page can become a back-forward cache entry.
+- A persisted `pageshow` defensively clears restored gate state and invalidates the previous async run; that run may not later redirect the hub.
+- An ordinary `pageshow` does not cancel a real in-progress warm.
+- This lifecycle belongs to the hosted shell. Shared Studio modules remain unaware of orientation or browser-history policy.
 
 ## One-source rule
 

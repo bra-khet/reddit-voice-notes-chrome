@@ -1,11 +1,12 @@
 # Extension Points — Reddit Voice Notes
 
 <!--
-CHANGED: Added the merge/replace transfer contract to the existing preference seam.
-WHY: Future import work must preserve deterministic entity conflicts, cap safety, and the single serialized writer.
+BUG FIX: hosted orientation restored a stale Warming up modal after Back navigation
+Fix: Registered the hub-owned chronos/BFCache lifecycle at the existing hosted seam.
+Sync: ../static-voice-studio-design.md; ../../TODO.md; ../bug-archive.md
 -->
 
-**Version:** v1.45 · **Baseline:** `v6.0.0` · **Updated:** 2026-07-23
+**Version:** v1.46 · **Baseline:** `v6.0.0` · **Updated:** 2026-07-24
 
 ## Archive Notice (Living Document)
 
@@ -178,6 +179,8 @@ Canonical: [`../design-studio.md`](../design-studio.md).
 - Mirror complete runtime asset trees.
 - Loopback relay ignores already-targeted messages and does not duplicate progress/complete.
 - Artifact relays use the shared persist/signal/stamp choke point when no background responds.
+- The orientation chronos gate owns its overlay and async run token; clear both before successful navigation and on persisted `pageshow`, and reject stale completions after restoration.
+- Keep orientation/history policy under `demo/src/hub/`; shared Studio modules must not inspect navigation history or own the launch gate.
 - Root TypeScript excludes `demo/`; demo build runs host-neutrality, TypeScript, then Vite.
 
 Current hosted contract: [`../static-voice-studio-design.md`](../static-voice-studio-design.md). A host adapter that begins making product policy rather than relaying is the ADR-0011 trigger.

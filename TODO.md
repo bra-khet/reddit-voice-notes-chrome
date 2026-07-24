@@ -1,9 +1,9 @@
 # TODO — Post-v6.0.0
 
 <!--
-BUG FIX: Profile Reset looked busy while clean and could not restore Custom defaults
-Fix: Updated delivered item 3.5 with its dormant clean state and complete Custom product-default pathway.
-Sync: claude-progress.md; docs/reset-semantics.md; docs/design-studio.md
+BUG FIX: hosted orientation restored a stale Warming up modal after Back navigation
+Fix: Marked item 5 delivered with its BFCache-safe gate lifecycle and regression proof.
+Sync: claude-progress.md; docs/static-voice-studio-design.md; docs/architecture/extension-points.md
 -->
 
 ## Archive Notice (Living Document)
@@ -21,7 +21,7 @@ Work **one bounded slice at a time**. Order is intentional; completed items stay
 | **3** | ✅ Done | **Reset to default / reset to blank** | Medium | Medium | The two distinct families—Background and Style—now share normalized, scope-preserving return paths. |
 | **3.5** | ✅ Done | **Reset dirty profile** | Medium | Small | A compact recovery key now reapplies the selected saved snapshot beside Save without wrapping the deck. |
 | **4** | ✅ Done | **Preferences Import merge / union** | Low | Small–Medium | Shipped with explicit conflict rules, cap-safe atomicity, and full-replace preservation. |
-| **5** | **Next** | **Hosted orientation — sticky “Warming up” modal after Back** | Medium | Small–Medium | Separate hosted lifecycle bug; profile/preferences polish is now settled. |
+| **5** | ✅ Done | **Hosted orientation — sticky “Warming up” modal after Back** | Medium | Small–Medium | The hub now clears cached gate state and invalidates stale warm attempts on restoration. |
 
 Detail and acceptance criteria: sections below. Living design notes: [`docs/future-ideas.md`](docs/future-ideas.md). Handoff seed: [`claude-progress.md`](claude-progress.md).
 
@@ -162,6 +162,8 @@ Both strategies share the v1 envelope validator, normalizers, session-text strip
 
 **Area:** Hosted orientation launch/navigation lifecycle
 
+**Status:** ✅ Complete — 2026-07-24
+
 **Problem:** After the hosted Design Studio finishes loading, navigating Back to the hosted orientation page can restore a stale **Warming up the Design Studio** modal. The orientation page remains blocked until refresh.
 
 **Acceptance:**
@@ -173,6 +175,15 @@ Both strategies share the v1 envelope validator, normalizers, session-text strip
 - Keep the fix in the hosted shell/lifecycle owner; do not introduce hosted policy into shared Studio modules.
 
 **Sprint contract example:** “Clear stale hosted warm-up state when orientation is restored after Back navigation, while preserving the normal launch lifecycle.”
+
+<!--
+BUG FIX: hosted orientation restored a stale Warming up modal after Back navigation
+Fix: The chronos gate now clears its owned overlay/guard on successful navigation and persisted pageshow, and stale async runs cannot redirect a restored hub.
+Sync: claude-progress.md; docs/static-voice-studio-design.md; docs/bug-archive.md
+-->
+**Delivered:** `demo/src/hub/chronos-gate.ts` now owns an active overlay and generation token. Successful Studio navigation clears the modal and re-entry guard before the orientation page can be cached. A BFCache `pageshow` repeats that cleanup defensively and invalidates the prior warm attempt, while an ordinary `pageshow` leaves a genuinely pending launch alone. Retry / Open anyway behavior remains intact, and a restored page can launch again immediately.
+
+**Proof:** `npm run test:chronos-gate` **7/7**, demo TypeScript zero errors, `npm run test:host-neutrality` **15/15**, and `npm run compile` zero errors. Hosted browser QA covered orientation → usable Design Studio → Back with no modal, then a successful immediate relaunch; console logs contained no errors.
 
 ---
 
